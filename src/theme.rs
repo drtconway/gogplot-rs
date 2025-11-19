@@ -235,10 +235,14 @@ impl Default for PanelTheme {
             border: None,
             grid_major: Some(LineStyle {
                 color: color::WHITE,
-                width: 1.0,
+                width: 1.5,
                 dash: None,
             }),
-            grid_minor: None,
+            grid_minor: Some(LineStyle {
+                color: color::WHITE,
+                width: 0.75,
+                dash: None,
+            }),
         }
     }
 }

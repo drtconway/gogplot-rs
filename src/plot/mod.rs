@@ -304,6 +304,82 @@ impl Plot {
         Self::apply_color(ctx, &text.color);
     }
 
+    /// Draw grid lines in the panel area
+    fn draw_grid_lines(
+        &self,
+        ctx: &mut Context,
+        plot_x0: f64,
+        plot_x1: f64,
+        plot_y0: f64,
+        plot_y1: f64,
+    ) -> Result<(), PlotError> {
+        // Draw minor grid lines first (if present) so major grid lines are on top
+        if let Some(ref grid_minor) = self.theme.panel.grid_minor {
+            Self::apply_line_style(ctx, grid_minor);
+            
+            // X-axis minor grid lines
+            if let Some(ref x_scale) = self.scales.x {
+                let breaks = x_scale.breaks();
+                // Generate minor breaks between major breaks
+                for i in 0..breaks.len().saturating_sub(1) {
+                    let mid = (breaks[i] + breaks[i + 1]) / 2.0;
+                    if let Some(normalized) = x_scale.map_value(mid) {
+                        let x = plot_x0 + normalized * (plot_x1 - plot_x0);
+                        ctx.move_to(x, plot_y0);
+                        ctx.line_to(x, plot_y1);
+                    }
+                }
+            }
+            
+            // Y-axis minor grid lines
+            if let Some(ref y_scale) = self.scales.y {
+                let breaks = y_scale.breaks();
+                // Generate minor breaks between major breaks
+                for i in 0..breaks.len().saturating_sub(1) {
+                    let mid = (breaks[i] + breaks[i + 1]) / 2.0;
+                    if let Some(normalized) = y_scale.map_value(mid) {
+                        let y = plot_y1 - normalized * (plot_y1 - plot_y0);
+                        ctx.move_to(plot_x0, y);
+                        ctx.line_to(plot_x1, y);
+                    }
+                }
+            }
+            
+            ctx.stroke().ok();
+        }
+        
+        // Draw major grid lines
+        if let Some(ref grid_major) = self.theme.panel.grid_major {
+            Self::apply_line_style(ctx, grid_major);
+            
+            // X-axis major grid lines (vertical lines at tick positions)
+            if let Some(ref x_scale) = self.scales.x {
+                for &break_value in x_scale.breaks() {
+                    if let Some(normalized) = x_scale.map_value(break_value) {
+                        let x = plot_x0 + normalized * (plot_x1 - plot_x0);
+                        ctx.move_to(x, plot_y0);
+                        ctx.line_to(x, plot_y1);
+                    }
+                }
+            }
+            
+            // Y-axis major grid lines (horizontal lines at tick positions)
+            if let Some(ref y_scale) = self.scales.y {
+                for &break_value in y_scale.breaks() {
+                    if let Some(normalized) = y_scale.map_value(break_value) {
+                        let y = plot_y1 - normalized * (plot_y1 - plot_y0);
+                        ctx.move_to(plot_x0, y);
+                        ctx.line_to(plot_x1, y);
+                    }
+                }
+            }
+            
+            ctx.stroke().ok();
+        }
+        
+        Ok(())
+    }
+
     /// Draw axes with tick marks and labels
     fn draw_axes(
         &self,
@@ -874,6 +950,9 @@ impl Plot {
             ctx.rectangle(plot_x0, plot_y0, plot_x1 - plot_x0, plot_y1 - plot_y0);
             ctx.fill().ok();
         }
+
+        // Draw grid lines (before border so border is on top)
+        self.draw_grid_lines(ctx, plot_x0, plot_x1, plot_y0, plot_y1)?;
 
         // Draw panel border
         if let Some(ref border) = self.theme.panel.border {
