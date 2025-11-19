@@ -161,49 +161,8 @@ impl Plot {
         let mut ctx = Context::new(&surface)
             .map_err(|e| PlotError::ThemeError(format!("Failed to create context: {}", e)))?;
 
-        // Fill background
-        ctx.set_source_rgb(1.0, 1.0, 1.0);
-        ctx.paint()
-            .map_err(|e| PlotError::ThemeError(format!("Failed to paint background: {}", e)))?;
-
-        // Define plot area (leaving margins for axes and labels)
-        let margin_left = 60.0;
-        let margin_right = 20.0;
-        let margin_top = 40.0;
-        let margin_bottom = 60.0;
-
-        let plot_x0 = margin_left;
-        let plot_x1 = width as f64 - margin_right;
-        let plot_y0 = margin_top;
-        let plot_y1 = height as f64 - margin_bottom;
-
-        // Draw axes before rendering layers
-        self.draw_axes(&mut ctx, plot_x0, plot_x1, plot_y0, plot_y1)?;
-
-        // Render each layer
-        for layer in &self.layers {
-            // Get the data source for this layer (layer data or plot default data)
-            let data: &dyn DataSource = match &layer.data {
-                Some(d) => d.as_ref(),
-                None => match &self.data {
-                    Some(d) => d.as_ref(),
-                    None => return Err(PlotError::MissingAesthetic("No data source".to_string())),
-                },
-            };
-
-            // Create render context
-            let mut render_ctx = RenderContext::new(
-                &mut ctx,
-                data,
-                &layer.mapping,
-                &self.scales,
-                (plot_x0, plot_x1),
-                (plot_y1, plot_y0), // Y is inverted in screen coordinates
-            );
-
-            // Render the geom
-            layer.geom.render(&mut render_ctx)?;
-        }
+        // Use the common rendering code
+        self.render_with_context(&mut ctx, width, height)?;
 
         Ok(surface)
     }
@@ -283,6 +242,17 @@ impl Plot {
             color.1 as f64 / 255.0,
             color.2 as f64 / 255.0,
             color.3 as f64 / 255.0,
+        );
+    }
+
+    /// Helper to apply fill style to Cairo context
+    fn apply_fill_style(ctx: &mut Context, fill: &crate::theme::FillStyle) {
+        let alpha = (fill.color.3 as f64 / 255.0) * fill.opacity as f64;
+        ctx.set_source_rgba(
+            fill.color.0 as f64 / 255.0,
+            fill.color.1 as f64 / 255.0,
+            fill.color.2 as f64 / 255.0,
+            alpha,
         );
     }
 
@@ -481,7 +451,7 @@ impl Plot {
         height: i32,
     ) -> Result<(), PlotError> {
         // Fill background
-        Self::apply_color(ctx, &self.theme.background.fill.color);
+        Self::apply_fill_style(ctx, &self.theme.background.fill);
         ctx.paint()
             .map_err(|e| PlotError::ThemeError(format!("Failed to paint background: {}", e)))?;
 
@@ -498,7 +468,7 @@ impl Plot {
 
         // Draw panel background
         if let Some(ref panel_bg) = self.theme.panel.background {
-            Self::apply_color(ctx, &panel_bg.color);
+            Self::apply_fill_style(ctx, panel_bg);
             ctx.rectangle(plot_x0, plot_y0, plot_x1 - plot_x0, plot_y1 - plot_y0);
             ctx.fill().ok();
         }
