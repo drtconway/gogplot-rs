@@ -3,6 +3,7 @@
 use crate::data::DataSource;
 use crate::error::PlotError;
 use crate::geom::RenderContext;
+use crate::guide::Guides;
 use crate::layer::Layer;
 use crate::scale::{ColorScale, ContinuousScale, ShapeScale};
 use crate::theme::{Color, Font, FontStyle, FontWeight, LineStyle, TextTheme, Theme};
@@ -53,6 +54,9 @@ pub struct Plot {
     /// Visual theme
     pub theme: Theme,
 
+    /// Guides configuration (legends, etc.)
+    pub guides: Guides,
+
     /// Plot title
     pub title: Option<String>,
 
@@ -71,6 +75,7 @@ impl Plot {
             layers: Vec::new(),
             scales: ScaleSet::new(),
             theme: Theme::default(),
+            guides: Guides::default(),
             title: None,
             x_label: None,
             y_label: None,
@@ -104,6 +109,12 @@ impl Plot {
     /// Set the theme (builder style)
     pub fn theme(mut self, theme: Theme) -> Self {
         self.theme = theme;
+        self
+    }
+
+    /// Set the guides configuration (builder style)
+    pub fn guides(mut self, guides: Guides) -> Self {
+        self.guides = guides;
         self
     }
 
@@ -443,6 +454,216 @@ impl Plot {
         Ok(())
     }
 
+    /// Draw legends
+    fn draw_legends(
+        &self,
+        ctx: &mut Context,
+        _plot_x0: f64,
+        plot_x1: f64,
+        plot_y0: f64,
+        _plot_y1: f64,
+        width: i32,
+        _height: i32,
+    ) -> Result<(), PlotError> {
+        use crate::guide::LegendPosition;
+
+        // Collect all legends to draw
+        let mut legends = Vec::new();
+        
+        // Add color legend if present
+        if let Some(ref color_guide) = self.guides.color {
+            legends.push(color_guide);
+        }
+        
+        // Add shape legend if present
+        if let Some(ref shape_guide) = self.guides.shape {
+            legends.push(shape_guide);
+        }
+        
+        // Add size legend if present
+        if let Some(ref size_guide) = self.guides.size {
+            legends.push(size_guide);
+        }
+        
+        if legends.is_empty() {
+            return Ok(());
+        }
+
+        // For now, render legends on the right side
+        // Position legend between plot panel and right edge
+        let legend_margin = 10.0;
+        let legend_x = plot_x1 + legend_margin;
+        let available_width = width as f64 - legend_x - legend_margin;
+        
+        // If there's not enough space, don't draw legends
+        if available_width < 80.0 {
+            return Ok(());
+        }
+        
+        let mut legend_y = plot_y0;
+        
+        for legend in legends {
+            if matches!(legend.position, LegendPosition::None) {
+                continue;
+            }
+            
+            // Draw legend background
+            Self::apply_fill_style(ctx, &self.theme.legend.background);
+            let legend_width = 120.0;
+            let item_height = 20.0;
+            let padding = 10.0;
+            let title_height = if legend.title.is_some() { 20.0 } else { 0.0 };
+            let legend_height = title_height + (legend.entries.len() as f64 * item_height) + padding * 2.0;
+            
+            ctx.rectangle(legend_x, legend_y, legend_width, legend_height);
+            ctx.fill().ok();
+            
+            // Draw legend border
+            Self::apply_line_style(ctx, &self.theme.legend.border);
+            ctx.rectangle(legend_x, legend_y, legend_width, legend_height);
+            ctx.stroke().ok();
+            
+            let mut item_y = legend_y + padding;
+            
+            // Draw title if present
+            if let Some(ref title) = legend.title {
+                Self::apply_font(ctx, &self.theme.legend.text_font);
+                Self::apply_color(ctx, &self.theme.legend.text_color);
+                ctx.set_font_size(self.theme.legend.text_font.size as f64);
+                ctx.move_to(legend_x + padding, item_y + 12.0);
+                ctx.show_text(title).ok();
+                item_y += title_height;
+            }
+            
+            // Draw legend entries
+            for entry in &legend.entries {
+                let symbol_x = legend_x + padding;
+                let symbol_y = item_y + item_height / 2.0;
+                
+                // Draw symbol
+                if let Some(color) = entry.color {
+                    Self::apply_color(ctx, &color);
+                    let size = entry.size.unwrap_or(5.0);
+                    
+                    if let Some(shape) = entry.shape {
+                        Self::draw_shape(ctx, symbol_x + 10.0, symbol_y, size, shape);
+                    } else {
+                        // Default to circle
+                        ctx.arc(symbol_x + 10.0, symbol_y, size, 0.0, 2.0 * std::f64::consts::PI);
+                        ctx.fill().ok();
+                    }
+                }
+                
+                // Draw label
+                Self::apply_font(ctx, &self.theme.legend.text_font);
+                Self::apply_color(ctx, &self.theme.legend.text_color);
+                ctx.move_to(symbol_x + 25.0, symbol_y + 4.0);
+                ctx.show_text(&entry.label).ok();
+                
+                item_y += item_height;
+            }
+            
+            legend_y += legend_height + 10.0;
+        }
+        
+        Ok(())
+    }
+
+    /// Helper to draw a shape at a position
+    fn draw_shape(ctx: &mut Context, x: f64, y: f64, size: f64, shape: crate::guide::Shape) {
+        use crate::guide::Shape;
+        
+        match shape {
+            Shape::Circle => {
+                ctx.arc(x, y, size, 0.0, 2.0 * std::f64::consts::PI);
+                ctx.fill().ok();
+            }
+            Shape::Square => {
+                ctx.rectangle(x - size, y - size, size * 2.0, size * 2.0);
+                ctx.fill().ok();
+            }
+            Shape::Triangle => {
+                let h = size * 1.732; // sqrt(3)
+                ctx.move_to(x, y - h * 0.577);
+                ctx.line_to(x - size, y + h * 0.289);
+                ctx.line_to(x + size, y + h * 0.289);
+                ctx.close_path();
+                ctx.fill().ok();
+            }
+            Shape::Diamond => {
+                ctx.move_to(x, y - size);
+                ctx.line_to(x + size, y);
+                ctx.line_to(x, y + size);
+                ctx.line_to(x - size, y);
+                ctx.close_path();
+                ctx.fill().ok();
+            }
+            Shape::Cross => {
+                let w = size * 0.3;
+                ctx.move_to(x - size, y - w);
+                ctx.line_to(x - w, y - w);
+                ctx.line_to(x - w, y - size);
+                ctx.line_to(x + w, y - size);
+                ctx.line_to(x + w, y - w);
+                ctx.line_to(x + size, y - w);
+                ctx.line_to(x + size, y + w);
+                ctx.line_to(x + w, y + w);
+                ctx.line_to(x + w, y + size);
+                ctx.line_to(x - w, y + size);
+                ctx.line_to(x - w, y + w);
+                ctx.line_to(x - size, y + w);
+                ctx.close_path();
+                ctx.fill().ok();
+            }
+            Shape::Plus => {
+                ctx.set_line_width(size * 0.4);
+                ctx.move_to(x - size, y);
+                ctx.line_to(x + size, y);
+                ctx.stroke().ok();
+                ctx.move_to(x, y - size);
+                ctx.line_to(x, y + size);
+                ctx.stroke().ok();
+            }
+        }
+    }
+
+    /// Calculate the required width for legends
+    fn calculate_legend_width(&self) -> f64 {
+        use crate::guide::LegendPosition;
+        
+        let mut total_width = 0.0;
+        let legend_width = 120.0; // Base legend width
+        let legend_spacing = 10.0;
+        
+        // Check if we have any legends to display
+        let mut legend_count = 0;
+        
+        if let Some(ref legend) = self.guides.color {
+            if !matches!(legend.position, LegendPosition::None) {
+                legend_count += 1;
+            }
+        }
+        
+        if let Some(ref legend) = self.guides.shape {
+            if !matches!(legend.position, LegendPosition::None) {
+                legend_count += 1;
+            }
+        }
+        
+        if let Some(ref legend) = self.guides.size {
+            if !matches!(legend.position, LegendPosition::None) {
+                legend_count += 1;
+            }
+        }
+        
+        if legend_count > 0 {
+            // Add margin for legend placement (10px before legend, legend width, 10px after)
+            total_width = legend_spacing + legend_width + legend_spacing;
+        }
+        
+        total_width
+    }
+
     /// Helper method to render using an existing Cairo context
     fn render_with_context(
         &self,
@@ -455,11 +676,19 @@ impl Plot {
         ctx.paint()
             .map_err(|e| PlotError::ThemeError(format!("Failed to paint background: {}", e)))?;
 
+        // Calculate required legend width and adjust right margin
+        let legend_width = self.calculate_legend_width();
+        
         // Define plot area using theme margins
         let margin_left = self.theme.plot_margin.left as f64;
-        let margin_right = self.theme.plot_margin.right as f64;
+        let mut margin_right = self.theme.plot_margin.right as f64;
         let margin_top = self.theme.plot_margin.top as f64;
         let margin_bottom = self.theme.plot_margin.bottom as f64;
+        
+        // Increase right margin if legends are present
+        if legend_width > 0.0 {
+            margin_right = margin_right.max(legend_width);
+        }
 
         let plot_x0 = margin_left;
         let plot_x1 = width as f64 - margin_right;
@@ -504,6 +733,9 @@ impl Plot {
 
             layer.geom.render(&mut render_ctx)?;
         }
+
+        // Draw legends
+        self.draw_legends(ctx, plot_x0, plot_x1, plot_y0, plot_y1, width, height)?;
 
         Ok(())
     }

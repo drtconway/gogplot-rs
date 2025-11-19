@@ -367,6 +367,11 @@ impl Theme {
 			ticks.color = light_gray;
 		}
 		
+		// Update legend styling
+		theme.legend.background.color = Color(50, 50, 50, 255); // Same as panel background
+		theme.legend.text_color = light_gray;
+		theme.legend.border.color = Color(70, 70, 70, 255); // Same as grid lines
+		
 		theme
 	}
 }
