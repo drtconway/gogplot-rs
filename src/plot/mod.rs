@@ -415,6 +415,9 @@ impl Plot {
         let plot_y0 = margin_top;
         let plot_y1 = height as f64 - margin_bottom;
 
+        // Draw axes before rendering layers
+        self.draw_axes(ctx, plot_x0, plot_x1, plot_y0, plot_y1)?;
+
         // Render each layer
         for layer in &self.layers {
             let data: &dyn DataSource = match &layer.data {
