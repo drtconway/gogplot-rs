@@ -1,6 +1,6 @@
 use gogplot_rs::plot::Plot;
 use gogplot_rs::utils::dataframe::{DataFrame, FloatVec};
-use gogplot_rs::guide::{LegendGuide, LegendEntry, LegendPosition, Guides, Shape};
+use gogplot_rs::guide::{AxisGuide, LegendGuide, LegendEntry, LegendPosition, Guides, Shape};
 use gogplot_rs::theme::Color;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -36,6 +36,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create guides with color legend
     let guides = Guides {
+        x_axis: None,
+        y_axis: None,
         color: Some(color_legend),
         shape: None,
         size: None,
@@ -45,9 +47,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create plot with legend using simplified API
     let plot = Plot::new(Some(Box::new(df)))
         .title("Scatter Plot with Legend")
-        .x_label("X Values")
-        .y_label("Y Values")
-        .guides(guides)
+        .guides(guides
+            .x_axis(AxisGuide::new().title("X Values"))
+            .y_axis(AxisGuide::new().title("Y Values")))
         .aes(|a| {
             a.x("x");
             a.y("y");

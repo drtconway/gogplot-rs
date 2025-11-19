@@ -62,12 +62,6 @@ pub struct Plot {
 
     /// Plot title
     pub title: Option<String>,
-
-    /// X-axis label
-    pub x_label: Option<String>,
-
-    /// Y-axis label
-    pub y_label: Option<String>,
 }
 
 impl Plot {
@@ -81,8 +75,6 @@ impl Plot {
             theme: Theme::default(),
             guides: Guides::default(),
             title: None,
-            x_label: None,
-            y_label: None,
         }
     }
 
@@ -98,17 +90,7 @@ impl Plot {
         self
     }
 
-    /// Set the x-axis label (builder style)
-    pub fn x_label(mut self, label: impl Into<String>) -> Self {
-        self.x_label = Some(label.into());
-        self
-    }
 
-    /// Set the y-axis label (builder style)
-    pub fn y_label(mut self, label: impl Into<String>) -> Self {
-        self.y_label = Some(label.into());
-        self
-    }
 
     /// Set the theme (builder style)
     pub fn theme(mut self, theme: Theme) -> Self {
@@ -544,42 +526,46 @@ impl Plot {
         }
 
         // Draw X axis title
-        if let Some(x_label) = &self.x_label {
-            Self::apply_text_theme(ctx, &self.theme.axis_x.text.title);
-            let extents = ctx.text_extents(x_label).ok();
-            if let Some(ext) = extents {
-                let x_center = (x0 + x1) / 2.0;
-                // Position below: axis line + ticks + tick label margin + typical label height + title margin
-                let tick_length = self.theme.axis_x.line.tick_length as f64;
-                let label_margin = self.theme.axis_x.text.text.margin.top as f64;
-                let typical_label_height = self.theme.axis_x.text.text.font.size as f64;
-                let title_margin = self.theme.axis_x.text.title.margin.top as f64;
-                let y_offset = y1 + tick_length + label_margin + typical_label_height + title_margin + ext.height();
-                ctx.move_to(x_center - ext.width() / 2.0, y_offset);
-                ctx.show_text(x_label).ok();
+        if let Some(x_axis) = &self.guides.x_axis {
+            if let Some(x_label) = &x_axis.title {
+                Self::apply_text_theme(ctx, &self.theme.axis_x.text.title);
+                let extents = ctx.text_extents(x_label).ok();
+                if let Some(ext) = extents {
+                    let x_center = (x0 + x1) / 2.0;
+                    // Position below: axis line + ticks + tick label margin + typical label height + title margin
+                    let tick_length = self.theme.axis_x.line.tick_length as f64;
+                    let label_margin = self.theme.axis_x.text.text.margin.top as f64;
+                    let typical_label_height = self.theme.axis_x.text.text.font.size as f64;
+                    let title_margin = self.theme.axis_x.text.title.margin.top as f64;
+                    let y_offset = y1 + tick_length + label_margin + typical_label_height + title_margin + ext.height();
+                    ctx.move_to(x_center - ext.width() / 2.0, y_offset);
+                    ctx.show_text(x_label).ok();
+                }
             }
         }
 
         // Draw Y axis title (rotated)
-        if let Some(y_label) = &self.y_label {
-            ctx.save().ok();
-            Self::apply_text_theme(ctx, &self.theme.axis_y.text.title);
-            let y_center = (y0 + y1) / 2.0;
-            let extents = ctx.text_extents(y_label).ok();
-            if let Some(ext) = extents {
-                // Position to left of: axis line + ticks + tick label margin + typical max label width + title margin
-                let tick_length = self.theme.axis_y.line.tick_length as f64;
-                let label_margin = self.theme.axis_y.text.text.margin.right as f64;
-                // Estimate max label width (rough approximation based on font size * typical digits)
-                let typical_label_width = self.theme.axis_y.text.text.font.size as f64 * 2.5;
-                let title_margin = self.theme.axis_y.text.title.margin.right as f64;
-                let title_height = ext.height();
-                let x_offset = x0 - tick_length - label_margin - typical_label_width - title_margin - title_height;
-                ctx.move_to(x_offset, y_center + ext.width() / 2.0);
-                ctx.rotate(-std::f64::consts::PI / 2.0);
-                ctx.show_text(y_label).ok();
+        if let Some(y_axis) = &self.guides.y_axis {
+            if let Some(y_label) = &y_axis.title {
+                ctx.save().ok();
+                Self::apply_text_theme(ctx, &self.theme.axis_y.text.title);
+                let y_center = (y0 + y1) / 2.0;
+                let extents = ctx.text_extents(y_label).ok();
+                if let Some(ext) = extents {
+                    // Position to left of: axis line + ticks + tick label margin + typical max label width + title margin
+                    let tick_length = self.theme.axis_y.line.tick_length as f64;
+                    let label_margin = self.theme.axis_y.text.text.margin.right as f64;
+                    // Estimate max label width (rough approximation based on font size * typical digits)
+                    let typical_label_width = self.theme.axis_y.text.text.font.size as f64 * 2.5;
+                    let title_margin = self.theme.axis_y.text.title.margin.right as f64;
+                    let title_height = ext.height();
+                    let x_offset = x0 - tick_length - label_margin - typical_label_width - title_margin - title_height;
+                    ctx.move_to(x_offset, y_center + ext.width() / 2.0);
+                    ctx.rotate(-std::f64::consts::PI / 2.0);
+                    ctx.show_text(y_label).ok();
+                }
+                ctx.restore().ok();
             }
-            ctx.restore().ok();
         }
 
         // Draw plot title
@@ -788,9 +774,9 @@ impl Plot {
                     // Create default linear scale
                     if let Ok(scale) = Builder::new().linear() {
                         self.scales.x = Some(Box::new(scale));
-                        // Set default label if not already set
-                        if self.x_label.is_none() {
-                            self.x_label = Some(col_name.clone());
+                        // Set default axis title if not already set
+                        if self.guides.x_axis.is_none() {
+                            self.guides.x_axis = Some(crate::guide::AxisGuide::new().title(col_name.clone()));
                         }
                     }
                 }
@@ -802,9 +788,9 @@ impl Plot {
                     // Create default linear scale
                     if let Ok(scale) = Builder::new().linear() {
                         self.scales.y = Some(Box::new(scale));
-                        // Set default label if not already set
-                        if self.y_label.is_none() {
-                            self.y_label = Some(col_name.clone());
+                        // Set default axis title if not already set
+                        if self.guides.y_axis.is_none() {
+                            self.guides.y_axis = Some(crate::guide::AxisGuide::new().title(col_name.clone()));
                         }
                     }
                 }

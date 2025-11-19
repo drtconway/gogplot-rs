@@ -124,9 +124,40 @@ impl LegendGuide {
     }
 }
 
+/// Configuration for an axis guide
+#[derive(Clone, Debug)]
+pub struct AxisGuide {
+    /// Title for the axis
+    pub title: Option<String>,
+    // Future: could add custom breaks, labels, angle, etc.
+}
+
+impl Default for AxisGuide {
+    fn default() -> Self {
+        AxisGuide {
+            title: None,
+        }
+    }
+}
+
+impl AxisGuide {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn title(mut self, title: impl Into<String>) -> Self {
+        self.title = Some(title.into());
+        self
+    }
+}
+
 /// Guide configuration for a plot
 #[derive(Clone, Debug)]
 pub struct Guides {
+    /// X-axis guide
+    pub x_axis: Option<AxisGuide>,
+    /// Y-axis guide
+    pub y_axis: Option<AxisGuide>,
     /// Color legend
     pub color: Option<LegendGuide>,
     /// Shape legend
@@ -140,6 +171,8 @@ pub struct Guides {
 impl Default for Guides {
     fn default() -> Self {
         Guides {
+            x_axis: None,
+            y_axis: None,
             color: None,
             shape: None,
             size: None,
@@ -151,6 +184,16 @@ impl Default for Guides {
 impl Guides {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn x_axis(mut self, guide: AxisGuide) -> Self {
+        self.x_axis = Some(guide);
+        self
+    }
+
+    pub fn y_axis(mut self, guide: AxisGuide) -> Self {
+        self.y_axis = Some(guide);
+        self
     }
 
     pub fn color(mut self, guide: LegendGuide) -> Self {

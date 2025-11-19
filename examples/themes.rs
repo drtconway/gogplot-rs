@@ -1,6 +1,7 @@
 use gogplot_rs::plot::Plot;
 use gogplot_rs::theme::{Theme, Color};
 use gogplot_rs::utils::dataframe::{DataFrame, FloatVec, IntVec};
+use gogplot_rs::guide::{AxisGuide, Guides};
 
 fn create_sample_plot(theme: Theme, filename: &str) -> Result<(), Box<dyn std::error::Error>> {
     // Create some sample data
@@ -11,8 +12,9 @@ fn create_sample_plot(theme: Theme, filename: &str) -> Result<(), Box<dyn std::e
     // Create plot with the provided theme using simplified API
     let plot = Plot::new(Some(Box::new(df)))
         .title("Theme Demo Plot")
-        .x_label("X Values")
-        .y_label("Y Values")
+        .guides(Guides::new()
+            .x_axis(AxisGuide::new().title("X Values"))
+            .y_axis(AxisGuide::new().title("Y Values")))
         .theme(theme)
         .aes(|a| {
             a.x("x");
