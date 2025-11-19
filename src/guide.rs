@@ -1,6 +1,7 @@
 // Guide system for displaying legends and other visual aids
 
 use crate::theme::Color;
+use crate::visuals::Shape;
 
 /// Position for a legend
 #[derive(Clone, Debug, PartialEq)]
@@ -81,17 +82,6 @@ pub struct LegendEntry {
     pub shape: Option<Shape>,
     /// Size (if applicable)
     pub size: Option<f64>,
-}
-
-/// Shape types for legend symbols
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Shape {
-    Circle,
-    Square,
-    Triangle,
-    Diamond,
-    Cross,
-    Plus,
 }
 
 /// Configuration for a legend guide

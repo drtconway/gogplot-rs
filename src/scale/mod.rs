@@ -1,7 +1,7 @@
 
 use crate::data::GenericVector;
 use crate::theme::Color;
-use crate::geom::point::PointShape;
+use crate::visuals::Shape;
 
 /// Base trait for all scales providing common functionality.
 pub trait ScaleBase: Send + Sync {
@@ -118,7 +118,7 @@ pub trait ShapeScale: ScaleBase {
     /// # Returns
     /// * `Some(shape)` - The corresponding shape for this category
     /// * `None` - If the category is not in the scale's domain
-    fn map_to_shape(&self, category: &str) -> Option<PointShape>;
+    fn map_to_shape(&self, category: &str) -> Option<Shape>;
     
     /// Get legend breaks as formatted strings.
     fn legend_breaks(&self) -> Vec<String>;

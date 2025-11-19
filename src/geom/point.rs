@@ -3,17 +3,7 @@ use crate::aesthetics::{Aesthetic, AesMap, AesValue};
 use crate::data::PrimitiveValue;
 use crate::error::PlotError;
 use crate::layer::{Layer, Stat, Position};
-
-/// Point shape options
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PointShape {
-    Circle,
-    Square,
-    Triangle,
-    Diamond,
-    Cross,
-    Plus,
-}
+use crate::visuals::Shape;
 
 /// GeomPoint renders points/scatterplot
 pub struct GeomPoint {
@@ -55,7 +45,7 @@ impl GeomPoint {
     }
 
     /// Set the default point shape
-    pub fn shape(mut self, shape: PointShape) -> Self {
+    pub fn shape(mut self, shape: Shape) -> Self {
         self.shape = Some(AesValue::Constant(PrimitiveValue::Int(shape as i64)));
         self
     }
@@ -131,7 +121,7 @@ impl Geom for GeomPoint {
 
             // Draw the point based on shape
             match shape {
-                PointShape::Circle => {
+                Shape::Circle => {
                     ctx.cairo.arc(
                         x_visual,
                         y_visual,
@@ -141,7 +131,7 @@ impl Geom for GeomPoint {
                     );
                     ctx.cairo.fill().ok();
                 }
-                PointShape::Square => {
+                Shape::Square => {
                     let half_size = size;
                     ctx.cairo.rectangle(
                         x_visual - half_size,

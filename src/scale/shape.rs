@@ -1,17 +1,17 @@
 use super::{ScaleBase, ShapeScale};
-use crate::geom::point::PointShape;
+use crate::visuals::Shape;
 use crate::data::GenericVector;
 use std::collections::HashMap;
 
 /// Discrete shape scale that maps categories to point shapes.
 pub struct DiscreteShape {
-    shapes: Vec<PointShape>,
+    shapes: Vec<Shape>,
     mapping: HashMap<String, usize>,
 }
 
 impl DiscreteShape {
     /// Create a new discrete shape scale with a set of shapes.
-    pub fn new(shapes: Vec<PointShape>) -> Self {
+    pub fn new(shapes: Vec<Shape>) -> Self {
         Self {
             shapes,
             mapping: HashMap::new(),
@@ -21,12 +21,12 @@ impl DiscreteShape {
     /// Create a default discrete shape scale with standard shapes.
     pub fn default_shapes() -> Self {
         Self::new(vec![
-            PointShape::Circle,
-            PointShape::Square,
-            PointShape::Triangle,
-            PointShape::Diamond,
-            PointShape::Cross,
-            PointShape::Plus,
+            Shape::Circle,
+            Shape::Square,
+            Shape::Triangle,
+            Shape::Diamond,
+            Shape::Cross,
+            Shape::Plus,
         ])
     }
 }
@@ -51,7 +51,7 @@ impl ScaleBase for DiscreteShape {
 }
 
 impl ShapeScale for DiscreteShape {
-    fn map_to_shape(&self, category: &str) -> Option<PointShape> {
+    fn map_to_shape(&self, category: &str) -> Option<Shape> {
         self.mapping.get(category)
             .and_then(|&idx| self.shapes.get(idx).copied())
     }
@@ -70,7 +70,7 @@ mod tests {
 
     #[test]
     fn test_discrete_shape_new() {
-        let shapes = vec![PointShape::Circle, PointShape::Square];
+        let shapes = vec![Shape::Circle, Shape::Square];
         let scale = DiscreteShape::new(shapes);
         assert_eq!(scale.shapes.len(), 2);
         assert_eq!(scale.mapping.len(), 0);
@@ -80,12 +80,12 @@ mod tests {
     fn test_discrete_shape_default() {
         let scale = DiscreteShape::default_shapes();
         assert_eq!(scale.shapes.len(), 6);
-        assert_eq!(scale.shapes[0], PointShape::Circle);
-        assert_eq!(scale.shapes[1], PointShape::Square);
-        assert_eq!(scale.shapes[2], PointShape::Triangle);
-        assert_eq!(scale.shapes[3], PointShape::Diamond);
-        assert_eq!(scale.shapes[4], PointShape::Cross);
-        assert_eq!(scale.shapes[5], PointShape::Plus);
+        assert_eq!(scale.shapes[0], Shape::Circle);
+        assert_eq!(scale.shapes[1], Shape::Square);
+        assert_eq!(scale.shapes[2], Shape::Triangle);
+        assert_eq!(scale.shapes[3], Shape::Diamond);
+        assert_eq!(scale.shapes[4], Shape::Cross);
+        assert_eq!(scale.shapes[5], Shape::Plus);
     }
 
     #[test]
@@ -118,15 +118,15 @@ mod tests {
         let shape_c = scale.map_to_shape("C");
         let shape_missing = scale.map_to_shape("D");
         
-        assert_eq!(shape_a, Some(PointShape::Circle));
-        assert_eq!(shape_b, Some(PointShape::Square));
-        assert_eq!(shape_c, Some(PointShape::Triangle));
+        assert_eq!(shape_a, Some(Shape::Circle));
+        assert_eq!(shape_b, Some(Shape::Square));
+        assert_eq!(shape_c, Some(Shape::Triangle));
         assert_eq!(shape_missing, None);
     }
 
     #[test]
     fn test_discrete_shape_wrap_around() {
-        let mut scale = DiscreteShape::new(vec![PointShape::Circle, PointShape::Square]);
+        let mut scale = DiscreteShape::new(vec![Shape::Circle, Shape::Square]);
         let data = StrVec(vec![
             "A".to_string(),
             "B".to_string(),
@@ -135,9 +135,9 @@ mod tests {
         
         scale.train(&data);
         
-        assert_eq!(scale.map_to_shape("A"), Some(PointShape::Circle));
-        assert_eq!(scale.map_to_shape("B"), Some(PointShape::Square));
-        assert_eq!(scale.map_to_shape("C"), Some(PointShape::Circle)); // Wrapped
+        assert_eq!(scale.map_to_shape("A"), Some(Shape::Circle));
+        assert_eq!(scale.map_to_shape("B"), Some(Shape::Square));
+        assert_eq!(scale.map_to_shape("C"), Some(Shape::Circle)); // Wrapped
     }
 
     #[test]

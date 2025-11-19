@@ -76,13 +76,13 @@ impl Iterator for ColorValues {
 /// Enum to hold shape values
 pub enum ShapeValues {
     /// Constant shape repeated n times
-    Constant(super::point::PointShape, usize),
+    Constant(crate::visuals::Shape, usize),
     /// Mapped shapes from data
-    Mapped(Vec<super::point::PointShape>),
+    Mapped(Vec<crate::visuals::Shape>),
 }
 
 impl Iterator for ShapeValues {
-    type Item = super::point::PointShape;
+    type Item = crate::visuals::Shape;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self {
@@ -321,20 +321,20 @@ impl<'a> RenderContext<'a> {
     pub fn get_shape_values(&self) -> Result<ShapeValues, PlotError> {
         use crate::aesthetics::AesValue;
         use crate::data::PrimitiveValue;
-        use super::point::PointShape;
+        use crate::visuals::Shape;
 
         let n = self.data.len();
         let mapping = self.mapping.get(&Aesthetic::Shape);
         let shape_scale = self.scales.shape.as_ref();
 
         let int_to_shape = |v: i64| match v {
-            0 => PointShape::Circle,
-            1 => PointShape::Square,
-            2 => PointShape::Triangle,
-            3 => PointShape::Diamond,
-            4 => PointShape::Cross,
-            5 => PointShape::Plus,
-            _ => PointShape::Circle,
+            0 => Shape::Circle,
+            1 => Shape::Square,
+            2 => Shape::Triangle,
+            3 => Shape::Diamond,
+            4 => Shape::Cross,
+            5 => Shape::Plus,
+            _ => Shape::Circle,
         };
 
         match (mapping, shape_scale) {
@@ -344,7 +344,7 @@ impl<'a> RenderContext<'a> {
                     .ok_or_else(|| PlotError::MissingAesthetic(format!("column '{}'", col_name)))?;
                 
                 if let Some(strings) = vec.as_str() {
-                    let shapes: Vec<PointShape> = strings.iter()
+                    let shapes: Vec<Shape> = strings.iter()
                         .filter_map(|s| scale.map_to_shape(s))
                         .collect();
                     Ok(ShapeValues::Mapped(shapes))
@@ -371,7 +371,7 @@ impl<'a> RenderContext<'a> {
             }
             // No mapping, use default
             (None, _) => {
-                Ok(ShapeValues::Constant(PointShape::Circle, n))
+                Ok(ShapeValues::Constant(Shape::Circle, n))
             }
         }
     }

@@ -8,3 +8,7 @@ pub mod plot;
 pub mod scale;
 pub mod theme;
 pub mod utils;
+pub mod visuals;
+
+// Re-export commonly used types
+pub use visuals::Shape;

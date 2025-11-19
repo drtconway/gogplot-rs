@@ -806,8 +806,8 @@ impl Plot {
     }
 
     /// Helper to draw a shape at a position
-    fn draw_shape(ctx: &mut Context, x: f64, y: f64, size: f64, shape: crate::guide::Shape) {
-        use crate::guide::Shape;
+    fn draw_shape(ctx: &mut Context, x: f64, y: f64, size: f64, shape: crate::visuals::Shape) {
+        use crate::visuals::Shape;
         
         match shape {
             Shape::Circle => {
@@ -1010,7 +1010,8 @@ impl Plot {
     /// Generate legends automatically from scales when aesthetics are mapped
     fn generate_automatic_legends(&self) -> Guides {
         use crate::aesthetics::{Aesthetic, AesValue};
-        use crate::guide::{LegendGuide, LegendEntry, LegendPosition, Shape};
+        use crate::guide::{LegendGuide, LegendEntry, LegendPosition};
+        use crate::visuals::Shape;
         
         let mut guides = self.guides.clone();
         
@@ -1075,16 +1076,7 @@ impl Plot {
                     
                     // Generate entries from breaks
                     for category in breaks {
-                        if let Some(point_shape) = shape_scale.map_to_shape(&category) {
-                            let shape = match point_shape {
-                                crate::geom::point::PointShape::Circle => Shape::Circle,
-                                crate::geom::point::PointShape::Square => Shape::Square,
-                                crate::geom::point::PointShape::Triangle => Shape::Triangle,
-                                crate::geom::point::PointShape::Diamond => Shape::Diamond,
-                                crate::geom::point::PointShape::Cross => Shape::Cross,
-                                crate::geom::point::PointShape::Plus => Shape::Plus,
-                            };
-                            
+                        if let Some(shape) = shape_scale.map_to_shape(&category) {
                             legend.entries.push(LegendEntry {
                                 label: category.clone(),
                                 color: Some(Color(100, 100, 100, 255)), // Default gray
