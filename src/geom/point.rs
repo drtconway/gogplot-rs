@@ -119,41 +119,8 @@ impl Geom for GeomPoint {
             // Set drawing properties for this point
             ctx.set_color_alpha(&color, alpha);
 
-            // Draw the point based on shape
-            match shape {
-                Shape::Circle => {
-                    ctx.cairo.arc(
-                        x_visual,
-                        y_visual,
-                        size,
-                        0.0,
-                        2.0 * std::f64::consts::PI,
-                    );
-                    ctx.cairo.fill().ok();
-                }
-                Shape::Square => {
-                    let half_size = size;
-                    ctx.cairo.rectangle(
-                        x_visual - half_size,
-                        y_visual - half_size,
-                        2.0 * half_size,
-                        2.0 * half_size,
-                    );
-                    ctx.cairo.fill().ok();
-                }
-                // Other shapes would be implemented here
-                _ => {
-                    // Default to circle for unimplemented shapes
-                    ctx.cairo.arc(
-                        x_visual,
-                        y_visual,
-                        size,
-                        0.0,
-                        2.0 * std::f64::consts::PI,
-                    );
-                    ctx.cairo.fill().ok();
-                }
-            }
+            // Draw the shape
+            shape.draw(ctx.cairo, x_visual, y_visual, size);
         }
 
         Ok(())

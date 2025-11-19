@@ -807,60 +807,7 @@ impl Plot {
 
     /// Helper to draw a shape at a position
     fn draw_shape(ctx: &mut Context, x: f64, y: f64, size: f64, shape: crate::visuals::Shape) {
-        use crate::visuals::Shape;
-        
-        match shape {
-            Shape::Circle => {
-                ctx.arc(x, y, size, 0.0, 2.0 * std::f64::consts::PI);
-                ctx.fill().ok();
-            }
-            Shape::Square => {
-                ctx.rectangle(x - size, y - size, size * 2.0, size * 2.0);
-                ctx.fill().ok();
-            }
-            Shape::Triangle => {
-                let h = size * 1.732; // sqrt(3)
-                ctx.move_to(x, y - h * 0.577);
-                ctx.line_to(x - size, y + h * 0.289);
-                ctx.line_to(x + size, y + h * 0.289);
-                ctx.close_path();
-                ctx.fill().ok();
-            }
-            Shape::Diamond => {
-                ctx.move_to(x, y - size);
-                ctx.line_to(x + size, y);
-                ctx.line_to(x, y + size);
-                ctx.line_to(x - size, y);
-                ctx.close_path();
-                ctx.fill().ok();
-            }
-            Shape::Cross => {
-                let w = size * 0.3;
-                ctx.move_to(x - size, y - w);
-                ctx.line_to(x - w, y - w);
-                ctx.line_to(x - w, y - size);
-                ctx.line_to(x + w, y - size);
-                ctx.line_to(x + w, y - w);
-                ctx.line_to(x + size, y - w);
-                ctx.line_to(x + size, y + w);
-                ctx.line_to(x + w, y + w);
-                ctx.line_to(x + w, y + size);
-                ctx.line_to(x - w, y + size);
-                ctx.line_to(x - w, y + w);
-                ctx.line_to(x - size, y + w);
-                ctx.close_path();
-                ctx.fill().ok();
-            }
-            Shape::Plus => {
-                ctx.set_line_width(size * 0.4);
-                ctx.move_to(x - size, y);
-                ctx.line_to(x + size, y);
-                ctx.stroke().ok();
-                ctx.move_to(x, y - size);
-                ctx.line_to(x, y + size);
-                ctx.stroke().ok();
-            }
-        }
+        shape.draw(ctx, x, y, size);
     }
 
     /// Create default scales for aesthetics that don't have scales but are mapped to columns
