@@ -361,7 +361,17 @@ impl ScaleBase for Linear {
                 
                 // Apply expansion (5% by default)
                 let range = max - min;
-                let expansion = range * 0.05;
+                let expansion = if range.abs() < 1e-10 {
+                    // Degenerate case: all values are the same
+                    // Create a range around the value
+                    if min.abs() < 1e-10 {
+                        1.0  // For values near zero, use ±1
+                    } else {
+                        min.abs() * 0.1  // Otherwise use ±10% of the value
+                    }
+                } else {
+                    range * 0.05
+                };
                 self.domain = (min - expansion, max + expansion);
                 
                 // Regenerate breaks and labels
@@ -433,7 +443,16 @@ impl ScaleBase for Sqrt {
                     let max = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
                     
                     let range = max - min;
-                    let expansion = range * 0.05;
+                    let expansion = if range.abs() < 1e-10 {
+                        // Degenerate case: all values are the same
+                        if min.abs() < 1e-10 {
+                            1.0  // For values near zero, use ±1
+                        } else {
+                            min.abs() * 0.1  // Otherwise use ±10% of the value
+                        }
+                    } else {
+                        range * 0.05
+                    };
                     self.domain = (min - expansion, max + expansion);
                     self.domain.0 = self.domain.0.max(0.0); // Don't go negative
                     
@@ -511,7 +530,13 @@ impl ScaleBase for Log10 {
                     let max = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
                     
                     let range = max - min;
-                    let expansion = range * 0.05;
+                    let expansion = if range.abs() < 1e-10 {
+                        // Degenerate case: all values are the same
+                        // For log scale, use multiplicative expansion
+                        min * 0.1
+                    } else {
+                        range * 0.05
+                    };
                     self.domain = ((min - expansion).max(0.001), max + expansion);
                     
                     self.breaks = extended_breaks(self.domain, 5);
@@ -572,8 +597,21 @@ pub fn extended_breaks(domain: (f64, f64), n: usize) -> Vec<f64> {
     const Q: [f64; 5] = [1.0, 5.0, 2.0, 2.5, 4.0];
 
     let (min, max) = domain;
-    if n < 2 || min == max {
+    if n < 2 {
         return vec![min, max];
+    }
+    
+    // Handle degenerate case: single value
+    if (min - max).abs() < 1e-10 {
+        // Create a symmetric range around the value
+        if min.abs() < 1e-10 {
+            // Value is ~0, create range around 0
+            return vec![-1.0, 0.0, 1.0];
+        } else {
+            // Create range ±10% around the value
+            let range = min.abs() * 0.1;
+            return vec![min - range, min, min + range];
+        }
     }
     let range = max - min;
     let mut best_score = std::f64::NEG_INFINITY;
@@ -606,6 +644,7 @@ pub fn extended_breaks(domain: (f64, f64), n: usize) -> Vec<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::dataframe::FloatVec;
 
     #[test]
     fn test_extended_breaks_basic() {
@@ -617,5 +656,153 @@ mod tests {
     fn test_extended_breaks_negative() {
         let breaks = extended_breaks((-5.0, 5.0), 5);
         assert_eq!(breaks, vec![-5.0, -2.5, 0.0, 2.5, 5.0]);
+    }
+
+    #[test]
+    fn test_extended_breaks_single_value_zero() {
+        // When min == max and close to zero, should return [-1, 0, 1]
+        let breaks = extended_breaks((0.0, 0.0), 5);
+        assert_eq!(breaks, vec![-1.0, 0.0, 1.0]);
+    }
+
+    #[test]
+    fn test_extended_breaks_single_value_nonzero() {
+        // When min == max and non-zero, should return symmetric range around value
+        let breaks = extended_breaks((10.0, 10.0), 5);
+        assert_eq!(breaks, vec![9.0, 10.0, 11.0]);
+    }
+
+    #[test]
+    fn test_extended_breaks_single_value_negative() {
+        // Test with negative single value
+        let breaks = extended_breaks((-5.0, -5.0), 5);
+        assert_eq!(breaks, vec![-5.5, -5.0, -4.5]);
+    }
+
+    #[test]
+    fn test_linear_scale_degenerate_zero() {
+        // Test Linear scale with all values at zero
+        // Using Builder without limits means train() will be called
+        let mut scale = Builder::new().linear().unwrap();
+        let data = FloatVec(vec![0.0, 0.0, 0.0, 0.0]);
+        scale.train(&data);
+        
+        // Should have symmetric domain around zero
+        assert!(scale.domain.0 < 0.0, "domain.0 should be < 0.0, got {}", scale.domain.0);
+        assert!(scale.domain.1 > 0.0, "domain.1 should be > 0.0, got {}", scale.domain.1);
+        
+        // Should be able to map the value without division by zero
+        let mapped = scale.map_value(0.0);
+        assert!(mapped.is_some(), "Should be able to map 0.0");
+        // Value should map near the middle of the range
+        assert!((mapped.unwrap() - 0.5).abs() < 0.1, "0.0 should map near 0.5, got {}", mapped.unwrap());
+    }
+
+    #[test]
+    fn test_linear_scale_degenerate_nonzero() {
+        // Test Linear scale with all values at 5.0
+        let mut scale = Builder::new().linear().unwrap();
+        let data = FloatVec(vec![5.0, 5.0, 5.0]);
+        scale.train(&data);
+        
+        // Should have symmetric domain around 5.0
+        assert!(scale.domain.0 < 5.0, "domain.0 should be < 5.0, got {}", scale.domain.0);
+        assert!(scale.domain.1 > 5.0, "domain.1 should be > 5.0, got {}", scale.domain.1);
+        
+        // Should be able to map the value without division by zero
+        let mapped = scale.map_value(5.0);
+        assert!(mapped.is_some(), "Should be able to map 5.0");
+        // Value should map near the middle of the range
+        assert!((mapped.unwrap() - 0.5).abs() < 0.1, "5.0 should map near 0.5, got {}", mapped.unwrap());
+    }
+
+    #[test]
+    fn test_sqrt_scale_degenerate() {
+        // Test Sqrt scale with all values at 4.0
+        let mut scale = Builder::new().sqrt().unwrap();
+        let data = FloatVec(vec![4.0, 4.0, 4.0]);
+        scale.train(&data);
+        
+        // Should have symmetric domain around 4.0
+        assert!(scale.domain.0 < 4.0, "domain.0 should be < 4.0, got {}", scale.domain.0);
+        assert!(scale.domain.1 > 4.0, "domain.1 should be > 4.0, got {}", scale.domain.1);
+        
+        // Should be able to map the value without division by zero
+        let mapped = scale.map_value(4.0);
+        assert!(mapped.is_some(), "Should be able to map 4.0");
+        // Value should map near the middle of the range
+        assert!((mapped.unwrap() - 0.5).abs() < 0.1, "4.0 should map near 0.5, got {}", mapped.unwrap());
+    }
+
+    #[test]
+    fn test_log10_scale_degenerate() {
+        // Test Log10 scale with all values at 10.0
+        let mut scale = Builder::new().log10().unwrap();
+        let data = FloatVec(vec![10.0, 10.0, 10.0]);
+        scale.train(&data);
+        
+        // Should have expanded domain around 10.0
+        assert!(scale.domain.0 < 10.0, "domain.0 should be < 10.0, got {}", scale.domain.0);
+        assert!(scale.domain.1 > 10.0, "domain.1 should be > 10.0, got {}", scale.domain.1);
+        
+        // Should be able to map the value without division by zero
+        let mapped = scale.map_value(10.0);
+        assert!(mapped.is_some(), "Should be able to map 10.0");
+        // Value should map near the middle of the range
+        assert!((mapped.unwrap() - 0.5).abs() < 0.1, "10.0 should map near 0.5, got {}", mapped.unwrap());
+    }
+
+    #[test]
+    fn test_linear_scale_degenerate_preserves_normal_behavior() {
+        // Ensure the fix doesn't break normal scaling
+        let mut scale = Builder::new().linear().unwrap();
+        let data = FloatVec(vec![0.0, 10.0]);
+        scale.train(&data);
+        
+        // With 5% expansion on each side, domain is approximately [-0.5, 10.5]
+        // So 0.0 maps to about 0.048 (0.5 / 10.5), not exactly 0.0
+        let map_0 = scale.map_value(0.0).unwrap();
+        let map_10 = scale.map_value(10.0).unwrap();
+        let map_5 = scale.map_value(5.0).unwrap();
+        
+        assert!(map_0 < 0.1, "0.0 should map near the start, got {}", map_0);
+        assert!(map_10 > 0.9, "10.0 should map near the end, got {}", map_10);
+        assert!((map_5 - 0.5).abs() < 0.1, "5.0 should map near 0.5, got {}", map_5);
+    }
+
+    #[test]
+    fn test_sqrt_scale_degenerate_preserves_normal_behavior() {
+        // Ensure the fix doesn't break normal scaling
+        let mut scale = Builder::new().sqrt().unwrap();
+        let data = FloatVec(vec![0.0, 100.0]);
+        scale.train(&data);
+        
+        let map_0 = scale.map_value(0.0).unwrap();
+        let map_100 = scale.map_value(100.0).unwrap();
+        let map_25 = scale.map_value(25.0).unwrap();
+        
+        assert!(map_0 < 0.1, "0.0 should map near the start, got {}", map_0);
+        assert!(map_100 > 0.9, "100.0 should map near the end, got {}", map_100);
+        // sqrt(25) = 5, halfway between sqrt(0)=0 and sqrt(100)=10
+        assert!((map_25 - 0.5).abs() < 0.1, "25.0 should map near 0.5, got {}", map_25);
+    }
+
+    #[test]
+    fn test_log10_scale_degenerate_preserves_normal_behavior() {
+        // Ensure the fix doesn't break normal scaling
+        let mut scale = Builder::new().log10().unwrap();
+        let data = FloatVec(vec![1.0, 100.0]);
+        scale.train(&data);
+        
+        let map_1 = scale.map_value(1.0).unwrap();
+        let map_100 = scale.map_value(100.0).unwrap();
+        let map_10 = scale.map_value(10.0).unwrap();
+        
+        // With expansion and clamping to 0.001, the domain in log space is wider
+        // Just verify the relative ordering is correct
+        assert!(map_1 < map_10, "1.0 should map before 10.0");
+        assert!(map_10 < map_100, "10.0 should map before 100.0");
+        // 10 is the geometric mean of 1 and 100, so should be in the middle region
+        assert!(map_10 > 0.3 && map_10 < 0.9, "10.0 should map in middle region, got {}", map_10);
     }
 }
