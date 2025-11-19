@@ -1,8 +1,6 @@
 use gogplot_rs::aesthetics::{Aesthetic, AesValue};
 use gogplot_rs::geom::point::GeomPoint;
 use gogplot_rs::plot::Plot;
-use gogplot_rs::scale::continuous::Builder;
-use gogplot_rs::scale::color::DiscreteColor;
 use gogplot_rs::utils::dataframe::{DataFrame, FloatVec, StrVec};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -18,18 +16,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "virginica", "setosa",
     ])));
 
-    // Create scales
-    let x_scale = Builder::new()
-        .limits((0.0, 9.0))
-        .linear()?;
-    
-    let y_scale = Builder::new()
-        .limits((0.0, 10.0))
-        .linear()?;
-
-    // Create a discrete color scale
-    let color_scale = DiscreteColor::default_palette();
-
     // Create a point geom
     let geom = GeomPoint::default()
         .size(6.0)
@@ -41,21 +27,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     layer.mapping.set(Aesthetic::Y, AesValue::Column("y".to_string()));
     layer.mapping.set(Aesthetic::Color, AesValue::Column("species".to_string())); // Map color to species
 
-    // Create plot - legend should be generated automatically!
+    // Create plot - scales, labels, and legend are all generated automatically!
     let plot = Plot::new(Some(Box::new(df)))
         .title("Automatic Legend from Color Mapping")
-        .x_label("X Values")
-        .y_label("Y Values")
-        .scale_x(Box::new(x_scale))
-        .scale_y(Box::new(y_scale))
-        .scale_color(Box::new(color_scale)) // Provide the color scale
         .layer(layer);
 
     // Save to a file
     plot.save("automatic_legend.png", 800, 600)?;
 
     println!("Plot saved to automatic_legend.png");
-    println!("Legend should be automatically generated from the 'species' column mapping!");
+    println!("Scales, labels, and legend were all automatically generated!");
     
     Ok(())
 }

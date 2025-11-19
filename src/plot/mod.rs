@@ -197,6 +197,9 @@ impl Plot {
     /// plot.save("output.png", 800, 600)?;
     /// ```
     pub fn save(mut self, path: impl AsRef<Path>, width: i32, height: i32) -> Result<(), PlotError> {
+        // Create default scales for unmapped aesthetics
+        self.create_default_scales();
+        
         // Train scales on data before rendering
         self.train_scales();
         
@@ -705,6 +708,81 @@ impl Plot {
                 ctx.move_to(x, y - size);
                 ctx.line_to(x, y + size);
                 ctx.stroke().ok();
+            }
+        }
+    }
+
+    /// Create default scales for aesthetics that don't have scales but are mapped to columns
+    fn create_default_scales(&mut self) {
+        use crate::aesthetics::{Aesthetic, AesValue};
+        use crate::scale::continuous::Builder;
+        use crate::scale::color::DiscreteColor;
+        use crate::scale::shape::DiscreteShape;
+        
+        // Find the first layer that maps each aesthetic to determine default scales
+        for layer in &self.layers {
+            // X scale
+            if self.scales.x.is_none() {
+                if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::X) {
+                    // Create default linear scale
+                    if let Ok(scale) = Builder::new().linear() {
+                        self.scales.x = Some(Box::new(scale));
+                        // Set default label if not already set
+                        if self.x_label.is_none() {
+                            self.x_label = Some(col_name.clone());
+                        }
+                    }
+                }
+            }
+            
+            // Y scale
+            if self.scales.y.is_none() {
+                if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::Y) {
+                    // Create default linear scale
+                    if let Ok(scale) = Builder::new().linear() {
+                        self.scales.y = Some(Box::new(scale));
+                        // Set default label if not already set
+                        if self.y_label.is_none() {
+                            self.y_label = Some(col_name.clone());
+                        }
+                    }
+                }
+            }
+            
+            // Color scale
+            if self.scales.color.is_none() {
+                if let Some(AesValue::Column(_)) = layer.mapping.get(&Aesthetic::Color) {
+                    // Create default discrete color scale
+                    self.scales.color = Some(Box::new(DiscreteColor::default_palette()));
+                }
+            }
+            
+            // Shape scale
+            if self.scales.shape.is_none() {
+                if let Some(AesValue::Column(_)) = layer.mapping.get(&Aesthetic::Shape) {
+                    // Create default discrete shape scale
+                    self.scales.shape = Some(Box::new(DiscreteShape::default_shapes()));
+                }
+            }
+            
+            // Size scale
+            if self.scales.size.is_none() {
+                if let Some(AesValue::Column(_)) = layer.mapping.get(&Aesthetic::Size) {
+                    // Create default linear scale for size
+                    if let Ok(scale) = Builder::new().linear() {
+                        self.scales.size = Some(Box::new(scale));
+                    }
+                }
+            }
+            
+            // Alpha scale
+            if self.scales.alpha.is_none() {
+                if let Some(AesValue::Column(_)) = layer.mapping.get(&Aesthetic::Alpha) {
+                    // Create default linear scale for alpha
+                    if let Ok(scale) = Builder::new().linear() {
+                        self.scales.alpha = Some(Box::new(scale));
+                    }
+                }
             }
         }
     }

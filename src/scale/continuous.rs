@@ -200,6 +200,7 @@ impl Builder {
             domain,
             breaks,
             labels,
+            trained: self.limits.is_some(), // If limits were explicitly set, mark as trained
         })
     }
 
@@ -263,6 +264,7 @@ impl Builder {
             domain,
             breaks,
             labels,
+            trained: self.limits.is_some(),
         })
     }
 
@@ -328,6 +330,7 @@ impl Builder {
             domain,
             breaks,
             labels,
+            trained: self.limits.is_some(),
         })
     }
 }
@@ -336,12 +339,48 @@ pub struct Linear {
     pub(crate) domain: (f64, f64),
     pub(crate) breaks: Vec<f64>,
     pub(crate) labels: Vec<String>,
+    trained: bool, // Track if domain was explicitly set or should be auto-calculated
 }
 
 impl ScaleBase for Linear {
-    fn train(&mut self, _data: &dyn crate::data::GenericVector) {
-        // Training could recalculate domain from data
-        // For now, domain is set explicitly via builder
+    fn train(&mut self, data: &dyn crate::data::GenericVector) {
+        // Only auto-train if domain wasn't explicitly set (i.e., was using default)
+        if !self.trained {
+            // Calculate domain from data - handle both int and float
+            let values: Vec<f64> = if let Some(float_vec) = data.as_float() {
+                float_vec.iter().copied().collect()
+            } else if let Some(int_vec) = data.as_int() {
+                int_vec.iter().map(|&i| i as f64).collect()
+            } else {
+                Vec::new()
+            };
+            
+            if !values.is_empty() {
+                let min = values.iter().copied().fold(f64::INFINITY, f64::min);
+                let max = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+                
+                // Apply expansion (5% by default)
+                let range = max - min;
+                let expansion = range * 0.05;
+                self.domain = (min - expansion, max + expansion);
+                
+                // Regenerate breaks and labels
+                self.breaks = extended_breaks(self.domain, 5);
+                self.labels = self.breaks.iter().map(|b| {
+                    if b.abs() < 1e-10 {
+                        "0".to_string()
+                    } else if b.abs() >= 1000.0 || b.abs() < 0.01 {
+                        format!("{:.1e}", b)
+                    } else if b.fract().abs() < 1e-10 {
+                        format!("{:.0}", b)
+                    } else {
+                        format!("{:.2}", b).trim_end_matches('0').trim_end_matches('.').to_string()
+                    }
+                }).collect();
+                
+                self.trained = true;
+            }
+        }
     }
 }
 
@@ -375,11 +414,45 @@ pub struct Sqrt {
     pub(crate) domain: (f64, f64),
     pub(crate) breaks: Vec<f64>,
     pub(crate) labels: Vec<String>,
+    trained: bool,
 }
 
 impl ScaleBase for Sqrt {
-    fn train(&mut self, _data: &dyn crate::data::GenericVector) {
-        // Training could recalculate domain from data
+    fn train(&mut self, data: &dyn crate::data::GenericVector) {
+        if !self.trained {
+            let values: Vec<f64> = if let Some(float_vec) = data.as_float() {
+                float_vec.iter().copied().collect()
+            } else if let Some(int_vec) = data.as_int() {
+                int_vec.iter().map(|&i| i as f64).collect()
+            } else {
+                Vec::new()
+            };
+            
+            if !values.is_empty() {
+                    let min = values.iter().copied().fold(f64::INFINITY, f64::min).max(0.0);
+                    let max = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+                    
+                    let range = max - min;
+                    let expansion = range * 0.05;
+                    self.domain = (min - expansion, max + expansion);
+                    self.domain.0 = self.domain.0.max(0.0); // Don't go negative
+                    
+                    self.breaks = extended_breaks(self.domain, 5);
+                    self.labels = self.breaks.iter().map(|b| {
+                        if b.abs() < 1e-10 {
+                            "0".to_string()
+                        } else if b.abs() >= 1000.0 || b.abs() < 0.01 {
+                            format!("{:.1e}", b)
+                        } else if b.fract().abs() < 1e-10 {
+                            format!("{:.0}", b)
+                        } else {
+                            format!("{:.2}", b).trim_end_matches('0').trim_end_matches('.').to_string()
+                        }
+                    }).collect();
+                    
+                    self.trained = true;
+            }
+        }
     }
 }
 
@@ -419,11 +492,44 @@ pub struct Log10 {
     pub(crate) domain: (f64, f64),
     pub(crate) breaks: Vec<f64>,
     pub(crate) labels: Vec<String>,
+    trained: bool,
 }
 
 impl ScaleBase for Log10 {
-    fn train(&mut self, _data: &dyn crate::data::GenericVector) {
-        // Training could recalculate domain from data
+    fn train(&mut self, data: &dyn crate::data::GenericVector) {
+        if !self.trained {
+            let values: Vec<f64> = if let Some(float_vec) = data.as_float() {
+                float_vec.iter().copied().collect()
+            } else if let Some(int_vec) = data.as_int() {
+                int_vec.iter().map(|&i| i as f64).collect()
+            } else {
+                Vec::new()
+            };
+            
+            if !values.is_empty() {
+                    let min = values.iter().copied().fold(f64::INFINITY, f64::min).max(0.001);
+                    let max = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+                    
+                    let range = max - min;
+                    let expansion = range * 0.05;
+                    self.domain = ((min - expansion).max(0.001), max + expansion);
+                    
+                    self.breaks = extended_breaks(self.domain, 5);
+                    self.labels = self.breaks.iter().map(|b| {
+                        if b.abs() < 1e-10 {
+                            "0".to_string()
+                        } else if b.abs() >= 1000.0 || b.abs() < 0.01 {
+                            format!("{:.1e}", b)
+                        } else if b.fract().abs() < 1e-10 {
+                            format!("{:.0}", b)
+                        } else {
+                            format!("{:.2}", b).trim_end_matches('0').trim_end_matches('.').to_string()
+                        }
+                    }).collect();
+                    
+                    self.trained = true;
+            }
+        }
     }
 }
 
