@@ -17,11 +17,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("x");
             a.y("y");
         })
-        .geom_point_with(|geom, _aes| {
-            geom.size(8.0)
-                .color(color::BLUE)
-                .shape(Shape::Circle)
-        });
+        .geom_point_with(|geom, _aes| geom.size(8.0).color(color::BLUE).shape(Shape::Circle));
     plot.save("shape_circle.png", 800, 600)?;
 
     // Square
@@ -35,11 +31,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("x");
             a.y("y");
         })
-        .geom_point_with(|geom, _aes| {
-            geom.size(8.0)
-                .color(color::RED)
-                .shape(Shape::Square)
-        });
+        .geom_point_with(|geom, _aes| geom.size(8.0).color(color::RED).shape(Shape::Square));
     plot.save("shape_square.png", 800, 600)?;
 
     // Triangle
@@ -53,11 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("x");
             a.y("y");
         })
-        .geom_point_with(|geom, _aes| {
-            geom.size(8.0)
-                .color(color::GREEN)
-                .shape(Shape::Triangle)
-        });
+        .geom_point_with(|geom, _aes| geom.size(8.0).color(color::GREEN).shape(Shape::Triangle));
     plot.save("shape_triangle.png", 800, 600)?;
 
     // Diamond
@@ -71,11 +59,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("x");
             a.y("y");
         })
-        .geom_point_with(|geom, _aes| {
-            geom.size(8.0)
-                .color(color::PURPLE)
-                .shape(Shape::Diamond)
-        });
+        .geom_point_with(|geom, _aes| geom.size(8.0).color(color::PURPLE).shape(Shape::Diamond));
     plot.save("shape_diamond.png", 800, 600)?;
 
     // Cross
@@ -89,11 +73,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("x");
             a.y("y");
         })
-        .geom_point_with(|geom, _aes| {
-            geom.size(8.0)
-                .color(color::ORANGE)
-                .shape(Shape::Cross)
-        });
+        .geom_point_with(|geom, _aes| geom.size(8.0).color(color::ORANGE).shape(Shape::Cross));
     plot.save("shape_cross.png", 800, 600)?;
 
     // Plus
@@ -107,14 +87,49 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("x");
             a.y("y");
         })
-        .geom_point_with(|geom, _aes| {
-            geom.size(8.0)
-                .color(color::CYAN)
-                .shape(Shape::Plus)
-        });
+        .geom_point_with(|geom, _aes| geom.size(8.0).color(color::CYAN).shape(Shape::Plus));
     plot.save("shape_plus.png", 800, 600)?;
 
-    println!("Saved shape_circle.png, shape_square.png, shape_triangle.png, shape_diamond.png, shape_cross.png, shape_plus.png");
-    
+    // Mapped shapes with automatic legend
+    use gogplot_rs::utils::dataframe::StrVec;
+
+    let mut df = DataFrame::new();
+    df.add_column(
+        "x",
+        Box::new(FloatVec(vec![1.0, 2.0, 3.0, 1.5, 2.5, 3.5, 2.0, 3.0, 4.0])),
+    );
+    df.add_column(
+        "y",
+        Box::new(FloatVec(vec![2.0, 3.0, 2.5, 3.5, 4.0, 3.0, 4.5, 5.0, 4.5])),
+    );
+    df.add_column(
+        "species",
+        Box::new(StrVec::from(vec![
+            "setosa",
+            "setosa",
+            "setosa",
+            "versicolor",
+            "versicolor",
+            "versicolor",
+            "virginica",
+            "virginica",
+            "virginica",
+        ])),
+    );
+
+    let plot = Plot::new(Some(Box::new(df)))
+        .title("Mapped Shapes with Automatic Legend")
+        .aes(|a| {
+            a.x("x");
+            a.y("y");
+            a.shape("species");
+        })
+        .geom_point_with(|geom, _aes| geom.size(8.0).color(color::BLUE));
+    plot.save("shape_mapped.png", 800, 600)?;
+
+    println!(
+        "Saved shape_circle.png, shape_square.png, shape_triangle.png, shape_diamond.png, shape_cross.png, shape_plus.png, shape_mapped.png"
+    );
+
     Ok(())
 }
