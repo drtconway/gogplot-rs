@@ -2,7 +2,7 @@
 
 use crate::data::DataSource;
 use crate::error::PlotError;
-use crate::geom::RenderContext;
+use crate::geom::{IntoLayer, RenderContext};
 use crate::guide::Guides;
 use crate::layer::Layer;
 use crate::scale::{ColorScale, ContinuousScale, ShapeScale};

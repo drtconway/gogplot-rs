@@ -1,8 +1,7 @@
-use super::{Geom, RenderContext};
-use crate::aesthetics::{Aesthetic, AesMap, AesValue};
+use super::{Geom, IntoLayer, RenderContext};
+use crate::aesthetics::{Aesthetic, AesValue};
 use crate::data::PrimitiveValue;
 use crate::error::PlotError;
-use crate::layer::{Layer, Stat, Position};
 
 /// GeomLine renders lines connecting points
 pub struct GeomLine {
@@ -44,35 +43,29 @@ impl GeomLine {
         self.alpha = Some(AesValue::Constant(PrimitiveValue::Float(alpha.clamp(0.0, 1.0))));
         self
     }
-
-    /// Create a Layer with this geom and default aesthetics
-    pub fn into_layer(self) -> Layer {
-        let mut mapping = AesMap::new();
-        
-        // Set default aesthetics from geom settings if provided
-        if let Some(color) = &self.color {
-            mapping.set(Aesthetic::Color, color.clone());
-        }
-        if let Some(alpha) = &self.alpha {
-            mapping.set(Aesthetic::Alpha, alpha.clone());
-        }
-        if let Some(size) = &self.size {
-            mapping.set(Aesthetic::Size, size.clone());
-        }
-        
-        Layer {
-            geom: Box::new(self),
-            data: None,
-            mapping,
-            stat: Stat::Identity,
-            position: Position::Identity,
-        }
-    }
 }
 
 impl Default for GeomLine {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl IntoLayer for GeomLine {
+    fn default_aesthetics(&self) -> Vec<(Aesthetic, AesValue)> {
+        let mut defaults = Vec::new();
+        
+        if let Some(color) = &self.color {
+            defaults.push((Aesthetic::Color, color.clone()));
+        }
+        if let Some(alpha) = &self.alpha {
+            defaults.push((Aesthetic::Alpha, alpha.clone()));
+        }
+        if let Some(size) = &self.size {
+            defaults.push((Aesthetic::Size, size.clone()));
+        }
+        
+        defaults
     }
 }
 
