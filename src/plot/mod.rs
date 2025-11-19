@@ -435,34 +435,66 @@ impl Plot {
         y0: f64,
         y1: f64,
     ) -> Result<(), PlotError> {
-        // X axis
+        // Draw axis lines based on position
+        use crate::guide::{AxisType, XAxisPosition, YAxisPosition};
+        
+        // X axis line
+        let x_position = self.guides.x_axis.as_ref()
+            .and_then(|guide| match &guide.position {
+                AxisType::X(pos) => Some(pos.clone()),
+                _ => None,
+            })
+            .unwrap_or(XAxisPosition::Bottom);
+        
         if let Some(ref line_style) = self.theme.axis_x.line.line {
             Self::apply_line_style(ctx, line_style);
-            ctx.move_to(x0, y1);
-            ctx.line_to(x1, y1);
+            match x_position {
+                XAxisPosition::Bottom => {
+                    ctx.move_to(x0, y1);
+                    ctx.line_to(x1, y1);
+                }
+                XAxisPosition::Top => {
+                    ctx.move_to(x0, y0);
+                    ctx.line_to(x1, y0);
+                }
+            }
             ctx.stroke().ok();
         }
 
-        // Y axis
+        // Y axis line
+        let y_position = self.guides.y_axis.as_ref()
+            .and_then(|guide| match &guide.position {
+                AxisType::Y(pos) => Some(pos.clone()),
+                _ => None,
+            })
+            .unwrap_or(YAxisPosition::Left);
+        
         if let Some(ref line_style) = self.theme.axis_y.line.line {
             Self::apply_line_style(ctx, line_style);
-            ctx.move_to(x0, y0);
-            ctx.line_to(x0, y1);
+            match y_position {
+                YAxisPosition::Left => {
+                    ctx.move_to(x0, y0);
+                    ctx.line_to(x0, y1);
+                }
+                YAxisPosition::Right => {
+                    ctx.move_to(x1, y0);
+                    ctx.line_to(x1, y1);
+                }
+            }
             ctx.stroke().ok();
         }
-
-        // X axis (bottom)
-        ctx.move_to(x0, y1);
-        ctx.line_to(x1, y1);
-        ctx.stroke().ok();
-
-        // Y axis (left)
-        ctx.move_to(x0, y0);
-        ctx.line_to(x0, y1);
-        ctx.stroke().ok();
 
         // Draw X axis ticks and labels
         if let Some(x_scale) = &self.scales.x {
+            // Determine X axis position
+            use crate::guide::{AxisType, XAxisPosition};
+            let x_position = self.guides.x_axis.as_ref()
+                .and_then(|guide| match &guide.position {
+                    AxisType::X(pos) => Some(pos.clone()),
+                    _ => None,
+                })
+                .unwrap_or(XAxisPosition::Bottom);
+            
             let breaks = x_scale.breaks();
             let labels = x_scale.labels();
             let tick_length = self.theme.axis_x.line.tick_length as f64;
@@ -476,8 +508,16 @@ impl Plot {
                     // Draw tick mark
                     if let Some(ref tick_style) = self.theme.axis_x.line.ticks {
                         Self::apply_line_style(ctx, tick_style);
-                        ctx.move_to(x_pos, y1);
-                        ctx.line_to(x_pos, y1 + tick_length);
+                        match x_position {
+                            XAxisPosition::Bottom => {
+                                ctx.move_to(x_pos, y1);
+                                ctx.line_to(x_pos, y1 + tick_length);
+                            }
+                            XAxisPosition::Top => {
+                                ctx.move_to(x_pos, y0);
+                                ctx.line_to(x_pos, y0 - tick_length);
+                            }
+                        }
                         ctx.stroke().ok();
                     }
 
@@ -486,7 +526,14 @@ impl Plot {
                     let extents = ctx.text_extents(label).ok();
                     if let Some(ext) = extents {
                         let margin = self.theme.axis_x.text.text.margin.top as f64;
-                        ctx.move_to(x_pos - ext.width() / 2.0, y1 + tick_length + margin + ext.height());
+                        match x_position {
+                            XAxisPosition::Bottom => {
+                                ctx.move_to(x_pos - ext.width() / 2.0, y1 + tick_length + margin + ext.height());
+                            }
+                            XAxisPosition::Top => {
+                                ctx.move_to(x_pos - ext.width() / 2.0, y0 - tick_length - margin);
+                            }
+                        }
                         ctx.show_text(label).ok();
                     }
                 }
@@ -495,6 +542,15 @@ impl Plot {
 
         // Draw Y axis ticks and labels
         if let Some(y_scale) = &self.scales.y {
+            // Determine Y axis position
+            use crate::guide::YAxisPosition;
+            let y_position = self.guides.y_axis.as_ref()
+                .and_then(|guide| match &guide.position {
+                    crate::guide::AxisType::Y(pos) => Some(pos.clone()),
+                    _ => None,
+                })
+                .unwrap_or(YAxisPosition::Left);
+            
             let breaks = y_scale.breaks();
             let labels = y_scale.labels();
             let tick_length = self.theme.axis_y.line.tick_length as f64;
@@ -508,8 +564,16 @@ impl Plot {
                     // Draw tick mark
                     if let Some(ref tick_style) = self.theme.axis_y.line.ticks {
                         Self::apply_line_style(ctx, tick_style);
-                        ctx.move_to(x0 - tick_length, y_pos);
-                        ctx.line_to(x0, y_pos);
+                        match y_position {
+                            YAxisPosition::Left => {
+                                ctx.move_to(x0 - tick_length, y_pos);
+                                ctx.line_to(x0, y_pos);
+                            }
+                            YAxisPosition::Right => {
+                                ctx.move_to(x1, y_pos);
+                                ctx.line_to(x1 + tick_length, y_pos);
+                            }
+                        }
                         ctx.stroke().ok();
                     }
 
@@ -518,7 +582,14 @@ impl Plot {
                     let extents = ctx.text_extents(label).ok();
                     if let Some(ext) = extents {
                         let margin = self.theme.axis_y.text.text.margin.right as f64;
-                        ctx.move_to(x0 - tick_length - margin - ext.width(), y_pos + ext.height() / 2.0);
+                        match y_position {
+                            YAxisPosition::Left => {
+                                ctx.move_to(x0 - tick_length - margin - ext.width(), y_pos + ext.height() / 2.0);
+                            }
+                            YAxisPosition::Right => {
+                                ctx.move_to(x1 + tick_length + margin, y_pos + ext.height() / 2.0);
+                            }
+                        }
                         ctx.show_text(label).ok();
                     }
                 }
@@ -528,17 +599,33 @@ impl Plot {
         // Draw X axis title
         if let Some(x_axis) = &self.guides.x_axis {
             if let Some(x_label) = &x_axis.title {
+                use crate::guide::{AxisType, XAxisPosition};
+                let x_position = match &x_axis.position {
+                    AxisType::X(pos) => pos.clone(),
+                    _ => XAxisPosition::Bottom,
+                };
+                
                 Self::apply_text_theme(ctx, &self.theme.axis_x.text.title);
                 let extents = ctx.text_extents(x_label).ok();
                 if let Some(ext) = extents {
                     let x_center = (x0 + x1) / 2.0;
-                    // Position below: axis line + ticks + tick label margin + typical label height + title margin
                     let tick_length = self.theme.axis_x.line.tick_length as f64;
                     let label_margin = self.theme.axis_x.text.text.margin.top as f64;
                     let typical_label_height = self.theme.axis_x.text.text.font.size as f64;
                     let title_margin = self.theme.axis_x.text.title.margin.top as f64;
-                    let y_offset = y1 + tick_length + label_margin + typical_label_height + title_margin + ext.height();
-                    ctx.move_to(x_center - ext.width() / 2.0, y_offset);
+                    
+                    match x_position {
+                        XAxisPosition::Bottom => {
+                            // Position below: axis line + ticks + tick label margin + typical label height + title margin
+                            let y_offset = y1 + tick_length + label_margin + typical_label_height + title_margin + ext.height();
+                            ctx.move_to(x_center - ext.width() / 2.0, y_offset);
+                        }
+                        XAxisPosition::Top => {
+                            // Position above: axis line + ticks + tick label margin + title margin
+                            let y_offset = y0 - tick_length - label_margin - typical_label_height - title_margin;
+                            ctx.move_to(x_center - ext.width() / 2.0, y_offset);
+                        }
+                    }
                     ctx.show_text(x_label).ok();
                 }
             }
@@ -547,21 +634,38 @@ impl Plot {
         // Draw Y axis title (rotated)
         if let Some(y_axis) = &self.guides.y_axis {
             if let Some(y_label) = &y_axis.title {
+                use crate::guide::{AxisType, YAxisPosition};
+                let y_position = match &y_axis.position {
+                    AxisType::Y(pos) => pos.clone(),
+                    _ => YAxisPosition::Left,
+                };
+                
                 ctx.save().ok();
                 Self::apply_text_theme(ctx, &self.theme.axis_y.text.title);
                 let y_center = (y0 + y1) / 2.0;
                 let extents = ctx.text_extents(y_label).ok();
                 if let Some(ext) = extents {
-                    // Position to left of: axis line + ticks + tick label margin + typical max label width + title margin
                     let tick_length = self.theme.axis_y.line.tick_length as f64;
                     let label_margin = self.theme.axis_y.text.text.margin.right as f64;
                     // Estimate max label width (rough approximation based on font size * typical digits)
                     let typical_label_width = self.theme.axis_y.text.text.font.size as f64 * 2.5;
                     let title_margin = self.theme.axis_y.text.title.margin.right as f64;
                     let title_height = ext.height();
-                    let x_offset = x0 - tick_length - label_margin - typical_label_width - title_margin - title_height;
-                    ctx.move_to(x_offset, y_center + ext.width() / 2.0);
-                    ctx.rotate(-std::f64::consts::PI / 2.0);
+                    
+                    match y_position {
+                        YAxisPosition::Left => {
+                            // Position to left of: axis line + ticks + tick label margin + typical max label width + title margin
+                            let x_offset = x0 - tick_length - label_margin - typical_label_width - title_margin - title_height;
+                            ctx.move_to(x_offset, y_center + ext.width() / 2.0);
+                            ctx.rotate(-std::f64::consts::PI / 2.0);
+                        }
+                        YAxisPosition::Right => {
+                            // Position to right of: axis line + ticks + tick label margin + typical max label width + title margin
+                            let x_offset = x1 + tick_length + label_margin + typical_label_width + title_margin + title_height;
+                            ctx.move_to(x_offset, y_center - ext.width() / 2.0);
+                            ctx.rotate(std::f64::consts::PI / 2.0);
+                        }
+                    }
                     ctx.show_text(y_label).ok();
                 }
                 ctx.restore().ok();
@@ -776,7 +880,7 @@ impl Plot {
                         self.scales.x = Some(Box::new(scale));
                         // Set default axis title if not already set
                         if self.guides.x_axis.is_none() {
-                            self.guides.x_axis = Some(crate::guide::AxisGuide::new().title(col_name.clone()));
+                            self.guides.x_axis = Some(crate::guide::AxisGuide::x().title(col_name.clone()));
                         }
                     }
                 }
@@ -790,7 +894,7 @@ impl Plot {
                         self.scales.y = Some(Box::new(scale));
                         // Set default axis title if not already set
                         if self.guides.y_axis.is_none() {
-                            self.guides.y_axis = Some(crate::guide::AxisGuide::new().title(col_name.clone()));
+                            self.guides.y_axis = Some(crate::guide::AxisGuide::y().title(col_name.clone()));
                         }
                     }
                 }
@@ -1053,15 +1157,54 @@ impl Plot {
         // Calculate required legend width and adjust right margin
         let legend_width = self.calculate_legend_width();
         
-        // Define plot area using theme margins
-        let margin_left = self.theme.plot_margin.left as f64;
-        let mut margin_right = self.theme.plot_margin.right as f64;
-        let margin_top = self.theme.plot_margin.top as f64;
-        let margin_bottom = self.theme.plot_margin.bottom as f64;
+        // Determine axis positions
+        use crate::guide::{AxisType, XAxisPosition, YAxisPosition};
+        
+        let x_position = self.guides.x_axis.as_ref()
+            .and_then(|guide| match &guide.position {
+                AxisType::X(pos) => Some(pos.clone()),
+                _ => None,
+            })
+            .unwrap_or(XAxisPosition::Bottom);
+        
+        let y_position = self.guides.y_axis.as_ref()
+            .and_then(|guide| match &guide.position {
+                AxisType::Y(pos) => Some(pos.clone()),
+                _ => None,
+            })
+            .unwrap_or(YAxisPosition::Left);
+        
+        // Get base margins from theme
+        let theme_margin_left = self.theme.plot_margin.left as f64;
+        let theme_margin_right = self.theme.plot_margin.right as f64;
+        let theme_margin_top = self.theme.plot_margin.top as f64;
+        let theme_margin_bottom = self.theme.plot_margin.bottom as f64;
+        
+        // Adjust margins based on axis positions
+        // When axis moves to opposite side, use theme's opposite margin
+        let margin_left = match y_position {
+            YAxisPosition::Left => theme_margin_left,
+            YAxisPosition::Right => theme_margin_right,
+        };
+        
+        let mut margin_right = match y_position {
+            YAxisPosition::Left => theme_margin_right,
+            YAxisPosition::Right => theme_margin_left,
+        };
+        
+        let margin_top = match x_position {
+            XAxisPosition::Top => theme_margin_bottom,
+            XAxisPosition::Bottom => theme_margin_top,
+        };
+        
+        let margin_bottom = match x_position {
+            XAxisPosition::Bottom => theme_margin_bottom,
+            XAxisPosition::Top => theme_margin_top,
+        };
         
         // Increase right margin if legends are present
         if legend_width > 0.0 {
-            margin_right = margin_right.max(legend_width);
+            margin_right = f64::max(margin_right, legend_width);
         }
 
         let plot_x0 = margin_left;

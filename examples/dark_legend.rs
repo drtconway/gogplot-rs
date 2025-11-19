@@ -49,8 +49,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .title("Dark Theme with Legend")
         .theme(Theme::dark())
         .guides(guides
-            .x_axis(AxisGuide::new().title("X Values"))
-            .y_axis(AxisGuide::new().title("Y Values")))
+            .x_axis(AxisGuide::x().title("X Values"))
+            .y_axis(AxisGuide::y().title("Y Values")))
         .aes(|a| {
             a.x("x");
             a.y("y");

@@ -40,6 +40,36 @@ impl Default for LegendDirection {
     }
 }
 
+/// Position for X-axis
+#[derive(Clone, Debug, PartialEq)]
+pub enum XAxisPosition {
+    /// Bottom of plot (default)
+    Bottom,
+    /// Top of plot
+    Top,
+}
+
+impl Default for XAxisPosition {
+    fn default() -> Self {
+        XAxisPosition::Bottom
+    }
+}
+
+/// Position for Y-axis
+#[derive(Clone, Debug, PartialEq)]
+pub enum YAxisPosition {
+    /// Left side of plot (default)
+    Left,
+    /// Right side of plot
+    Right,
+}
+
+impl Default for YAxisPosition {
+    fn default() -> Self {
+        YAxisPosition::Left
+    }
+}
+
 /// A single legend entry
 #[derive(Clone, Debug)]
 pub struct LegendEntry {
@@ -124,29 +154,67 @@ impl LegendGuide {
     }
 }
 
+/// Axis position (used internally to determine X or Y axis)
+#[derive(Clone, Debug, PartialEq)]
+pub enum AxisType {
+    X(XAxisPosition),
+    Y(YAxisPosition),
+}
+
 /// Configuration for an axis guide
 #[derive(Clone, Debug)]
 pub struct AxisGuide {
     /// Title for the axis
     pub title: Option<String>,
+    /// Position of the axis (X: Bottom/Top, Y: Left/Right)
+    pub position: AxisType,
     // Future: could add custom breaks, labels, angle, etc.
 }
 
-impl Default for AxisGuide {
-    fn default() -> Self {
+impl AxisGuide {
+    /// Create a new X-axis guide with bottom position (default)
+    pub fn x() -> Self {
         AxisGuide {
             title: None,
+            position: AxisType::X(XAxisPosition::Bottom),
         }
     }
-}
 
-impl AxisGuide {
-    pub fn new() -> Self {
-        Self::default()
+    /// Create a new Y-axis guide with left position (default)
+    pub fn y() -> Self {
+        AxisGuide {
+            title: None,
+            position: AxisType::Y(YAxisPosition::Left),
+        }
     }
 
+    /// Set the title for the axis
     pub fn title(mut self, title: impl Into<String>) -> Self {
         self.title = Some(title.into());
+        self
+    }
+
+    /// Set X-axis position to bottom
+    pub fn bottom(mut self) -> Self {
+        self.position = AxisType::X(XAxisPosition::Bottom);
+        self
+    }
+
+    /// Set X-axis position to top
+    pub fn top(mut self) -> Self {
+        self.position = AxisType::X(XAxisPosition::Top);
+        self
+    }
+
+    /// Set Y-axis position to left
+    pub fn left(mut self) -> Self {
+        self.position = AxisType::Y(YAxisPosition::Left);
+        self
+    }
+
+    /// Set Y-axis position to right
+    pub fn right(mut self) -> Self {
+        self.position = AxisType::Y(YAxisPosition::Right);
         self
     }
 }

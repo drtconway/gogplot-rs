@@ -13,8 +13,8 @@ fn create_sample_plot(theme: Theme, filename: &str) -> Result<(), Box<dyn std::e
     let plot = Plot::new(Some(Box::new(df)))
         .title("Theme Demo Plot")
         .guides(Guides::new()
-            .x_axis(AxisGuide::new().title("X Values"))
-            .y_axis(AxisGuide::new().title("Y Values")))
+            .x_axis(AxisGuide::x().title("X Values"))
+            .y_axis(AxisGuide::y().title("Y Values")))
         .theme(theme)
         .aes(|a| {
             a.x("x");

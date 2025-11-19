@@ -48,8 +48,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let plot = Plot::new(Some(Box::new(df)))
         .title("Scatter Plot with Legend")
         .guides(guides
-            .x_axis(AxisGuide::new().title("X Values"))
-            .y_axis(AxisGuide::new().title("Y Values")))
+            .x_axis(AxisGuide::x().title("X Values"))
+            .y_axis(AxisGuide::y().title("Y Values")))
         .aes(|a| {
             a.x("x");
             a.y("y");
