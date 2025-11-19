@@ -45,6 +45,9 @@ pub struct Plot {
     /// Default data source for all layers
     pub data: Option<Box<dyn DataSource>>,
 
+    /// Default aesthetic mappings for all layers
+    pub default_aes: crate::aesthetics::AesMap,
+
     /// Layers to render
     pub layers: Vec<Layer>,
 
@@ -72,6 +75,7 @@ impl Plot {
     pub fn new(data: Option<Box<dyn DataSource>>) -> Self {
         Self {
             data,
+            default_aes: crate::aesthetics::AesMap::new(),
             layers: Vec::new(),
             scales: ScaleSet::new(),
             theme: Theme::default(),
@@ -115,6 +119,63 @@ impl Plot {
     /// Set the guides configuration (builder style)
     pub fn guides(mut self, guides: Guides) -> Self {
         self.guides = guides;
+        self
+    }
+
+    /// Set default aesthetic mappings for all layers (builder style)
+    /// 
+    /// # Examples
+    /// 
+    /// ```ignore
+    /// let plot = Plot::new(Some(Box::new(df)))
+    ///     .aes(|a| {
+    ///         a.x("x_column");
+    ///         a.y("y_column");
+    ///         a.color("category");
+    ///     });
+    /// ```
+    pub fn aes<F>(mut self, f: F) -> Self
+    where
+        F: FnOnce(&mut crate::aesthetics::AesMap),
+    {
+        f(&mut self.default_aes);
+        self
+    }
+
+    /// Add a point geom layer using default aesthetics (builder style)
+    /// 
+    /// # Examples
+    /// 
+    /// ```ignore
+    /// // Use default aesthetics
+    /// plot.geom_point()
+    /// 
+    /// // Override or add aesthetics for this layer
+    /// plot.geom_point_with(|geom, aes| {
+    ///     geom.size(3.0);
+    ///     aes.color("species");
+    /// })
+    /// ```
+    pub fn geom_point(self) -> Self {
+        self.geom_point_with(|geom, _| geom)
+    }
+
+    /// Add a point geom layer with customization (builder style)
+    pub fn geom_point_with<F>(mut self, f: F) -> Self
+    where
+        F: FnOnce(crate::geom::point::GeomPoint, &mut crate::aesthetics::AesMap) -> crate::geom::point::GeomPoint,
+    {
+        let geom = crate::geom::point::GeomPoint::default();
+        let mut aes = self.default_aes.clone();
+        let geom = f(geom, &mut aes);
+        
+        let mut layer = geom.into_layer();
+        // Merge: geom defaults first, then overlay with plot aesthetics
+        // This way explicit aesthetic mappings override geom defaults
+        for (aesthetic, value) in aes.iter() {
+            layer.mapping.set(aesthetic.clone(), value.clone());
+        }
+        self.layers.push(layer);
         self
     }
 

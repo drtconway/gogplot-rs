@@ -1,5 +1,3 @@
-use gogplot_rs::aesthetics::{Aesthetic, AesValue};
-use gogplot_rs::geom::point::GeomPoint;
 use gogplot_rs::plot::Plot;
 use gogplot_rs::utils::dataframe::{DataFrame, FloatVec, StrVec};
 
@@ -16,21 +14,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "virginica", "setosa",
     ])));
 
-    // Create a point geom
-    let geom = GeomPoint::default()
-        .size(6.0)
-        .color(100, 100, 100, 255); // Default color, will be overridden by scale
-    
-    // Create a layer and map x, y, and color aesthetics to data columns
-    let mut layer = geom.into_layer();
-    layer.mapping.set(Aesthetic::X, AesValue::Column("x".to_string()));
-    layer.mapping.set(Aesthetic::Y, AesValue::Column("y".to_string()));
-    layer.mapping.set(Aesthetic::Color, AesValue::Column("species".to_string())); // Map color to species
-
-    // Create plot - scales, labels, and legend are all generated automatically!
+    // Create plot - everything is automatic!
     let plot = Plot::new(Some(Box::new(df)))
         .title("Automatic Legend from Color Mapping")
-        .layer(layer);
+        .aes(|a| {
+            a.x("x");
+            a.y("y");
+            a.color("species"); // Map color to species column
+        })
+        .geom_point_with(|geom, _aes| {
+            geom.size(6.0)
+        });
 
     // Save to a file
     plot.save("automatic_legend.png", 800, 600)?;

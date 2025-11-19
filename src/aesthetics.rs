@@ -26,6 +26,7 @@ pub enum AesValue {
 }
 
 // The mapping structure
+#[derive(Clone)]
 pub struct AesMap {
     map: HashMap<Aesthetic, AesValue>,
 }
@@ -41,6 +42,10 @@ impl AesMap {
 
     pub fn get(&self, aes: &Aesthetic) -> Option<&AesValue> {
         self.map.get(aes)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&Aesthetic, &AesValue)> {
+        self.map.iter()
     }
 
     // Convenience methods for column mappings
