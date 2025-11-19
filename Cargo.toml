@@ -1,0 +1,8 @@
+[package]
+name = "gogplot-rs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+cairo-rs = { version = "0.21.2", features = ["pdf", "png", "svg"] }
+internment = { version = "0.8.6", features = ["arc", "arc-interner"] }
