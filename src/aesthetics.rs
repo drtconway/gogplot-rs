@@ -10,6 +10,7 @@ pub enum Aesthetic {
     Alpha,
     Size,
     Shape,
+    Group,
     XBegin,
     XEnd,
     YBegin,
@@ -66,6 +67,9 @@ impl AesMap {
     }
     pub fn shape(&mut self, column: impl Into<String>) {
         self.set(Aesthetic::Shape, AesValue::Column(column.into()));
+    }
+    pub fn group(&mut self, column: impl Into<String>) {
+        self.set(Aesthetic::Group, AesValue::Column(column.into()));
     }
 
     // Convenience methods for constant value mappings

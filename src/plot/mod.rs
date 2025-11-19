@@ -161,6 +161,25 @@ impl Plot {
         self
     }
 
+    /// Add a line geom layer with customization (builder style)
+    pub fn geom_line_with<F>(mut self, f: F) -> Self
+    where
+        F: FnOnce(crate::geom::line::GeomLine, &mut crate::aesthetics::AesMap) -> crate::geom::line::GeomLine,
+    {
+        let geom = crate::geom::line::GeomLine::default();
+        let mut aes = self.default_aes.clone();
+        let geom = f(geom, &mut aes);
+        
+        let mut layer = geom.into_layer();
+        // Merge: geom defaults first, then overlay with plot aesthetics
+        // This way explicit aesthetic mappings override geom defaults
+        for (aesthetic, value) in aes.iter() {
+            layer.mapping.set(aesthetic.clone(), value.clone());
+        }
+        self.layers.push(layer);
+        self
+    }
+
     /// Set the x scale (builder style)
     pub fn scale_x(mut self, scale: Box<dyn ContinuousScale>) -> Self {
         self.scales.x = Some(scale);
