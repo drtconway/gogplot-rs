@@ -68,6 +68,12 @@ impl StrVector for StrVec {
     }
 }
 
+impl From<Vec<&str>> for StrVec {
+    fn from(vec: Vec<&str>) -> Self {
+        StrVec(vec.into_iter().map(|s| s.to_string()).collect())
+    }
+}
+
 /// A simple DataFrame implementation that holds named columns of data.
 ///
 /// Each column is a vector of values of the same type (i64, f64, or String).

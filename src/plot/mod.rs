@@ -196,7 +196,10 @@ impl Plot {
     /// ```ignore
     /// plot.save("output.png", 800, 600)?;
     /// ```
-    pub fn save(&self, path: impl AsRef<Path>, width: i32, height: i32) -> Result<(), PlotError> {
+    pub fn save(mut self, path: impl AsRef<Path>, width: i32, height: i32) -> Result<(), PlotError> {
+        // Train scales on data before rendering
+        self.train_scales();
+        
         let path = path.as_ref();
         let extension = path
             .extension()
@@ -467,21 +470,24 @@ impl Plot {
     ) -> Result<(), PlotError> {
         use crate::guide::LegendPosition;
 
+        // Generate automatic legends from scales if aesthetics are mapped
+        let guides = self.generate_automatic_legends();
+
         // Collect all legends to draw
         let mut legends = Vec::new();
         
         // Add color legend if present
-        if let Some(ref color_guide) = self.guides.color {
+        if let Some(ref color_guide) = guides.color {
             legends.push(color_guide);
         }
         
         // Add shape legend if present
-        if let Some(ref shape_guide) = self.guides.shape {
+        if let Some(ref shape_guide) = guides.shape {
             legends.push(shape_guide);
         }
         
         // Add size legend if present
-        if let Some(ref size_guide) = self.guides.size {
+        if let Some(ref size_guide) = guides.size {
             legends.push(size_guide);
         }
         
@@ -627,6 +633,170 @@ impl Plot {
         }
     }
 
+    /// Train all scales on the data
+    fn train_scales(&mut self) {
+        use crate::aesthetics::{Aesthetic, AesValue};
+        
+        for layer in &self.layers {
+            let data: &dyn DataSource = match &layer.data {
+                Some(d) => d.as_ref(),
+                None => match &self.data {
+                    Some(d) => d.as_ref(),
+                    None => continue,
+                },
+            };
+            
+            // Train x scale
+            if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::X) {
+                if let Some(ref mut scale) = self.scales.x {
+                    if let Some(vec) = data.get(col_name) {
+                        scale.train(vec);
+                    }
+                }
+            }
+            
+            // Train y scale
+            if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::Y) {
+                if let Some(ref mut scale) = self.scales.y {
+                    if let Some(vec) = data.get(col_name) {
+                        scale.train(vec);
+                    }
+                }
+            }
+            
+            // Train color scale
+            if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::Color) {
+                if let Some(ref mut scale) = self.scales.color {
+                    if let Some(vec) = data.get(col_name) {
+                        scale.train(vec);
+                    }
+                }
+            }
+            
+            // Train shape scale
+            if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::Shape) {
+                if let Some(ref mut scale) = self.scales.shape {
+                    if let Some(vec) = data.get(col_name) {
+                        scale.train(vec);
+                    }
+                }
+            }
+            
+            // Train size scale
+            if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::Size) {
+                if let Some(ref mut scale) = self.scales.size {
+                    if let Some(vec) = data.get(col_name) {
+                        scale.train(vec);
+                    }
+                }
+            }
+            
+            // Train alpha scale
+            if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::Alpha) {
+                if let Some(ref mut scale) = self.scales.alpha {
+                    if let Some(vec) = data.get(col_name) {
+                        scale.train(vec);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Generate legends automatically from scales when aesthetics are mapped
+    fn generate_automatic_legends(&self) -> Guides {
+        use crate::aesthetics::{Aesthetic, AesValue};
+        use crate::guide::{LegendGuide, LegendEntry, LegendPosition, Shape};
+        
+        let mut guides = self.guides.clone();
+        
+        // Check if any layer maps Color aesthetic to a column
+        let has_color_mapping = self.layers.iter().any(|layer| {
+            matches!(layer.mapping.get(&Aesthetic::Color), Some(AesValue::Column(_)))
+        });
+        
+        // Check if any layer maps Shape aesthetic to a column
+        let has_shape_mapping = self.layers.iter().any(|layer| {
+            matches!(layer.mapping.get(&Aesthetic::Shape), Some(AesValue::Column(_)))
+        });
+        
+        // Generate color legend if Color is mapped and we have a color scale
+        if has_color_mapping && self.scales.color.is_some() && guides.color.is_none() {
+            if let Some(ref color_scale) = self.scales.color {
+                let breaks = color_scale.legend_breaks();
+                if !breaks.is_empty() {
+                    let mut legend = LegendGuide::new();
+                    legend.position = LegendPosition::Right;
+                    
+                    // Get the column name for the title
+                    for layer in &self.layers {
+                        if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::Color) {
+                            legend.title = Some(col_name.clone());
+                            break;
+                        }
+                    }
+                    
+                    // Generate entries from breaks
+                    for category in breaks {
+                        if let Some(color) = color_scale.map_discrete_to_color(&category) {
+                            legend.entries.push(LegendEntry {
+                                label: category.clone(),
+                                color: Some(color),
+                                shape: Some(Shape::Circle),
+                                size: Some(5.0),
+                            });
+                        }
+                    }
+                    
+                    guides.color = Some(legend);
+                }
+            }
+        }
+        
+        // Generate shape legend if Shape is mapped and we have a shape scale
+        if has_shape_mapping && self.scales.shape.is_some() && guides.shape.is_none() {
+            if let Some(ref shape_scale) = self.scales.shape {
+                let breaks = shape_scale.legend_breaks();
+                if !breaks.is_empty() {
+                    let mut legend = LegendGuide::new();
+                    legend.position = LegendPosition::Right;
+                    
+                    // Get the column name for the title
+                    for layer in &self.layers {
+                        if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::Shape) {
+                            legend.title = Some(col_name.clone());
+                            break;
+                        }
+                    }
+                    
+                    // Generate entries from breaks
+                    for category in breaks {
+                        if let Some(point_shape) = shape_scale.map_to_shape(&category) {
+                            let shape = match point_shape {
+                                crate::geom::point::PointShape::Circle => Shape::Circle,
+                                crate::geom::point::PointShape::Square => Shape::Square,
+                                crate::geom::point::PointShape::Triangle => Shape::Triangle,
+                                crate::geom::point::PointShape::Diamond => Shape::Diamond,
+                                crate::geom::point::PointShape::Cross => Shape::Cross,
+                                crate::geom::point::PointShape::Plus => Shape::Plus,
+                            };
+                            
+                            legend.entries.push(LegendEntry {
+                                label: category.clone(),
+                                color: Some(Color(100, 100, 100, 255)), // Default gray
+                                shape: Some(shape),
+                                size: Some(5.0),
+                            });
+                        }
+                    }
+                    
+                    guides.shape = Some(legend);
+                }
+            }
+        }
+        
+        guides
+    }
+
     /// Calculate the required width for legends
     fn calculate_legend_width(&self) -> f64 {
         use crate::guide::LegendPosition;
@@ -635,22 +805,25 @@ impl Plot {
         let legend_width = 120.0; // Base legend width
         let legend_spacing = 10.0;
         
+        // Generate automatic legends to get accurate count
+        let guides = self.generate_automatic_legends();
+        
         // Check if we have any legends to display
         let mut legend_count = 0;
         
-        if let Some(ref legend) = self.guides.color {
+        if let Some(ref legend) = guides.color {
             if !matches!(legend.position, LegendPosition::None) {
                 legend_count += 1;
             }
         }
         
-        if let Some(ref legend) = self.guides.shape {
+        if let Some(ref legend) = guides.shape {
             if !matches!(legend.position, LegendPosition::None) {
                 legend_count += 1;
             }
         }
         
-        if let Some(ref legend) = self.guides.size {
+        if let Some(ref legend) = guides.size {
             if !matches!(legend.position, LegendPosition::None) {
                 legend_count += 1;
             }
