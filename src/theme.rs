@@ -70,35 +70,116 @@ impl Default for Background {
     }
 }
 
+/// Text element theme (for labels, titles, etc.)
+#[derive(Clone, Debug, PartialEq)]
+pub struct TextTheme {
+	pub font: Font,
+	pub color: Color,
+	pub margin: Spacing,
+}
+
+impl Default for TextTheme {
+    fn default() -> Self {
+        TextTheme {
+            font: Font {
+                family: "Sans".to_string(),
+                size: 11.0,
+                weight: FontWeight::Normal,
+                style: FontStyle::Normal,
+            },
+            color: color::BLACK,
+            margin: Spacing {
+                top: 0.0,
+                right: 0.0,
+                bottom: 0.0,
+                left: 0.0,
+            },
+        }
+    }
+}
+
+/// Theme for axis line and ticks
+#[derive(Clone, Debug, PartialEq)]
+pub struct AxisLineTheme {
+	pub line: Option<LineStyle>,
+	pub ticks: Option<LineStyle>,
+	pub tick_length: f32,
+}
+
+impl Default for AxisLineTheme {
+    fn default() -> Self {
+        AxisLineTheme {
+            line: Some(LineStyle {
+                color: color::BLACK,
+                width: 1.0,
+                dash: None,
+            }),
+            ticks: Some(LineStyle {
+                color: color::BLACK,
+                width: 1.0,
+                dash: None,
+            }),
+            tick_length: 5.0,
+        }
+    }
+}
+
+/// Theme for axis text (labels and title)
+#[derive(Clone, Debug, PartialEq)]
+pub struct AxisTextTheme {
+	pub text: TextTheme,
+	pub title: TextTheme,
+}
+
+impl Default for AxisTextTheme {
+    fn default() -> Self {
+        AxisTextTheme {
+            text: TextTheme {
+                font: Font {
+                    family: "Sans".to_string(),
+                    size: 10.0,
+                    weight: FontWeight::Normal,
+                    style: FontStyle::Normal,
+                },
+                color: color::BLACK,
+                margin: Spacing {
+                    top: 5.0,
+                    right: 5.0,
+                    bottom: 5.0,
+                    left: 5.0,
+                },
+            },
+            title: TextTheme {
+                font: Font {
+                    family: "Sans".to_string(),
+                    size: 12.0,
+                    weight: FontWeight::Normal,
+                    style: FontStyle::Normal,
+                },
+                color: color::BLACK,
+                margin: Spacing {
+                    top: 10.0,
+                    right: 0.0,
+                    bottom: 10.0,
+                    left: 0.0,
+                },
+            },
+        }
+    }
+}
+
 /// Theme for axis components
 #[derive(Clone, Debug, PartialEq)]
 pub struct AxisTheme {
-	pub line: LineStyle,
-	pub ticks: LineStyle,
-	pub label_font: Font,
-	pub label_color: Color,
+	pub line: AxisLineTheme,
+	pub text: AxisTextTheme,
 }
 
 impl Default for AxisTheme {
     fn default() -> Self {
         AxisTheme {
-            line: LineStyle {
-                color: color::BLACK, // black
-                width: 0.5,
-                dash: None,
-            },
-            ticks: LineStyle {
-                color: color::BLACK, // black
-                width: 0.5,
-                dash: None,
-            },
-            label_font: Font {
-                family: "sans-serif".to_string(),
-                size: 11.0,
-                weight: FontWeight::Normal,
-                style: FontStyle::Normal,
-            },
-            label_color: color::BLACK, // black
+            line: AxisLineTheme::default(),
+            text: AxisTextTheme::default(),
         }
     }
 }
@@ -135,29 +216,56 @@ impl Default for LegendTheme {
     }
 }
 
-/// Theme for title
+/// Theme for panel (plot area) background and grid
 #[derive(Clone, Debug, PartialEq)]
-pub struct TitleTheme {
-	pub font: Font,
-	pub color: Color,
-	pub margin: Spacing,
+pub struct PanelTheme {
+	pub background: Option<FillStyle>,
+	pub border: Option<LineStyle>,
+	pub grid_major: Option<LineStyle>,
+	pub grid_minor: Option<LineStyle>,
 }
 
-impl Default for TitleTheme {
+impl Default for PanelTheme {
     fn default() -> Self {
-        TitleTheme {
-            font: Font {
-                family: "sans-serif".to_string(),
-                size: 14.0,
-                weight: FontWeight::Bold,
-                style: FontStyle::Normal,
-            },
-            color: color::BLACK, // black
-            margin: Spacing {
-                top: 10.0,
-                right: 0.0,
-                bottom: 10.0,
-                left: 0.0,
+        PanelTheme {
+            background: Some(FillStyle {
+                color: Color(245, 245, 245, 255), // light gray
+                opacity: 1.0,
+            }),
+            border: None,
+            grid_major: Some(LineStyle {
+                color: color::WHITE,
+                width: 1.0,
+                dash: None,
+            }),
+            grid_minor: None,
+        }
+    }
+}
+
+/// Theme for plot title
+#[derive(Clone, Debug, PartialEq)]
+pub struct PlotTitleTheme {
+	pub text: TextTheme,
+}
+
+impl Default for PlotTitleTheme {
+    fn default() -> Self {
+        PlotTitleTheme {
+            text: TextTheme {
+                font: Font {
+                    family: "Sans".to_string(),
+                    size: 14.0,
+                    weight: FontWeight::Bold,
+                    style: FontStyle::Normal,
+                },
+                color: color::BLACK,
+                margin: Spacing {
+                    top: 5.0,
+                    right: 0.0,
+                    bottom: 10.0,
+                    left: 0.0,
+                },
             },
         }
     }
@@ -167,9 +275,11 @@ impl Default for TitleTheme {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Theme {
 	pub background: Background,
-	pub axis: AxisTheme,
+	pub panel: PanelTheme,
+	pub axis_x: AxisTheme,
+	pub axis_y: AxisTheme,
 	pub legend: LegendTheme,
-	pub title: TitleTheme,
+	pub plot_title: PlotTitleTheme,
 	pub plot_margin: Spacing,
 }
 
@@ -177,15 +287,86 @@ impl Default for Theme {
 	fn default() -> Self {
 		Theme {
 			background: Background::default(),
-			axis: AxisTheme::default(),
+			panel: PanelTheme::default(),
+			axis_x: AxisTheme::default(),
+			axis_y: AxisTheme::default(),
 			legend: LegendTheme::default(),
-			title: TitleTheme::default(),
+			plot_title: PlotTitleTheme::default(),
 			plot_margin: Spacing {
-				top: 5.5,
-				right: 5.5,
-				bottom: 5.5,
-				left: 5.5,
+				top: 40.0,
+				right: 20.0,
+				bottom: 60.0,
+				left: 70.0,
 			},
 		}
+	}
+}
+
+impl Theme {
+	/// Create a minimal theme with no panel background or grid
+	pub fn minimal() -> Self {
+		let mut theme = Theme::default();
+		theme.panel.background = None;
+		theme.panel.grid_major = None;
+		theme.panel.grid_minor = None;
+		theme
+	}
+
+	/// Create a classic theme similar to base R graphics
+	pub fn classic() -> Self {
+		let mut theme = Theme::default();
+		theme.panel.background = Some(FillStyle {
+			color: color::WHITE,
+			opacity: 1.0,
+		});
+		theme.panel.border = Some(LineStyle {
+			color: color::BLACK,
+			width: 1.0,
+			dash: None,
+		});
+		theme.panel.grid_major = None;
+		theme.panel.grid_minor = None;
+		theme
+	}
+
+	/// Create a dark theme
+	pub fn dark() -> Self {
+		let mut theme = Theme::default();
+		let dark_bg = Color(30, 30, 30, 255);
+		let light_gray = Color(200, 200, 200, 255);
+		
+		theme.background.fill.color = dark_bg;
+		theme.panel.background = Some(FillStyle {
+			color: Color(50, 50, 50, 255),
+			opacity: 1.0,
+		});
+		theme.panel.grid_major = Some(LineStyle {
+			color: Color(70, 70, 70, 255),
+			width: 1.0,
+			dash: None,
+		});
+		
+		// Update all text colors
+		theme.axis_x.text.text.color = light_gray;
+		theme.axis_x.text.title.color = light_gray;
+		theme.axis_y.text.text.color = light_gray;
+		theme.axis_y.text.title.color = light_gray;
+		theme.plot_title.text.color = light_gray;
+		
+		// Update axis lines
+		if let Some(ref mut line) = theme.axis_x.line.line {
+			line.color = light_gray;
+		}
+		if let Some(ref mut ticks) = theme.axis_x.line.ticks {
+			ticks.color = light_gray;
+		}
+		if let Some(ref mut line) = theme.axis_y.line.line {
+			line.color = light_gray;
+		}
+		if let Some(ref mut ticks) = theme.axis_y.line.ticks {
+			ticks.color = light_gray;
+		}
+		
+		theme
 	}
 }

@@ -27,6 +27,7 @@ pub struct Builder {
     limits: Option<(f64, f64)>,
     breaks: Option<Vec<f64>>,
     labels: Option<Vec<String>>,
+    expand: Option<(f64, f64)>,
 }
 
 impl Builder {
@@ -34,11 +35,13 @@ impl Builder {
     /// 
     /// By default, limits, breaks, and labels
     /// are automatically generated using Wilkinson's Extended algorithm.
+    /// A default expansion of (0.05, 0.05) is applied to add padding around the data.
     pub fn new() -> Self {
         Self {
             limits: None,
             breaks: None,
             labels: None,
+            expand: Some((0.05, 0.05)), // Default 5% expansion on each side
         }
     }
 
@@ -109,6 +112,44 @@ impl Builder {
         self
     }
 
+    /// Set the expansion factor for the scale.
+    /// 
+    /// The expand parameter adds padding around the data range. This is similar
+    /// to ggplot2's `expand` parameter and helps prevent data from sitting exactly
+    /// on the axis lines.
+    /// 
+    /// # Arguments
+    /// 
+    /// * `expand` - A tuple (mult, add) where:
+    ///   - `mult` is a multiplicative expansion (fraction of range)
+    ///   - `add` is an additive expansion (in data units)
+    /// 
+    /// The default is (0.05, 0.0) which adds 5% padding on each side.
+    /// Use (0.0, 0.0) to disable expansion.
+    /// 
+    /// # Examples
+    /// 
+    /// ```ignore
+    /// // 5% multiplicative expansion (default-like)
+    /// let scale = Builder::new()
+    ///     .expand((0.05, 0.0))
+    ///     .linear();
+    /// 
+    /// // No expansion
+    /// let scale = Builder::new()
+    ///     .expand((0.0, 0.0))
+    ///     .linear();
+    /// 
+    /// // 10% expansion plus 1 unit
+    /// let scale = Builder::new()
+    ///     .expand((0.1, 1.0))
+    ///     .linear();
+    /// ```
+    pub fn expand(mut self, expand: (f64, f64)) -> Self {
+        self.expand = Some(expand);
+        self
+    }
+
     /// Build a linear scale.
     /// 
     /// Creates a scale that maps data values to normalized coordinates using
@@ -130,7 +171,16 @@ impl Builder {
     ///     .linear()?;
     /// ```
     pub fn linear(self) -> Result<Linear, PlotError> {
-        let domain = self.limits.unwrap_or((0.0, 1.0));
+        let mut domain = self.limits.unwrap_or((0.0, 1.0));
+        
+        // Apply expansion
+        if let Some((mult, add)) = self.expand {
+            let range = domain.1 - domain.0;
+            let expansion = range * mult + add;
+            domain.0 -= expansion;
+            domain.1 += expansion;
+        }
+        
         let breaks = self
             .breaks
             .unwrap_or_else(|| extended_breaks(domain, 5));
@@ -177,13 +227,21 @@ impl Builder {
     ///     .sqrt()?;
     /// ```
     pub fn sqrt(self) -> Result<Sqrt, PlotError> {
-        let domain = self.limits.unwrap_or((0.0, 1.0));
+        let mut domain = self.limits.unwrap_or((0.0, 1.0));
         
         if domain.0 < 0.0 || domain.1 < 0.0 {
             return Err(PlotError::ScaleError(
                 format!("Square root scale requires non-negative domain, got ({}, {})",
                     domain.0, domain.1)
             ));
+        }
+        
+        // Apply expansion
+        if let Some((mult, add)) = self.expand {
+            let range = domain.1 - domain.0;
+            let expansion = range * mult + add;
+            domain.0 = (domain.0 - expansion).max(0.0); // Don't go negative
+            domain.1 += expansion;
         }
         
         let breaks = self
@@ -234,13 +292,21 @@ impl Builder {
     ///     .log10()?;
     /// ```
     pub fn log10(self) -> Result<Log10, PlotError> {
-        let domain = self.limits.unwrap_or((1.0, 10.0));
+        let mut domain = self.limits.unwrap_or((1.0, 10.0));
         
         if domain.0 <= 0.0 || domain.1 <= 0.0 {
             return Err(PlotError::ScaleError(
                 format!("Log10 scale requires positive domain, got ({}, {})",
                     domain.0, domain.1)
             ));
+        }
+        
+        // Apply expansion (multiplicative expansion makes more sense for log scales)
+        if let Some((mult, add)) = self.expand {
+            let range = domain.1 - domain.0;
+            let expansion = range * mult + add;
+            domain.0 = (domain.0 - expansion).max(0.001); // Don't go to zero or negative
+            domain.1 += expansion;
         }
         
         let breaks = self
