@@ -20,7 +20,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("x");
             a.y("y");
         })
-        .geom_point_with(|geom, _aes| geom.size(4.0).color(color::BLUE))
+        .geom_point_with(|geom| geom.size(4.0).color(color::BLUE))
         .geom_hline_with(4.0, |geom| {
             geom.color(color::RED)
                 .size(2.0)
@@ -40,7 +40,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("x");
             a.y("y");
         })
-        .geom_point_with(|geom, _aes| geom.size(4.0).color(color::BLUE))
+        .geom_point_with(|geom| geom.size(4.0).color(color::BLUE))
         .geom_vline_with(5.0, |geom| {
             geom.color(color::GREEN)
                 .size(2.0)
@@ -60,7 +60,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("x");
             a.y("y");
         })
-        .geom_point_with(|geom, _aes| geom.size(4.0).color(color::BLUE))
+        .geom_point_with(|geom| geom.size(4.0).color(color::BLUE))
         .geom_hline_with(3.0, |geom| {
             geom.color(color::BLUE)
                 .size(1.5)
@@ -96,7 +96,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("x");
             a.y("y");
         })
-        .geom_point_with(|geom, _aes| geom.size(4.0).color(color::BLUE))
+        .geom_point_with(|geom| geom.size(4.0).color(color::BLUE))
         .geom_hline_with(mean_y, |geom| {
             geom.color(color::RED)
                 .size(2.0)

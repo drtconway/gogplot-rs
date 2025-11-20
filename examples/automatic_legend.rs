@@ -22,7 +22,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.y("y");
             a.color("species"); // Map color to species column
         })
-        .geom_point_with(|geom, _aes| {
+        .geom_point_with(|geom| {
             geom.size(6.0)
         });
 

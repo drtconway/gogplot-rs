@@ -15,7 +15,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("x");
             a.y("y");
         })
-        .geom_point_with(|geom, _aes| {
+        .geom_point_with(|geom| {
             geom.size(5.0)
                 .color(color::BLUE) // Blue
         });

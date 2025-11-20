@@ -20,7 +20,7 @@ fn create_sample_plot(theme: Theme, filename: &str) -> Result<(), Box<dyn std::e
             a.x("x");
             a.y("y");
         })
-        .geom_point_with(|geom, _| {
+        .geom_point_with(|geom| {
             geom.size(6.0).color(Color(50, 100, 200, 255))
         });
 

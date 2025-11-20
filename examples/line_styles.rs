@@ -51,7 +51,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.linetype("style");
             a.group("style");
         })
-        .geom_line_with(|geom, _aes| geom.color(color::BLUE).size(2.0));
+        .geom_line_with(|geom| geom.color(color::BLUE).size(2.0));
     
     plot.save("line_styles_mapped.png", 800, 600)?;
     println!("Saved line_styles_mapped.png");
@@ -81,7 +81,7 @@ fn create_style_example(pattern: &str, title: &str) -> Result<(), Box<dyn std::e
             a.x("x");
             a.y("y");
         })
-        .geom_line_with(|geom, _aes| {
+        .geom_line_with(|geom| {
             geom.color(color::RED)
                 .size(2.5)
                 .linetype(pattern)

@@ -56,7 +56,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("x");
             a.y("y");
         })
-        .geom_point_with(|geom, _| {
+        .geom_point_with(|geom| {
             geom.size(6.0).color(Color(230, 97, 0, 255))
         });
 

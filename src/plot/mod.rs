@@ -132,30 +132,28 @@ impl Plot {
     /// // Use default aesthetics
     /// plot.geom_point()
     /// 
-    /// // Override or add aesthetics for this layer
-    /// plot.geom_point_with(|geom, aes| {
-    ///     geom.size(3.0);
-    ///     aes.color("species");
+    /// // Customize the point geom
+    /// plot.geom_point_with(|geom| {
+    ///     geom.size(3.0).color(color::BLUE)
     /// })
     /// ```
     pub fn geom_point(self) -> Self {
-        self.geom_point_with(|geom, _| geom)
+        self.geom_point_with(|geom| geom)
     }
 
     /// Add a point geom layer with customization (builder style)
     pub fn geom_point_with<F>(mut self, f: F) -> Self
     where
-        F: FnOnce(crate::geom::point::GeomPoint, &mut crate::aesthetics::AesMap) -> crate::geom::point::GeomPoint,
+        F: FnOnce(crate::geom::point::GeomPoint) -> crate::geom::point::GeomPoint,
     {
         let geom = crate::geom::point::GeomPoint::default();
-        let mut aes = self.default_aes.clone();
-        let geom = f(geom, &mut aes);
+        let geom = f(geom);
         
         let mut layer = geom.into_layer();
-        // Merge: geom defaults first, then overlay with plot aesthetics
-        // This way explicit aesthetic mappings override geom defaults
-        for (aesthetic, value) in aes.iter() {
-            layer.mapping.set(aesthetic.clone(), value.clone());
+        for (aesthetic, value) in self.default_aes.iter() {
+            if !layer.mapping.get(aesthetic).is_some() {
+                layer.mapping.set(aesthetic.clone(), value.clone());
+            }
         }
         self.layers.push(layer);
         self
@@ -164,17 +162,16 @@ impl Plot {
     /// Add a line geom layer with customization (builder style)
     pub fn geom_line_with<F>(mut self, f: F) -> Self
     where
-        F: FnOnce(crate::geom::line::GeomLine, &mut crate::aesthetics::AesMap) -> crate::geom::line::GeomLine,
+        F: FnOnce(crate::geom::line::GeomLine) -> crate::geom::line::GeomLine,
     {
         let geom = crate::geom::line::GeomLine::default();
-        let mut aes = self.default_aes.clone();
-        let geom = f(geom, &mut aes);
+        let geom = f(geom);
         
         let mut layer = geom.into_layer();
-        // Merge: geom defaults first, then overlay with plot aesthetics
-        // This way explicit aesthetic mappings override geom defaults
-        for (aesthetic, value) in aes.iter() {
-            layer.mapping.set(aesthetic.clone(), value.clone());
+        for (aesthetic, value) in self.default_aes.iter() {
+            if !layer.mapping.get(aesthetic).is_some() {
+                layer.mapping.set(aesthetic.clone(), value.clone());
+            }
         }
         self.layers.push(layer);
         self
