@@ -1,3 +1,4 @@
+pub mod bin;
 pub mod count;
 pub mod density;
 

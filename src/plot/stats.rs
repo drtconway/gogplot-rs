@@ -2,8 +2,9 @@
 
 use crate::error::PlotError;
 use crate::layer::{Layer, Stat};
-use crate::stat::StatTransform;
+use crate::stat::bin::Bin;
 use crate::stat::count::Count;
+use crate::stat::StatTransform;
 
 /// Apply statistical transformations to layers
 ///
@@ -37,12 +38,19 @@ pub fn apply_stats(layers: &mut [Layer]) -> Result<(), PlotError> {
         // Apply the stat transformation
         let stat_result = match &layers[i].stat {
             Stat::Count => Count.apply(data, &layers[i].mapping)?,
+            Stat::Bin { bins, binwidth } => {
+                let bin_stat = Bin {
+                    bins: *bins,
+                    binwidth: *binwidth,
+                };
+                bin_stat.apply(data, &layers[i].mapping)?
+            }
             Stat::Identity => {
                 // Put the data back and continue
                 layers[i].data = Some(data);
                 continue;
             }
-            Stat::Bin | Stat::Smooth => {
+            Stat::Smooth => {
                 // Not implemented yet - put data back
                 layers[i].data = Some(data);
                 continue;

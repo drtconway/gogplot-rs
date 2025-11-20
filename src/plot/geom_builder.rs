@@ -277,4 +277,52 @@ pub trait GeomBuilder {
         self.layers_mut().push(layer);
         self
     }
+
+    /// Add a histogram geom layer (builder style)
+    ///
+    /// By default, uses Stat::Bin to bin continuous data and count observations.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// plot.geom_histogram()
+    /// ```
+    fn geom_histogram(self) -> Self
+    where
+        Self: Sized,
+    {
+        self.geom_histogram_with(|geom| geom)
+    }
+
+    /// Add a histogram geom layer with customization (builder style)
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// plot.geom_histogram_with(|geom| {
+    ///     geom.fill(color::STEELBLUE)
+    ///         .bins(20)
+    ///         .alpha(0.8)
+    /// })
+    /// ```
+    fn geom_histogram_with<F>(mut self, f: F) -> Self
+    where
+        F: FnOnce(crate::geom::histogram::GeomHistogram) -> crate::geom::histogram::GeomHistogram,
+        Self: Sized,
+    {
+        let geom = crate::geom::histogram::GeomHistogram::new();
+        let geom = f(geom);
+
+        let mut layer = geom.into_layer();
+        self.merge_default_aesthetics(&mut layer);
+
+        // If layer needs stat transformation and doesn't have data, take plot data
+        // Stats need owned data to transform
+        if !matches!(layer.stat, crate::layer::Stat::Identity) && layer.data.is_none() {
+            layer.data = self.data_mut().take();
+        }
+
+        self.layers_mut().push(layer);
+        self
+    }
 }
