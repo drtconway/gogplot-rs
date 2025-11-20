@@ -1077,10 +1077,6 @@ impl Plot {
         use crate::scale::continuous::Builder;
         use crate::scale::color::DiscreteColor;
         use crate::scale::shape::DiscreteShape;
-        use crate::layer::Stat;
-        
-        // Check if any layer uses Count stat (typical for bar charts)
-        let has_count_stat = self.layers.iter().any(|layer| matches!(layer.stat, Stat::Count));
         
         // Find the first layer that maps each aesthetic to determine default scales
         for layer in &self.layers {
@@ -1146,13 +1142,7 @@ impl Plot {
                         self.scales.y = Some(Box::new(Catagorical::new(HashMap::new())));
                     } else {
                         // Create default linear scale
-                        // For bar charts (Count stat), anchor at zero
-                        let builder = if has_count_stat {
-                            Builder::new().set_lower_bound(0.0)
-                        } else {
-                            Builder::new()
-                        };
-                        if let Ok(scale) = builder.linear() {
+                        if let Ok(scale) = Builder::new().linear() {
                             self.scales.y = Some(Box::new(scale));
                         }
                     }
