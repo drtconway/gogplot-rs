@@ -272,6 +272,47 @@ impl Plot {
         self
     }
 
+    /// Add a line segment geom layer using default aesthetics
+    /// 
+    /// Draws line segments from (x, y) to (xend, yend).
+    /// 
+    /// # Examples
+    /// 
+    /// ```ignore
+    /// plot.geom_segment()
+    /// ```
+    pub fn geom_segment(self) -> Self {
+        self.geom_segment_with(|geom| geom)
+    }
+
+    /// Add a line segment geom layer with customization (builder style)
+    /// 
+    /// # Examples
+    /// 
+    /// ```ignore
+    /// plot.geom_segment_with(|geom| {
+    ///     geom.color(color::BLUE)
+    ///         .size(2.0)
+    ///         .alpha(0.8)
+    /// })
+    /// ```
+    pub fn geom_segment_with<F>(mut self, f: F) -> Self
+    where
+        F: FnOnce(crate::geom::segment::GeomSegment) -> crate::geom::segment::GeomSegment,
+    {
+        let geom = crate::geom::segment::GeomSegment::new();
+        let geom = f(geom);
+        
+        let mut layer = geom.into_layer();
+        for (aesthetic, value) in self.default_aes.iter() {
+            if !layer.mapping.get(aesthetic).is_some() {
+                layer.mapping.set(aesthetic.clone(), value.clone());
+            }
+        }
+        self.layers.push(layer);
+        self
+    }
+
     /// Set the x scale (builder style)
     pub fn scale_x(mut self, scale: Box<dyn ContinuousScale>) -> Self {
         self.scales.x = Some(scale);
