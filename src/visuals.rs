@@ -11,7 +11,13 @@ pub enum LineStyle {
     Custom(Vec<f64>),
 }
 
-impl LineStyle {
+impl Default for LineStyle {
+    fn default() -> Self {
+        LineStyle::Solid
+    }
+}
+
+impl From<&str> for LineStyle {
     /// Create a LineStyle from a pattern string.
     /// 
     /// Pattern characters:
@@ -25,7 +31,7 @@ impl LineStyle {
     /// - `"-."` : dash-dot pattern
     /// - `"- -"` : dash with long gaps
     /// - `". ."` : dots with long gaps
-    pub fn from_pattern(pattern: &str) -> Self {
+    fn from(pattern: &str) -> Self {
         if pattern.is_empty() {
             return LineStyle::Solid;
         }
@@ -55,7 +61,9 @@ impl LineStyle {
             LineStyle::Custom(dashes)
         }
     }
-    
+}
+
+impl LineStyle {
     /// Apply this line style to a Cairo context
     pub fn apply(&self, ctx: &mut Context) {
         match self {

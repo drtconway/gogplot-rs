@@ -208,10 +208,10 @@ impl GeomLine {
         // Apply line style
         use crate::visuals::LineStyle;
         if let Some(pattern) = linetype_pattern {
-            let style = LineStyle::from_pattern(&pattern);
+            let style = LineStyle::from(pattern.as_str());
             style.apply(&mut ctx.cairo);
         } else {
-            LineStyle::Solid.apply(&mut ctx.cairo);
+            LineStyle::default().apply(&mut ctx.cairo);
         }
         
         // Start path at first point
