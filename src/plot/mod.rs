@@ -179,6 +179,34 @@ impl Plot {
         self
     }
 
+    /// Add a density geom layer with customization (builder style)
+    /// 
+    /// # Examples
+    /// 
+    /// ```ignore
+    /// plot.geom_density_with(|geom| {
+    ///     geom.color(color::BLUE)
+    ///         .size(2.0)
+    ///         .adjust(0.5)
+    /// })
+    /// ```
+    pub fn geom_density_with<F>(mut self, f: F) -> Self
+    where
+        F: FnOnce(crate::geom::density::GeomDensity) -> crate::geom::density::GeomDensity,
+    {
+        let geom = crate::geom::density::GeomDensity::default();
+        let geom = f(geom);
+        
+        let mut layer = geom.into_layer();
+        for (aesthetic, value) in self.default_aes.iter() {
+            if !layer.mapping.get(aesthetic).is_some() {
+                layer.mapping.set(aesthetic.clone(), value.clone());
+            }
+        }
+        self.layers.push(layer);
+        self
+    }
+
     /// Add a horizontal line geom layer with customization (builder style)
     /// 
     /// # Examples
@@ -1362,8 +1390,10 @@ impl Plot {
     /// Train all scales on the data
     fn train_scales(&mut self) {
         use crate::aesthetics::{Aesthetic, AesValue};
+        use crate::scale::continuous::Continuous;
         
-        for layer in &self.layers {
+        // First pass: compute stats for all layers
+        for layer in &mut self.layers {
             let data: &dyn DataSource = match &layer.data {
                 Some(d) => d.as_ref(),
                 None => match &self.data {
@@ -1372,19 +1402,51 @@ impl Plot {
                 },
             };
             
+            // Compute stat if the geom needs it
+            if let Ok(Some((computed_df, computed_mapping))) = layer.geom.compute_stat(data, &layer.mapping) {
+                layer.computed_data = Some(computed_df);
+                layer.computed_mapping = Some(computed_mapping);
+                
+                // If computed data exists, ensure we have a y-scale
+                if self.scales.y.is_none() {
+                    if let Ok(scale) = Continuous::new().linear() {
+                        self.scales.y = Some(Box::new(scale));
+                    }
+                }
+            }
+        }
+        
+        // Second pass: train scales on data (including computed stat data)
+        for layer in &self.layers {
+            // Use computed data if available, otherwise use original data
+            let data: &dyn DataSource = if let Some(ref computed) = layer.computed_data {
+                computed as &dyn DataSource
+            } else {
+                match &layer.data {
+                    Some(d) => d.as_ref(),
+                    None => match &self.data {
+                        Some(d) => d.as_ref(),
+                        None => continue,
+                    },
+                }
+            };
+            
+            // Use computed mapping if available, otherwise use original mapping
+            let mapping = layer.computed_mapping.as_ref().unwrap_or(&layer.mapping);
+            
             // Collect all x-related vectors (X, XBegin, XEnd)
             let mut x_vecs = Vec::new();
-            if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::X) {
+            if let Some(AesValue::Column(col_name)) = mapping.get(&Aesthetic::X) {
                 if let Some(vec) = data.get(col_name) {
                     x_vecs.push(vec);
                 }
             }
-            if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::XBegin) {
+            if let Some(AesValue::Column(col_name)) = mapping.get(&Aesthetic::XBegin) {
                 if let Some(vec) = data.get(col_name) {
                     x_vecs.push(vec);
                 }
             }
-            if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::XEnd) {
+            if let Some(AesValue::Column(col_name)) = mapping.get(&Aesthetic::XEnd) {
                 if let Some(vec) = data.get(col_name) {
                     x_vecs.push(vec);
                 }
@@ -1399,17 +1461,17 @@ impl Plot {
             
             // Collect all y-related vectors (Y, YBegin, YEnd)
             let mut y_vecs = Vec::new();
-            if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::Y) {
+            if let Some(AesValue::Column(col_name)) = mapping.get(&Aesthetic::Y) {
                 if let Some(vec) = data.get(col_name) {
                     y_vecs.push(vec);
                 }
             }
-            if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::YBegin) {
+            if let Some(AesValue::Column(col_name)) = mapping.get(&Aesthetic::YBegin) {
                 if let Some(vec) = data.get(col_name) {
                     y_vecs.push(vec);
                 }
             }
-            if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::YEnd) {
+            if let Some(AesValue::Column(col_name)) = mapping.get(&Aesthetic::YEnd) {
                 if let Some(vec) = data.get(col_name) {
                     y_vecs.push(vec);
                 }
@@ -1423,7 +1485,7 @@ impl Plot {
             }
             
             // Train color scale
-            if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::Color) {
+            if let Some(AesValue::Column(col_name)) = mapping.get(&Aesthetic::Color) {
                 if let Some(ref mut scale) = self.scales.color {
                     if let Some(vec) = data.get(col_name) {
                         scale.train(&[vec]);
@@ -1432,7 +1494,7 @@ impl Plot {
             }
             
             // Train shape scale
-            if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::Shape) {
+            if let Some(AesValue::Column(col_name)) = mapping.get(&Aesthetic::Shape) {
                 if let Some(ref mut scale) = self.scales.shape {
                     if let Some(vec) = data.get(col_name) {
                         scale.train(&[vec]);
@@ -1441,7 +1503,7 @@ impl Plot {
             }
             
             // Train size scale
-            if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::Size) {
+            if let Some(AesValue::Column(col_name)) = mapping.get(&Aesthetic::Size) {
                 if let Some(ref mut scale) = self.scales.size {
                     if let Some(vec) = data.get(col_name) {
                         scale.train(&[vec]);
@@ -1450,7 +1512,7 @@ impl Plot {
             }
             
             // Train alpha scale
-            if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::Alpha) {
+            if let Some(AesValue::Column(col_name)) = mapping.get(&Aesthetic::Alpha) {
                 if let Some(ref mut scale) = self.scales.alpha {
                     if let Some(vec) = data.get(col_name) {
                         scale.train(&[vec]);
@@ -1699,18 +1761,26 @@ impl Plot {
 
         // Render each layer
         for layer in &self.layers {
-            let data: &dyn DataSource = match &layer.data {
-                Some(d) => d.as_ref(),
-                None => match &self.data {
+            // Use computed data if available, otherwise use original data
+            let data: &dyn DataSource = if let Some(ref computed) = layer.computed_data {
+                computed as &dyn DataSource
+            } else {
+                match &layer.data {
                     Some(d) => d.as_ref(),
-                    None => return Err(PlotError::MissingAesthetic("No data source".to_string())),
-                },
+                    None => match &self.data {
+                        Some(d) => d.as_ref(),
+                        None => return Err(PlotError::MissingAesthetic("No data source".to_string())),
+                    },
+                }
             };
+            
+            // Use computed mapping if available, otherwise use original mapping
+            let mapping = layer.computed_mapping.as_ref().unwrap_or(&layer.mapping);
 
             let mut render_ctx = RenderContext::new(
                 ctx,
                 data,
-                &layer.mapping,
+                mapping,
                 &self.scales,
                 (plot_x0, plot_x1),
                 (plot_y1, plot_y0),

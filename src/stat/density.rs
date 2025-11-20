@@ -1,0 +1,166 @@
+use crate::error::PlotError;
+use crate::utils::dataframe::{DataFrame, FloatVec};
+
+/// Kernel density estimation stat
+/// 
+/// Computes a smoothed density estimate using a Gaussian kernel.
+/// Uses Scott's rule for bandwidth selection by default.
+pub struct Density {
+    /// Number of equally-spaced points to evaluate density at (default 512)
+    n: usize,
+    /// Bandwidth adjustment multiplier (default 1.0)
+    adjust: f64,
+}
+
+impl Density {
+    pub fn new() -> Self {
+        Self {
+            n: 512,
+            adjust: 1.0,
+        }
+    }
+    
+    pub fn n(mut self, n: usize) -> Self {
+        self.n = n;
+        self
+    }
+    
+    pub fn adjust(mut self, adjust: f64) -> Self {
+        self.adjust = adjust;
+        self
+    }
+    
+    /// Compute kernel density estimate
+    /// 
+    /// Returns a DataFrame with columns: "x", "density", "count", "scaled", "n"
+    pub fn compute(&self, data: &[f64]) -> Result<DataFrame, PlotError> {
+        if data.is_empty() {
+            return Err(PlotError::InvalidData("Cannot compute density of empty data".to_string()));
+        }
+        
+        // Remove NaN values
+        let clean_data: Vec<f64> = data.iter()
+            .filter(|x| x.is_finite())
+            .copied()
+            .collect();
+        
+        if clean_data.is_empty() {
+            return Err(PlotError::InvalidData("No finite values in data".to_string()));
+        }
+        
+        let n_obs = clean_data.len() as f64;
+        
+        // Compute bandwidth using Scott's rule: h = n^(-1/5) * σ
+        let mean = clean_data.iter().sum::<f64>() / n_obs;
+        let variance = clean_data.iter()
+            .map(|x| (x - mean).powi(2))
+            .sum::<f64>() / (n_obs - 1.0);
+        let std_dev = variance.sqrt();
+        
+        let bandwidth = std_dev * n_obs.powf(-0.2) * self.adjust;
+        
+        // Determine evaluation range
+        let min_val = clean_data.iter().copied().fold(f64::INFINITY, f64::min);
+        let max_val = clean_data.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        let padding = 3.0 * bandwidth; // Extend range by 3 bandwidths
+        let x_min = min_val - padding;
+        let x_max = max_val + padding;
+        
+        // Create evaluation points
+        let mut x_vals = Vec::with_capacity(self.n);
+        let mut density_vals = Vec::with_capacity(self.n);
+        
+        for i in 0..self.n {
+            let x = x_min + (x_max - x_min) * i as f64 / (self.n - 1) as f64;
+            x_vals.push(x);
+            
+            // Compute density at this point using Gaussian kernel
+            // K(u) = (1/sqrt(2π)) * exp(-u²/2)
+            // Density at x = (1/(n*h)) * Σ K((x - x_i) / h)
+            let density: f64 = clean_data.iter()
+                .map(|&xi| {
+                    let u = (x - xi) / bandwidth;
+                    let kernel = (-0.5 * u * u).exp() / (2.0 * std::f64::consts::PI).sqrt();
+                    kernel
+                })
+                .sum::<f64>() / (n_obs * bandwidth);
+            
+            density_vals.push(density);
+        }
+        
+        // Compute derived variables
+        let max_density = density_vals.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        let count_vals: Vec<f64> = density_vals.iter().map(|d| d * n_obs).collect();
+        let scaled_vals: Vec<f64> = density_vals.iter().map(|d| d / max_density).collect();
+        
+        let mut result = DataFrame::new();
+        result.add_column("x", Box::new(FloatVec(x_vals)));
+        result.add_column("density", Box::new(FloatVec(density_vals)));
+        result.add_column("count", Box::new(FloatVec(count_vals)));
+        result.add_column("scaled", Box::new(FloatVec(scaled_vals)));
+        result.add_column("n", Box::new(FloatVec(vec![n_obs; self.n])));
+        
+        Ok(result)
+    }
+}
+
+impl Default for Density {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::data::DataSource;
+    
+    #[test]
+    fn test_density_basic() {
+        let data = vec![1.0, 2.0, 3.0, 4.0, 5.0];
+        let density = Density::new();
+        let result = density.compute(&data).unwrap();
+        
+        assert!(result.get("x").is_some());
+        assert!(result.get("density").is_some());
+        assert!(result.get("count").is_some());
+        assert!(result.get("scaled").is_some());
+        assert!(result.get("n").is_some());
+        
+        let x = result.get("x").unwrap().as_float().unwrap();
+        assert_eq!(x.len(), 512);
+        
+        let scaled = result.get("scaled").unwrap().as_float().unwrap();
+        let max_scaled = scaled.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        assert!((max_scaled - 1.0).abs() < 1e-10);
+    }
+    
+    #[test]
+    fn test_density_custom_n() {
+        let data = vec![1.0, 2.0, 3.0];
+        let density = Density::new().n(100);
+        let result = density.compute(&data).unwrap();
+        
+        let x = result.get("x").unwrap().as_float().unwrap();
+        assert_eq!(x.len(), 100);
+    }
+    
+    #[test]
+    fn test_density_adjust() {
+        let data = vec![1.0, 2.0, 3.0, 4.0, 5.0];
+        
+        let density1 = Density::new().adjust(0.5);
+        let result1 = density1.compute(&data).unwrap();
+        
+        let density2 = Density::new().adjust(2.0);
+        let result2 = density2.compute(&data).unwrap();
+        
+        // Smaller adjust should give more peaked density
+        // Just check that we get different results
+        let d1 = result1.get("density").unwrap().as_float().unwrap();
+        let d2 = result2.get("density").unwrap().as_float().unwrap();
+        let max1 = d1.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        let max2 = d2.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        assert!(max1 > max2);
+    }
+}

@@ -11,6 +11,7 @@ pub enum PlotError {
     InvalidAestheticType(String),
     ScaleError(String),
     ThemeError(String),
+    InvalidData(String),
     Generic(String),
 }
 
@@ -28,6 +29,9 @@ impl Display for PlotError {
             }
             PlotError::ThemeError(msg) => {
                 write!(f, "Theme error: {}", msg)
+            }
+            PlotError::InvalidData(msg) => {
+                write!(f, "Invalid data: {}", msg)
             }
             PlotError::Generic(msg) => {
                 write!(f, "Error: {}", msg)

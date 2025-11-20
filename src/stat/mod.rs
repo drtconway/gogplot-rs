@@ -1,4 +1,5 @@
 pub mod count;
+pub mod density;
 
 use crate::aesthetics::AesMap;
 use crate::data::DataSource;
