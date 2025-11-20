@@ -1,4 +1,5 @@
 use gogplot_rs::aesthetics::Aesthetic;
+use gogplot_rs::guide::Guides;
 use gogplot_rs::plot::Plot;
 use gogplot_rs::theme::color;
 use gogplot_rs::utils::dataframe::{DataFrame, FloatVec, StrVec};
@@ -46,6 +47,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .geom_segment_with(|geom| geom.size(3.0))
             .save("segment_colored.png", 600, 400)?;
         println!("Saved segment_colored.png");
+    }
+
+    // Example 2b: Same as above but with legend suppressed
+    // Useful when you have many categories or long legend labels
+    {
+        let mut data = DataFrame::new();
+        data.add_column("x", Box::new(FloatVec(vec![1.0, 2.0, 3.0, 4.0, 5.0])));
+        data.add_column("y", Box::new(FloatVec(vec![2.0, 3.0, 2.5, 4.0, 3.5])));
+        data.add_column("xend", Box::new(FloatVec(vec![2.0, 3.0, 4.0, 5.0, 6.0])));
+        data.add_column("yend", Box::new(FloatVec(vec![3.0, 2.5, 4.0, 3.5, 5.0])));
+        data.add_column("group", Box::new(StrVec::from(vec!["A", "B", "A", "C", "B"])));
+
+        Plot::new(Some(Box::new(data)))
+            .aes(|aes| {
+                aes.set_to_column(Aesthetic::X, "x");
+                aes.set_to_column(Aesthetic::Y, "y");
+                aes.set_to_column(Aesthetic::XEnd, "xend");
+                aes.set_to_column(Aesthetic::YEnd, "yend");
+                aes.set_to_column(Aesthetic::Color, "group");
+            })
+            .guides(Guides::new().no_color_legend())  // Suppress the color legend
+            .geom_segment_with(|geom| geom.size(3.0))
+            .save("segment_colored_no_legend.png", 600, 400)?;
+        println!("Saved segment_colored_no_legend.png (legend suppressed)");
     }
 
     // Example 3: Arrow-like pattern with segments

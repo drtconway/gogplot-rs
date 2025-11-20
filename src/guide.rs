@@ -318,4 +318,40 @@ impl Guides {
         self.alpha = Some(guide);
         self
     }
+
+    /// Suppress the color legend
+    pub fn no_color_legend(mut self) -> Self {
+        self.color = Some(LegendGuide {
+            position: LegendPosition::None,
+            ..Default::default()
+        });
+        self
+    }
+
+    /// Suppress the shape legend
+    pub fn no_shape_legend(mut self) -> Self {
+        self.shape = Some(LegendGuide {
+            position: LegendPosition::None,
+            ..Default::default()
+        });
+        self
+    }
+
+    /// Suppress the size legend
+    pub fn no_size_legend(mut self) -> Self {
+        self.size = Some(LegendGuide {
+            position: LegendPosition::None,
+            ..Default::default()
+        });
+        self
+    }
+
+    /// Suppress the alpha legend
+    pub fn no_alpha_legend(mut self) -> Self {
+        self.alpha = Some(LegendGuide {
+            position: LegendPosition::None,
+            ..Default::default()
+        });
+        self
+    }
 }
