@@ -10,6 +10,7 @@ pub enum Aesthetic {
     Alpha,
     Size,
     Shape,
+    Linetype,
     Group,
     XBegin,
     XEnd,
@@ -71,6 +72,9 @@ impl AesMap {
     pub fn group(&mut self, column: impl Into<String>) {
         self.set(Aesthetic::Group, AesValue::Column(column.into()));
     }
+    pub fn linetype(&mut self, column: impl Into<String>) {
+        self.set(Aesthetic::Linetype, AesValue::Column(column.into()));
+    }
 
     // Convenience methods for constant value mappings
     pub fn const_color(&mut self, r: u8, g: u8, b: u8, a: u8) {
@@ -89,6 +93,10 @@ impl AesMap {
     
     pub fn const_shape(&mut self, shape: i64) {
         self.set(Aesthetic::Shape, AesValue::Constant(PrimitiveValue::Int(shape)));
+    }
+    
+    pub fn const_linetype(&mut self, pattern: impl Into<String>) {
+        self.set(Aesthetic::Linetype, AesValue::Constant(PrimitiveValue::Str(pattern.into())));
     }
 }
 

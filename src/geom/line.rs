@@ -13,6 +13,9 @@ pub struct GeomLine {
 
     /// Default alpha/opacity (if not mapped)
     pub alpha: Option<AesValue>,
+    
+    /// Default line style pattern (if not mapped)
+    pub linetype: Option<AesValue>,
 }
 
 impl GeomLine {
@@ -22,6 +25,7 @@ impl GeomLine {
             color: None,
             size: None,
             alpha: None,
+            linetype: None,
         }
     }
 
@@ -41,6 +45,19 @@ impl GeomLine {
     /// Set the default alpha/opacity
     pub fn alpha(mut self, alpha: f64) -> Self {
         self.alpha = Some(AesValue::Constant(PrimitiveValue::Float(alpha.clamp(0.0, 1.0))));
+        self
+    }
+    
+    /// Set the default line style pattern
+    /// 
+    /// Pattern characters:
+    /// - `-` : dash
+    /// - `.` : dot
+    /// - ` ` : long gap
+    /// 
+    /// Examples: `"-"`, `"."`, `"-."`, `"- -"`, `". ."`
+    pub fn linetype(mut self, pattern: impl Into<String>) -> Self {
+        self.linetype = Some(AesValue::Constant(PrimitiveValue::Str(pattern.into())));
         self
     }
 }
@@ -63,6 +80,9 @@ impl IntoLayer for GeomLine {
         }
         if let Some(size) = &self.size {
             defaults.push((Aesthetic::Size, size.clone()));
+        }
+        if let Some(linetype) = &self.linetype {
+            defaults.push((Aesthetic::Linetype, linetype.clone()));
         }
         
         defaults
@@ -158,6 +178,23 @@ impl GeomLine {
         let alphas_vec: Vec<_> = alphas.collect();
         let sizes_vec: Vec<_> = sizes.collect();
         
+        // Get linetype values if mapped
+        let linetype_pattern = if let Some(AesValue::Column(col)) = ctx.mapping.get(&Aesthetic::Linetype) {
+            // Get the string value from the data
+            let linetype_vec = ctx.data.get(col.as_str())
+                .ok_or_else(|| PlotError::MissingAesthetic(format!("column '{}'", col)))?;
+            if let Some(strs) = linetype_vec.as_str() {
+                let idx = points[0].2;
+                Some(strs.iter().nth(idx).map(|s| s.to_string()).unwrap_or_default())
+            } else {
+                None
+            }
+        } else if let Some(AesValue::Constant(PrimitiveValue::Str(pattern))) = ctx.mapping.get(&Aesthetic::Linetype) {
+            Some(pattern.clone())
+        } else {
+            None
+        };
+        
         // Use the first point's color/alpha/size for the entire line
         let idx = points[0].2;
         let color = &colors_vec[idx];
@@ -167,6 +204,15 @@ impl GeomLine {
         // Set drawing properties
         ctx.set_color_alpha(color, alpha);
         ctx.cairo.set_line_width(size);
+        
+        // Apply line style
+        use crate::visuals::LineStyle;
+        if let Some(pattern) = linetype_pattern {
+            let style = LineStyle::from_pattern(&pattern);
+            style.apply(&mut ctx.cairo);
+        } else {
+            LineStyle::Solid.apply(&mut ctx.cairo);
+        }
         
         // Start path at first point
         let (x0, y0, _) = points[0];

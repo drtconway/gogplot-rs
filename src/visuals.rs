@@ -2,6 +2,73 @@
 
 use cairo::Context;
 
+/// Line style patterns for line geoms
+#[derive(Clone, Debug, PartialEq)]
+pub enum LineStyle {
+    /// Solid line (no dashing)
+    Solid,
+    /// Custom dash pattern specified as array of on/off lengths
+    Custom(Vec<f64>),
+}
+
+impl LineStyle {
+    /// Create a LineStyle from a pattern string.
+    /// 
+    /// Pattern characters:
+    /// - `-` : dash (5 units on, 2 units off)
+    /// - `.` : dot (1 unit on, 2 units off)
+    /// - ` ` : long gap (5 units off)
+    /// 
+    /// The pattern repeats. Examples:
+    /// - `"-"` : dashed line
+    /// - `"."` : dotted line
+    /// - `"-."` : dash-dot pattern
+    /// - `"- -"` : dash with long gaps
+    /// - `". ."` : dots with long gaps
+    pub fn from_pattern(pattern: &str) -> Self {
+        if pattern.is_empty() {
+            return LineStyle::Solid;
+        }
+        
+        let mut dashes = Vec::new();
+        
+        for ch in pattern.chars() {
+            match ch {
+                '-' => {
+                    dashes.push(5.0); // dash on
+                    dashes.push(2.0); // gap after dash
+                }
+                '.' => {
+                    dashes.push(1.0); // dot on
+                    dashes.push(2.0); // gap after dot
+                }
+                ' ' => {
+                    dashes.push(5.0); // long gap
+                }
+                _ => {} // ignore other characters
+            }
+        }
+        
+        if dashes.is_empty() {
+            LineStyle::Solid
+        } else {
+            LineStyle::Custom(dashes)
+        }
+    }
+    
+    /// Apply this line style to a Cairo context
+    pub fn apply(&self, ctx: &mut Context) {
+        match self {
+            LineStyle::Solid => {
+                ctx.set_dash(&[], 0.0);
+            }
+            LineStyle::Custom(dashes) => {
+                ctx.set_dash(dashes, 0.0);
+            }
+        }
+    }
+}
+
 /// Shape types for points and legend symbols
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Shape {
