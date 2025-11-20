@@ -84,6 +84,46 @@ pub struct LegendEntry {
     pub size: Option<f64>,
 }
 
+impl Default for LegendEntry {
+    fn default() -> Self {
+        LegendEntry {
+            label: String::new(),
+            color: None,
+            shape: None,
+            size: None,
+        }
+    }
+}
+
+impl LegendEntry {
+    pub fn new(label: impl Into<String>) -> Self {
+        LegendEntry {
+            label: label.into(),
+            ..Default::default()
+        }
+    }
+
+    pub fn label(mut self, label: impl Into<String>) -> Self {
+        self.label = label.into();
+        self
+    }
+
+    pub fn color(mut self, color: Color) -> Self {
+        self.color = Some(color);
+        self
+    }
+
+    pub fn shape(mut self, shape: Shape) -> Self {
+        self.shape = Some(shape);
+        self
+    }
+
+    pub fn size(mut self, size: f64) -> Self {
+        self.size = Some(size);
+        self
+    }
+}
+
 /// Configuration for a legend guide
 #[derive(Clone, Debug)]
 pub struct LegendGuide {
@@ -140,6 +180,11 @@ impl LegendGuide {
 
     pub fn nrow(mut self, nrow: usize) -> Self {
         self.nrow = Some(nrow);
+        self
+    }
+
+    pub fn entry(mut self, entry: LegendEntry) -> Self {
+        self.entries.push(entry);
         self
     }
 }

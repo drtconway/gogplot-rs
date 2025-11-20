@@ -4,6 +4,13 @@
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Color(pub u8, pub u8, pub u8, pub u8); // RGBA
 
+impl Color {
+    /// Create a color with RGB values and alpha set to 255 (fully opaque)
+    pub fn rgb(r: u8, g: u8, b: u8) -> Self {
+        Color(r, g, b, 255)
+    }
+}
+
 impl From<Color> for i64 {
     fn from(color: Color) -> i64 {
         ((color.0 as i64) << 24)

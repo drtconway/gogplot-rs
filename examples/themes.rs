@@ -21,7 +21,7 @@ fn create_sample_plot(theme: Theme, filename: &str) -> Result<(), Box<dyn std::e
             a.y("y");
         })
         .geom_point_with(|geom| {
-            geom.size(6.0).color(Color(50, 100, 200, 255))
+            geom.size(6.0).color(Color::rgb(50, 100, 200))
         });
 
     // Save to a file
