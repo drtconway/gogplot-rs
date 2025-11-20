@@ -3,13 +3,17 @@ use crate::error::PlotError;
 use crate::layer::{Layer, Stat, Position};
 
 pub mod context;
+pub mod hline;
 pub mod line;
 pub mod point;
 pub mod rect;
+pub mod vline;
 
 pub use context::RenderContext;
+pub use hline::GeomHLine;
 pub use line::GeomLine;
 pub use point::GeomPoint;
+pub use vline::GeomVLine;
 
 pub trait Geom: Send + Sync {
     /// Returns the aesthetics that this geom requires

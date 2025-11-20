@@ -180,6 +180,62 @@ impl Plot {
         self
     }
 
+    /// Add a horizontal line geom layer with customization (builder style)
+    /// 
+    /// # Examples
+    /// 
+    /// ```ignore
+    /// plot.geom_hline_with(4.0, |geom| {
+    ///     geom.color(color::RED)
+    ///         .size(2.0)
+    ///         .linetype("-")
+    /// })
+    /// ```
+    pub fn geom_hline_with<F>(mut self, yintercept: f64, f: F) -> Self
+    where
+        F: FnOnce(crate::geom::hline::GeomHLine) -> crate::geom::hline::GeomHLine,
+    {
+        let geom = crate::geom::hline::GeomHLine::new(yintercept);
+        let geom = f(geom);
+        
+        let mut layer = geom.into_layer();
+        for (aesthetic, value) in self.default_aes.iter() {
+            if !layer.mapping.get(aesthetic).is_some() {
+                layer.mapping.set(aesthetic.clone(), value.clone());
+            }
+        }
+        self.layers.push(layer);
+        self
+    }
+
+    /// Add a vertical line geom layer with customization (builder style)
+    /// 
+    /// # Examples
+    /// 
+    /// ```ignore
+    /// plot.geom_vline_with(5.0, |geom| {
+    ///     geom.color(color::BLUE)
+    ///         .size(2.0)
+    ///         .linetype(".")
+    /// })
+    /// ```
+    pub fn geom_vline_with<F>(mut self, xintercept: f64, f: F) -> Self
+    where
+        F: FnOnce(crate::geom::vline::GeomVLine) -> crate::geom::vline::GeomVLine,
+    {
+        let geom = crate::geom::vline::GeomVLine::new(xintercept);
+        let geom = f(geom);
+        
+        let mut layer = geom.into_layer();
+        for (aesthetic, value) in self.default_aes.iter() {
+            if !layer.mapping.get(aesthetic).is_some() {
+                layer.mapping.set(aesthetic.clone(), value.clone());
+            }
+        }
+        self.layers.push(layer);
+        self
+    }
+
     /// Set the x scale (builder style)
     pub fn scale_x(mut self, scale: Box<dyn ContinuousScale>) -> Self {
         self.scales.x = Some(scale);
