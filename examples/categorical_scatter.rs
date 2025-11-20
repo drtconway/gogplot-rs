@@ -7,7 +7,7 @@ use gogplot_rs::aesthetics::{Aesthetic, AesMap, AesValue};
 use gogplot_rs::geom::point::GeomPoint;
 use gogplot_rs::layer::{Layer, Stat, Position};
 use gogplot_rs::utils::dataframe::{DataFrame, FloatVec, StrVec};
-use gogplot_rs::plot::Plot;
+use gogplot_rs::plot::{GeomBuilder, Plot};
 use gogplot_rs::theme::color;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

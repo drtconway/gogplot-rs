@@ -1,4 +1,4 @@
-use gogplot_rs::plot::Plot;
+use gogplot_rs::plot::{GeomBuilder, Plot};
 use gogplot_rs::guide::{AxisGuide, Guides};
 use gogplot_rs::utils::dataframe::{DataFrame, FloatVec};
 

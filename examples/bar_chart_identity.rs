@@ -4,7 +4,7 @@
 // (no automatic counting), using the Identity stat.
 
 use gogplot_rs::layer::Stat;
-use gogplot_rs::plot::Plot;
+use gogplot_rs::plot::{GeomBuilder, Plot};
 use gogplot_rs::theme::color;
 use gogplot_rs::utils::dataframe::{DataFrame, FloatVec, StrVec};
 

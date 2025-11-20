@@ -1,4 +1,4 @@
-use gogplot_rs::plot::Plot;
+use gogplot_rs::plot::{GeomBuilder, Plot};
 use gogplot_rs::utils::dataframe::{DataFrame, FloatVec};
 use gogplot_rs::guide::{AxisGuide, LegendGuide, LegendEntry, LegendPosition, Guides};
 use gogplot_rs::theme::Color;

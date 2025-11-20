@@ -1,5 +1,5 @@
 use gogplot_rs::aesthetics::Aesthetic;
-use gogplot_rs::plot::Plot;
+use gogplot_rs::plot::{GeomBuilder, Plot};
 use gogplot_rs::theme::color;
 use gogplot_rs::utils::dataframe::{DataFrame, FloatVec};
 
