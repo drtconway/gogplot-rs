@@ -1,8 +1,8 @@
-use gogplot_rs::aesthetics::Aesthetic;
-use gogplot_rs::guide::Guides;
-use gogplot_rs::plot::{GeomBuilder, Plot};
-use gogplot_rs::theme::color;
-use gogplot_rs::utils::dataframe::{DataFrame, FloatVec, StrVec};
+use gogplot::aesthetics::Aesthetic;
+use gogplot::guide::Guides;
+use gogplot::plot::{GeomBuilder, Plot};
+use gogplot::theme::color;
+use gogplot::utils::dataframe::{DataFrame, FloatVec, StrVec};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Creating segment examples...");

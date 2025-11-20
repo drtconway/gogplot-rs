@@ -1,5 +1,5 @@
-use gogplot_rs::plot::{GeomBuilder, Plot};
-use gogplot_rs::utils::dataframe::{DataFrame, FloatVec};
+use gogplot::plot::{GeomBuilder, Plot};
+use gogplot::utils::dataframe::{DataFrame, FloatVec};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create some sample data

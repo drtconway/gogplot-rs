@@ -82,7 +82,7 @@ impl From<Vec<&str>> for StrVec {
 /// # Examples
 ///
 /// ```ignore
-/// use gogplot_rs::utils::dataframe::{DataFrame, IntVec, FloatVec};
+/// use gogplot::utils::dataframe::{DataFrame, IntVec, FloatVec};
 ///
 /// let mut df = DataFrame::new();
 /// df.add_column("x", Box::new(IntVec(vec![1, 2, 3, 4, 5])));

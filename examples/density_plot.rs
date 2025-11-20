@@ -1,6 +1,6 @@
-use gogplot_rs::plot::{GeomBuilder, Plot};
-use gogplot_rs::theme::color;
-use gogplot_rs::utils::dataframe::{DataFrame, FloatVec};
+use gogplot::plot::{GeomBuilder, Plot};
+use gogplot::theme::color;
+use gogplot::utils::dataframe::{DataFrame, FloatVec};
 use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {

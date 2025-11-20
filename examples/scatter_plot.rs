@@ -1,6 +1,6 @@
-use gogplot_rs::plot::{GeomBuilder, Plot};
-use gogplot_rs::theme::color;
-use gogplot_rs::utils::dataframe::{DataFrame, FloatVec, IntVec};
+use gogplot::plot::{GeomBuilder, Plot};
+use gogplot::theme::color;
+use gogplot::utils::dataframe::{DataFrame, FloatVec, IntVec};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create some sample data

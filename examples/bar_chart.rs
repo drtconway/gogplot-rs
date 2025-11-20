@@ -2,9 +2,9 @@
 //
 // This example demonstrates the bar geom with automatic counting of categorical data.
 
-use gogplot_rs::plot::{GeomBuilder, Plot};
-use gogplot_rs::theme::color;
-use gogplot_rs::utils::dataframe::{DataFrame, StrVec};
+use gogplot::plot::{GeomBuilder, Plot};
+use gogplot::theme::color;
+use gogplot::utils::dataframe::{DataFrame, StrVec};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create sample data - categories with repeated values

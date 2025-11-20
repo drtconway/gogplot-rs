@@ -1,6 +1,6 @@
-use gogplot_rs::plot::{GeomBuilder, Plot};
-use gogplot_rs::theme::color;
-use gogplot_rs::utils::dataframe::{DataFrame, FloatVec, StrVec};
+use gogplot::plot::{GeomBuilder, Plot};
+use gogplot::theme::color;
+use gogplot::utils::dataframe::{DataFrame, FloatVec, StrVec};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Creating line plot example...");

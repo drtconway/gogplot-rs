@@ -3,10 +3,10 @@
 // This example demonstrates using the bar geom with pre-computed values
 // (no automatic counting), using the Identity stat.
 
-use gogplot_rs::layer::Stat;
-use gogplot_rs::plot::{GeomBuilder, Plot};
-use gogplot_rs::theme::color;
-use gogplot_rs::utils::dataframe::{DataFrame, FloatVec, StrVec};
+use gogplot::layer::Stat;
+use gogplot::plot::{GeomBuilder, Plot};
+use gogplot::theme::color;
+use gogplot::utils::dataframe::{DataFrame, FloatVec, StrVec};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create data with pre-computed values (e.g., summary statistics)

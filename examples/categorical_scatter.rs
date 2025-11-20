@@ -3,12 +3,12 @@
 // This example demonstrates handling categorical variables on x and y axes
 // with geom_point to isolate categorical variable issues from bar chart specifics.
 
-use gogplot_rs::aesthetics::{AesMap, AesValue, Aesthetic};
-use gogplot_rs::geom::point::GeomPoint;
-use gogplot_rs::layer::{Layer, Position, Stat};
-use gogplot_rs::plot::Plot;
-use gogplot_rs::theme::color;
-use gogplot_rs::utils::dataframe::{DataFrame, FloatVec, StrVec};
+use gogplot::aesthetics::{AesMap, AesValue, Aesthetic};
+use gogplot::geom::point::GeomPoint;
+use gogplot::layer::{Layer, Position, Stat};
+use gogplot::plot::Plot;
+use gogplot::theme::color;
+use gogplot::utils::dataframe::{DataFrame, FloatVec, StrVec};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Example 1: Categorical X, Numeric Y

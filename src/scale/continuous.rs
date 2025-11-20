@@ -9,7 +9,7 @@ use crate::{data::compute_min_max, error::PlotError};
 /// # Examples
 ///
 /// ```ignore
-/// use gogplot_rs::scale::continuous::Continuous;
+/// use gogplot::scale::continuous::Continuous;
 ///
 /// // Create a linear scale with custom limits
 /// let scale = Continuous::new()

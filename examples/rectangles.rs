@@ -1,7 +1,7 @@
-use gogplot_rs::aesthetics::Aesthetic;
-use gogplot_rs::plot::{GeomBuilder, Plot};
-use gogplot_rs::theme::color;
-use gogplot_rs::utils::dataframe::{DataFrame, FloatVec};
+use gogplot::aesthetics::Aesthetic;
+use gogplot::plot::{GeomBuilder, Plot};
+use gogplot::theme::color;
+use gogplot::utils::dataframe::{DataFrame, FloatVec};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Creating rectangles example...");

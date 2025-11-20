@@ -1,6 +1,6 @@
-use gogplot_rs::guide::{AxisGuide, Guides};
-use gogplot_rs::plot::{GeomBuilder, Plot};
-use gogplot_rs::utils::dataframe::{DataFrame, FloatVec};
+use gogplot::guide::{AxisGuide, Guides};
+use gogplot::plot::{GeomBuilder, Plot};
+use gogplot::utils::dataframe::{DataFrame, FloatVec};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Creating axis position examples...");

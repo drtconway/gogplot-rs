@@ -1,7 +1,7 @@
-use gogplot_rs::plot::{GeomBuilder, Plot};
-use gogplot_rs::theme::color;
-use gogplot_rs::utils::dataframe::{DataFrame, FloatVec};
-use gogplot_rs::visuals::Shape;
+use gogplot::plot::{GeomBuilder, Plot};
+use gogplot::theme::color;
+use gogplot::utils::dataframe::{DataFrame, FloatVec};
+use gogplot::visuals::Shape;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Creating shape examples...");
@@ -91,7 +91,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     plot.save("shape_plus.png", 800, 600)?;
 
     // Mapped shapes with automatic legend
-    use gogplot_rs::utils::dataframe::StrVec;
+    use gogplot::utils::dataframe::StrVec;
 
     let mut df = DataFrame::new();
     df.add_column(

@@ -1,8 +1,8 @@
-use gogplot_rs::guide::{AxisGuide, Guides, LegendEntry, LegendGuide, LegendPosition};
-use gogplot_rs::plot::{GeomBuilder, Plot};
-use gogplot_rs::theme::Color;
-use gogplot_rs::utils::dataframe::{DataFrame, FloatVec};
-use gogplot_rs::visuals::Shape;
+use gogplot::guide::{AxisGuide, Guides, LegendEntry, LegendGuide, LegendPosition};
+use gogplot::plot::{GeomBuilder, Plot};
+use gogplot::theme::Color;
+use gogplot::utils::dataframe::{DataFrame, FloatVec};
+use gogplot::visuals::Shape;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Creating legends example...");

@@ -1,6 +1,6 @@
-use gogplot_rs::plot::{GeomBuilder, Plot};
-use gogplot_rs::theme::{Color, color};
-use gogplot_rs::utils::dataframe::{DataFrame, FloatVec};
+use gogplot::plot::{GeomBuilder, Plot};
+use gogplot::theme::{Color, color};
+use gogplot::utils::dataframe::{DataFrame, FloatVec};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Creating continuous color scale examples...");
