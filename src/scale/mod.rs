@@ -120,6 +120,17 @@ pub trait ColorScale: ScaleBase {
     
     /// Get legend breaks as formatted strings.
     fn legend_breaks(&self) -> Vec<String>;
+    
+    /// Returns true if this is a continuous color scale (gradient), false if discrete.
+    fn is_continuous(&self) -> bool {
+        false // Default: discrete
+    }
+    
+    /// Get the domain for continuous color scales.
+    /// Returns None for discrete scales.
+    fn get_continuous_domain(&self) -> Option<(f64, f64)> {
+        None
+    }
 }
 
 /// Scales that map data values to point shapes.

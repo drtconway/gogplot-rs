@@ -1,5 +1,5 @@
 use super::{ScaleBase, ColorScale};
-use crate::theme::Color;
+use crate::theme::{Color, color};
 use crate::data::GenericVector;
 use std::collections::{HashMap, HashSet};
 
@@ -79,38 +79,58 @@ impl ColorScale for DiscreteColor {
 /// Continuous color scale that maps numeric values to a gradient.
 pub struct ContinuousColor {
     domain: (f64, f64),
-    low_color: Color,
-    high_color: Color,
+    colors: Vec<Color>,
 }
 
 impl ContinuousColor {
-    /// Create a new continuous color gradient.
-    pub fn new(domain: (f64, f64), low_color: Color, high_color: Color) -> Self {
+    /// Create a new continuous color gradient with a list of colors.
+    /// Colors are interpolated evenly across the domain.
+    pub fn new(domain: (f64, f64), colors: Vec<Color>) -> Self {
+        assert!(!colors.is_empty(), "Must provide at least one color");
         Self {
             domain,
-            low_color,
-            high_color,
+            colors,
         }
     }
 
-    /// Create a default blue to red gradient.
+    /// Create a two-color gradient (for backwards compatibility).
+    pub fn gradient(domain: (f64, f64), low_color: Color, high_color: Color) -> Self {
+        Self::new(domain, vec![low_color, high_color])
+    }
+
+    /// Create a default blue to black gradient (like ggplot2).
     pub fn default_gradient(domain: (f64, f64)) -> Self {
         Self::new(
             domain,
-            Color(0, 0, 255, 255),   // blue
-            Color(255, 0, 0, 255),   // red
+            vec![
+                color::LIGHTBLUE3,   // dark blue
+                color::BLACK,     // black
+            ]
         )
     }
 
-    /// Interpolate between two colors.
+    /// Interpolate between colors in the palette.
     fn interpolate_color(&self, t: f64) -> Color {
-        let Color(r1, g1, b1, a1) = self.low_color;
-        let Color(r2, g2, b2, a2) = self.high_color;
+        let t = t.clamp(0.0, 1.0);
         
-        let r = (r1 as f64 + t * (r2 as f64 - r1 as f64)) as u8;
-        let g = (g1 as f64 + t * (g2 as f64 - g1 as f64)) as u8;
-        let b = (b1 as f64 + t * (b2 as f64 - b1 as f64)) as u8;
-        let a = (a1 as f64 + t * (a2 as f64 - a1 as f64)) as u8;
+        if self.colors.len() == 1 {
+            return self.colors[0];
+        }
+        
+        // Determine which segment of the color palette we're in
+        let segment_count = self.colors.len() - 1;
+        let scaled = t * segment_count as f64;
+        let segment = (scaled.floor() as usize).min(segment_count - 1);
+        let local_t = scaled - segment as f64;
+        
+        // Interpolate between the two colors in this segment
+        let Color(r1, g1, b1, a1) = self.colors[segment];
+        let Color(r2, g2, b2, a2) = self.colors[segment + 1];
+        
+        let r = (r1 as f64 + local_t * (r2 as f64 - r1 as f64)) as u8;
+        let g = (g1 as f64 + local_t * (g2 as f64 - g1 as f64)) as u8;
+        let b = (b1 as f64 + local_t * (b2 as f64 - b1 as f64)) as u8;
+        let a = (a1 as f64 + local_t * (a2 as f64 - a1 as f64)) as u8;
         
         Color(r, g, b, a)
     }
@@ -118,20 +138,9 @@ impl ContinuousColor {
 
 impl ScaleBase for ContinuousColor {
     fn train(&mut self, data: &[&dyn GenericVector]) {
-        // Calculate domain from all data vectors
-        let mut values = Vec::new();
+        use crate::data::compute_min_max;
         
-        for vec in data {
-            if let Some(float_vec) = vec.as_float() {
-                values.extend(float_vec.iter().copied());
-            } else if let Some(int_vec) = vec.as_int() {
-                values.extend(int_vec.iter().map(|&i| i as f64));
-            }
-        }
-        
-        if !values.is_empty() {
-            let min = values.iter().copied().fold(f64::INFINITY, f64::min);
-            let max = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        if let Some((min, max)) = compute_min_max(data) {
             self.domain = (min, max);
         }
     }
@@ -159,6 +168,14 @@ impl ColorScale for ContinuousColor {
             format!("{:.2}", (d0 + d1) / 2.0),
             format!("{:.2}", d1),
         ]
+    }
+    
+    fn is_continuous(&self) -> bool {
+        true
+    }
+    
+    fn get_continuous_domain(&self) -> Option<(f64, f64)> {
+        Some(self.domain)
     }
 }
 
@@ -226,46 +243,45 @@ mod tests {
     fn test_continuous_color_new() {
         let scale = ContinuousColor::new(
             (0.0, 100.0),
-            Color(0, 0, 255, 255),
-            Color(255, 0, 0, 255)
+            vec![Color::rgb(0, 0, 255), Color::rgb(255, 0, 0)]
         );
         assert_eq!(scale.domain, (0.0, 100.0));
+        assert_eq!(scale.colors.len(), 2);
     }
 
     #[test]
     fn test_continuous_color_default_gradient() {
         let scale = ContinuousColor::default_gradient((0.0, 1.0));
         assert_eq!(scale.domain, (0.0, 1.0));
-        assert_eq!(scale.low_color, Color(0, 0, 255, 255));
-        assert_eq!(scale.high_color, Color(255, 0, 0, 255));
+        assert_eq!(scale.colors.len(), 2);
+        assert_eq!(scale.colors[0], Color::rgb(0, 0, 139)); // dark blue
+        assert_eq!(scale.colors[1], Color::rgb(0, 0, 0));   // black
     }
 
     #[test]
     fn test_continuous_color_interpolate() {
         let scale = ContinuousColor::new(
             (0.0, 100.0),
-            Color(0, 0, 0, 255),
-            Color(100, 100, 100, 255)
+            vec![Color::rgb(0, 0, 0), Color::rgb(100, 100, 100)]
         );
         
         // Test interpolation at midpoint
         let mid_color = scale.map_continuous_to_color(50.0).unwrap();
-        assert_eq!(mid_color, Color(50, 50, 50, 255));
+        assert_eq!(mid_color, Color::rgb(50, 50, 50));
         
         // Test at endpoints
         let low_color = scale.map_continuous_to_color(0.0).unwrap();
-        assert_eq!(low_color, Color(0, 0, 0, 255));
+        assert_eq!(low_color, Color::rgb(0, 0, 0));
         
         let high_color = scale.map_continuous_to_color(100.0).unwrap();
-        assert_eq!(high_color, Color(100, 100, 100, 255));
+        assert_eq!(high_color, Color::rgb(100, 100, 100));
     }
 
     #[test]
     fn test_continuous_color_out_of_bounds() {
         let scale = ContinuousColor::new(
             (0.0, 100.0),
-            Color(0, 0, 255, 255),
-            Color(255, 0, 0, 255)
+            vec![Color::rgb(0, 0, 255), Color::rgb(255, 0, 0)]
         );
         
         assert!(scale.map_continuous_to_color(-10.0).is_none());

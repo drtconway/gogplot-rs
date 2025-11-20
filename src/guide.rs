@@ -124,6 +124,20 @@ impl LegendEntry {
     }
 }
 
+/// Type of legend guide
+#[derive(Clone, Debug)]
+pub enum LegendType {
+    /// Discrete legend with individual entries
+    Discrete,
+    /// Continuous color bar with gradient
+    ColorBar {
+        /// Domain range (min, max)
+        domain: (f64, f64),
+        /// Colors to interpolate
+        colors: Vec<Color>,
+    },
+}
+
 /// Configuration for a legend guide
 #[derive(Clone, Debug)]
 pub struct LegendGuide {
@@ -136,8 +150,10 @@ pub struct LegendGuide {
     /// Number of rows (for horizontal layout) or columns (for vertical layout)
     pub ncol: Option<usize>,
     pub nrow: Option<usize>,
-    /// Legend entries
+    /// Legend entries (for discrete legends)
     pub entries: Vec<LegendEntry>,
+    /// Type of legend (discrete or continuous color bar)
+    pub legend_type: LegendType,
 }
 
 impl Default for LegendGuide {
@@ -149,6 +165,7 @@ impl Default for LegendGuide {
             ncol: None,
             nrow: None,
             entries: Vec::new(),
+            legend_type: LegendType::Discrete,
         }
     }
 }

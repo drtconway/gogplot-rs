@@ -1,5 +1,5 @@
 use super::{ScaleBase, ContinuousScale};
-use crate::error::PlotError;
+use crate::{data::compute_min_max, error::PlotError};
 
 /// Builder for creating continuous scales with customizable properties.
 /// 
@@ -639,37 +639,6 @@ impl ContinuousScale for Log10 {
 
     fn labels(&self) -> &[String] {
         &self.labels
-    }
-}
-
-/// Helper function to compute min and max from a slice of GenericVectors
-/// without copying all the data. Returns None if all vectors are empty.
-fn compute_min_max(data: &[&dyn crate::data::GenericVector]) -> Option<(f64, f64)> {
-    let mut min = f64::INFINITY;
-    let mut max = f64::NEG_INFINITY;
-    let mut found_any = false;
-    
-    for vec in data {
-        if let Some(float_vec) = vec.as_float() {
-            for &value in float_vec.iter() {
-                min = min.min(value);
-                max = max.max(value);
-                found_any = true;
-            }
-        } else if let Some(int_vec) = vec.as_int() {
-            for &value in int_vec.iter() {
-                let value_f64 = value as f64;
-                min = min.min(value_f64);
-                max = max.max(value_f64);
-                found_any = true;
-            }
-        }
-    }
-    
-    if found_any {
-        Some((min, max))
-    } else {
-        None
     }
 }
 

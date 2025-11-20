@@ -423,6 +423,30 @@ impl Plot {
         self
     }
 
+    /// Set a continuous color scale with custom gradient colors (builder style)
+    /// 
+    /// # Examples
+    /// 
+    /// ```ignore
+    /// // Use default blue-to-black gradient
+    /// plot.scale_color_continuous(vec![
+    ///     Color::rgb(0, 0, 139),   // dark blue
+    ///     Color::rgb(0, 0, 0),     // black
+    /// ])
+    /// 
+    /// // Use a custom three-color gradient
+    /// plot.scale_color_continuous(vec![
+    ///     Color::rgb(0, 0, 255),   // blue
+    ///     Color::rgb(255, 255, 0), // yellow
+    ///     Color::rgb(255, 0, 0),   // red
+    /// ])
+    /// ```
+    pub fn scale_color_continuous(mut self, colors: Vec<Color>) -> Self {
+        use crate::scale::color::ContinuousColor;
+        self.scales.color = Some(Box::new(ContinuousColor::new((0.0, 1.0), colors)));
+        self
+    }
+
     /// Set the size scale (builder style)
     pub fn scale_size(mut self, scale: Box<dyn ContinuousScale>) -> Self {
         self.scales.size = Some(scale);
@@ -1051,13 +1075,23 @@ impl Plot {
                 continue;
             }
             
+            use crate::guide::LegendType;
+            
             // Draw legend background
             Self::apply_fill_style(ctx, &self.theme.legend.background);
             let legend_width = 120.0;
             let item_height = 20.0;
             let padding = 10.0;
             let title_height = if legend.title.is_some() { 20.0 } else { 0.0 };
-            let legend_height = title_height + (legend.entries.len() as f64 * item_height) + padding * 2.0;
+            
+            let legend_height = match &legend.legend_type {
+                LegendType::Discrete => {
+                    title_height + (legend.entries.len() as f64 * item_height) + padding * 2.0
+                }
+                LegendType::ColorBar { .. } => {
+                    title_height + 150.0 + padding * 2.0  // Fixed height for color bar
+                }
+            };
             
             ctx.rectangle(legend_x, legend_y, legend_width, legend_height);
             ctx.fill().ok();
@@ -1079,32 +1113,118 @@ impl Plot {
                 item_y += title_height;
             }
             
-            // Draw legend entries
-            for entry in &legend.entries {
-                let symbol_x = legend_x + padding;
-                let symbol_y = item_y + item_height / 2.0;
-                
-                // Draw symbol
-                if let Some(color) = entry.color {
-                    Self::apply_color(ctx, &color);
-                    let size = entry.size.unwrap_or(5.0);
-                    
-                    if let Some(shape) = entry.shape {
-                        Self::draw_shape(ctx, symbol_x + 10.0, symbol_y, size, shape);
-                    } else {
-                        // Default to circle
-                        ctx.arc(symbol_x + 10.0, symbol_y, size, 0.0, 2.0 * std::f64::consts::PI);
-                        ctx.fill().ok();
+            // Draw legend content based on type
+            match &legend.legend_type {
+                LegendType::Discrete => {
+                    // Draw discrete legend entries
+                    for entry in &legend.entries {
+                        let symbol_x = legend_x + padding;
+                        let symbol_y = item_y + item_height / 2.0;
+                        
+                        // Draw symbol
+                        if let Some(color) = entry.color {
+                            Self::apply_color(ctx, &color);
+                            let size = entry.size.unwrap_or(5.0);
+                            
+                            if let Some(shape) = entry.shape {
+                                Self::draw_shape(ctx, symbol_x + 10.0, symbol_y, size, shape);
+                            } else {
+                                // Default to circle
+                                ctx.arc(symbol_x + 10.0, symbol_y, size, 0.0, 2.0 * std::f64::consts::PI);
+                                ctx.fill().ok();
+                            }
+                        }
+                        
+                        // Draw label
+                        Self::apply_font(ctx, &self.theme.legend.text_font);
+                        Self::apply_color(ctx, &self.theme.legend.text_color);
+                        ctx.move_to(symbol_x + 25.0, symbol_y + 4.0);
+                        ctx.show_text(&entry.label).ok();
+                        
+                        item_y += item_height;
                     }
                 }
-                
-                // Draw label
-                Self::apply_font(ctx, &self.theme.legend.text_font);
-                Self::apply_color(ctx, &self.theme.legend.text_color);
-                ctx.move_to(symbol_x + 25.0, symbol_y + 4.0);
-                ctx.show_text(&entry.label).ok();
-                
-                item_y += item_height;
+                LegendType::ColorBar { domain, colors } => {
+                    // Draw continuous color bar
+                    let bar_x = legend_x + padding + 10.0;
+                    let bar_width = 20.0;
+                    let bar_height = 120.0;
+                    let bar_y = item_y;
+                    
+                    // Draw color gradient
+                    let n_segments = colors.len().max(2) - 1;
+                    let segment_height = bar_height / n_segments as f64;
+                    
+                    for i in 0..n_segments {
+                        let y = bar_y + i as f64 * segment_height;
+                        
+                        if i < colors.len() - 1 {
+                            // Create gradient pattern for this segment
+                            let color1 = colors[i];
+                            let color2 = colors[i + 1];
+                            
+                            // For simplicity, just fill with interpolated colors
+                            let steps = 10;
+                            for j in 0..steps {
+                                let t = j as f64 / steps as f64;
+                                let r = (color1.0 as f64 * (1.0 - t) + color2.0 as f64 * t) as u8;
+                                let g = (color1.1 as f64 * (1.0 - t) + color2.1 as f64 * t) as u8;
+                                let b = (color1.2 as f64 * (1.0 - t) + color2.2 as f64 * t) as u8;
+                                let a = (color1.3 as f64 * (1.0 - t) + color2.3 as f64 * t) as u8;
+                                
+                                Self::apply_color(ctx, &Color(r, g, b, a));
+                                ctx.rectangle(
+                                    bar_x,
+                                    y + j as f64 * segment_height / steps as f64,
+                                    bar_width,
+                                    segment_height / steps as f64 + 0.5
+                                );
+                                ctx.fill().ok();
+                            }
+                        }
+                    }
+                    
+                    // Draw border around color bar
+                    Self::apply_line_style(ctx, &self.theme.legend.border);
+                    ctx.rectangle(bar_x, bar_y, bar_width, bar_height);
+                    ctx.stroke().ok();
+                    
+                    // Draw tick marks and labels with 5 evenly spaced breaks
+                    let label_x = bar_x + bar_width + 5.0;
+                    let num_breaks = 5;
+                    
+                    Self::apply_font(ctx, &self.theme.legend.text_font);
+                    Self::apply_color(ctx, &self.theme.legend.text_color);
+                    ctx.set_font_size(9.0);
+                    
+                    for i in 0..num_breaks {
+                        let t = i as f64 / (num_breaks - 1) as f64;
+                        let value = domain.0 + t * (domain.1 - domain.0);
+                        // Calculate position on the bar
+                        let t = (value - domain.0) / (domain.1 - domain.0);
+                        let tick_y = bar_y + bar_height - t * bar_height;
+                        
+                        // Draw tick mark
+                        ctx.move_to(bar_x + bar_width, tick_y);
+                        ctx.line_to(bar_x + bar_width + 3.0, tick_y);
+                        ctx.stroke().ok();
+                        
+                        // Draw label - format intelligently
+                        ctx.move_to(label_x + 3.0, tick_y + 3.0);
+                        let label = if value.abs() < 1e-10 {
+                            // Treat very small values as zero
+                            "0".to_string()
+                        } else if (value - value.round()).abs() < 0.01 {
+                            // Value is close to an integer - show it as an integer
+                            format!("{}", value.round() as i64)
+                        } else if value.abs() < 0.01 || value.abs() > 10000.0 {
+                            format!("{:.2e}", value)
+                        } else {
+                            format!("{:.2}", value)
+                        };
+                        ctx.show_text(&label).ok();
+                    }
+                }
             }
             
             legend_y += legend_height + 10.0;
@@ -1361,32 +1481,52 @@ impl Plot {
         // Generate color legend if Color is mapped and we have a color scale
         if has_color_mapping && self.scales.color.is_some() && guides.color.is_none() {
             if let Some(ref color_scale) = self.scales.color {
-                let breaks = color_scale.legend_breaks();
-                if !breaks.is_empty() {
-                    let mut legend = LegendGuide::new();
-                    legend.position = LegendPosition::Right;
-                    
-                    // Get the column name for the title
-                    for layer in &self.layers {
-                        if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::Color) {
-                            legend.title = Some(col_name.clone());
-                            break;
-                        }
+                use crate::guide::LegendType;
+                
+                let mut legend = LegendGuide::new();
+                legend.position = LegendPosition::Right;
+                
+                // Get the column name for the title
+                for layer in &self.layers {
+                    if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::Color) {
+                        legend.title = Some(col_name.clone());
+                        break;
                     }
-                    
-                    // Generate entries from breaks
-                    for category in breaks {
-                        if let Some(color) = color_scale.map_discrete_to_color(&category) {
-                            legend.entries.push(LegendEntry {
-                                label: category.clone(),
-                                color: Some(color),
-                                shape: Some(Shape::Circle),
-                                size: Some(5.0),
-                            });
+                }
+                
+                if color_scale.is_continuous() {
+                    // Create a continuous color bar
+                    if let Some(domain) = color_scale.get_continuous_domain() {
+                        // Sample colors across the domain
+                        let n_samples = 50;
+                        let mut colors = Vec::new();
+                        for i in 0..=n_samples {
+                            let t = i as f64 / n_samples as f64;
+                            let value = domain.0 + t * (domain.1 - domain.0);
+                            if let Some(color) = color_scale.map_continuous_to_color(value) {
+                                colors.push(color);
+                            }
                         }
+                        
+                        legend.legend_type = LegendType::ColorBar { domain, colors };
+                        guides.color = Some(legend);
                     }
-                    
-                    guides.color = Some(legend);
+                } else {
+                    // Create discrete legend entries
+                    let breaks = color_scale.legend_breaks();
+                    if !breaks.is_empty() {
+                        for category in breaks {
+                            if let Some(color) = color_scale.map_discrete_to_color(&category) {
+                                legend.entries.push(LegendEntry {
+                                    label: category.clone(),
+                                    color: Some(color),
+                                    shape: Some(Shape::Circle),
+                                    size: Some(5.0),
+                                });
+                            }
+                        }
+                        guides.color = Some(legend);
+                    }
                 }
             }
         }
