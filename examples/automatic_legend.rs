@@ -22,9 +22,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.y("y");
             a.color("species"); // Map color to species column
         })
-        .geom_point_with(|geom| {
-            geom.size(6.0)
-        });
+        .geom_point_with(|geom| geom.size(6.0));
 
     // Save to a file
     plot.save("automatic_legend.png", 800, 600)?;

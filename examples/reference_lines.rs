@@ -21,11 +21,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.y("y");
         })
         .geom_point_with(|geom| geom.size(4.0).color(color::BLUE))
-        .geom_hline_with(4.0, |geom| {
-            geom.color(color::RED)
-                .size(2.0)
-                .linetype("-")
-        });
+        .geom_hline_with(4.0, |geom| geom.color(color::RED).size(2.0).linetype("-"));
     plot.save("reference_hline.png", 800, 600)?;
     println!("Saved reference_hline.png");
 
@@ -41,11 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.y("y");
         })
         .geom_point_with(|geom| geom.size(4.0).color(color::BLUE))
-        .geom_vline_with(5.0, |geom| {
-            geom.color(color::GREEN)
-                .size(2.0)
-                .linetype("-")
-        });
+        .geom_vline_with(5.0, |geom| geom.color(color::GREEN).size(2.0).linetype("-"));
     plot.save("reference_vline.png", 800, 600)?;
     println!("Saved reference_vline.png");
 
@@ -61,24 +53,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.y("y");
         })
         .geom_point_with(|geom| geom.size(4.0).color(color::BLUE))
-        .geom_hline_with(3.0, |geom| {
-            geom.color(color::BLUE)
-                .size(1.5)
-                .linetype(".")
-                .alpha(0.6)
-        })
-        .geom_hline_with(5.0, |geom| {
-            geom.color(color::GREEN)
-                .size(1.5)
-                .linetype(".")
-                .alpha(0.6)
-        })
-        .geom_vline_with(5.5, |geom| {
-            geom.color(color::RED)
-                .size(2.0)
-                .linetype("-.")
-                .alpha(0.8)
-        });
+        .geom_hline_with(3.0, |geom| geom.color(color::BLUE).size(1.5).linetype(".").alpha(0.6))
+        .geom_hline_with(5.0, |geom| geom.color(color::GREEN).size(1.5).linetype(".").alpha(0.6))
+        .geom_vline_with(5.5, |geom| geom.color(color::RED).size(2.0).linetype("-.").alpha(0.8));
     plot.save("reference_multiple.png", 800, 600)?;
     println!("Saved reference_multiple.png");
 

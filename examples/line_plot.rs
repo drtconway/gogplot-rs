@@ -42,7 +42,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.color("group");
             a.group("group");
         })
-        .geom_line_with(|geom| geom.size(2.0).color(color::RED));
+        .geom_line_with(|geom| geom.size(2.0));
     plot.save("line_grouped.png", 800, 600)?;
 
     println!("Saved line_simple.png and line_grouped.png");

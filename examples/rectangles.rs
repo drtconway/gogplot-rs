@@ -41,11 +41,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 aes.set_to_column(Aesthetic::YBegin, "ymin");
                 aes.set_to_column(Aesthetic::YEnd, "ymax");
             })
-            .geom_rect_with(|geom| {
-                geom.fill(color::CORAL)
-                    .color(color::DARKRED)
-                    .alpha(0.6)
-            })
+            .geom_rect_with(|geom| geom.fill(color::CORAL).color(color::DARKRED).alpha(0.6))
             .save("rectangle_stroke.png", 600, 400)?;
         println!("Saved rectangle_stroke.png");
     }

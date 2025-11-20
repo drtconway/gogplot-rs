@@ -12,9 +12,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     let plot1 = Plot::new(Some(Box::new(df1)))
         .title("Default Axes (Bottom X, Left Y)")
-        .guides(Guides::new()
-            .x_axis(AxisGuide::x().title("X Axis (Bottom)"))
-            .y_axis(AxisGuide::y().title("Y Axis (Left)")))
         .aes(|a| {
             a.x("x");
             a.y("y");
@@ -32,8 +29,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let plot2 = Plot::new(Some(Box::new(df2)))
         .title("Top X Axis")
         .guides(Guides::new()
-            .x_axis(AxisGuide::x().top().title("X Axis (Top)"))
-            .y_axis(AxisGuide::y().title("Y Axis (Left)")))
+            .x_axis(AxisGuide::x().top()))
         .aes(|a| {
             a.x("x");
             a.y("y");
@@ -51,8 +47,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let plot3 = Plot::new(Some(Box::new(df3)))
         .title("Right Y Axis")
         .guides(Guides::new()
-            .x_axis(AxisGuide::x().title("X Axis (Bottom)"))
-            .y_axis(AxisGuide::y().right().title("Y Axis (Right)")))
+            .y_axis(AxisGuide::y().right()))
         .aes(|a| {
             a.x("x");
             a.y("y");
@@ -70,8 +65,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let plot4 = Plot::new(Some(Box::new(df4)))
         .title("Top X and Right Y Axes")
         .guides(Guides::new()
-            .x_axis(AxisGuide::x().top().title("X Axis (Top)"))
-            .y_axis(AxisGuide::y().right().title("Y Axis (Right)")))
+            .x_axis(AxisGuide::x().top())
+            .y_axis(AxisGuide::y().right()))
         .aes(|a| {
             a.x("x");
             a.y("y");

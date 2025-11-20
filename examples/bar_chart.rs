@@ -14,14 +14,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     df.add_column("category", Box::new(StrVec::from(categories)));
 
     let plot = Plot::new(Some(Box::new(df)))
-        .aes(|a| a.x("category"))
-        .geom_bar_with(|geom| {
-            geom.fill(color::STEELBLUE)
-                .width(0.7)
-                .alpha(0.9)
-        })
         .title("Bar Chart - Category Counts")
-        // Bar charts should have y-axis starting at 0 for accurate visual comparison
+        .aes(|a| a.x("category"))
+        .geom_bar_with(|geom| geom.fill(color::STEELBLUE).width(0.7).alpha(0.9))
         .y_scale_with(|scale| scale.set_lower_bound(0.0));
 
     // Save the plot
