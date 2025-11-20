@@ -3,12 +3,15 @@ use std::{
     fmt::{Display, Formatter},
 };
 
+pub type Result<T> = std::result::Result<T, PlotError>;
+
 #[derive(Debug)]
 pub enum PlotError {
     MissingAesthetic(String),
     InvalidAestheticType(String),
     ScaleError(String),
     ThemeError(String),
+    Generic(String),
 }
 
 impl Display for PlotError {
@@ -25,6 +28,9 @@ impl Display for PlotError {
             }
             PlotError::ThemeError(msg) => {
                 write!(f, "Theme error: {}", msg)
+            }
+            PlotError::Generic(msg) => {
+                write!(f, "Error: {}", msg)
             }
         }
     }

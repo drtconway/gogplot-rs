@@ -28,6 +28,8 @@ pub struct Builder {
     breaks: Option<Vec<f64>>,
     labels: Option<Vec<String>>,
     expand: Option<(f64, f64)>,
+    lower_bound: Option<f64>,
+    upper_bound: Option<f64>,
 }
 
 impl Builder {
@@ -42,6 +44,8 @@ impl Builder {
             breaks: None,
             labels: None,
             expand: Some((0.05, 0.05)), // Default 5% expansion on each side
+            lower_bound: None,
+            upper_bound: None,
         }
     }
 
@@ -150,6 +154,57 @@ impl Builder {
         self
     }
 
+    /// Set a lower bound that the scale domain must respect.
+    /// 
+    /// During training, the scale will ensure its domain extends at least to this
+    /// lower bound. This is useful for ensuring meaningful baselines, like zero
+    /// for bar charts or count data.
+    /// 
+    /// # Arguments
+    /// 
+    /// * `bound` - The minimum value the scale domain should include
+    /// 
+    /// # Examples
+    /// 
+    /// ```ignore
+    /// // Scale that always starts at zero (good for bar charts)
+    /// let scale = Builder::new()
+    ///     .set_lower_bound(0.0)
+    ///     .linear();
+    /// ```
+    pub fn set_lower_bound(mut self, bound: f64) -> Self {
+        self.lower_bound = Some(bound);
+        self
+    }
+
+    /// Set an upper bound that the scale domain must respect.
+    /// 
+    /// During training, the scale will ensure its domain extends at least to this
+    /// upper bound. This is useful for ensuring the scale covers a specific range.
+    /// 
+    /// # Arguments
+    /// 
+    /// * `bound` - The maximum value the scale domain should include
+    /// 
+    /// # Examples
+    /// 
+    /// ```ignore
+    /// // Scale that always goes up to 100
+    /// let scale = Builder::new()
+    ///     .set_upper_bound(100.0)
+    ///     .linear();
+    /// 
+    /// // Percentage scale from 0 to 100
+    /// let scale = Builder::new()
+    ///     .set_lower_bound(0.0)
+    ///     .set_upper_bound(100.0)
+    ///     .linear();
+    /// ```
+    pub fn set_upper_bound(mut self, bound: f64) -> Self {
+        self.upper_bound = Some(bound);
+        self
+    }
+
     /// Build a linear scale.
     /// 
     /// Creates a scale that maps data values to normalized coordinates using
@@ -201,6 +256,8 @@ impl Builder {
             breaks,
             labels,
             trained: self.limits.is_some(), // If limits were explicitly set, mark as trained
+            lower_bound: self.lower_bound,
+            upper_bound: self.upper_bound,
         })
     }
 
@@ -340,13 +397,25 @@ pub struct Linear {
     pub(crate) breaks: Vec<f64>,
     pub(crate) labels: Vec<String>,
     trained: bool, // Track if domain was explicitly set or should be auto-calculated
+    lower_bound: Option<f64>, // Optional lower bound the domain must respect
+    upper_bound: Option<f64>, // Optional upper bound the domain must respect
 }
 
 impl ScaleBase for Linear {
     fn train(&mut self, data: &[&dyn crate::data::GenericVector]) {
         // Only auto-train if domain wasn't explicitly set
         if !self.trained {
-            if let Some((min, max)) = compute_min_max(data) {
+            if let Some((mut min, mut max)) = compute_min_max(data) {
+                
+                // Respect lower bound if set
+                if let Some(lower) = self.lower_bound {
+                    min = min.min(lower);
+                }
+                
+                // Respect upper bound if set
+                if let Some(upper) = self.upper_bound {
+                    max = max.max(upper);
+                }
                 
                 // Apply expansion (5% by default)
                 let range = max - min;
@@ -361,7 +430,20 @@ impl ScaleBase for Linear {
                 } else {
                     range * 0.05
                 };
-                self.domain = (min - expansion, max + expansion);
+                
+                // Don't expand past bounds
+                let lower_expansion = if self.lower_bound.is_some() && min == self.lower_bound.unwrap() {
+                    0.0
+                } else {
+                    expansion
+                };
+                let upper_expansion = if self.upper_bound.is_some() && max == self.upper_bound.unwrap() {
+                    0.0
+                } else {
+                    expansion
+                };
+                
+                self.domain = (min - lower_expansion, max + upper_expansion);
                 
                 // Regenerate breaks and labels
                 self.breaks = extended_breaks(self.domain, 5);

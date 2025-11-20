@@ -37,6 +37,21 @@ pub trait ContinuousScale: ScaleBase {
     /// * `None` - If the value is outside the scale's domain bounds (will be filtered out)
     fn map_value(&self, value: f64) -> Option<f64>;
     
+    /// Map a categorical value to a numeric position.
+    /// 
+    /// This is used for categorical scales that need to map string categories to positions.
+    /// For purely continuous scales, this should return None.
+    /// 
+    /// # Arguments
+    /// * `category` - A category name/value
+    /// 
+    /// # Returns
+    /// * `Some(position)` - The numeric position for this category
+    /// * `None` - If this is not a categorical scale or category is not recognized
+    fn map_category(&self, _category: &str) -> Option<f64> {
+        None // Default: not a categorical scale
+    }
+    
     /// Map a normalized [0, 1] value back to the data domain (inverse mapping).
     /// 
     /// This is useful for interactive features like zooming or reading values from

@@ -5,6 +5,7 @@ use crate::data::DataSource;
 use crate::geom::Geom;
 
 /// Statistical transformation
+#[derive(Clone)]
 pub enum Stat {
 	Identity,
 	Count,
@@ -14,6 +15,7 @@ pub enum Stat {
 }
 
 /// Position adjustment for overlapping geoms
+#[derive(Clone)]
 pub enum Position {
 	Identity,
 	Stack,

@@ -74,9 +74,41 @@ impl Catagorical {
 }
 
 impl ScaleBase for Catagorical {
-    fn train(&mut self, _data: &[&dyn crate::data::GenericVector]) {
-        // Training could extract unique categories from data
-        // For now, categories are set explicitly via builder
+    fn train(&mut self, data: &[&dyn crate::data::GenericVector]) {
+        // Extract unique categories from string data
+        use std::collections::HashSet;
+        
+        let mut all_categories = HashSet::new();
+        
+        for vec in data {
+            if let Some(str_vec) = vec.as_str() {
+                for s in str_vec.iter() {
+                    all_categories.insert(s.clone());
+                }
+            }
+        }
+        
+        // If we found categories and the mapping is empty, initialize it
+        if !all_categories.is_empty() && self.mapping.is_empty() {
+            // Sort categories alphabetically for consistent ordering
+            let mut categories: Vec<String> = all_categories.into_iter().collect();
+            categories.sort();
+            
+            // Assign positions evenly spaced in [0, 1]
+            let n = categories.len() as f64;
+            for (i, cat) in categories.iter().enumerate() {
+                // Position categories at 0.5/n, 1.5/n, 2.5/n, ... (centered in their bins)
+                let pos = (i as f64 + 0.5) / n;
+                self.mapping.insert(cat.clone(), pos);
+            }
+            
+            // Update breaks and labels
+            let mut items: Vec<_> = self.mapping.iter().collect();
+            items.sort_by(|a, b| a.1.partial_cmp(b.1).unwrap());
+            
+            self.breaks = items.iter().map(|(_, v)| **v).collect();
+            self.labels = items.iter().map(|(k, _)| (*k).to_string()).collect();
+        }
     }
 }
 
@@ -85,6 +117,11 @@ impl ContinuousScale for Catagorical {
         // For categorical scales, this maps a numeric position to itself
         // Always return Some since categorical scales don't have domain bounds
         Some(value)
+    }
+    
+    fn map_category(&self, category: &str) -> Option<f64> {
+        // Map category string to numeric position
+        self.mapping.get(category).copied()
     }
 
     fn inverse(&self, value: f64) -> f64 {

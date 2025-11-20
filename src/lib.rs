@@ -6,9 +6,7 @@ pub mod guide;
 pub mod layer;
 pub mod plot;
 pub mod scale;
+pub mod stat;
 pub mod theme;
 pub mod utils;
 pub mod visuals;
-
-// Re-export commonly used types
-pub use visuals::Shape;

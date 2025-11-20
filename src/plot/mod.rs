@@ -6,6 +6,8 @@ use crate::geom::{IntoLayer, RenderContext};
 use crate::guide::Guides;
 use crate::layer::Layer;
 use crate::scale::{ColorScale, ContinuousScale, ShapeScale};
+use crate::stat::count::Count;
+use crate::stat::StatTransform;
 use crate::theme::{Color, Font, FontStyle, FontWeight, LineStyle, TextTheme, Theme};
 use cairo::{Context, Format, ImageSurface, PdfSurface, SvgSurface};
 use std::path::Path;
@@ -313,6 +315,47 @@ impl Plot {
         self
     }
 
+    /// Add a bar geom layer (builder style)
+    /// 
+    /// By default, uses Stat::Count to count occurrences at each x position.
+    /// 
+    /// # Examples
+    /// 
+    /// ```ignore
+    /// plot.geom_bar()
+    /// ```
+    pub fn geom_bar(self) -> Self {
+        self.geom_bar_with(|geom| geom)
+    }
+
+    /// Add a bar geom layer with customization (builder style)
+    /// 
+    /// # Examples
+    /// 
+    /// ```ignore
+    /// plot.geom_bar_with(|geom| {
+    ///     geom.fill(color::BLUE)
+    ///         .width(0.8)
+    ///         .alpha(0.9)
+    /// })
+    /// ```
+    pub fn geom_bar_with<F>(mut self, f: F) -> Self
+    where
+        F: FnOnce(crate::geom::bar::GeomBar) -> crate::geom::bar::GeomBar,
+    {
+        let geom = crate::geom::bar::GeomBar::new();
+        let geom = f(geom);
+        
+        let mut layer = geom.into_layer();
+        for (aesthetic, value) in self.default_aes.iter() {
+            if !layer.mapping.get(aesthetic).is_some() {
+                layer.mapping.set(aesthetic.clone(), value.clone());
+            }
+        }
+        self.layers.push(layer);
+        self
+    }
+
     /// Set the x scale (builder style)
     pub fn scale_x(mut self, scale: Box<dyn ContinuousScale>) -> Self {
         self.scales.x = Some(scale);
@@ -347,6 +390,69 @@ impl Plot {
     pub fn scale_shape(mut self, scale: Box<dyn ShapeScale>) -> Self {
         self.scales.shape = Some(scale);
         self
+    }
+
+    /// Apply statistical transformations to layers
+    /// 
+    /// This method transforms layers that have stats other than Identity.
+    /// The transformed data is stored in each layer's data field, and the
+    /// aesthetic mapping is updated to reflect the transformation.
+    /// 
+    /// Note: Currently, this only works for layers that have their own data.
+    /// Layers that rely on plot-level data cannot be transformed yet.
+    fn apply_stats(&mut self) -> Result<(), PlotError> {
+        use crate::layer::Stat;
+        
+        // We need to transform each layer that has a non-Identity stat
+        // We'll process layers in reverse order so we can swap data out
+        let num_layers = self.layers.len();
+        for i in 0..num_layers {
+            // Check if this layer needs transformation
+            let needs_transform = !matches!(self.layers[i].stat, Stat::Identity);
+            
+            if !needs_transform {
+                continue;
+            }
+
+            // For now, we can only transform layers that have their own data
+            // since we can't clone trait objects
+            if self.layers[i].data.is_none() {
+                // TODO: Handle plot-level data by making DataFrame cloneable
+                // or using Rc<dyn DataSource>
+                continue;
+            }
+
+            // Take ownership of the layer's data
+            let data = self.layers[i].data.take().unwrap();
+            
+            // Apply the stat transformation
+            let stat_result = match &self.layers[i].stat {
+                Stat::Count => Count.apply(data, &self.layers[i].mapping)?,
+                Stat::Identity => {
+                    // Put the data back and continue
+                    self.layers[i].data = Some(data);
+                    continue;
+                }
+                Stat::Bin | Stat::Smooth => {
+                    // Not implemented yet - put data back
+                    self.layers[i].data = Some(data);
+                    continue;
+                }
+            };
+
+            // If transformation succeeded, store the result
+            if let Some((transformed_data, new_mapping)) = stat_result {
+                self.layers[i].data = Some(transformed_data);
+                
+                // Replace the layer's mapping with the new mapping from the stat
+                // The stat knows best what the transformed data looks like
+                self.layers[i].mapping = new_mapping;
+            } else {
+                // No transformation needed - data is already back in place from match arm
+            }
+        }
+
+        Ok(())
     }
 
     /// Render the plot to an ImageSurface
@@ -392,6 +498,9 @@ impl Plot {
     /// plot.save("output.png", 800, 600)?;
     /// ```
     pub fn save(mut self, path: impl AsRef<Path>, width: i32, height: i32) -> Result<(), PlotError> {
+        // Apply stat transformations to layers
+        self.apply_stats()?;
+        
         // Create default scales for unmapped aesthetics
         self.create_default_scales();
         
@@ -968,6 +1077,10 @@ impl Plot {
         use crate::scale::continuous::Builder;
         use crate::scale::color::DiscreteColor;
         use crate::scale::shape::DiscreteShape;
+        use crate::layer::Stat;
+        
+        // Check if any layer uses Count stat (typical for bar charts)
+        let has_count_stat = self.layers.iter().any(|layer| matches!(layer.stat, Stat::Count));
         
         // Find the first layer that maps each aesthetic to determine default scales
         for layer in &self.layers {
@@ -978,13 +1091,32 @@ impl Plot {
                     .or_else(|| layer.mapping.get(&Aesthetic::XEnd));
                     
                 if let Some(AesValue::Column(col_name)) = col_name {
-                    // Create default linear scale
-                    if let Ok(scale) = Builder::new().linear() {
-                        self.scales.x = Some(Box::new(scale));
-                        // Set default axis title if not already set
-                        if self.guides.x_axis.is_none() {
-                            self.guides.x_axis = Some(crate::guide::AxisGuide::x().title(col_name.clone()));
+                    // Check if this column is categorical (string type)
+                    let data = match &layer.data {
+                        Some(d) => Some(d.as_ref()),
+                        None => self.data.as_ref().map(|d| d.as_ref()),
+                    };
+                    
+                    let is_categorical = data
+                        .and_then(|d| d.get(col_name))
+                        .map(|col| col.as_str().is_some())
+                        .unwrap_or(false);
+                    
+                    if is_categorical {
+                        // Create categorical scale - we'll train it later
+                        use crate::scale::categorical::Catagorical;
+                        use std::collections::HashMap;
+                        self.scales.x = Some(Box::new(Catagorical::new(HashMap::new())));
+                    } else {
+                        // Create default linear scale
+                        if let Ok(scale) = Builder::new().linear() {
+                            self.scales.x = Some(Box::new(scale));
                         }
+                    }
+                    
+                    // Set default axis title if not already set
+                    if self.guides.x_axis.is_none() {
+                        self.guides.x_axis = Some(crate::guide::AxisGuide::x().title(col_name.clone()));
                     }
                 }
             }
@@ -996,13 +1128,38 @@ impl Plot {
                     .or_else(|| layer.mapping.get(&Aesthetic::YEnd));
                     
                 if let Some(AesValue::Column(col_name)) = col_name {
-                    // Create default linear scale
-                    if let Ok(scale) = Builder::new().linear() {
-                        self.scales.y = Some(Box::new(scale));
-                        // Set default axis title if not already set
-                        if self.guides.y_axis.is_none() {
-                            self.guides.y_axis = Some(crate::guide::AxisGuide::y().title(col_name.clone()));
+                    // Check if this column is categorical (string type)
+                    let data = match &layer.data {
+                        Some(d) => Some(d.as_ref()),
+                        None => self.data.as_ref().map(|d| d.as_ref()),
+                    };
+                    
+                    let is_categorical = data
+                        .and_then(|d| d.get(col_name))
+                        .map(|col| col.as_str().is_some())
+                        .unwrap_or(false);
+                    
+                    if is_categorical {
+                        // Create categorical scale - we'll train it later
+                        use crate::scale::categorical::Catagorical;
+                        use std::collections::HashMap;
+                        self.scales.y = Some(Box::new(Catagorical::new(HashMap::new())));
+                    } else {
+                        // Create default linear scale
+                        // For bar charts (Count stat), anchor at zero
+                        let builder = if has_count_stat {
+                            Builder::new().set_lower_bound(0.0)
+                        } else {
+                            Builder::new()
+                        };
+                        if let Ok(scale) = builder.linear() {
+                            self.scales.y = Some(Box::new(scale));
                         }
+                    }
+                    
+                    // Set default axis title if not already set
+                    if self.guides.y_axis.is_none() {
+                        self.guides.y_axis = Some(crate::guide::AxisGuide::y().title(col_name.clone()));
                     }
                 }
             }

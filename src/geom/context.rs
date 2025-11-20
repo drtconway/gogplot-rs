@@ -209,9 +209,27 @@ impl<'a> RenderContext<'a> {
                         }
                     }
                     VectorType::Str => {
-                        return Err(PlotError::InvalidAestheticType(
-                            "cannot convert string to numeric".to_string(),
-                        ))
+                        // Try to use scale's categorical mapping
+                        if let Some(scale) = scale {
+                            let strs = vec.as_str()
+                                .ok_or_else(|| PlotError::InvalidAestheticType("expected str".to_string()))?;
+                            
+                            let mapped: Vec<f64> = strs.iter()
+                                .filter_map(|s| scale.map_category(s))
+                                .collect();
+                            
+                            if mapped.len() == strs.len() {
+                                Ok(AestheticValues::Owned(mapped))
+                            } else {
+                                return Err(PlotError::InvalidAestheticType(
+                                    "categorical scale did not map all values".to_string(),
+                                ))
+                            }
+                        } else {
+                            return Err(PlotError::InvalidAestheticType(
+                                "string values require a categorical scale".to_string(),
+                            ))
+                        }
                     }
                 }
             }

@@ -2,6 +2,7 @@ use crate::aesthetics::{Aesthetic, AesMap, AesValue};
 use crate::error::PlotError;
 use crate::layer::{Layer, Stat, Position};
 
+pub mod bar;
 pub mod context;
 pub mod hline;
 pub mod line;
@@ -10,6 +11,7 @@ pub mod rect;
 pub mod segment;
 pub mod vline;
 
+pub use bar::GeomBar;
 pub use context::RenderContext;
 pub use hline::GeomHLine;
 pub use line::GeomLine;
