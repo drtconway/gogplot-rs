@@ -254,7 +254,7 @@ mod tests {
         let scale = ContinuousColor::default_gradient((0.0, 1.0));
         assert_eq!(scale.domain, (0.0, 1.0));
         assert_eq!(scale.colors.len(), 2);
-        assert_eq!(scale.colors[0], Color::rgb(0, 0, 139)); // dark blue
+        assert_eq!(scale.colors[0], Color::rgb(154, 192, 205)); // lightblue3
         assert_eq!(scale.colors[1], Color::rgb(0, 0, 0));   // black
     }
 
