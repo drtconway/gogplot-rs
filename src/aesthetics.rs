@@ -7,6 +7,7 @@ pub enum Aesthetic {
     X,
     Y,
     Color,
+    Fill,
     Alpha,
     Size,
     Shape,
@@ -60,6 +61,9 @@ impl AesMap {
     pub fn color(&mut self, column: impl Into<String>) {
         self.set(Aesthetic::Color, AesValue::Column(column.into()));
     }
+    pub fn fill(&mut self, column: impl Into<String>) {
+        self.set(Aesthetic::Fill, AesValue::Column(column.into()));
+    }
     pub fn alpha(&mut self, column: impl Into<String>) {
         self.set(Aesthetic::Alpha, AesValue::Column(column.into()));
     }
@@ -81,6 +85,12 @@ impl AesMap {
         // Store as a combined RGBA integer
         let rgba = ((r as i64) << 24) | ((g as i64) << 16) | ((b as i64) << 8) | (a as i64);
         self.set(Aesthetic::Color, AesValue::Constant(PrimitiveValue::Int(rgba)));
+    }
+    
+    pub fn const_fill(&mut self, r: u8, g: u8, b: u8, a: u8) {
+        // Store as a combined RGBA integer
+        let rgba = ((r as i64) << 24) | ((g as i64) << 16) | ((b as i64) << 8) | (a as i64);
+        self.set(Aesthetic::Fill, AesValue::Constant(PrimitiveValue::Int(rgba)));
     }
     
     pub fn const_alpha(&mut self, alpha: f64) {

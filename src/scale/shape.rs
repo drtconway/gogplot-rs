@@ -32,20 +32,23 @@ impl DiscreteShape {
 }
 
 impl ScaleBase for DiscreteShape {
-    fn train(&mut self, data: &dyn GenericVector) {
-        // Extract unique categories and assign them to shapes
-        if let Some(strings) = data.as_str() {
-            let mut categories: Vec<String> = Vec::new();
-            for s in strings.iter() {
-                if !categories.contains(s) {
-                    categories.push(s.clone());
+    fn train(&mut self, data: &[&dyn GenericVector]) {
+        // Extract unique categories from all data vectors and assign them to shapes
+        let mut categories: Vec<String> = Vec::new();
+        
+        for vec in data {
+            if let Some(strings) = vec.as_str() {
+                for s in strings.iter() {
+                    if !categories.contains(s) {
+                        categories.push(s.clone());
+                    }
                 }
             }
-            
-            self.mapping.clear();
-            for (idx, category) in categories.iter().enumerate() {
-                self.mapping.insert(category.clone(), idx % self.shapes.len());
-            }
+        }
+        
+        self.mapping.clear();
+        for (idx, category) in categories.iter().enumerate() {
+            self.mapping.insert(category.clone(), idx % self.shapes.len());
         }
     }
 }
@@ -98,7 +101,7 @@ mod tests {
             "bird".to_string()
         ]);
         
-        scale.train(&data);
+        scale.train(&[&data]);
         
         assert_eq!(scale.mapping.len(), 3); // cat, dog, bird
         assert!(scale.mapping.contains_key("cat"));
@@ -111,7 +114,7 @@ mod tests {
         let mut scale = DiscreteShape::default_shapes();
         let data = StrVec(vec!["A".to_string(), "B".to_string(), "C".to_string()]);
         
-        scale.train(&data);
+        scale.train(&[&data]);
         
         let shape_a = scale.map_to_shape("A");
         let shape_b = scale.map_to_shape("B");
@@ -133,7 +136,7 @@ mod tests {
             "C".to_string(), // Should wrap back to Circle
         ]);
         
-        scale.train(&data);
+        scale.train(&[&data]);
         
         assert_eq!(scale.map_to_shape("A"), Some(Shape::Circle));
         assert_eq!(scale.map_to_shape("B"), Some(Shape::Square));
@@ -145,7 +148,7 @@ mod tests {
         let mut scale = DiscreteShape::default_shapes();
         let data = StrVec(vec!["Z".to_string(), "A".to_string(), "M".to_string()]);
         
-        scale.train(&data);
+        scale.train(&[&data]);
         
         let breaks = scale.legend_breaks();
         assert_eq!(breaks.len(), 3);
@@ -158,12 +161,12 @@ mod tests {
         
         // First training
         let data1 = StrVec(vec!["A".to_string(), "B".to_string()]);
-        scale.train(&data1);
+        scale.train(&[&data1]);
         assert_eq!(scale.mapping.len(), 2);
         
         // Second training should replace mapping
         let data2 = StrVec(vec!["X".to_string(), "Y".to_string(), "Z".to_string()]);
-        scale.train(&data2);
+        scale.train(&[&data2]);
         assert_eq!(scale.mapping.len(), 3);
         assert!(scale.mapping.contains_key("X"));
         assert!(!scale.mapping.contains_key("A"));

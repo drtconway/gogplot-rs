@@ -13,6 +13,7 @@ pub use context::RenderContext;
 pub use hline::GeomHLine;
 pub use line::GeomLine;
 pub use point::GeomPoint;
+pub use rect::GeomRect;
 pub use vline::GeomVLine;
 
 pub trait Geom: Send + Sync {

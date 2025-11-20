@@ -316,6 +316,82 @@ impl<'a> RenderContext<'a> {
         }
     }
 
+    /// Get fill color values for the Fill aesthetic as an iterator
+    /// Handles both constants and scale-mapped colors
+    pub fn get_fill_color_values(&self) -> Result<ColorValues, PlotError> {
+        use crate::aesthetics::AesValue;
+        use crate::data::PrimitiveValue;
+
+        let n = self.data.len();
+        let mapping = self.mapping.get(&Aesthetic::Fill);
+        let color_scale = self.scales.color.as_ref();
+
+        match (mapping, color_scale) {
+            // Column mapped with scale
+            (Some(AesValue::Column(col_name)), Some(scale)) => {
+                let vec = self.data.get(col_name.as_str())
+                    .ok_or_else(|| PlotError::MissingAesthetic(format!("column '{}'", col_name)))?;
+                
+                match vec.vtype() {
+                    VectorType::Float | VectorType::Int => {
+                        // Continuous color scale
+                        let values: Vec<f64> = match vec.vtype() {
+                            VectorType::Float => {
+                                vec.as_float()
+                                    .ok_or_else(|| PlotError::InvalidAestheticType("expected float".to_string()))?
+                                    .iter().copied().collect()
+                            }
+                            VectorType::Int => {
+                                vec.as_int()
+                                    .ok_or_else(|| PlotError::InvalidAestheticType("expected int".to_string()))?
+                                    .iter().map(|&x| x as f64).collect()
+                            }
+                            _ => unreachable!()
+                        };
+                        
+                        let colors: Vec<Color> = values.iter()
+                            .filter_map(|&v| scale.map_continuous_to_color(v))
+                            .collect();
+                        Ok(ColorValues::Mapped(colors))
+                    }
+                    VectorType::Str => {
+                        // Discrete color scale
+                        let strings = vec.as_str()
+                            .ok_or_else(|| PlotError::InvalidAestheticType("expected string".to_string()))?;
+                        
+                        let colors: Vec<Color> = strings.iter()
+                            .filter_map(|s| scale.map_discrete_to_color(s))
+                            .collect();
+                        Ok(ColorValues::Mapped(colors))
+                    }
+                }
+            }
+            // Constant color
+            (Some(AesValue::Constant(PrimitiveValue::Int(rgba))), _) => {
+                let r = ((rgba >> 24) & 0xFF) as u8;
+                let g = ((rgba >> 16) & 0xFF) as u8;
+                let b = ((rgba >> 8) & 0xFF) as u8;
+                let a = (rgba & 0xFF) as u8;
+                Ok(ColorValues::Constant(Color(r, g, b, a), n))
+            }
+            (Some(AesValue::Constant(_)), _) => {
+                Err(PlotError::InvalidAestheticType(
+                    "Fill constant must be RGBA int".to_string()
+                ))
+            }
+            // Column mapped but no scale
+            (Some(AesValue::Column(_)), None) => {
+                Err(PlotError::InvalidAestheticType(
+                    "Fill mapped from column requires a color scale".to_string()
+                ))
+            }
+            // No mapping, use default gray
+            (None, _) => {
+                Ok(ColorValues::Constant(Color(128, 128, 128, 255), n))
+            }
+        }
+    }
+
     /// Get shape values for the Shape aesthetic as an iterator
     /// Handles both constants and scale-mapped shapes
     pub fn get_shape_values(&self) -> Result<ShapeValues, PlotError> {

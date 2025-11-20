@@ -8,15 +8,17 @@ pub trait ScaleBase: Send + Sync {
     /// Train the scale on data to automatically determine the domain.
     /// 
     /// This method allows the scale to learn appropriate domain bounds by examining
-    /// the data. For continuous scales, this typically computes min/max values.
-    /// For categorical scales, this extracts unique categories.
+    /// the data. For continuous scales, this typically computes min/max values
+    /// across all provided data sources. For categorical scales, this extracts
+    /// unique categories.
     /// 
     /// If the scale's domain is already explicitly set (e.g., via a builder),
     /// this method may be a no-op.
     /// 
     /// # Arguments
-    /// * `data` - The data vector to train on
-    fn train(&mut self, data: &dyn GenericVector);
+    /// * `data` - A slice of data vectors to train on (e.g., for rectangles this
+    ///            would include both xmin and xmax to get the full range)
+    fn train(&mut self, data: &[&dyn GenericVector]);
 }
 
 /// Scales that map to continuous [0, 1] normalized coordinates.

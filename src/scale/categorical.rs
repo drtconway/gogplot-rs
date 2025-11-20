@@ -74,7 +74,7 @@ impl Catagorical {
 }
 
 impl ScaleBase for Catagorical {
-    fn train(&mut self, _data: &dyn crate::data::GenericVector) {
+    fn train(&mut self, _data: &[&dyn crate::data::GenericVector]) {
         // Training could extract unique categories from data
         // For now, categories are set explicitly via builder
     }

@@ -40,22 +40,25 @@ impl DiscreteColor {
 }
 
 impl ScaleBase for DiscreteColor {
-    fn train(&mut self, data: &dyn GenericVector) {
-        // Extract unique categories and assign them to palette colors
-        if let Some(strings) = data.as_str() {
-            let mut categories: Vec<String> = Vec::new();
-            let mut seen: HashSet<String> = HashSet::new();
-            for s in strings.iter() {
-                if !seen.contains(s) {
-                    categories.push(s.clone());
-                    seen.insert(s.clone());
+    fn train(&mut self, data: &[&dyn GenericVector]) {
+        // Extract unique categories from all data vectors and assign them to palette colors
+        let mut categories: Vec<String> = Vec::new();
+        let mut seen: HashSet<String> = HashSet::new();
+        
+        for vec in data {
+            if let Some(strings) = vec.as_str() {
+                for s in strings.iter() {
+                    if !seen.contains(s) {
+                        categories.push(s.clone());
+                        seen.insert(s.clone());
+                    }
                 }
             }
-            
-            self.mapping.clear();
-            for (idx, category) in categories.iter().enumerate() {
-                self.mapping.insert(category.clone(), idx % self.palette.len());
-            }
+        }
+        
+        self.mapping.clear();
+        for (idx, category) in categories.iter().enumerate() {
+            self.mapping.insert(category.clone(), idx % self.palette.len());
         }
     }
 }
@@ -114,10 +117,23 @@ impl ContinuousColor {
 }
 
 impl ScaleBase for ContinuousColor {
-    fn train(&mut self, data: &dyn GenericVector) {
-        // Could auto-compute domain from data
-        // For now, domain is set explicitly
-        let _ = data;
+    fn train(&mut self, data: &[&dyn GenericVector]) {
+        // Calculate domain from all data vectors
+        let mut values = Vec::new();
+        
+        for vec in data {
+            if let Some(float_vec) = vec.as_float() {
+                values.extend(float_vec.iter().copied());
+            } else if let Some(int_vec) = vec.as_int() {
+                values.extend(int_vec.iter().map(|&i| i as f64));
+            }
+        }
+        
+        if !values.is_empty() {
+            let min = values.iter().copied().fold(f64::INFINITY, f64::min);
+            let max = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+            self.domain = (min, max);
+        }
     }
 }
 
@@ -170,7 +186,7 @@ mod tests {
         let mut scale = DiscreteColor::default_palette();
         let data = StrVec(vec!["A".to_string(), "B".to_string(), "A".to_string(), "C".to_string()]);
         
-        scale.train(&data);
+        scale.train(&[&data]);
         
         assert_eq!(scale.mapping.len(), 3); // A, B, C
         assert!(scale.mapping.contains_key("A"));
@@ -183,7 +199,7 @@ mod tests {
         let mut scale = DiscreteColor::default_palette();
         let data = StrVec(vec!["red".to_string(), "blue".to_string(), "green".to_string()]);
         
-        scale.train(&data);
+        scale.train(&[&data]);
         
         let color_red = scale.map_discrete_to_color("red");
         let color_blue = scale.map_discrete_to_color("blue");
@@ -199,7 +215,7 @@ mod tests {
         let mut scale = DiscreteColor::default_palette();
         let data = StrVec(vec!["Z".to_string(), "A".to_string(), "M".to_string()]);
         
-        scale.train(&data);
+        scale.train(&[&data]);
         
         let breaks = scale.legend_breaks();
         assert_eq!(breaks.len(), 3);

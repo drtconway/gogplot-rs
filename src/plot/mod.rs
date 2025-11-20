@@ -233,6 +233,45 @@ impl Plot {
         self
     }
 
+    /// Add a rectangle geom layer
+    /// 
+    /// # Examples
+    /// 
+    /// ```ignore
+    /// plot.geom_rect()
+    /// ```
+    pub fn geom_rect(self) -> Self {
+        self.geom_rect_with(|geom| geom)
+    }
+
+    /// Add a rectangle geom layer with customization (builder style)
+    /// 
+    /// # Examples
+    /// 
+    /// ```ignore
+    /// plot.geom_rect_with(|geom| {
+    ///     geom.fill(color::RED)
+    ///         .color(color::BLACK)
+    ///         .alpha(0.5)
+    /// })
+    /// ```
+    pub fn geom_rect_with<F>(mut self, f: F) -> Self
+    where
+        F: FnOnce(crate::geom::rect::GeomRect) -> crate::geom::rect::GeomRect,
+    {
+        let geom = crate::geom::rect::GeomRect::new();
+        let geom = f(geom);
+        
+        let mut layer = geom.into_layer();
+        for (aesthetic, value) in self.default_aes.iter() {
+            if !layer.mapping.get(aesthetic).is_some() {
+                layer.mapping.set(aesthetic.clone(), value.clone());
+            }
+        }
+        self.layers.push(layer);
+        self
+    }
+
     /// Set the x scale (builder style)
     pub fn scale_x(mut self, scale: Box<dyn ContinuousScale>) -> Self {
         self.scales.x = Some(scale);
@@ -893,7 +932,11 @@ impl Plot {
         for layer in &self.layers {
             // X scale
             if self.scales.x.is_none() {
-                if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::X) {
+                let col_name = layer.mapping.get(&Aesthetic::X)
+                    .or_else(|| layer.mapping.get(&Aesthetic::XBegin))
+                    .or_else(|| layer.mapping.get(&Aesthetic::XEnd));
+                    
+                if let Some(AesValue::Column(col_name)) = col_name {
                     // Create default linear scale
                     if let Ok(scale) = Builder::new().linear() {
                         self.scales.x = Some(Box::new(scale));
@@ -907,7 +950,11 @@ impl Plot {
             
             // Y scale
             if self.scales.y.is_none() {
-                if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::Y) {
+                let col_name = layer.mapping.get(&Aesthetic::Y)
+                    .or_else(|| layer.mapping.get(&Aesthetic::YBegin))
+                    .or_else(|| layer.mapping.get(&Aesthetic::YEnd));
+                    
+                if let Some(AesValue::Column(col_name)) = col_name {
                     // Create default linear scale
                     if let Ok(scale) = Builder::new().linear() {
                         self.scales.y = Some(Box::new(scale));
@@ -970,21 +1017,53 @@ impl Plot {
                 },
             };
             
-            // Train x scale
+            // Collect all x-related vectors (X, XBegin, XEnd)
+            let mut x_vecs = Vec::new();
             if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::X) {
-                if let Some(ref mut scale) = self.scales.x {
-                    if let Some(vec) = data.get(col_name) {
-                        scale.train(vec);
-                    }
+                if let Some(vec) = data.get(col_name) {
+                    x_vecs.push(vec);
+                }
+            }
+            if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::XBegin) {
+                if let Some(vec) = data.get(col_name) {
+                    x_vecs.push(vec);
+                }
+            }
+            if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::XEnd) {
+                if let Some(vec) = data.get(col_name) {
+                    x_vecs.push(vec);
                 }
             }
             
-            // Train y scale
+            // Train x scale on all x-related data
+            if !x_vecs.is_empty() {
+                if let Some(ref mut scale) = self.scales.x {
+                    scale.train(&x_vecs);
+                }
+            }
+            
+            // Collect all y-related vectors (Y, YBegin, YEnd)
+            let mut y_vecs = Vec::new();
             if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::Y) {
+                if let Some(vec) = data.get(col_name) {
+                    y_vecs.push(vec);
+                }
+            }
+            if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::YBegin) {
+                if let Some(vec) = data.get(col_name) {
+                    y_vecs.push(vec);
+                }
+            }
+            if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::YEnd) {
+                if let Some(vec) = data.get(col_name) {
+                    y_vecs.push(vec);
+                }
+            }
+            
+            // Train y scale on all y-related data
+            if !y_vecs.is_empty() {
                 if let Some(ref mut scale) = self.scales.y {
-                    if let Some(vec) = data.get(col_name) {
-                        scale.train(vec);
-                    }
+                    scale.train(&y_vecs);
                 }
             }
             
@@ -992,7 +1071,7 @@ impl Plot {
             if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::Color) {
                 if let Some(ref mut scale) = self.scales.color {
                     if let Some(vec) = data.get(col_name) {
-                        scale.train(vec);
+                        scale.train(&[vec]);
                     }
                 }
             }
@@ -1001,7 +1080,7 @@ impl Plot {
             if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::Shape) {
                 if let Some(ref mut scale) = self.scales.shape {
                     if let Some(vec) = data.get(col_name) {
-                        scale.train(vec);
+                        scale.train(&[vec]);
                     }
                 }
             }
@@ -1010,7 +1089,7 @@ impl Plot {
             if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::Size) {
                 if let Some(ref mut scale) = self.scales.size {
                     if let Some(vec) = data.get(col_name) {
-                        scale.train(vec);
+                        scale.train(&[vec]);
                     }
                 }
             }
@@ -1019,7 +1098,7 @@ impl Plot {
             if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::Alpha) {
                 if let Some(ref mut scale) = self.scales.alpha {
                     if let Some(vec) = data.get(col_name) {
-                        scale.train(vec);
+                        scale.train(&[vec]);
                     }
                 }
             }

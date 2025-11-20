@@ -343,21 +343,10 @@ pub struct Linear {
 }
 
 impl ScaleBase for Linear {
-    fn train(&mut self, data: &dyn crate::data::GenericVector) {
-        // Only auto-train if domain wasn't explicitly set (i.e., was using default)
+    fn train(&mut self, data: &[&dyn crate::data::GenericVector]) {
+        // Only auto-train if domain wasn't explicitly set
         if !self.trained {
-            // Calculate domain from data - handle both int and float
-            let values: Vec<f64> = if let Some(float_vec) = data.as_float() {
-                float_vec.iter().copied().collect()
-            } else if let Some(int_vec) = data.as_int() {
-                int_vec.iter().map(|&i| i as f64).collect()
-            } else {
-                Vec::new()
-            };
-            
-            if !values.is_empty() {
-                let min = values.iter().copied().fold(f64::INFINITY, f64::min);
-                let max = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+            if let Some((min, max)) = compute_min_max(data) {
                 
                 // Apply expansion (5% by default)
                 let range = max - min;
@@ -428,48 +417,39 @@ pub struct Sqrt {
 }
 
 impl ScaleBase for Sqrt {
-    fn train(&mut self, data: &dyn crate::data::GenericVector) {
+    fn train(&mut self, data: &[&dyn crate::data::GenericVector]) {
         if !self.trained {
-            let values: Vec<f64> = if let Some(float_vec) = data.as_float() {
-                float_vec.iter().copied().collect()
-            } else if let Some(int_vec) = data.as_int() {
-                int_vec.iter().map(|&i| i as f64).collect()
-            } else {
-                Vec::new()
-            };
-            
-            if !values.is_empty() {
-                    let min = values.iter().copied().fold(f64::INFINITY, f64::min).max(0.0);
-                    let max = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-                    
-                    let range = max - min;
-                    let expansion = if range.abs() < 1e-10 {
-                        // Degenerate case: all values are the same
-                        if min.abs() < 1e-10 {
-                            1.0  // For values near zero, use ±1
-                        } else {
-                            min.abs() * 0.1  // Otherwise use ±10% of the value
-                        }
+            if let Some((min, max)) = compute_min_max(data) {
+                let min = min.max(0.0);  // Clamp to non-negative for sqrt
+                
+                let range = max - min;
+                let expansion = if range.abs() < 1e-10 {
+                    // Degenerate case: all values are the same
+                    if min.abs() < 1e-10 {
+                        1.0  // For values near zero, use ±1
                     } else {
-                        range * 0.05
-                    };
-                    self.domain = (min - expansion, max + expansion);
-                    self.domain.0 = self.domain.0.max(0.0); // Don't go negative
-                    
-                    self.breaks = extended_breaks(self.domain, 5);
-                    self.labels = self.breaks.iter().map(|b| {
-                        if b.abs() < 1e-10 {
-                            "0".to_string()
-                        } else if b.abs() >= 1000.0 || b.abs() < 0.01 {
-                            format!("{:.1e}", b)
-                        } else if b.fract().abs() < 1e-10 {
-                            format!("{:.0}", b)
-                        } else {
-                            format!("{:.2}", b).trim_end_matches('0').trim_end_matches('.').to_string()
-                        }
-                    }).collect();
-                    
-                    self.trained = true;
+                        min.abs() * 0.1  // Otherwise use ±10% of the value
+                    }
+                } else {
+                    range * 0.05
+                };
+                self.domain = (min - expansion, max + expansion);
+                self.domain.0 = self.domain.0.max(0.0); // Don't go negative
+                
+                self.breaks = extended_breaks(self.domain, 5);
+                self.labels = self.breaks.iter().map(|b| {
+                    if b.abs() < 1e-10 {
+                        "0".to_string()
+                    } else if b.abs() >= 1000.0 || b.abs() < 0.01 {
+                        format!("{:.1e}", b)
+                    } else if b.fract().abs() < 1e-10 {
+                        format!("{:.0}", b)
+                    } else {
+                        format!("{:.2}", b).trim_end_matches('0').trim_end_matches('.').to_string()
+                    }
+                }).collect();
+                
+                self.trained = true;
             }
         }
     }
@@ -515,44 +495,34 @@ pub struct Log10 {
 }
 
 impl ScaleBase for Log10 {
-    fn train(&mut self, data: &dyn crate::data::GenericVector) {
+    fn train(&mut self, data: &[&dyn crate::data::GenericVector]) {
         if !self.trained {
-            let values: Vec<f64> = if let Some(float_vec) = data.as_float() {
-                float_vec.iter().copied().collect()
-            } else if let Some(int_vec) = data.as_int() {
-                int_vec.iter().map(|&i| i as f64).collect()
-            } else {
-                Vec::new()
-            };
-            
-            if !values.is_empty() {
-                    let min = values.iter().copied().fold(f64::INFINITY, f64::min).max(0.001);
-                    let max = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-                    
-                    let range = max - min;
-                    let expansion = if range.abs() < 1e-10 {
-                        // Degenerate case: all values are the same
-                        // For log scale, use multiplicative expansion
-                        min * 0.1
+            if let Some((min, max)) = compute_min_max(data) {
+                let min = min.max(0.001);  // Clamp to positive values for log
+                let range = max - min;
+                let expansion = if range.abs() < 1e-10 {
+                    // Degenerate case: all values are the same
+                    // For log scale, use multiplicative expansion
+                    min * 0.1
+                } else {
+                    range * 0.05
+                };
+                self.domain = ((min - expansion).max(0.001), max + expansion);
+                
+                self.breaks = extended_breaks(self.domain, 5);
+                self.labels = self.breaks.iter().map(|b| {
+                    if b.abs() < 1e-10 {
+                        "0".to_string()
+                    } else if b.abs() >= 1000.0 || b.abs() < 0.01 {
+                        format!("{:.1e}", b)
+                    } else if b.fract().abs() < 1e-10 {
+                        format!("{:.0}", b)
                     } else {
-                        range * 0.05
-                    };
-                    self.domain = ((min - expansion).max(0.001), max + expansion);
-                    
-                    self.breaks = extended_breaks(self.domain, 5);
-                    self.labels = self.breaks.iter().map(|b| {
-                        if b.abs() < 1e-10 {
-                            "0".to_string()
-                        } else if b.abs() >= 1000.0 || b.abs() < 0.01 {
-                            format!("{:.1e}", b)
-                        } else if b.fract().abs() < 1e-10 {
-                            format!("{:.0}", b)
-                        } else {
-                            format!("{:.2}", b).trim_end_matches('0').trim_end_matches('.').to_string()
-                        }
-                    }).collect();
-                    
-                    self.trained = true;
+                        format!("{:.2}", b).trim_end_matches('0').trim_end_matches('.').to_string()
+                    }
+                }).collect();
+                
+                self.trained = true;
             }
         }
     }
@@ -587,6 +557,37 @@ impl ContinuousScale for Log10 {
 
     fn labels(&self) -> &[String] {
         &self.labels
+    }
+}
+
+/// Helper function to compute min and max from a slice of GenericVectors
+/// without copying all the data. Returns None if all vectors are empty.
+fn compute_min_max(data: &[&dyn crate::data::GenericVector]) -> Option<(f64, f64)> {
+    let mut min = f64::INFINITY;
+    let mut max = f64::NEG_INFINITY;
+    let mut found_any = false;
+    
+    for vec in data {
+        if let Some(float_vec) = vec.as_float() {
+            for &value in float_vec.iter() {
+                min = min.min(value);
+                max = max.max(value);
+                found_any = true;
+            }
+        } else if let Some(int_vec) = vec.as_int() {
+            for &value in int_vec.iter() {
+                let value_f64 = value as f64;
+                min = min.min(value_f64);
+                max = max.max(value_f64);
+                found_any = true;
+            }
+        }
+    }
+    
+    if found_any {
+        Some((min, max))
+    } else {
+        None
     }
 }
 
@@ -685,7 +686,7 @@ mod tests {
         // Using Builder without limits means train() will be called
         let mut scale = Builder::new().linear().unwrap();
         let data = FloatVec(vec![0.0, 0.0, 0.0, 0.0]);
-        scale.train(&data);
+        scale.train(&[&data]);
         
         // Should have symmetric domain around zero
         assert!(scale.domain.0 < 0.0, "domain.0 should be < 0.0, got {}", scale.domain.0);
@@ -703,7 +704,7 @@ mod tests {
         // Test Linear scale with all values at 5.0
         let mut scale = Builder::new().linear().unwrap();
         let data = FloatVec(vec![5.0, 5.0, 5.0]);
-        scale.train(&data);
+        scale.train(&[&data]);
         
         // Should have symmetric domain around 5.0
         assert!(scale.domain.0 < 5.0, "domain.0 should be < 5.0, got {}", scale.domain.0);
@@ -721,7 +722,7 @@ mod tests {
         // Test Sqrt scale with all values at 4.0
         let mut scale = Builder::new().sqrt().unwrap();
         let data = FloatVec(vec![4.0, 4.0, 4.0]);
-        scale.train(&data);
+        scale.train(&[&data]);
         
         // Should have symmetric domain around 4.0
         assert!(scale.domain.0 < 4.0, "domain.0 should be < 4.0, got {}", scale.domain.0);
@@ -739,7 +740,7 @@ mod tests {
         // Test Log10 scale with all values at 10.0
         let mut scale = Builder::new().log10().unwrap();
         let data = FloatVec(vec![10.0, 10.0, 10.0]);
-        scale.train(&data);
+        scale.train(&[&data]);
         
         // Should have expanded domain around 10.0
         assert!(scale.domain.0 < 10.0, "domain.0 should be < 10.0, got {}", scale.domain.0);
@@ -757,7 +758,7 @@ mod tests {
         // Ensure the fix doesn't break normal scaling
         let mut scale = Builder::new().linear().unwrap();
         let data = FloatVec(vec![0.0, 10.0]);
-        scale.train(&data);
+        scale.train(&[&data]);
         
         // With 5% expansion on each side, domain is approximately [-0.5, 10.5]
         // So 0.0 maps to about 0.048 (0.5 / 10.5), not exactly 0.0
@@ -775,7 +776,7 @@ mod tests {
         // Ensure the fix doesn't break normal scaling
         let mut scale = Builder::new().sqrt().unwrap();
         let data = FloatVec(vec![0.0, 100.0]);
-        scale.train(&data);
+        scale.train(&[&data]);
         
         let map_0 = scale.map_value(0.0).unwrap();
         let map_100 = scale.map_value(100.0).unwrap();
@@ -792,7 +793,7 @@ mod tests {
         // Ensure the fix doesn't break normal scaling
         let mut scale = Builder::new().log10().unwrap();
         let data = FloatVec(vec![1.0, 100.0]);
-        scale.train(&data);
+        scale.train(&[&data]);
         
         let map_1 = scale.map_value(1.0).unwrap();
         let map_100 = scale.map_value(100.0).unwrap();
