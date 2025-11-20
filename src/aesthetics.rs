@@ -28,6 +28,13 @@ pub enum AesValue {
     // Computed?
 }
 
+impl AesValue {
+    /// Create a Column variant from a string-like value
+    pub fn column(name: impl Into<String>) -> Self {
+        AesValue::Column(name.into())
+    }
+}
+
 // The mapping structure
 #[derive(Clone)]
 pub struct AesMap {
@@ -41,6 +48,11 @@ impl AesMap {
 
     pub fn set(&mut self, aes: Aesthetic, value: AesValue) {
         self.map.insert(aes, value);
+    }
+
+    /// Convenience method to set an aesthetic to a column mapping
+    pub fn set_column(&mut self, aes: Aesthetic, column: impl Into<String>) {
+        self.set(aes, AesValue::column(column));
     }
 
     pub fn get(&self, aes: &Aesthetic) -> Option<&AesValue> {
@@ -121,8 +133,8 @@ mod tests {
         aes.y("col_y");
         aes.color("group");
         
-        assert_eq!(aes.get(&Aesthetic::X), Some(&AesValue::Column("col_x".to_string())));
-        assert_eq!(aes.get(&Aesthetic::Y), Some(&AesValue::Column("col_y".to_string())));
-        assert_eq!(aes.get(&Aesthetic::Color), Some(&AesValue::Column("group".to_string())));
+        assert_eq!(aes.get(&Aesthetic::X), Some(&AesValue::column("col_x")));
+        assert_eq!(aes.get(&Aesthetic::Y), Some(&AesValue::column("col_y")));
+        assert_eq!(aes.get(&Aesthetic::Color), Some(&AesValue::column("group")));
     }
 }

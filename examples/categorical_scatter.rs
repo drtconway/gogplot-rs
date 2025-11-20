@@ -21,8 +21,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     df1.add_column("value", Box::new(FloatVec(values_y)));
     
     let mut mapping1 = AesMap::new();
-    mapping1.set(Aesthetic::X, AesValue::Column("category".to_string()));
-    mapping1.set(Aesthetic::Y, AesValue::Column("value".to_string()));
+    mapping1.set(Aesthetic::X, AesValue::column("category"));
+    mapping1.set(Aesthetic::Y, AesValue::column("value"));
     
     let geom1 = GeomPoint::new()
         .color(color::STEELBLUE)
@@ -53,8 +53,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     df2.add_column("category", Box::new(StrVec::from(categories_y)));
     
     let mut mapping2 = AesMap::new();
-    mapping2.set(Aesthetic::X, AesValue::Column("value".to_string()));
-    mapping2.set(Aesthetic::Y, AesValue::Column("category".to_string()));
+    mapping2.set(Aesthetic::X, AesValue::column("value"));
+    mapping2.set(Aesthetic::Y, AesValue::column("category"));
     
     let geom2 = GeomPoint::new()
         .color(color::CORAL)

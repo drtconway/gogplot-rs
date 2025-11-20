@@ -88,9 +88,9 @@ impl StatTransform for Count {
 
         // Update the mapping to use the count column for y
         let mut new_mapping = mapping.clone();
-        new_mapping.set(Aesthetic::Y, AesValue::Column("count".to_string()));
+        new_mapping.set(Aesthetic::Y, AesValue::column("count"));
         // Keep x mapping to the original column (which is now shadowed in stacked source)
-        new_mapping.set(Aesthetic::X, AesValue::Column("x".to_string()));
+        new_mapping.set(Aesthetic::X, AesValue::column("x"));
 
         Ok(Some((Box::new(stacked), new_mapping)))
     }
@@ -195,7 +195,7 @@ mod tests {
         // Check that y is now mapped to count
         assert_eq!(
             new_mapping.get(&Aesthetic::Y),
-            Some(&AesValue::Column("count".to_string()))
+            Some(&AesValue::column("count"))
         );
 
         // Check the computed values

@@ -1,4 +1,4 @@
-use gogplot_rs::aesthetics::{Aesthetic, AesValue};
+use gogplot_rs::aesthetics::Aesthetic;
 use gogplot_rs::plot::Plot;
 use gogplot_rs::theme::color;
 use gogplot_rs::utils::dataframe::{DataFrame, FloatVec};
@@ -16,22 +16,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         Plot::new(Some(Box::new(data)))
             .aes(|aes| {
-                aes.set(
-                    Aesthetic::XBegin,
-                    AesValue::Column("xmin".to_string()),
-                );
-                aes.set(
-                    Aesthetic::XEnd,
-                    AesValue::Column("xmax".to_string()),
-                );
-                aes.set(
-                    Aesthetic::YBegin,
-                    AesValue::Column("ymin".to_string()),
-                );
-                aes.set(
-                    Aesthetic::YEnd,
-                    AesValue::Column("ymax".to_string()),
-                );
+                aes.set_column(Aesthetic::XBegin, "xmin");
+                aes.set_column(Aesthetic::XEnd, "xmax");
+                aes.set_column(Aesthetic::YBegin, "ymin");
+                aes.set_column(Aesthetic::YEnd, "ymax");
             })
             .geom_rect_with(|geom| geom.fill(color::STEELBLUE).alpha(0.7))
             .save("rectangle_simple.png", 600, 400)?;
@@ -48,22 +36,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         Plot::new(Some(Box::new(data)))
             .aes(|aes| {
-                aes.set(
-                    Aesthetic::XBegin,
-                    AesValue::Column("xmin".to_string()),
-                );
-                aes.set(
-                    Aesthetic::XEnd,
-                    AesValue::Column("xmax".to_string()),
-                );
-                aes.set(
-                    Aesthetic::YBegin,
-                    AesValue::Column("ymin".to_string()),
-                );
-                aes.set(
-                    Aesthetic::YEnd,
-                    AesValue::Column("ymax".to_string()),
-                );
+                aes.set_column(Aesthetic::XBegin, "xmin");
+                aes.set_column(Aesthetic::XEnd, "xmax");
+                aes.set_column(Aesthetic::YBegin, "ymin");
+                aes.set_column(Aesthetic::YEnd, "ymax");
             })
             .geom_rect_with(|geom| {
                 geom.fill(color::CORAL)
@@ -98,22 +74,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         Plot::new(Some(Box::new(data)))
             .aes(|aes| {
-                aes.set(
-                    Aesthetic::XBegin,
-                    AesValue::Column("xmin".to_string()),
-                );
-                aes.set(
-                    Aesthetic::XEnd,
-                    AesValue::Column("xmax".to_string()),
-                );
-                aes.set(
-                    Aesthetic::YBegin,
-                    AesValue::Column("ymin".to_string()),
-                );
-                aes.set(
-                    Aesthetic::YEnd,
-                    AesValue::Column("ymax".to_string()),
-                );
+                aes.set_column(Aesthetic::XBegin, "xmin");
+                aes.set_column(Aesthetic::XEnd, "xmax");
+                aes.set_column(Aesthetic::YBegin, "ymin");
+                aes.set_column(Aesthetic::YEnd, "ymax");
             })
             .geom_rect_with(|geom| geom.fill(color::LIGHTBLUE).color(color::GRAY50).alpha(0.8))
             .save("rectangle_grid.png", 600, 600)?;
@@ -130,22 +94,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         Plot::new(Some(Box::new(data)))
             .aes(|aes| {
-                aes.set(
-                    Aesthetic::XBegin,
-                    AesValue::Column("xmin".to_string()),
-                );
-                aes.set(
-                    Aesthetic::XEnd,
-                    AesValue::Column("xmax".to_string()),
-                );
-                aes.set(
-                    Aesthetic::YBegin,
-                    AesValue::Column("ymin".to_string()),
-                );
-                aes.set(
-                    Aesthetic::YEnd,
-                    AesValue::Column("ymax".to_string()),
-                );
+                aes.set_column(Aesthetic::XBegin, "xmin");
+                aes.set_column(Aesthetic::XEnd, "xmax");
+                aes.set_column(Aesthetic::YBegin, "ymin");
+                aes.set_column(Aesthetic::YEnd, "ymax");
             })
             .geom_rect_with(|geom| {
                 geom.fill(color::PURPLE).alpha(0.3)
