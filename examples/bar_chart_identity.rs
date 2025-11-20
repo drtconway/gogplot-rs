@@ -3,12 +3,10 @@
 // This example demonstrates using the bar geom with pre-computed values
 // (no automatic counting), using the Identity stat.
 
-use gogplot_rs::aesthetics::{Aesthetic, AesMap, AesValue};
-use gogplot_rs::geom::bar::GeomBar;
-use gogplot_rs::layer::{Layer, Stat, Position};
-use gogplot_rs::utils::dataframe::{DataFrame, FloatVec, StrVec};
+use gogplot_rs::layer::Stat;
 use gogplot_rs::plot::Plot;
 use gogplot_rs::theme::color;
+use gogplot_rs::utils::dataframe::{DataFrame, FloatVec, StrVec};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create data with pre-computed values (e.g., summary statistics)
@@ -19,35 +17,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     df.add_column("quarter", Box::new(StrVec::from(categories)));
     df.add_column("sales", Box::new(FloatVec(sales)));
     
-    // Create a bar geom with Identity stat (no counting)
-    let geom = GeomBar::new()
-        .fill(color::STEELBLUE)
-        .width(0.7)
-        .alpha(0.9)
-        .stat(Stat::Identity);  // Use values as-is, don't count
-    
-    // Create a layer with explicit mappings
-    let mut mapping = AesMap::new();
-    mapping.set(Aesthetic::X, AesValue::Column("quarter".to_string()));
-    mapping.set(Aesthetic::Y, AesValue::Column("sales".to_string()));
-    
-    let layer = Layer {
-        geom: Box::new(geom),
-        data: Some(Box::new(df)),
-        mapping,
-        stat: Stat::Identity,  // Pre-computed values
-        position: Position::Identity,
-    };
-    
-    // Create plot and add the layer
-    let mut plot = Plot::new(None);
-    plot.layers.push(layer);
-    
     // Bar charts should have y-axis starting at 0 for accurate visual comparison
     use gogplot_rs::scale::continuous::Builder;
     let y_scale = Builder::new().set_lower_bound(0.0).linear()?;
     
-    let plot = plot
+    let plot = Plot::new(Some(Box::new(df)))
+        .aes(|a| {
+            a.x("quarter");
+            a.y("sales");
+        })
+        .geom_bar_with(|geom| {
+            geom.stat(Stat::Identity)  // Use values as-is, don't count
+                .fill(color::STEELBLUE)
+                .width(0.7)
+                .alpha(0.9)
+        })
         .title("Quarterly Sales (Identity Stat)")
         .scale_y(Box::new(y_scale));
     

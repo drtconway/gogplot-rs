@@ -2,9 +2,6 @@
 //
 // This example demonstrates the bar geom with automatic counting of categorical data.
 
-use gogplot_rs::aesthetics::{AesMap, AesValue, Aesthetic};
-use gogplot_rs::geom::bar::GeomBar;
-use gogplot_rs::layer::{Layer, Position, Stat};
 use gogplot_rs::plot::Plot;
 use gogplot_rs::theme::color;
 use gogplot_rs::utils::dataframe::{DataFrame, StrVec};
@@ -16,30 +13,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut df = DataFrame::new();
     df.add_column("category", Box::new(StrVec::from(categories)));
 
-    // Create a bar geom with styling
-    let geom = GeomBar::new().fill(color::STEELBLUE).width(0.7).alpha(0.9);
-
-    // Create a layer with the geom, data, and mapping
-    let mut mapping = AesMap::new();
-    mapping.set(Aesthetic::X, AesValue::Column("category".to_string()));
-
-    let layer = Layer {
-        geom: Box::new(geom),
-        data: Some(Box::new(df)),
-        mapping,
-        stat: Stat::Count, // This will count occurrences by category
-        position: Position::Identity,
-    };
-
-    // Create plot and add the layer
-    let mut plot = Plot::new(None);
-    plot.layers.push(layer);
-
     // Bar charts should have y-axis starting at 0 for accurate visual comparison
     use gogplot_rs::scale::continuous::Builder;
     let y_scale = Builder::new().set_lower_bound(0.0).linear()?;
     
-    let plot = plot
+    let plot = Plot::new(Some(Box::new(df)))
+        .aes(|a| a.x("category"))
+        .geom_bar_with(|geom| {
+            geom.fill(color::STEELBLUE)
+                .width(0.7)
+                .alpha(0.9)
+        })
         .title("Bar Chart - Category Counts")
         .scale_y(Box::new(y_scale));
 

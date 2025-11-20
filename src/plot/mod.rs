@@ -352,6 +352,13 @@ impl Plot {
                 layer.mapping.set(aesthetic.clone(), value.clone());
             }
         }
+        
+        // If layer needs stat transformation and doesn't have data, take plot data
+        // Stats need owned data to transform
+        if !matches!(layer.stat, crate::layer::Stat::Identity) && layer.data.is_none() {
+            layer.data = self.data.take();
+        }
+        
         self.layers.push(layer);
         self
     }
@@ -414,11 +421,9 @@ impl Plot {
                 continue;
             }
 
-            // For now, we can only transform layers that have their own data
-            // since we can't clone trait objects
+            // If layer doesn't have data, it can't be transformed
+            // (stat transformations need owned data)
             if self.layers[i].data.is_none() {
-                // TODO: Handle plot-level data by making DataFrame cloneable
-                // or using Rc<dyn DataSource>
                 continue;
             }
 
