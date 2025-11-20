@@ -16,10 +16,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         Plot::new(Some(Box::new(data)))
             .aes(|aes| {
-                aes.set_column(Aesthetic::XBegin, "xmin");
-                aes.set_column(Aesthetic::XEnd, "xmax");
-                aes.set_column(Aesthetic::YBegin, "ymin");
-                aes.set_column(Aesthetic::YEnd, "ymax");
+                aes.set_to_column(Aesthetic::XBegin, "xmin");
+                aes.set_to_column(Aesthetic::XEnd, "xmax");
+                aes.set_to_column(Aesthetic::YBegin, "ymin");
+                aes.set_to_column(Aesthetic::YEnd, "ymax");
             })
             .geom_rect_with(|geom| geom.fill(color::STEELBLUE).alpha(0.7))
             .save("rectangle_simple.png", 600, 400)?;
@@ -36,10 +36,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         Plot::new(Some(Box::new(data)))
             .aes(|aes| {
-                aes.set_column(Aesthetic::XBegin, "xmin");
-                aes.set_column(Aesthetic::XEnd, "xmax");
-                aes.set_column(Aesthetic::YBegin, "ymin");
-                aes.set_column(Aesthetic::YEnd, "ymax");
+                aes.set_to_column(Aesthetic::XBegin, "xmin");
+                aes.set_to_column(Aesthetic::XEnd, "xmax");
+                aes.set_to_column(Aesthetic::YBegin, "ymin");
+                aes.set_to_column(Aesthetic::YEnd, "ymax");
             })
             .geom_rect_with(|geom| {
                 geom.fill(color::CORAL)
@@ -74,10 +74,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         Plot::new(Some(Box::new(data)))
             .aes(|aes| {
-                aes.set_column(Aesthetic::XBegin, "xmin");
-                aes.set_column(Aesthetic::XEnd, "xmax");
-                aes.set_column(Aesthetic::YBegin, "ymin");
-                aes.set_column(Aesthetic::YEnd, "ymax");
+                aes.set_to_column(Aesthetic::XBegin, "xmin");
+                aes.set_to_column(Aesthetic::XEnd, "xmax");
+                aes.set_to_column(Aesthetic::YBegin, "ymin");
+                aes.set_to_column(Aesthetic::YEnd, "ymax");
             })
             .geom_rect_with(|geom| geom.fill(color::LIGHTBLUE).color(color::GRAY50).alpha(0.8))
             .save("rectangle_grid.png", 600, 600)?;
@@ -94,10 +94,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         Plot::new(Some(Box::new(data)))
             .aes(|aes| {
-                aes.set_column(Aesthetic::XBegin, "xmin");
-                aes.set_column(Aesthetic::XEnd, "xmax");
-                aes.set_column(Aesthetic::YBegin, "ymin");
-                aes.set_column(Aesthetic::YEnd, "ymax");
+                aes.set_to_column(Aesthetic::XBegin, "xmin");
+                aes.set_to_column(Aesthetic::XEnd, "xmax");
+                aes.set_to_column(Aesthetic::YBegin, "ymin");
+                aes.set_to_column(Aesthetic::YEnd, "ymax");
             })
             .geom_rect_with(|geom| {
                 geom.fill(color::PURPLE).alpha(0.3)

@@ -51,7 +51,7 @@ impl AesMap {
     }
 
     /// Convenience method to set an aesthetic to a column mapping
-    pub fn set_column(&mut self, aes: Aesthetic, column: impl Into<String>) {
+    pub fn set_to_column(&mut self, aes: Aesthetic, column: impl Into<String>) {
         self.set(aes, AesValue::column(column));
     }
 
@@ -65,31 +65,31 @@ impl AesMap {
 
     // Convenience methods for column mappings
     pub fn x(&mut self, column: impl Into<String>) {
-        self.set(Aesthetic::X, AesValue::Column(column.into()));
+        self.set_to_column(Aesthetic::X, column);
     }
     pub fn y(&mut self, column: impl Into<String>) {
-        self.set(Aesthetic::Y, AesValue::Column(column.into()));
+        self.set_to_column(Aesthetic::Y, column);
     }
     pub fn color(&mut self, column: impl Into<String>) {
-        self.set(Aesthetic::Color, AesValue::Column(column.into()));
+        self.set_to_column(Aesthetic::Color, column);
     }
     pub fn fill(&mut self, column: impl Into<String>) {
-        self.set(Aesthetic::Fill, AesValue::Column(column.into()));
+        self.set_to_column(Aesthetic::Fill, column);
     }
     pub fn alpha(&mut self, column: impl Into<String>) {
-        self.set(Aesthetic::Alpha, AesValue::Column(column.into()));
+        self.set_to_column(Aesthetic::Alpha, column);
     }
     pub fn size(&mut self, column: impl Into<String>) {
-        self.set(Aesthetic::Size, AesValue::Column(column.into()));
+        self.set_to_column(Aesthetic::Size, column);
     }
     pub fn shape(&mut self, column: impl Into<String>) {
-        self.set(Aesthetic::Shape, AesValue::Column(column.into()));
+        self.set_to_column(Aesthetic::Shape, column);
     }
     pub fn group(&mut self, column: impl Into<String>) {
-        self.set(Aesthetic::Group, AesValue::Column(column.into()));
+        self.set_to_column(Aesthetic::Group, column);
     }
     pub fn linetype(&mut self, column: impl Into<String>) {
-        self.set(Aesthetic::Linetype, AesValue::Column(column.into()));
+        self.set_to_column(Aesthetic::Linetype, column);
     }
 
     // Convenience methods for constant value mappings

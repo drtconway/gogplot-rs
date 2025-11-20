@@ -16,10 +16,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         Plot::new(Some(Box::new(data)))
             .aes(|aes| {
-                aes.set_column(Aesthetic::X, "x");
-                aes.set_column(Aesthetic::Y, "y");
-                aes.set_column(Aesthetic::XEnd, "xend");
-                aes.set_column(Aesthetic::YEnd, "yend");
+                aes.set_to_column(Aesthetic::X, "x");
+                aes.set_to_column(Aesthetic::Y, "y");
+                aes.set_to_column(Aesthetic::XEnd, "xend");
+                aes.set_to_column(Aesthetic::YEnd, "yend");
             })
             .geom_segment_with(|geom| geom.color(color::STEELBLUE).size(2.0))
             .save("segment_simple.png", 600, 400)?;
@@ -37,11 +37,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         Plot::new(Some(Box::new(data)))
             .aes(|aes| {
-                aes.set_column(Aesthetic::X, "x");
-                aes.set_column(Aesthetic::Y, "y");
-                aes.set_column(Aesthetic::XEnd, "xend");
-                aes.set_column(Aesthetic::YEnd, "yend");
-                aes.set_column(Aesthetic::Color, "group");
+                aes.set_to_column(Aesthetic::X, "x");
+                aes.set_to_column(Aesthetic::Y, "y");
+                aes.set_to_column(Aesthetic::XEnd, "xend");
+                aes.set_to_column(Aesthetic::YEnd, "yend");
+                aes.set_to_column(Aesthetic::Color, "group");
             })
             .geom_segment_with(|geom| geom.size(3.0))
             .save("segment_colored.png", 600, 400)?;
@@ -74,10 +74,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         Plot::new(Some(Box::new(data)))
             .aes(|aes| {
-                aes.set_column(Aesthetic::X, "x");
-                aes.set_column(Aesthetic::Y, "y");
-                aes.set_column(Aesthetic::XEnd, "xend");
-                aes.set_column(Aesthetic::YEnd, "yend");
+                aes.set_to_column(Aesthetic::X, "x");
+                aes.set_to_column(Aesthetic::Y, "y");
+                aes.set_to_column(Aesthetic::XEnd, "xend");
+                aes.set_to_column(Aesthetic::YEnd, "yend");
             })
             .geom_segment_with(|geom| geom.color(color::CORAL).size(3.0).alpha(0.7))
             .save("segment_radial.png", 600, 400)?;
@@ -117,10 +117,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         Plot::new(Some(Box::new(data)))
             .aes(|aes| {
-                aes.set_column(Aesthetic::X, "x");
-                aes.set_column(Aesthetic::Y, "y");
-                aes.set_column(Aesthetic::XEnd, "xend");
-                aes.set_column(Aesthetic::YEnd, "yend");
+                aes.set_to_column(Aesthetic::X, "x");
+                aes.set_to_column(Aesthetic::Y, "y");
+                aes.set_to_column(Aesthetic::XEnd, "xend");
+                aes.set_to_column(Aesthetic::YEnd, "yend");
             })
             .geom_segment_with(|geom| geom.color(color::GRAY).size(1.0))
             .save("segment_grid.png", 600, 400)?;
@@ -138,11 +138,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         Plot::new(Some(Box::new(data)))
             .aes(|aes| {
-                aes.set_column(Aesthetic::X, "x");
-                aes.set_column(Aesthetic::Y, "y");
-                aes.set_column(Aesthetic::XEnd, "xend");
-                aes.set_column(Aesthetic::YEnd, "yend");
-                aes.set_column(Aesthetic::Linetype, "style");
+                aes.set_to_column(Aesthetic::X, "x");
+                aes.set_to_column(Aesthetic::Y, "y");
+                aes.set_to_column(Aesthetic::XEnd, "xend");
+                aes.set_to_column(Aesthetic::YEnd, "yend");
+                aes.set_to_column(Aesthetic::Linetype, "style");
             })
             .geom_segment_with(|geom| geom.color(color::NAVY).size(2.0))
             .save("segment_linestyles.png", 600, 400)?;
