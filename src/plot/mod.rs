@@ -369,10 +369,52 @@ impl Plot {
         self
     }
 
+    /// Customize the x scale using a builder function
+    /// 
+    /// # Examples
+    /// 
+    /// ```ignore
+    /// plot.x_scale_with(|scale| scale.set_lower_bound(0.0))
+    /// ```
+    pub fn x_scale_with<F>(self, f: F) -> Self
+    where
+        F: FnOnce(crate::scale::continuous::Continuous) -> crate::scale::continuous::Continuous,
+    {
+        let builder = crate::scale::continuous::Continuous::new();
+        let builder = f(builder);
+        // Assume linear scale for now; could be extended
+        if let Ok(scale) = builder.linear() {
+            self.scale_x(Box::new(scale))
+        } else {
+            self
+        }
+    }
+
     /// Set the y scale (builder style)
     pub fn scale_y(mut self, scale: Box<dyn ContinuousScale>) -> Self {
         self.scales.y = Some(scale);
         self
+    }
+
+    /// Customize the y scale using a builder function
+    /// 
+    /// # Examples
+    /// 
+    /// ```ignore
+    /// plot.y_scale_with(|scale| scale.set_lower_bound(0.0))
+    /// ```
+    pub fn y_scale_with<F>(self, f: F) -> Self
+    where
+        F: FnOnce(crate::scale::continuous::Continuous) -> crate::scale::continuous::Continuous,
+    {
+        let builder = crate::scale::continuous::Continuous::new();
+        let builder = f(builder);
+        // Assume linear scale for now; could be extended
+        if let Ok(scale) = builder.linear() {
+            self.scale_y(Box::new(scale))
+        } else {
+            self
+        }
     }
 
     /// Set the color scale (builder style)
@@ -1079,7 +1121,7 @@ impl Plot {
     /// Create default scales for aesthetics that don't have scales but are mapped to columns
     fn create_default_scales(&mut self) {
         use crate::aesthetics::{Aesthetic, AesValue};
-        use crate::scale::continuous::Builder;
+        use crate::scale::continuous::Continuous;
         use crate::scale::color::DiscreteColor;
         use crate::scale::shape::DiscreteShape;
         
@@ -1110,7 +1152,7 @@ impl Plot {
                         self.scales.x = Some(Box::new(Catagorical::new(HashMap::new())));
                     } else {
                         // Create default linear scale
-                        if let Ok(scale) = Builder::new().linear() {
+                        if let Ok(scale) = Continuous::new().linear() {
                             self.scales.x = Some(Box::new(scale));
                         }
                     }
@@ -1147,7 +1189,7 @@ impl Plot {
                         self.scales.y = Some(Box::new(Catagorical::new(HashMap::new())));
                     } else {
                         // Create default linear scale
-                        if let Ok(scale) = Builder::new().linear() {
+                        if let Ok(scale) = Continuous::new().linear() {
                             self.scales.y = Some(Box::new(scale));
                         }
                     }
@@ -1179,7 +1221,7 @@ impl Plot {
             if self.scales.size.is_none() {
                 if let Some(AesValue::Column(_)) = layer.mapping.get(&Aesthetic::Size) {
                     // Create default linear scale for size
-                    if let Ok(scale) = Builder::new().linear() {
+                    if let Ok(scale) = Continuous::new().linear() {
                         self.scales.size = Some(Box::new(scale));
                     }
                 }
@@ -1189,7 +1231,7 @@ impl Plot {
             if self.scales.alpha.is_none() {
                 if let Some(AesValue::Column(_)) = layer.mapping.get(&Aesthetic::Alpha) {
                     // Create default linear scale for alpha
-                    if let Ok(scale) = Builder::new().linear() {
+                    if let Ok(scale) = Continuous::new().linear() {
                         self.scales.alpha = Some(Box::new(scale));
                     }
                 }

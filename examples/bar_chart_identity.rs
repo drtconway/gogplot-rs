@@ -17,10 +17,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     df.add_column("quarter", Box::new(StrVec::from(categories)));
     df.add_column("sales", Box::new(FloatVec(sales)));
     
-    // Bar charts should have y-axis starting at 0 for accurate visual comparison
-    use gogplot_rs::scale::continuous::Builder;
-    let y_scale = Builder::new().set_lower_bound(0.0).linear()?;
-    
     let plot = Plot::new(Some(Box::new(df)))
         .aes(|a| {
             a.x("quarter");
@@ -33,7 +29,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .alpha(0.9)
         })
         .title("Quarterly Sales (Identity Stat)")
-        .scale_y(Box::new(y_scale));
+        // Bar charts should have y-axis starting at 0 for accurate visual comparison
+        .y_scale_with(|scale| scale.set_lower_bound(0.0));
     
     // Save the plot
     plot.save("bar_chart_identity.png", 800, 600)?;

@@ -9,21 +9,21 @@ use crate::error::PlotError;
 /// # Examples
 /// 
 /// ```ignore
-/// use gogplot_rs::scale::continuous::Builder;
+/// use gogplot_rs::scale::continuous::Continuous;
 /// 
 /// // Create a linear scale with custom limits
-/// let scale = Builder::new()
+/// let scale = Continuous::new()
 ///     .limits((0.0, 100.0))
 ///     .linear();
 /// 
 /// // Create a log10 scale with custom breaks and labels
-/// let scale = Builder::new()
+/// let scale = Continuous::new()
 ///     .limits((1.0, 1000.0))
 ///     .breaks(vec![1.0, 10.0, 100.0, 1000.0])
 ///     .labels(vec!["1".into(), "10".into(), "100".into(), "1000".into()])
 ///     .log10();
 /// ```
-pub struct Builder {
+pub struct Continuous {
     limits: Option<(f64, f64)>,
     breaks: Option<Vec<f64>>,
     labels: Option<Vec<String>>,
@@ -32,7 +32,7 @@ pub struct Builder {
     upper_bound: Option<f64>,
 }
 
-impl Builder {
+impl Continuous {
     /// Create a new scale builder with default settings.
     /// 
     /// By default, limits, breaks, and labels
@@ -62,7 +62,7 @@ impl Builder {
     /// # Examples
     /// 
     /// ```ignore
-    /// let scale = Builder::new()
+    /// let scale = Continuous::new()
     ///     .limits((0.0, 100.0))
     ///     .linear();
     /// ```
@@ -84,7 +84,7 @@ impl Builder {
     /// # Examples
     /// 
     /// ```ignore
-    /// let scale = Builder::new()
+    /// let scale = Continuous::new()
     ///     .breaks(vec![0.0, 25.0, 50.0, 75.0, 100.0])
     ///     .linear();
     /// ```
@@ -106,7 +106,7 @@ impl Builder {
     /// # Examples
     /// 
     /// ```ignore
-    /// let scale = Builder::new()
+    /// let scale = Continuous::new()
     ///     .breaks(vec![0.0, 50.0, 100.0])
     ///     .labels(vec!["Low".into(), "Medium".into(), "High".into()])
     ///     .linear();
@@ -135,17 +135,17 @@ impl Builder {
     /// 
     /// ```ignore
     /// // 5% multiplicative expansion (default-like)
-    /// let scale = Builder::new()
+    /// let scale = Continuous::new()
     ///     .expand((0.05, 0.0))
     ///     .linear();
     /// 
     /// // No expansion
-    /// let scale = Builder::new()
+    /// let scale = Continuous::new()
     ///     .expand((0.0, 0.0))
     ///     .linear();
     /// 
     /// // 10% expansion plus 1 unit
-    /// let scale = Builder::new()
+    /// let scale = Continuous::new()
     ///     .expand((0.1, 1.0))
     ///     .linear();
     /// ```
@@ -168,7 +168,7 @@ impl Builder {
     /// 
     /// ```ignore
     /// // Scale that always starts at zero (good for bar charts)
-    /// let scale = Builder::new()
+    /// let scale = Continuous::new()
     ///     .set_lower_bound(0.0)
     ///     .linear();
     /// ```
@@ -190,12 +190,12 @@ impl Builder {
     /// 
     /// ```ignore
     /// // Scale that always goes up to 100
-    /// let scale = Builder::new()
+    /// let scale = Continuous::new()
     ///     .set_upper_bound(100.0)
     ///     .linear();
     /// 
     /// // Percentage scale from 0 to 100
-    /// let scale = Builder::new()
+    /// let scale = Continuous::new()
     ///     .set_lower_bound(0.0)
     ///     .set_upper_bound(100.0)
     ///     .linear();
@@ -221,7 +221,7 @@ impl Builder {
     /// # Examples
     /// 
     /// ```ignore
-    /// let scale = Builder::new()
+    /// let scale = Continuous::new()
     ///     .limits((0.0, 100.0))
     ///     .linear()?;
     /// ```
@@ -280,7 +280,7 @@ impl Builder {
     /// # Examples
     /// 
     /// ```ignore
-    /// let scale = Builder::new()
+    /// let scale = Continuous::new()
     ///     .limits((0.0, 100.0))
     ///     .sqrt()?;
     /// ```
@@ -345,7 +345,7 @@ impl Builder {
     /// # Examples
     /// 
     /// ```ignore
-    /// let scale = Builder::new()
+    /// let scale = Continuous::new()
     ///     .limits((1.0, 1000.0))
     ///     .breaks(vec![1.0, 10.0, 100.0, 1000.0])
     ///     .log10()?;
@@ -766,7 +766,7 @@ mod tests {
     fn test_linear_scale_degenerate_zero() {
         // Test Linear scale with all values at zero
         // Using Builder without limits means train() will be called
-        let mut scale = Builder::new().linear().unwrap();
+        let mut scale = Continuous::new().linear().unwrap();
         let data = FloatVec(vec![0.0, 0.0, 0.0, 0.0]);
         scale.train(&[&data]);
         
@@ -784,7 +784,7 @@ mod tests {
     #[test]
     fn test_linear_scale_degenerate_nonzero() {
         // Test Linear scale with all values at 5.0
-        let mut scale = Builder::new().linear().unwrap();
+        let mut scale = Continuous::new().linear().unwrap();
         let data = FloatVec(vec![5.0, 5.0, 5.0]);
         scale.train(&[&data]);
         
@@ -802,7 +802,7 @@ mod tests {
     #[test]
     fn test_sqrt_scale_degenerate() {
         // Test Sqrt scale with all values at 4.0
-        let mut scale = Builder::new().sqrt().unwrap();
+        let mut scale = Continuous::new().sqrt().unwrap();
         let data = FloatVec(vec![4.0, 4.0, 4.0]);
         scale.train(&[&data]);
         
@@ -820,7 +820,7 @@ mod tests {
     #[test]
     fn test_log10_scale_degenerate() {
         // Test Log10 scale with all values at 10.0
-        let mut scale = Builder::new().log10().unwrap();
+        let mut scale = Continuous::new().log10().unwrap();
         let data = FloatVec(vec![10.0, 10.0, 10.0]);
         scale.train(&[&data]);
         
@@ -838,7 +838,7 @@ mod tests {
     #[test]
     fn test_linear_scale_degenerate_preserves_normal_behavior() {
         // Ensure the fix doesn't break normal scaling
-        let mut scale = Builder::new().linear().unwrap();
+        let mut scale = Continuous::new().linear().unwrap();
         let data = FloatVec(vec![0.0, 10.0]);
         scale.train(&[&data]);
         
@@ -856,7 +856,7 @@ mod tests {
     #[test]
     fn test_sqrt_scale_degenerate_preserves_normal_behavior() {
         // Ensure the fix doesn't break normal scaling
-        let mut scale = Builder::new().sqrt().unwrap();
+        let mut scale = Continuous::new().sqrt().unwrap();
         let data = FloatVec(vec![0.0, 100.0]);
         scale.train(&[&data]);
         
@@ -873,7 +873,7 @@ mod tests {
     #[test]
     fn test_log10_scale_degenerate_preserves_normal_behavior() {
         // Ensure the fix doesn't break normal scaling
-        let mut scale = Builder::new().log10().unwrap();
+        let mut scale = Continuous::new().log10().unwrap();
         let data = FloatVec(vec![1.0, 100.0]);
         scale.train(&[&data]);
         
