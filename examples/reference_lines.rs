@@ -13,7 +13,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut df = DataFrame::new();
     df.add_column("x", Box::new(FloatVec(x.clone())));
     df.add_column("y", Box::new(FloatVec(y.clone())));
-    
+
     let plot = Plot::new(Some(Box::new(df)))
         .title("Horizontal Reference Line")
         .aes(|a| {
@@ -29,7 +29,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut df = DataFrame::new();
     df.add_column("x", Box::new(FloatVec(x.clone())));
     df.add_column("y", Box::new(FloatVec(y.clone())));
-    
+
     let plot = Plot::new(Some(Box::new(df)))
         .title("Vertical Reference Line")
         .aes(|a| {
@@ -45,7 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut df = DataFrame::new();
     df.add_column("x", Box::new(FloatVec(x.clone())));
     df.add_column("y", Box::new(FloatVec(y.clone())));
-    
+
     let plot = Plot::new(Some(Box::new(df)))
         .title("Multiple Reference Lines")
         .aes(|a| {
@@ -53,20 +53,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.y("y");
         })
         .geom_point_with(|geom| geom.size(4.0).color(color::BLUE))
-        .geom_hline_with(3.0, |geom| geom.color(color::BLUE).size(1.5).linetype(".").alpha(0.6))
-        .geom_hline_with(5.0, |geom| geom.color(color::GREEN).size(1.5).linetype(".").alpha(0.6))
-        .geom_vline_with(5.5, |geom| geom.color(color::RED).size(2.0).linetype("-.").alpha(0.8));
+        .geom_hline_with(3.0, |geom| {
+            geom.color(color::BLUE).size(1.5).linetype(".").alpha(0.6)
+        })
+        .geom_hline_with(5.0, |geom| {
+            geom.color(color::GREEN).size(1.5).linetype(".").alpha(0.6)
+        })
+        .geom_vline_with(5.5, |geom| {
+            geom.color(color::RED).size(2.0).linetype("-.").alpha(0.8)
+        });
     plot.save("reference_multiple.png", 800, 600)?;
     println!("Saved reference_multiple.png");
 
     // Example 4: Marking mean and median
     let mean_x = 5.5;
     let mean_y = 4.49;
-    
+
     let mut df = DataFrame::new();
     df.add_column("x", Box::new(FloatVec(x)));
     df.add_column("y", Box::new(FloatVec(y)));
-    
+
     let plot = Plot::new(Some(Box::new(df)))
         .title("Reference Lines for Mean")
         .aes(|a| {
@@ -75,16 +81,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .geom_point_with(|geom| geom.size(4.0).color(color::BLUE))
         .geom_hline_with(mean_y, |geom| {
-            geom.color(color::RED)
-                .size(2.0)
-                .linetype("- -")
-                .alpha(0.7)
+            geom.color(color::RED).size(2.0).linetype("- -").alpha(0.7)
         })
         .geom_vline_with(mean_x, |geom| {
-            geom.color(color::RED)
-                .size(2.0)
-                .linetype("- -")
-                .alpha(0.7)
+            geom.color(color::RED).size(2.0).linetype("- -").alpha(0.7)
         });
     plot.save("reference_mean.png", 800, 600)?;
     println!("Saved reference_mean.png");

@@ -9,9 +9,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     {
         let mut data = DataFrame::new();
         let x: Vec<f64> = (0..50).map(|i| i as f64).collect();
-        let y: Vec<f64> = x.iter().map(|&x| (x / 5.0).sin() * 10.0 + x / 2.0).collect();
+        let y: Vec<f64> = x
+            .iter()
+            .map(|&x| (x / 5.0).sin() * 10.0 + x / 2.0)
+            .collect();
         let z: Vec<f64> = x.iter().map(|&x| x).collect(); // Color by x value
-        
+
         data.add_column("x", Box::new(FloatVec(x)));
         data.add_column("y", Box::new(FloatVec(y)));
         data.add_column("z", Box::new(FloatVec(z)));
@@ -21,11 +24,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .aes(|aes| {
                 aes.x("x");
                 aes.y("y");
-                aes.color("z");  // Map color to z values
+                aes.color("z"); // Map color to z values
             })
             .scale_color_continuous(vec![
-                color::LIGHTBLUE2,   // dark blue
-                color::BLACK,     // black
+                color::LIGHTBLUE2, // dark blue
+                color::BLACK,      // black
             ])
             .geom_point_with(|geom| geom.size(8.0))
             .save("continuous_color_default.png", 800, 600)?;
@@ -36,9 +39,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     {
         let mut data = DataFrame::new();
         let x: Vec<f64> = (0..50).map(|i| i as f64).collect();
-        let y: Vec<f64> = x.iter().map(|&x| (x / 5.0).cos() * 10.0 + x / 2.0).collect();
+        let y: Vec<f64> = x
+            .iter()
+            .map(|&x| (x / 5.0).cos() * 10.0 + x / 2.0)
+            .collect();
         let z: Vec<f64> = x.iter().map(|&x| x).collect();
-        
+
         data.add_column("x", Box::new(FloatVec(x)));
         data.add_column("y", Box::new(FloatVec(y)));
         data.add_column("z", Box::new(FloatVec(z)));
@@ -51,8 +57,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 aes.color("z");
             })
             .scale_color_continuous(vec![
-                Color::rgb(0, 0, 255),   // blue
-                Color::rgb(255, 0, 0),   // red
+                Color::rgb(0, 0, 255), // blue
+                Color::rgb(255, 0, 0), // red
             ])
             .geom_point_with(|geom| geom.size(8.0))
             .save("continuous_color_two_colors.png", 800, 600)?;
@@ -65,17 +71,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut x = Vec::new();
         let mut y = Vec::new();
         let mut z = Vec::new();
-        
+
         for i in 0..100 {
             for j in 0..100 {
-                if (i + j) % 3 == 0 {  // Sparse grid for visibility
+                if (i + j) % 3 == 0 {
+                    // Sparse grid for visibility
                     x.push(i as f64);
                     y.push(j as f64);
                     z.push((i * i + j * j) as f64);
                 }
             }
         }
-        
+
         data.add_column("x", Box::new(FloatVec(x)));
         data.add_column("y", Box::new(FloatVec(y)));
         data.add_column("z", Box::new(FloatVec(z)));
@@ -88,11 +95,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 aes.color("z");
             })
             .scale_color_continuous(vec![
-                Color::rgb(68, 1, 84),     // dark purple
-                Color::rgb(59, 82, 139),   // blue-purple
-                Color::rgb(33, 145, 140),  // teal
-                Color::rgb(94, 201, 98),   // green
-                Color::rgb(253, 231, 37),  // yellow
+                Color::rgb(68, 1, 84),    // dark purple
+                Color::rgb(59, 82, 139),  // blue-purple
+                Color::rgb(33, 145, 140), // teal
+                Color::rgb(94, 201, 98),  // green
+                Color::rgb(253, 231, 37), // yellow
             ])
             .geom_point_with(|geom| geom.size(4.0))
             .save("continuous_color_viridis.png", 800, 800)?;
@@ -105,7 +112,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let x: Vec<f64> = (0..50).map(|i| i as f64).collect();
         let y: Vec<f64> = x.iter().map(|&x| (x / 3.0).sin() * 15.0).collect();
         let z: Vec<f64> = y.clone(); // Color by y value (centered around 0)
-        
+
         data.add_column("x", Box::new(FloatVec(x)));
         data.add_column("y", Box::new(FloatVec(y)));
         data.add_column("z", Box::new(FloatVec(z)));

@@ -15,8 +15,8 @@ use crate::theme::{Color, Theme};
 use cairo::ImageSurface;
 use std::path::Path;
 
-pub use scale_set::ScaleSet;
 pub use geom_builder::GeomBuilder;
+pub use scale_set::ScaleSet;
 
 /// Main plot structure
 pub struct Plot {

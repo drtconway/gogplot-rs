@@ -44,7 +44,9 @@ pub fn render(
         .map_err(|e| PlotError::ThemeError(format!("Failed to create context: {}", e)))?;
 
     // Use the common rendering code
-    render_with_context(&mut ctx, layers, scales, theme, guides, title, data, width, height)?;
+    render_with_context(
+        &mut ctx, layers, scales, theme, guides, title, data, width, height,
+    )?;
 
     Ok(surface)
 }
@@ -179,9 +181,7 @@ pub fn render_with_context(
                 Some(d) => d.as_ref(),
                 None => match data {
                     Some(d) => d,
-                    None => {
-                        return Err(PlotError::MissingAesthetic("No data source".to_string()))
-                    }
+                    None => return Err(PlotError::MissingAesthetic("No data source".to_string())),
                 },
             }
         };

@@ -47,7 +47,8 @@ pub fn save(
 
     match extension.to_lowercase().as_str() {
         "png" => {
-            let surface = render::render(layers, scales, theme, guides, title, data, width, height)?;
+            let surface =
+                render::render(layers, scales, theme, guides, title, data, width, height)?;
             let mut file = std::fs::File::create(path)
                 .map_err(|e| PlotError::ThemeError(format!("Failed to create file: {}", e)))?;
             surface

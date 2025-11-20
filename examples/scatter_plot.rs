@@ -19,8 +19,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Save to a file
     plot.save("scatter_plot.png", 800, 600)?;
-    
+
     println!("Plot saved to scatter_plot.png");
-    
+
     Ok(())
 }

@@ -34,7 +34,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         data.add_column("y", Box::new(FloatVec(vec![2.0, 3.0, 2.5, 4.0, 3.5])));
         data.add_column("xend", Box::new(FloatVec(vec![2.0, 3.0, 4.0, 5.0, 6.0])));
         data.add_column("yend", Box::new(FloatVec(vec![3.0, 2.5, 4.0, 3.5, 5.0])));
-        data.add_column("group", Box::new(StrVec::from(vec!["A", "B", "A", "C", "B"])));
+        data.add_column(
+            "group",
+            Box::new(StrVec::from(vec!["A", "B", "A", "C", "B"])),
+        );
 
         Plot::new(Some(Box::new(data)))
             .aes(|aes| {
@@ -57,7 +60,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         data.add_column("y", Box::new(FloatVec(vec![2.0, 3.0, 2.5, 4.0, 3.5])));
         data.add_column("xend", Box::new(FloatVec(vec![2.0, 3.0, 4.0, 5.0, 6.0])));
         data.add_column("yend", Box::new(FloatVec(vec![3.0, 2.5, 4.0, 3.5, 5.0])));
-        data.add_column("group", Box::new(StrVec::from(vec!["A", "B", "A", "C", "B"])));
+        data.add_column(
+            "group",
+            Box::new(StrVec::from(vec!["A", "B", "A", "C", "B"])),
+        );
 
         Plot::new(Some(Box::new(data)))
             .aes(|aes| {
@@ -67,7 +73,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 aes.set_to_column(Aesthetic::YEnd, "yend");
                 aes.set_to_column(Aesthetic::Color, "group");
             })
-            .guides(Guides::new().no_color_legend())  // Suppress the color legend
+            .guides(Guides::new().no_color_legend()) // Suppress the color legend
             .geom_segment_with(|geom| geom.size(3.0))
             .save("segment_colored_no_legend.png", 600, 400)?;
         println!("Saved segment_colored_no_legend.png (legend suppressed)");
@@ -159,7 +165,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         data.add_column("y", Box::new(FloatVec(vec![1.0, 2.0, 3.0, 4.0, 5.0])));
         data.add_column("xend", Box::new(FloatVec(vec![5.0, 5.0, 5.0, 5.0, 5.0])));
         data.add_column("yend", Box::new(FloatVec(vec![1.0, 2.0, 3.0, 4.0, 5.0])));
-        data.add_column("style", Box::new(StrVec::from(vec!["-", ".", "-.", "- -", ". ."])));
+        data.add_column(
+            "style",
+            Box::new(StrVec::from(vec!["-", ".", "-.", "- -", ". ."])),
+        );
 
         Plot::new(Some(Box::new(data)))
             .aes(|aes| {

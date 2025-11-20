@@ -1,6 +1,6 @@
-use std::ops::Deref;
-use std::fmt;
 use internment::ArcIntern;
+use std::fmt;
+use std::ops::Deref;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Text(ArcIntern<String>);

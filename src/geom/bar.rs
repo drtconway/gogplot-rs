@@ -1,5 +1,5 @@
 use super::{Geom, IntoLayer, RenderContext};
-use crate::aesthetics::{Aesthetic, AesValue};
+use crate::aesthetics::{AesValue, Aesthetic};
 use crate::data::PrimitiveValue;
 use crate::error::PlotError;
 use crate::layer::{Position, Stat};
@@ -131,32 +131,43 @@ impl IntoLayer for GeomBar {
 impl Geom for GeomBar {
     fn required_aesthetics(&self) -> &[Aesthetic] {
         match self.stat {
-            Stat::Count => &[Aesthetic::X], // Count only needs X
+            Stat::Count => &[Aesthetic::X],                  // Count only needs X
             Stat::Identity => &[Aesthetic::X, Aesthetic::Y], // Identity needs both
             _ => &[Aesthetic::X, Aesthetic::Y],
         }
     }
-    
-    fn compute_stat(&self, data: &dyn crate::data::DataSource, mapping: &crate::aesthetics::AesMap) -> Result<Option<(crate::utils::dataframe::DataFrame, crate::aesthetics::AesMap)>, PlotError> {
+
+    fn compute_stat(
+        &self,
+        data: &dyn crate::data::DataSource,
+        mapping: &crate::aesthetics::AesMap,
+    ) -> Result<
+        Option<(
+            crate::utils::dataframe::DataFrame,
+            crate::aesthetics::AesMap,
+        )>,
+        PlotError,
+    > {
         match self.stat {
             Stat::Count => {
                 // Apply count stat
                 // Count stat needs data ownership, so we manually implement it here
-                
+
                 let x_col_name = match mapping.get(&Aesthetic::X) {
                     Some(AesValue::Column(name)) => name,
                     _ => return Ok(None),
                 };
-                
-                let x_col = data.get(x_col_name.as_str())
-                    .ok_or_else(|| PlotError::MissingAesthetic(format!("column '{}'", x_col_name)))?;
-                
+
+                let x_col = data.get(x_col_name.as_str()).ok_or_else(|| {
+                    PlotError::MissingAesthetic(format!("column '{}'", x_col_name))
+                })?;
+
                 // Count occurrences
+                use crate::utils::dataframe::{DataFrame, FloatVec, IntVec, StrVec};
                 use std::collections::HashMap;
-                use crate::utils::dataframe::{DataFrame, IntVec, FloatVec, StrVec};
-                
+
                 let mut df = DataFrame::new();
-                
+
                 if let Some(int_vec) = x_col.as_int() {
                     let mut counts: HashMap<i64, i64> = HashMap::new();
                     for &val in int_vec.iter() {
@@ -164,10 +175,10 @@ impl Geom for GeomBar {
                     }
                     let mut pairs: Vec<(i64, i64)> = counts.into_iter().collect();
                     pairs.sort_by_key(|(x, _)| *x);
-                    
+
                     let x_vals: Vec<i64> = pairs.iter().map(|(x, _)| *x).collect();
                     let y_vals: Vec<i64> = pairs.iter().map(|(_, c)| *c).collect();
-                    
+
                     df.add_column("x", Box::new(IntVec(x_vals)));
                     df.add_column("y", Box::new(IntVec(y_vals)));
                 } else if let Some(float_vec) = x_col.as_float() {
@@ -177,16 +188,19 @@ impl Geom for GeomBar {
                             continue;
                         }
                         let key = val.to_bits();
-                        counts.entry(key)
+                        counts
+                            .entry(key)
                             .and_modify(|(_, count)| *count += 1)
                             .or_insert((val, 1));
                     }
                     let mut pairs: Vec<(f64, i64)> = counts.into_values().collect();
-                    pairs.sort_by(|(a, _), (b, _)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-                    
+                    pairs.sort_by(|(a, _), (b, _)| {
+                        a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
+                    });
+
                     let x_vals: Vec<f64> = pairs.iter().map(|(x, _)| *x).collect();
                     let y_vals: Vec<i64> = pairs.iter().map(|(_, c)| *c).collect();
-                    
+
                     df.add_column("x", Box::new(FloatVec(x_vals)));
                     df.add_column("y", Box::new(IntVec(y_vals)));
                 } else if let Some(str_vec) = x_col.as_str() {
@@ -196,20 +210,22 @@ impl Geom for GeomBar {
                     }
                     let mut pairs: Vec<(String, i64)> = counts.into_iter().collect();
                     pairs.sort_by(|(a, _), (b, _)| a.cmp(b));
-                    
+
                     let x_vals: Vec<String> = pairs.iter().map(|(x, _)| x.clone()).collect();
                     let y_vals: Vec<i64> = pairs.iter().map(|(_, c)| *c).collect();
-                    
+
                     df.add_column("x", Box::new(StrVec(x_vals)));
                     df.add_column("y", Box::new(IntVec(y_vals)));
                 } else {
-                    return Err(PlotError::InvalidAestheticType("x must be numeric or string".to_string()));
+                    return Err(PlotError::InvalidAestheticType(
+                        "x must be numeric or string".to_string(),
+                    ));
                 }
-                
+
                 // Create updated mapping with Y pointing to computed "y" column
                 let mut new_mapping = mapping.clone();
                 new_mapping.set(Aesthetic::Y, AesValue::column("y"));
-                
+
                 Ok(Some((df, new_mapping)))
             }
             Stat::Identity => {

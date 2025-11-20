@@ -18,12 +18,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("x");
             a.y("y");
         })
-        .geom_point();  // Uses x and y mappings from .aes()
+        .geom_point(); // Uses x and y mappings from .aes()
 
     plot.save("simple_api.png", 800, 600)?;
-    
+
     println!("Plot saved to simple_api.png");
     println!("Created with just data + aes + geom!");
-    
+
     Ok(())
 }

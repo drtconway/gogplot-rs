@@ -1,8 +1,8 @@
 // Legend rendering
 
-use crate::aesthetics::{Aesthetic, AesValue};
+use crate::aesthetics::{AesValue, Aesthetic};
 use crate::error::PlotError;
-use crate::guide::{Guides, LegendGuide, LegendEntry, LegendPosition, LegendType};
+use crate::guide::{Guides, LegendEntry, LegendGuide, LegendPosition, LegendType};
 use crate::layer::Layer;
 use crate::plot::scale_set::ScaleSet;
 use crate::theme::{Color, Theme};
@@ -12,11 +12,7 @@ use cairo::Context;
 use super::cairo_helpers::{apply_color, apply_fill_style, apply_font, apply_line_style};
 
 /// Generate legends automatically from scales when aesthetics are mapped
-pub fn generate_automatic_legends(
-    layers: &[Layer],
-    scales: &ScaleSet,
-    guides: &Guides,
-) -> Guides {
+pub fn generate_automatic_legends(layers: &[Layer], scales: &ScaleSet, guides: &Guides) -> Guides {
     let mut guides = guides.clone();
 
     // Check if any layer maps Color aesthetic to a column
@@ -96,8 +92,7 @@ pub fn generate_automatic_legends(
 
                 // Get the column name for the title
                 for layer in layers {
-                    if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::Shape)
-                    {
+                    if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::Shape) {
                         legend.title = Some(col_name.clone());
                         break;
                     }

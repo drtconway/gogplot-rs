@@ -1,5 +1,5 @@
 use super::{Geom, IntoLayer, RenderContext};
-use crate::aesthetics::{Aesthetic, AesValue};
+use crate::aesthetics::{AesValue, Aesthetic};
 use crate::data::PrimitiveValue;
 use crate::error::PlotError;
 use crate::visuals::Shape;
@@ -50,7 +50,9 @@ impl GeomPoint {
 
     /// Set the default alpha/opacity
     pub fn alpha(mut self, alpha: f64) -> Self {
-        self.alpha = Some(AesValue::Constant(PrimitiveValue::Float(alpha.clamp(0.0, 1.0))));
+        self.alpha = Some(AesValue::Constant(PrimitiveValue::Float(
+            alpha.clamp(0.0, 1.0),
+        )));
         self
     }
 }
@@ -64,7 +66,7 @@ impl Default for GeomPoint {
 impl IntoLayer for GeomPoint {
     fn default_aesthetics(&self) -> Vec<(Aesthetic, AesValue)> {
         let mut defaults = Vec::new();
-        
+
         if let Some(color) = &self.color {
             defaults.push((Aesthetic::Color, color.clone()));
         }
@@ -77,7 +79,7 @@ impl IntoLayer for GeomPoint {
         if let Some(shape) = &self.shape {
             defaults.push((Aesthetic::Shape, shape.clone()));
         }
-        
+
         defaults
     }
 }

@@ -50,7 +50,7 @@ pub(crate) fn compute_min_max(data: &[&dyn crate::data::GenericVector]) -> Optio
     let mut min = f64::INFINITY;
     let mut max = f64::NEG_INFINITY;
     let mut found_any = false;
-    
+
     for vec in data {
         if let Some(float_vec) = vec.as_float() {
             for &value in float_vec.iter() {
@@ -67,12 +67,8 @@ pub(crate) fn compute_min_max(data: &[&dyn crate::data::GenericVector]) -> Optio
             }
         }
     }
-    
-    if found_any {
-        Some((min, max))
-    } else {
-        None
-    }
+
+    if found_any { Some((min, max)) } else { None }
 }
 
 // DataSource trait
@@ -119,7 +115,7 @@ impl DataSource for StackedDataSource {
         // Collect all unique column names from all sources
         let mut names = Vec::new();
         let mut seen = std::collections::HashSet::new();
-        
+
         for source in &self.sources {
             for name in source.column_names() {
                 if seen.insert(name.clone()) {
@@ -146,28 +142,34 @@ mod stacked_tests {
         let mut df1 = DataFrame::new();
         df1.add_column("x", Box::new(IntVec(vec![1, 2, 3])));
         df1.add_column("y", Box::new(IntVec(vec![10, 20, 30])));
-        
+
         let mut df2 = DataFrame::new();
         df2.add_column("z", Box::new(IntVec(vec![100, 200, 300])));
-        
+
         let stacked = StackedDataSource::new(vec![Box::new(df1), Box::new(df2)]);
-        
+
         let x = stacked.get("x").unwrap();
-        assert_eq!(x.as_int().unwrap().iter().copied().collect::<Vec<_>>(), vec![1, 2, 3]);
+        assert_eq!(
+            x.as_int().unwrap().iter().copied().collect::<Vec<_>>(),
+            vec![1, 2, 3]
+        );
     }
 
     #[test]
     fn test_stacked_get_from_second_source() {
         let mut df1 = DataFrame::new();
         df1.add_column("x", Box::new(IntVec(vec![1, 2, 3])));
-        
+
         let mut df2 = DataFrame::new();
         df2.add_column("y", Box::new(IntVec(vec![10, 20, 30])));
-        
+
         let stacked = StackedDataSource::new(vec![Box::new(df1), Box::new(df2)]);
-        
+
         let y = stacked.get("y").unwrap();
-        assert_eq!(y.as_int().unwrap().iter().copied().collect::<Vec<_>>(), vec![10, 20, 30]);
+        assert_eq!(
+            y.as_int().unwrap().iter().copied().collect::<Vec<_>>(),
+            vec![10, 20, 30]
+        );
     }
 
     #[test]
@@ -176,40 +178,52 @@ mod stacked_tests {
         let mut df1 = DataFrame::new();
         df1.add_column("x", Box::new(IntVec(vec![1, 2, 3])));
         df1.add_column("y", Box::new(IntVec(vec![100, 200, 300]))); // This should be returned
-        
+
         let mut df2 = DataFrame::new();
         df2.add_column("y", Box::new(IntVec(vec![10, 20, 30]))); // This should be shadowed
         df2.add_column("z", Box::new(IntVec(vec![1000, 2000, 3000])));
-        
+
         let stacked = StackedDataSource::new(vec![Box::new(df1), Box::new(df2)]);
-        
+
         // y should come from first source
         let y = stacked.get("y").unwrap();
-        assert_eq!(y.as_int().unwrap().iter().copied().collect::<Vec<_>>(), vec![100, 200, 300]);
-        
+        assert_eq!(
+            y.as_int().unwrap().iter().copied().collect::<Vec<_>>(),
+            vec![100, 200, 300]
+        );
+
         // z should come from second source
         let z = stacked.get("z").unwrap();
-        assert_eq!(z.as_int().unwrap().iter().copied().collect::<Vec<_>>(), vec![1000, 2000, 3000]);
+        assert_eq!(
+            z.as_int().unwrap().iter().copied().collect::<Vec<_>>(),
+            vec![1000, 2000, 3000]
+        );
     }
 
     #[test]
     fn test_stacked_two_layer() {
         let mut computed = DataFrame::new();
         computed.add_column("count", Box::new(IntVec(vec![5, 10, 15])));
-        
+
         let mut original = DataFrame::new();
         original.add_column("x", Box::new(IntVec(vec![1, 2, 3])));
         original.add_column("y", Box::new(IntVec(vec![10, 20, 30])));
-        
+
         let stacked = StackedDataSource::two_layer(Box::new(computed), Box::new(original));
-        
+
         // Should find count in top layer
         let count = stacked.get("count").unwrap();
-        assert_eq!(count.as_int().unwrap().iter().copied().collect::<Vec<_>>(), vec![5, 10, 15]);
-        
+        assert_eq!(
+            count.as_int().unwrap().iter().copied().collect::<Vec<_>>(),
+            vec![5, 10, 15]
+        );
+
         // Should find x in bottom layer
         let x = stacked.get("x").unwrap();
-        assert_eq!(x.as_int().unwrap().iter().copied().collect::<Vec<_>>(), vec![1, 2, 3]);
+        assert_eq!(
+            x.as_int().unwrap().iter().copied().collect::<Vec<_>>(),
+            vec![1, 2, 3]
+        );
     }
 
     #[test]
@@ -217,13 +231,13 @@ mod stacked_tests {
         let mut df1 = DataFrame::new();
         df1.add_column("x", Box::new(IntVec(vec![1, 2, 3])));
         df1.add_column("y", Box::new(IntVec(vec![10, 20, 30])));
-        
+
         let mut df2 = DataFrame::new();
         df2.add_column("y", Box::new(IntVec(vec![100, 200, 300]))); // Duplicate name
         df2.add_column("z", Box::new(IntVec(vec![1000, 2000, 3000])));
-        
+
         let stacked = StackedDataSource::new(vec![Box::new(df1), Box::new(df2)]);
-        
+
         let names = stacked.column_names();
         assert_eq!(names.len(), 3); // x, y, z (no duplicates)
         assert!(names.contains(&"x".to_string()));
@@ -235,12 +249,12 @@ mod stacked_tests {
     fn test_stacked_len() {
         let mut df1 = DataFrame::new();
         df1.add_column("x", Box::new(IntVec(vec![1, 2, 3])));
-        
+
         let mut df2 = DataFrame::new();
         df2.add_column("y", Box::new(IntVec(vec![10, 20])));
-        
+
         let stacked = StackedDataSource::new(vec![Box::new(df1), Box::new(df2)]);
-        
+
         // Length should be from first source
         assert_eq!(stacked.len(), 3);
     }
@@ -257,7 +271,7 @@ mod stacked_tests {
     fn test_stacked_get_nonexistent() {
         let mut df1 = DataFrame::new();
         df1.add_column("x", Box::new(IntVec(vec![1, 2, 3])));
-        
+
         let stacked = StackedDataSource::new(vec![Box::new(df1)]);
         assert!(stacked.get("nonexistent").is_none());
     }

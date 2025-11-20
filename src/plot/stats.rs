@@ -2,8 +2,8 @@
 
 use crate::error::PlotError;
 use crate::layer::{Layer, Stat};
-use crate::stat::count::Count;
 use crate::stat::StatTransform;
+use crate::stat::count::Count;
 
 /// Apply statistical transformations to layers
 ///

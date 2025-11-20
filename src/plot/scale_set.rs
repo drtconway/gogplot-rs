@@ -1,6 +1,6 @@
 // Scale management for plots
 
-use crate::aesthetics::{Aesthetic, AesValue};
+use crate::aesthetics::{AesValue, Aesthetic};
 use crate::data::DataSource;
 use crate::layer::Layer;
 use crate::scale::{ColorScale, ContinuousScale, ShapeScale};

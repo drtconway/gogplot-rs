@@ -1,22 +1,22 @@
 use super::{Geom, IntoLayer, RenderContext};
-use crate::aesthetics::{Aesthetic, AesValue};
+use crate::aesthetics::{AesValue, Aesthetic};
 use crate::data::PrimitiveValue;
 use crate::error::PlotError;
 
 /// Geometry for drawing line segments.
-/// 
+///
 /// Draws line segments from (x, y) to (xend, yend). Each segment can have
 /// its own color, alpha, and size (line width).
-/// 
+///
 /// # Required Aesthetics
-/// 
+///
 /// - `X`: Starting x coordinate
 /// - `Y`: Starting y coordinate  
 /// - `XEnd`: Ending x coordinate
 /// - `YEnd`: Ending y coordinate
-/// 
+///
 /// # Optional Aesthetics
-/// 
+///
 /// - `Color`: Line color (can be constant or mapped to data)
 /// - `Alpha`: Line transparency (0.0 = transparent, 1.0 = opaque)
 /// - `Size`: Line width in pixels
@@ -24,13 +24,13 @@ use crate::error::PlotError;
 pub struct GeomSegment {
     /// Default color (if not mapped)
     pub color: Option<AesValue>,
-    
+
     /// Default alpha/opacity (if not mapped)
     pub alpha: Option<AesValue>,
-    
+
     /// Default line width (if not mapped)
     pub size: Option<AesValue>,
-    
+
     /// Default line style pattern (if not mapped)
     pub linetype: Option<AesValue>,
 }
@@ -64,14 +64,14 @@ impl GeomSegment {
         self.size = Some(AesValue::Constant(PrimitiveValue::Float(size)));
         self
     }
-    
+
     /// Set the default line style pattern
-    /// 
+    ///
     /// Pattern characters:
     /// - `-` : dash
     /// - `.` : dot
     /// - ` ` : long gap
-    /// 
+    ///
     /// Examples: `"-"`, `"."`, `"-."`, `"- -"`, `". ."`
     pub fn linetype(mut self, pattern: impl Into<String>) -> Self {
         self.linetype = Some(AesValue::Constant(PrimitiveValue::Str(pattern.into())));
@@ -88,7 +88,7 @@ impl Default for GeomSegment {
 impl IntoLayer for GeomSegment {
     fn default_aesthetics(&self) -> Vec<(Aesthetic, AesValue)> {
         let mut defaults = Vec::new();
-        
+
         if let Some(color) = &self.color {
             defaults.push((Aesthetic::Color, color.clone()));
         }
@@ -101,7 +101,7 @@ impl IntoLayer for GeomSegment {
         if let Some(linetype) = &self.linetype {
             defaults.push((Aesthetic::Linetype, linetype.clone()));
         }
-        
+
         defaults
     }
 }
@@ -113,7 +113,7 @@ impl Geom for GeomSegment {
 
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
         use crate::data::VectorType;
-        
+
         // Get all aesthetic iterators
         let x_normalized = ctx.get_aesthetic_values(Aesthetic::X, ctx.scales.x.as_ref())?;
         let y_normalized = ctx.get_aesthetic_values(Aesthetic::Y, ctx.scales.y.as_ref())?;
@@ -124,28 +124,37 @@ impl Geom for GeomSegment {
         let sizes = ctx.get_aesthetic_values(Aesthetic::Size, None)?;
 
         // Get constant linetype if set
-        let constant_linetype = if let Some(AesValue::Constant(PrimitiveValue::Str(pattern))) = ctx.mapping.get(&Aesthetic::Linetype) {
+        let constant_linetype = if let Some(AesValue::Constant(PrimitiveValue::Str(pattern))) =
+            ctx.mapping.get(&Aesthetic::Linetype)
+        {
             Some(pattern.clone())
         } else {
             None
         };
 
         // Collect linetype column values if mapped
-        let linetype_vec = if let Some(AesValue::Column(col)) = ctx.mapping.get(&Aesthetic::Linetype) {
-            let vec = ctx.data.get(col.as_str())
-                .ok_or_else(|| PlotError::MissingAesthetic(format!("column '{}'", col)))?;
-            if let VectorType::Str = vec.vtype() {
-                Some(vec.as_str()
-                    .ok_or_else(|| PlotError::InvalidAestheticType("expected string".to_string()))?
-                    .iter()
-                    .map(|s| s.to_string())
-                    .collect::<Vec<_>>())
+        let linetype_vec =
+            if let Some(AesValue::Column(col)) = ctx.mapping.get(&Aesthetic::Linetype) {
+                let vec = ctx
+                    .data
+                    .get(col.as_str())
+                    .ok_or_else(|| PlotError::MissingAesthetic(format!("column '{}'", col)))?;
+                if let VectorType::Str = vec.vtype() {
+                    Some(
+                        vec.as_str()
+                            .ok_or_else(|| {
+                                PlotError::InvalidAestheticType("expected string".to_string())
+                            })?
+                            .iter()
+                            .map(|s| s.to_string())
+                            .collect::<Vec<_>>(),
+                    )
+                } else {
+                    None
+                }
             } else {
                 None
-            }
-        } else {
-            None
-        };
+            };
 
         // Zip all iterators together
         let iter = x_normalized
@@ -156,7 +165,9 @@ impl Geom for GeomSegment {
             .zip(alphas)
             .zip(sizes);
 
-        for (i, ((((((x1_norm, y1_norm), x2_norm), y2_norm), color), alpha), size)) in iter.enumerate() {
+        for (i, ((((((x1_norm, y1_norm), x2_norm), y2_norm), color), alpha), size)) in
+            iter.enumerate()
+        {
             let x1 = ctx.map_x(x1_norm);
             let y1 = ctx.map_y(y1_norm);
             let x2 = ctx.map_x(x2_norm);
@@ -173,7 +184,7 @@ impl Geom for GeomSegment {
             } else {
                 constant_linetype.as_ref().map(|s| s.as_str())
             };
-            
+
             if let Some(p) = pattern {
                 let style = LineStyle::from(p);
                 style.apply(&mut ctx.cairo);

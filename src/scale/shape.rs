@@ -1,6 +1,6 @@
 use super::{ScaleBase, ShapeScale};
-use crate::visuals::Shape;
 use crate::data::GenericVector;
+use crate::visuals::Shape;
 use std::collections::HashMap;
 
 /// Discrete shape scale that maps categories to point shapes.
@@ -35,7 +35,7 @@ impl ScaleBase for DiscreteShape {
     fn train(&mut self, data: &[&dyn GenericVector]) {
         // Extract unique categories from all data vectors and assign them to shapes
         let mut categories: Vec<String> = Vec::new();
-        
+
         for vec in data {
             if let Some(strings) = vec.as_str() {
                 for s in strings.iter() {
@@ -45,17 +45,19 @@ impl ScaleBase for DiscreteShape {
                 }
             }
         }
-        
+
         self.mapping.clear();
         for (idx, category) in categories.iter().enumerate() {
-            self.mapping.insert(category.clone(), idx % self.shapes.len());
+            self.mapping
+                .insert(category.clone(), idx % self.shapes.len());
         }
     }
 }
 
 impl ShapeScale for DiscreteShape {
     fn map_to_shape(&self, category: &str) -> Option<Shape> {
-        self.mapping.get(category)
+        self.mapping
+            .get(category)
             .and_then(|&idx| self.shapes.get(idx).copied())
     }
 
@@ -98,11 +100,11 @@ mod tests {
             "cat".to_string(),
             "dog".to_string(),
             "cat".to_string(),
-            "bird".to_string()
+            "bird".to_string(),
         ]);
-        
+
         scale.train(&[&data]);
-        
+
         assert_eq!(scale.mapping.len(), 3); // cat, dog, bird
         assert!(scale.mapping.contains_key("cat"));
         assert!(scale.mapping.contains_key("dog"));
@@ -113,14 +115,14 @@ mod tests {
     fn test_discrete_shape_map_category() {
         let mut scale = DiscreteShape::default_shapes();
         let data = StrVec(vec!["A".to_string(), "B".to_string(), "C".to_string()]);
-        
+
         scale.train(&[&data]);
-        
+
         let shape_a = scale.map_to_shape("A");
         let shape_b = scale.map_to_shape("B");
         let shape_c = scale.map_to_shape("C");
         let shape_missing = scale.map_to_shape("D");
-        
+
         assert_eq!(shape_a, Some(Shape::Circle));
         assert_eq!(shape_b, Some(Shape::Square));
         assert_eq!(shape_c, Some(Shape::Triangle));
@@ -135,9 +137,9 @@ mod tests {
             "B".to_string(),
             "C".to_string(), // Should wrap back to Circle
         ]);
-        
+
         scale.train(&[&data]);
-        
+
         assert_eq!(scale.map_to_shape("A"), Some(Shape::Circle));
         assert_eq!(scale.map_to_shape("B"), Some(Shape::Square));
         assert_eq!(scale.map_to_shape("C"), Some(Shape::Circle)); // Wrapped
@@ -147,9 +149,9 @@ mod tests {
     fn test_discrete_shape_legend_breaks() {
         let mut scale = DiscreteShape::default_shapes();
         let data = StrVec(vec!["Z".to_string(), "A".to_string(), "M".to_string()]);
-        
+
         scale.train(&[&data]);
-        
+
         let breaks = scale.legend_breaks();
         assert_eq!(breaks.len(), 3);
         assert_eq!(breaks, vec!["A", "M", "Z"]); // Should be sorted
@@ -158,12 +160,12 @@ mod tests {
     #[test]
     fn test_discrete_shape_retrain() {
         let mut scale = DiscreteShape::default_shapes();
-        
+
         // First training
         let data1 = StrVec(vec!["A".to_string(), "B".to_string()]);
         scale.train(&[&data1]);
         assert_eq!(scale.mapping.len(), 2);
-        
+
         // Second training should replace mapping
         let data2 = StrVec(vec!["X".to_string(), "Y".to_string(), "Z".to_string()]);
         scale.train(&[&data2]);

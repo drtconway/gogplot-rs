@@ -1,5 +1,5 @@
 use super::{Geom, IntoLayer, RenderContext};
-use crate::aesthetics::{Aesthetic, AesValue};
+use crate::aesthetics::{AesValue, Aesthetic};
 use crate::data::PrimitiveValue;
 use crate::error::PlotError;
 
@@ -48,7 +48,9 @@ impl GeomVLine {
 
     /// Set the alpha/opacity
     pub fn alpha(mut self, alpha: f64) -> Self {
-        self.alpha = Some(AesValue::Constant(PrimitiveValue::Float(alpha.clamp(0.0, 1.0))));
+        self.alpha = Some(AesValue::Constant(PrimitiveValue::Float(
+            alpha.clamp(0.0, 1.0),
+        )));
         self
     }
 
@@ -62,7 +64,7 @@ impl GeomVLine {
 impl IntoLayer for GeomVLine {
     fn default_aesthetics(&self) -> Vec<(Aesthetic, AesValue)> {
         let mut defaults = vec![(Aesthetic::XBegin, self.xintercept.clone())];
-        
+
         if let Some(color) = &self.color {
             defaults.push((Aesthetic::Color, color.clone()));
         }
@@ -75,7 +77,7 @@ impl IntoLayer for GeomVLine {
         if let Some(linetype) = &self.linetype {
             defaults.push((Aesthetic::Linetype, linetype.clone()));
         }
-        
+
         defaults
     }
 }
@@ -91,34 +93,44 @@ impl Geom for GeomVLine {
         let x_values = match &self.xintercept {
             AesValue::Constant(PrimitiveValue::Float(x)) => vec![*x],
             AesValue::Column(col) => {
-                let vec = ctx.data.get(col.as_str())
+                let vec = ctx
+                    .data
+                    .get(col.as_str())
                     .ok_or_else(|| PlotError::MissingAesthetic(format!("column '{}'", col)))?;
                 if let Some(floats) = vec.as_float() {
                     floats.iter().copied().collect()
                 } else if let Some(ints) = vec.as_int() {
                     ints.iter().map(|&i| i as f64).collect()
                 } else {
-                    return Err(PlotError::InvalidAestheticType("xintercept must be numeric".to_string()));
+                    return Err(PlotError::InvalidAestheticType(
+                        "xintercept must be numeric".to_string(),
+                    ));
                 }
             }
-            _ => return Err(PlotError::InvalidAestheticType("xintercept must be numeric".to_string())),
+            _ => {
+                return Err(PlotError::InvalidAestheticType(
+                    "xintercept must be numeric".to_string(),
+                ));
+            }
         };
 
         // Get visual properties (use first value if multiple)
         let colors = ctx.get_color_values()?;
         let alphas = ctx.get_aesthetic_values(Aesthetic::Alpha, None)?;
         let sizes = ctx.get_aesthetic_values(Aesthetic::Size, None)?;
-        
+
         let colors_vec: Vec<_> = colors.collect();
         let alphas_vec: Vec<_> = alphas.collect();
         let sizes_vec: Vec<_> = sizes.collect();
-        
+
         let color = &colors_vec[0];
         let alpha = alphas_vec[0];
         let size = sizes_vec[0];
-        
+
         // Get linetype if specified
-        let linetype_pattern = if let Some(AesValue::Constant(PrimitiveValue::Str(pattern))) = ctx.mapping.get(&Aesthetic::Linetype) {
+        let linetype_pattern = if let Some(AesValue::Constant(PrimitiveValue::Str(pattern))) =
+            ctx.mapping.get(&Aesthetic::Linetype)
+        {
             Some(pattern.clone())
         } else {
             None
@@ -127,7 +139,7 @@ impl Geom for GeomVLine {
         // Set drawing properties
         ctx.set_color_alpha(color, alpha);
         ctx.cairo.set_line_width(size);
-        
+
         // Apply line style
         use crate::visuals::LineStyle;
         if let Some(pattern) = linetype_pattern {
@@ -142,7 +154,7 @@ impl Geom for GeomVLine {
             // Map x value to visual coordinates
             if let Some(x_normalized) = ctx.scales.x.as_ref().and_then(|s| s.map_value(x_data)) {
                 let x_visual = ctx.map_x(x_normalized);
-                
+
                 // Draw line from bottom to top edge of plot area
                 let (y0, y1) = ctx.y_range;
                 ctx.cairo.move_to(x_visual, y0);

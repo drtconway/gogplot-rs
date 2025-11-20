@@ -173,34 +173,38 @@ impl<'a> RenderContext<'a> {
         match mapping {
             Some(AesValue::Column(col_name)) => {
                 // Get data from column
-                let vec = self.data.get(col_name.as_str())
+                let vec = self
+                    .data
+                    .get(col_name.as_str())
                     .ok_or_else(|| PlotError::MissingAesthetic(format!("column '{}'", col_name)))?;
-                
+
                 // Convert to f64 and optionally apply scale
                 match vec.vtype() {
                     VectorType::Float => {
-                        let floats = vec.as_float()
-                            .ok_or_else(|| PlotError::InvalidAestheticType("expected float".to_string()))?;
-                        
+                        let floats = vec.as_float().ok_or_else(|| {
+                            PlotError::InvalidAestheticType("expected float".to_string())
+                        })?;
+
                         if let Some(scale) = scale {
                             // Need to collect for scale application
-                            let values: Vec<f64> = floats.iter()
-                                .filter_map(|&v| scale.map_value(v))
-                                .collect();
+                            let values: Vec<f64> =
+                                floats.iter().filter_map(|&v| scale.map_value(v)).collect();
                             Ok(AestheticValues::Owned(values))
                         } else {
                             Ok(AestheticValues::FloatRef(floats.iter()))
                         }
                     }
                     VectorType::Int => {
-                        let ints = vec.as_int()
-                            .ok_or_else(|| PlotError::InvalidAestheticType("expected int".to_string()))?;
-                        
+                        let ints = vec.as_int().ok_or_else(|| {
+                            PlotError::InvalidAestheticType("expected int".to_string())
+                        })?;
+
                         // Need to convert ints to f64, so collect
                         let values: Vec<f64> = ints.iter().map(|&x| x as f64).collect();
-                        
+
                         if let Some(scale) = scale {
-                            let scaled: Vec<f64> = values.into_iter()
+                            let scaled: Vec<f64> = values
+                                .into_iter()
                                 .filter_map(|v| scale.map_value(v))
                                 .collect();
                             Ok(AestheticValues::Owned(scaled))
@@ -211,24 +215,24 @@ impl<'a> RenderContext<'a> {
                     VectorType::Str => {
                         // Try to use scale's categorical mapping
                         if let Some(scale) = scale {
-                            let strs = vec.as_str()
-                                .ok_or_else(|| PlotError::InvalidAestheticType("expected str".to_string()))?;
-                            
-                            let mapped: Vec<f64> = strs.iter()
-                                .filter_map(|s| scale.map_category(s))
-                                .collect();
-                            
+                            let strs = vec.as_str().ok_or_else(|| {
+                                PlotError::InvalidAestheticType("expected str".to_string())
+                            })?;
+
+                            let mapped: Vec<f64> =
+                                strs.iter().filter_map(|s| scale.map_category(s)).collect();
+
                             if mapped.len() == strs.len() {
                                 Ok(AestheticValues::Owned(mapped))
                             } else {
                                 return Err(PlotError::InvalidAestheticType(
                                     "categorical scale did not map all values".to_string(),
-                                ))
+                                ));
                             }
                         } else {
                             return Err(PlotError::InvalidAestheticType(
                                 "string values require a categorical scale".to_string(),
-                            ))
+                            ));
                         }
                     }
                 }
@@ -239,9 +243,10 @@ impl<'a> RenderContext<'a> {
                     PrimitiveValue::Float(v) => *v,
                     PrimitiveValue::Int(v) => *v as f64,
                     PrimitiveValue::Str(_) => {
-                        return Err(PlotError::InvalidAestheticType(
-                            format!("Aesthetic {:?} has string constant, expected numeric", aesthetic)
-                        ))
+                        return Err(PlotError::InvalidAestheticType(format!(
+                            "Aesthetic {:?} has string constant, expected numeric",
+                            aesthetic
+                        )));
                     }
                 };
                 Ok(AestheticValues::Constant(value, n))
@@ -251,7 +256,7 @@ impl<'a> RenderContext<'a> {
                 let default_value = match aesthetic {
                     Aesthetic::Size => 2.0,
                     Aesthetic::Alpha => 1.0,
-                    _ => return Err(PlotError::MissingAesthetic(format!("{:?}", aesthetic)))
+                    _ => return Err(PlotError::MissingAesthetic(format!("{:?}", aesthetic))),
                 };
                 Ok(AestheticValues::Constant(default_value, n))
             }
@@ -271,37 +276,48 @@ impl<'a> RenderContext<'a> {
         match (mapping, color_scale) {
             // Column mapped with scale
             (Some(AesValue::Column(col_name)), Some(scale)) => {
-                let vec = self.data.get(col_name.as_str())
+                let vec = self
+                    .data
+                    .get(col_name.as_str())
                     .ok_or_else(|| PlotError::MissingAesthetic(format!("column '{}'", col_name)))?;
-                
+
                 match vec.vtype() {
                     VectorType::Float | VectorType::Int => {
                         // Continuous color scale
                         let values: Vec<f64> = match vec.vtype() {
-                            VectorType::Float => {
-                                vec.as_float()
-                                    .ok_or_else(|| PlotError::InvalidAestheticType("expected float".to_string()))?
-                                    .iter().copied().collect()
-                            }
-                            VectorType::Int => {
-                                vec.as_int()
-                                    .ok_or_else(|| PlotError::InvalidAestheticType("expected int".to_string()))?
-                                    .iter().map(|&x| x as f64).collect()
-                            }
-                            _ => unreachable!()
+                            VectorType::Float => vec
+                                .as_float()
+                                .ok_or_else(|| {
+                                    PlotError::InvalidAestheticType("expected float".to_string())
+                                })?
+                                .iter()
+                                .copied()
+                                .collect(),
+                            VectorType::Int => vec
+                                .as_int()
+                                .ok_or_else(|| {
+                                    PlotError::InvalidAestheticType("expected int".to_string())
+                                })?
+                                .iter()
+                                .map(|&x| x as f64)
+                                .collect(),
+                            _ => unreachable!(),
                         };
-                        
-                        let colors: Vec<Color> = values.iter()
+
+                        let colors: Vec<Color> = values
+                            .iter()
                             .filter_map(|&v| scale.map_continuous_to_color(v))
                             .collect();
                         Ok(ColorValues::Mapped(colors))
                     }
                     VectorType::Str => {
                         // Discrete color scale
-                        let strings = vec.as_str()
-                            .ok_or_else(|| PlotError::InvalidAestheticType("expected string".to_string()))?;
-                        
-                        let colors: Vec<Color> = strings.iter()
+                        let strings = vec.as_str().ok_or_else(|| {
+                            PlotError::InvalidAestheticType("expected string".to_string())
+                        })?;
+
+                        let colors: Vec<Color> = strings
+                            .iter()
                             .filter_map(|s| scale.map_discrete_to_color(s))
                             .collect();
                         Ok(ColorValues::Mapped(colors))
@@ -316,21 +332,15 @@ impl<'a> RenderContext<'a> {
                 let a = (rgba & 0xFF) as u8;
                 Ok(ColorValues::Constant(Color(r, g, b, a), n))
             }
-            (Some(AesValue::Constant(_)), _) => {
-                Err(PlotError::InvalidAestheticType(
-                    "Color constant must be RGBA int".to_string()
-                ))
-            }
+            (Some(AesValue::Constant(_)), _) => Err(PlotError::InvalidAestheticType(
+                "Color constant must be RGBA int".to_string(),
+            )),
             // Column mapped but no scale
-            (Some(AesValue::Column(_)), None) => {
-                Err(PlotError::InvalidAestheticType(
-                    "Color mapped from column requires a color scale".to_string()
-                ))
-            }
+            (Some(AesValue::Column(_)), None) => Err(PlotError::InvalidAestheticType(
+                "Color mapped from column requires a color scale".to_string(),
+            )),
             // No mapping, use default
-            (None, _) => {
-                Ok(ColorValues::Constant(Color(0, 0, 0, 255), n))
-            }
+            (None, _) => Ok(ColorValues::Constant(Color(0, 0, 0, 255), n)),
         }
     }
 
@@ -347,37 +357,48 @@ impl<'a> RenderContext<'a> {
         match (mapping, color_scale) {
             // Column mapped with scale
             (Some(AesValue::Column(col_name)), Some(scale)) => {
-                let vec = self.data.get(col_name.as_str())
+                let vec = self
+                    .data
+                    .get(col_name.as_str())
                     .ok_or_else(|| PlotError::MissingAesthetic(format!("column '{}'", col_name)))?;
-                
+
                 match vec.vtype() {
                     VectorType::Float | VectorType::Int => {
                         // Continuous color scale
                         let values: Vec<f64> = match vec.vtype() {
-                            VectorType::Float => {
-                                vec.as_float()
-                                    .ok_or_else(|| PlotError::InvalidAestheticType("expected float".to_string()))?
-                                    .iter().copied().collect()
-                            }
-                            VectorType::Int => {
-                                vec.as_int()
-                                    .ok_or_else(|| PlotError::InvalidAestheticType("expected int".to_string()))?
-                                    .iter().map(|&x| x as f64).collect()
-                            }
-                            _ => unreachable!()
+                            VectorType::Float => vec
+                                .as_float()
+                                .ok_or_else(|| {
+                                    PlotError::InvalidAestheticType("expected float".to_string())
+                                })?
+                                .iter()
+                                .copied()
+                                .collect(),
+                            VectorType::Int => vec
+                                .as_int()
+                                .ok_or_else(|| {
+                                    PlotError::InvalidAestheticType("expected int".to_string())
+                                })?
+                                .iter()
+                                .map(|&x| x as f64)
+                                .collect(),
+                            _ => unreachable!(),
                         };
-                        
-                        let colors: Vec<Color> = values.iter()
+
+                        let colors: Vec<Color> = values
+                            .iter()
                             .filter_map(|&v| scale.map_continuous_to_color(v))
                             .collect();
                         Ok(ColorValues::Mapped(colors))
                     }
                     VectorType::Str => {
                         // Discrete color scale
-                        let strings = vec.as_str()
-                            .ok_or_else(|| PlotError::InvalidAestheticType("expected string".to_string()))?;
-                        
-                        let colors: Vec<Color> = strings.iter()
+                        let strings = vec.as_str().ok_or_else(|| {
+                            PlotError::InvalidAestheticType("expected string".to_string())
+                        })?;
+
+                        let colors: Vec<Color> = strings
+                            .iter()
                             .filter_map(|s| scale.map_discrete_to_color(s))
                             .collect();
                         Ok(ColorValues::Mapped(colors))
@@ -392,21 +413,15 @@ impl<'a> RenderContext<'a> {
                 let a = (rgba & 0xFF) as u8;
                 Ok(ColorValues::Constant(Color(r, g, b, a), n))
             }
-            (Some(AesValue::Constant(_)), _) => {
-                Err(PlotError::InvalidAestheticType(
-                    "Fill constant must be RGBA int".to_string()
-                ))
-            }
+            (Some(AesValue::Constant(_)), _) => Err(PlotError::InvalidAestheticType(
+                "Fill constant must be RGBA int".to_string(),
+            )),
             // Column mapped but no scale
-            (Some(AesValue::Column(_)), None) => {
-                Err(PlotError::InvalidAestheticType(
-                    "Fill mapped from column requires a color scale".to_string()
-                ))
-            }
+            (Some(AesValue::Column(_)), None) => Err(PlotError::InvalidAestheticType(
+                "Fill mapped from column requires a color scale".to_string(),
+            )),
             // No mapping, use default gray
-            (None, _) => {
-                Ok(ColorValues::Constant(Color(128, 128, 128, 255), n))
-            }
+            (None, _) => Ok(ColorValues::Constant(Color(128, 128, 128, 255), n)),
         }
     }
 
@@ -434,17 +449,20 @@ impl<'a> RenderContext<'a> {
         match (mapping, shape_scale) {
             // Column mapped with scale
             (Some(AesValue::Column(col_name)), Some(scale)) => {
-                let vec = self.data.get(col_name.as_str())
+                let vec = self
+                    .data
+                    .get(col_name.as_str())
                     .ok_or_else(|| PlotError::MissingAesthetic(format!("column '{}'", col_name)))?;
-                
+
                 if let Some(strings) = vec.as_str() {
-                    let shapes: Vec<Shape> = strings.iter()
+                    let shapes: Vec<Shape> = strings
+                        .iter()
                         .filter_map(|s| scale.map_to_shape(s))
                         .collect();
                     Ok(ShapeValues::Mapped(shapes))
                 } else {
                     Err(PlotError::InvalidAestheticType(
-                        "Shape mapping requires categorical (string) data".to_string()
+                        "Shape mapping requires categorical (string) data".to_string(),
                     ))
                 }
             }
@@ -452,21 +470,15 @@ impl<'a> RenderContext<'a> {
             (Some(AesValue::Constant(PrimitiveValue::Int(v))), _) => {
                 Ok(ShapeValues::Constant(int_to_shape(*v), n))
             }
-            (Some(AesValue::Constant(_)), _) => {
-                Err(PlotError::InvalidAestheticType(
-                    "Shape constant must be int".to_string()
-                ))
-            }
+            (Some(AesValue::Constant(_)), _) => Err(PlotError::InvalidAestheticType(
+                "Shape constant must be int".to_string(),
+            )),
             // Column mapped but no scale
-            (Some(AesValue::Column(_)), None) => {
-                Err(PlotError::InvalidAestheticType(
-                    "Shape mapped from column requires a shape scale".to_string()
-                ))
-            }
+            (Some(AesValue::Column(_)), None) => Err(PlotError::InvalidAestheticType(
+                "Shape mapped from column requires a shape scale".to_string(),
+            )),
             // No mapping, use default
-            (None, _) => {
-                Ok(ShapeValues::Constant(Shape::Circle, n))
-            }
+            (None, _) => Ok(ShapeValues::Constant(Shape::Circle, n)),
         }
     }
 
@@ -527,7 +539,7 @@ impl<'a> RenderContext<'a> {
             AesValue::Constant(_) => {
                 return Err(PlotError::InvalidAestheticType(
                     "constant aesthetics not yet supported".to_string(),
-                ))
+                ));
             }
         };
 
@@ -554,16 +566,13 @@ impl<'a> RenderContext<'a> {
             VectorType::Str => {
                 return Err(PlotError::InvalidAestheticType(
                     "cannot convert string to numeric".to_string(),
-                ))
+                ));
             }
         };
 
         // Apply scale if present
         if let Some(scale) = scale {
-            Ok(values
-                .iter()
-                .filter_map(|&v| scale.map_value(v))
-                .collect())
+            Ok(values.iter().filter_map(|&v| scale.map_value(v)).collect())
         } else {
             Ok(values)
         }

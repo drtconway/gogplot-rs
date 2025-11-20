@@ -19,12 +19,12 @@ impl Default for LineStyle {
 
 impl From<&str> for LineStyle {
     /// Create a LineStyle from a pattern string.
-    /// 
+    ///
     /// Pattern characters:
     /// - `-` : dash (5 units on, 2 units off)
     /// - `.` : dot (1 unit on, 2 units off)
     /// - ` ` : long gap (5 units off)
-    /// 
+    ///
     /// The pattern repeats. Examples:
     /// - `"-"` : dashed line
     /// - `"."` : dotted line
@@ -35,9 +35,9 @@ impl From<&str> for LineStyle {
         if pattern.is_empty() {
             return LineStyle::Solid;
         }
-        
+
         let mut dashes = Vec::new();
-        
+
         for ch in pattern.chars() {
             match ch {
                 '-' => {
@@ -54,7 +54,7 @@ impl From<&str> for LineStyle {
                 _ => {} // ignore other characters
             }
         }
-        
+
         if dashes.is_empty() {
             LineStyle::Solid
         } else {
@@ -90,7 +90,7 @@ pub enum Shape {
 
 impl Shape {
     /// Draw this shape at the given position with the given size
-    /// 
+    ///
     /// # Arguments
     /// * `ctx` - Cairo drawing context
     /// * `x` - X coordinate of center

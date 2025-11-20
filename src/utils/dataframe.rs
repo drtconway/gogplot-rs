@@ -236,7 +236,7 @@ mod tests {
     fn test_dataframe_add_column() {
         let mut df = DataFrame::new();
         df.add_column("x", Box::new(IntVec(vec![1, 2, 3])));
-        
+
         assert_eq!(df.len(), 3);
         assert!(!df.is_empty());
         assert_eq!(df.column_names().len(), 1);
@@ -248,8 +248,15 @@ mod tests {
         let mut df = DataFrame::new();
         df.add_column("x", Box::new(IntVec(vec![1, 2, 3])));
         df.add_column("y", Box::new(FloatVec(vec![1.0, 2.0, 3.0])));
-        df.add_column("label", Box::new(StrVec(vec!["a".to_string(), "b".to_string(), "c".to_string()])));
-        
+        df.add_column(
+            "label",
+            Box::new(StrVec(vec![
+                "a".to_string(),
+                "b".to_string(),
+                "c".to_string(),
+            ])),
+        );
+
         assert_eq!(df.len(), 3);
         assert_eq!(df.column_names().len(), 3);
     }
@@ -258,11 +265,11 @@ mod tests {
     fn test_dataframe_get_column() {
         let mut df = DataFrame::new();
         df.add_column("x", Box::new(IntVec(vec![1, 2, 3])));
-        
+
         let col = df.get("x");
         assert!(col.is_some());
         assert_eq!(col.unwrap().len(), 3);
-        
+
         let missing = df.get("z");
         assert!(missing.is_none());
     }
@@ -271,7 +278,7 @@ mod tests {
     fn test_dataframe_get_column_as_int() {
         let mut df = DataFrame::new();
         df.add_column("x", Box::new(IntVec(vec![10, 20, 30])));
-        
+
         let col = df.get("x").unwrap();
         let int_vec = col.as_int().unwrap();
         let values: Vec<i64> = int_vec.iter().copied().collect();
@@ -282,7 +289,7 @@ mod tests {
     fn test_dataframe_get_column_as_float() {
         let mut df = DataFrame::new();
         df.add_column("y", Box::new(FloatVec(vec![1.5, 2.5, 3.5])));
-        
+
         let col = df.get("y").unwrap();
         let float_vec = col.as_float().unwrap();
         let values: Vec<f64> = float_vec.iter().copied().collect();
@@ -292,8 +299,11 @@ mod tests {
     #[test]
     fn test_dataframe_get_column_as_str() {
         let mut df = DataFrame::new();
-        df.add_column("label", Box::new(StrVec(vec!["a".to_string(), "b".to_string()])));
-        
+        df.add_column(
+            "label",
+            Box::new(StrVec(vec!["a".to_string(), "b".to_string()])),
+        );
+
         let col = df.get("label").unwrap();
         let str_vec = col.as_str().unwrap();
         let values: Vec<String> = str_vec.iter().cloned().collect();
@@ -311,10 +321,16 @@ mod tests {
     #[test]
     fn test_dataframe_from_columns() {
         let df = DataFrame::from_columns(vec![
-            ("x", Box::new(IntVec(vec![1, 2, 3])) as Box<dyn GenericVector>),
-            ("y", Box::new(FloatVec(vec![4.0, 5.0, 6.0])) as Box<dyn GenericVector>),
+            (
+                "x",
+                Box::new(IntVec(vec![1, 2, 3])) as Box<dyn GenericVector>,
+            ),
+            (
+                "y",
+                Box::new(FloatVec(vec![4.0, 5.0, 6.0])) as Box<dyn GenericVector>,
+            ),
         ]);
-        
+
         assert_eq!(df.len(), 3);
         assert_eq!(df.column_names().len(), 2);
         assert!(df.get("x").is_some());
@@ -333,7 +349,7 @@ mod tests {
         let int_vec = IntVec(vec![1, 2]);
         let float_vec = FloatVec(vec![1.0, 2.0]);
         let str_vec = StrVec(vec!["a".to_string()]);
-        
+
         matches!(int_vec.vtype(), VectorType::Int);
         matches!(float_vec.vtype(), VectorType::Float);
         matches!(str_vec.vtype(), VectorType::Str);

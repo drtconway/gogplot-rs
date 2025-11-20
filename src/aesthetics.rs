@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use crate::data::PrimitiveValue;
+use std::collections::HashMap;
 
 // Supported aesthetics
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -23,9 +23,9 @@ pub enum Aesthetic {
 // It can be a column name, a constant value, or a computed value
 #[derive(Debug, Clone, PartialEq)]
 pub enum AesValue {
-    Column(String),           // Column name from data
+    Column(String), // Column name from data
     Constant(PrimitiveValue), // Fixed value
-    // Computed?
+                    // Computed?
 }
 
 impl AesValue {
@@ -43,7 +43,9 @@ pub struct AesMap {
 
 impl AesMap {
     pub fn new() -> Self {
-        Self { map: HashMap::new() }
+        Self {
+            map: HashMap::new(),
+        }
     }
 
     pub fn set(&mut self, aes: Aesthetic, value: AesValue) {
@@ -96,29 +98,47 @@ impl AesMap {
     pub fn const_color(&mut self, r: u8, g: u8, b: u8, a: u8) {
         use crate::theme::Color;
         let rgba = Color(r, g, b, a).into();
-        self.set(Aesthetic::Color, AesValue::Constant(PrimitiveValue::Int(rgba)));
+        self.set(
+            Aesthetic::Color,
+            AesValue::Constant(PrimitiveValue::Int(rgba)),
+        );
     }
-    
+
     pub fn const_fill(&mut self, r: u8, g: u8, b: u8, a: u8) {
         use crate::theme::Color;
         let rgba = Color(r, g, b, a).into();
-        self.set(Aesthetic::Fill, AesValue::Constant(PrimitiveValue::Int(rgba)));
+        self.set(
+            Aesthetic::Fill,
+            AesValue::Constant(PrimitiveValue::Int(rgba)),
+        );
     }
-    
+
     pub fn const_alpha(&mut self, alpha: f64) {
-        self.set(Aesthetic::Alpha, AesValue::Constant(PrimitiveValue::Float(alpha)));
+        self.set(
+            Aesthetic::Alpha,
+            AesValue::Constant(PrimitiveValue::Float(alpha)),
+        );
     }
-    
+
     pub fn const_size(&mut self, size: f64) {
-        self.set(Aesthetic::Size, AesValue::Constant(PrimitiveValue::Float(size)));
+        self.set(
+            Aesthetic::Size,
+            AesValue::Constant(PrimitiveValue::Float(size)),
+        );
     }
-    
+
     pub fn const_shape(&mut self, shape: i64) {
-        self.set(Aesthetic::Shape, AesValue::Constant(PrimitiveValue::Int(shape)));
+        self.set(
+            Aesthetic::Shape,
+            AesValue::Constant(PrimitiveValue::Int(shape)),
+        );
     }
-    
+
     pub fn const_linetype(&mut self, pattern: impl Into<String>) {
-        self.set(Aesthetic::Linetype, AesValue::Constant(PrimitiveValue::Str(pattern.into())));
+        self.set(
+            Aesthetic::Linetype,
+            AesValue::Constant(PrimitiveValue::Str(pattern.into())),
+        );
     }
 }
 
@@ -132,7 +152,7 @@ mod tests {
         aes.x("col_x");
         aes.y("col_y");
         aes.color("group");
-        
+
         assert_eq!(aes.get(&Aesthetic::X), Some(&AesValue::column("col_x")));
         assert_eq!(aes.get(&Aesthetic::Y), Some(&AesValue::column("col_y")));
         assert_eq!(aes.get(&Aesthetic::Color), Some(&AesValue::column("group")));

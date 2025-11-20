@@ -95,9 +95,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 aes.set_to_column(Aesthetic::YBegin, "ymin");
                 aes.set_to_column(Aesthetic::YEnd, "ymax");
             })
-            .geom_rect_with(|geom| {
-                geom.fill(color::PURPLE).alpha(0.3)
-            })
+            .geom_rect_with(|geom| geom.fill(color::PURPLE).alpha(0.3))
             .save("rectangle_overlap.png", 600, 400)?;
         println!("Saved rectangle_overlap.png");
     }

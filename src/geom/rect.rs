@@ -1,5 +1,5 @@
 use super::{Geom, IntoLayer, RenderContext};
-use crate::aesthetics::{Aesthetic, AesValue};
+use crate::aesthetics::{AesValue, Aesthetic};
 use crate::data::PrimitiveValue;
 use crate::error::PlotError;
 
@@ -41,7 +41,9 @@ impl GeomRect {
 
     /// Set the default alpha/opacity
     pub fn alpha(mut self, alpha: f64) -> Self {
-        self.alpha = Some(AesValue::Constant(PrimitiveValue::Float(alpha.clamp(0.0, 1.0))));
+        self.alpha = Some(AesValue::Constant(PrimitiveValue::Float(
+            alpha.clamp(0.0, 1.0),
+        )));
         self
     }
 }
@@ -55,7 +57,7 @@ impl Default for GeomRect {
 impl IntoLayer for GeomRect {
     fn default_aesthetics(&self) -> Vec<(Aesthetic, AesValue)> {
         let mut defaults = Vec::new();
-        
+
         if let Some(fill) = &self.fill {
             defaults.push((Aesthetic::Fill, fill.clone()));
         }
@@ -65,21 +67,28 @@ impl IntoLayer for GeomRect {
         if let Some(alpha) = &self.alpha {
             defaults.push((Aesthetic::Alpha, alpha.clone()));
         }
-        
+
         defaults
     }
 }
 
 impl Geom for GeomRect {
     fn required_aesthetics(&self) -> &[Aesthetic] {
-        &[Aesthetic::XBegin, Aesthetic::XEnd, Aesthetic::YBegin, Aesthetic::YEnd]
+        &[
+            Aesthetic::XBegin,
+            Aesthetic::XEnd,
+            Aesthetic::YBegin,
+            Aesthetic::YEnd,
+        ]
     }
 
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
         // Get all aesthetic iterators
-        let x_begin_normalized = ctx.get_aesthetic_values(Aesthetic::XBegin, ctx.scales.x.as_ref())?;
+        let x_begin_normalized =
+            ctx.get_aesthetic_values(Aesthetic::XBegin, ctx.scales.x.as_ref())?;
         let x_end_normalized = ctx.get_aesthetic_values(Aesthetic::XEnd, ctx.scales.x.as_ref())?;
-        let y_begin_normalized = ctx.get_aesthetic_values(Aesthetic::YBegin, ctx.scales.y.as_ref())?;
+        let y_begin_normalized =
+            ctx.get_aesthetic_values(Aesthetic::YBegin, ctx.scales.y.as_ref())?;
         let y_end_normalized = ctx.get_aesthetic_values(Aesthetic::YEnd, ctx.scales.y.as_ref())?;
         let fills = ctx.get_fill_color_values()?;
         let colors = ctx.get_color_values()?;
