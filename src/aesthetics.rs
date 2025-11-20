@@ -82,14 +82,14 @@ impl AesMap {
 
     // Convenience methods for constant value mappings
     pub fn const_color(&mut self, r: u8, g: u8, b: u8, a: u8) {
-        // Store as a combined RGBA integer
-        let rgba = ((r as i64) << 24) | ((g as i64) << 16) | ((b as i64) << 8) | (a as i64);
+        use crate::theme::Color;
+        let rgba = Color(r, g, b, a).into();
         self.set(Aesthetic::Color, AesValue::Constant(PrimitiveValue::Int(rgba)));
     }
     
     pub fn const_fill(&mut self, r: u8, g: u8, b: u8, a: u8) {
-        // Store as a combined RGBA integer
-        let rgba = ((r as i64) << 24) | ((g as i64) << 16) | ((b as i64) << 8) | (a as i64);
+        use crate::theme::Color;
+        let rgba = Color(r, g, b, a).into();
         self.set(Aesthetic::Fill, AesValue::Constant(PrimitiveValue::Int(rgba)));
     }
     

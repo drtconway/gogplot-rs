@@ -4,6 +4,15 @@
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Color(pub u8, pub u8, pub u8, pub u8); // RGBA
 
+impl From<Color> for i64 {
+    fn from(color: Color) -> i64 {
+        ((color.0 as i64) << 24)
+            | ((color.1 as i64) << 16)
+            | ((color.2 as i64) << 8)
+            | (color.3 as i64)
+    }
+}
+
 pub mod color;
 
 /// Font representation

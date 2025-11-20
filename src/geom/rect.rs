@@ -27,14 +27,14 @@ impl GeomRect {
 
     /// Set the default fill color
     pub fn fill(mut self, color: crate::theme::Color) -> Self {
-        let rgba = ((color.0 as i64) << 24) | ((color.1 as i64) << 16) | ((color.2 as i64) << 8) | (color.3 as i64);
+        let rgba = color.into();
         self.fill = Some(AesValue::Constant(PrimitiveValue::Int(rgba)));
         self
     }
 
     /// Set the default stroke color
     pub fn color(mut self, color: crate::theme::Color) -> Self {
-        let rgba = ((color.0 as i64) << 24) | ((color.1 as i64) << 16) | ((color.2 as i64) << 8) | (color.3 as i64);
+        let rgba = color.into();
         self.color = Some(AesValue::Constant(PrimitiveValue::Int(rgba)));
         self
     }
