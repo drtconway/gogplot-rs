@@ -37,10 +37,11 @@ impl ScaleBase for DiscreteShape {
         let mut categories: Vec<String> = Vec::new();
 
         for vec in data {
-            if let Some(strings) = vec.as_str() {
-                for s in strings.iter() {
-                    if !categories.contains(s) {
-                        categories.push(s.clone());
+            if let Some(strings) = vec.iter_str() {
+                for s in strings {
+                    let s_string = s.to_string();
+                    if !categories.contains(&s_string) {
+                        categories.push(s_string);
                     }
                 }
             }

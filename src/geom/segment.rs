@@ -141,7 +141,7 @@ impl Geom for GeomSegment {
                     .ok_or_else(|| PlotError::missing_column(col))?;
                 if let VectorType::Str = vec.vtype() {
                     Some(
-                        vec.as_str()
+                        vec.iter_str()
                             .ok_or_else(|| {
                                 PlotError::InvalidAestheticType {
                                     aesthetic: Aesthetic::Linetype,
@@ -149,7 +149,6 @@ impl Geom for GeomSegment {
                                     actual: DataType::Custom("unknown".to_string()),
                                 }
                             })?
-                            .iter()
                             .map(|s| s.to_string())
                             .collect::<Vec<_>>(),
                     )

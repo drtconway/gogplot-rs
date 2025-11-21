@@ -97,10 +97,10 @@ impl Geom for GeomHLine {
                     .data
                     .get(col.as_str())
                     .ok_or_else(|| PlotError::missing_column(col))?;
-                if let Some(floats) = vec.as_float() {
-                    floats.iter().copied().collect()
-                } else if let Some(ints) = vec.as_int() {
-                    ints.iter().map(|&i| i as f64).collect()
+                if let Some(floats) = vec.iter_float() {
+                    floats.copied().collect()
+                } else if let Some(ints) = vec.iter_int() {
+                    ints.map(|&i| i as f64).collect()
                 } else {
                     return Err(PlotError::invalid_column_type(col, "numeric"));
                 }

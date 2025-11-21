@@ -128,7 +128,7 @@ impl Geom for GeomLine {
 
             // Group strings together
             let groups = match group_vec.vtype() {
-                VectorType::Str => group_vec.as_str().ok_or_else(|| {
+                VectorType::Str => group_vec.iter_str().ok_or_else(|| {
                     PlotError::InvalidAestheticType {
                         aesthetic: Aesthetic::Group,
                         expected: DataType::Vector(VectorType::Str),
@@ -148,9 +148,9 @@ impl Geom for GeomLine {
             use std::collections::HashMap;
             let mut grouped_points: HashMap<String, Vec<(f64, f64, usize)>> = HashMap::new();
 
-            for (i, group) in groups.iter().enumerate() {
+            for (i, group) in groups.enumerate() {
                 grouped_points
-                    .entry(group.clone())
+                    .entry(group.to_string())
                     .or_default()
                     .push((x_vals[i], y_vals[i], i));
             }
@@ -209,10 +209,10 @@ impl GeomLine {
                     .data
                     .get(col.as_str())
                     .ok_or_else(|| PlotError::missing_column(col))?;
-                if let Some(strs) = linetype_vec.as_str() {
+                if let Some(mut strs) = linetype_vec.iter_str() {
                     let idx = points[0].2;
                     Some(
-                        strs.iter()
+                        strs
                             .nth(idx)
                             .map(|s| s.to_string())
                             .unwrap_or_default(),

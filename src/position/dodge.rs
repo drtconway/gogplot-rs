@@ -65,17 +65,15 @@ impl PositionAdjust for Dodge {
             .ok_or_else(|| PlotError::missing_column(&x_col_name))?;
 
         // Get x values
-        let x_values: Vec<PrimitiveValue> = if let Some(float_vec) = x_col.as_float() {
-            float_vec
-                .iter()
+        let x_values: Vec<PrimitiveValue> = if let Some(float_iter) = x_col.iter_float() {
+            float_iter
                 .map(|&v| PrimitiveValue::Float(v))
                 .collect()
-        } else if let Some(int_vec) = x_col.as_int() {
-            int_vec.iter().map(|&v| PrimitiveValue::Int(v)).collect()
-        } else if let Some(str_vec) = x_col.as_str() {
-            str_vec
-                .iter()
-                .map(|v| PrimitiveValue::Str(v.clone()))
+        } else if let Some(int_iter) = x_col.iter_int() {
+            int_iter.map(|&v| PrimitiveValue::Int(v)).collect()
+        } else if let Some(str_iter) = x_col.iter_str() {
+            str_iter
+                .map(|s| PrimitiveValue::Str(s.to_string()))
                 .collect()
         } else {
             return Err(PlotError::InvalidAestheticType {
@@ -90,21 +88,26 @@ impl PositionAdjust for Dodge {
         // Create composite keys for each row (to identify groups)
         let mut composite_keys: Vec<String> = Vec::with_capacity(n_rows);
         
+        // Collect group column values for indexing
+        let mut group_col_values: Vec<Vec<String>> = Vec::new();
+        for (_aesthetic, col_name) in &group_aesthetics {
+            let col = data.get(col_name.as_str()).unwrap();
+            let values = if let Some(str_iter) = col.iter_str() {
+                str_iter.map(|s| s.to_string()).collect()
+            } else if let Some(int_iter) = col.iter_int() {
+                int_iter.map(|v| v.to_string()).collect()
+            } else if let Some(float_iter) = col.iter_float() {
+                float_iter.map(|v| v.to_string()).collect()
+            } else {
+                vec![String::new(); n_rows]
+            };
+            group_col_values.push(values);
+        }
+        
         for i in 0..n_rows {
-            let mut key_parts = Vec::new();
-            for (_aesthetic, col_name) in &group_aesthetics {
-                let col = data.get(col_name.as_str()).unwrap();
-                let value_str = if let Some(str_vec) = col.as_str() {
-                    str_vec.iter().nth(i).cloned().unwrap_or_default()
-                } else if let Some(int_vec) = col.as_int() {
-                    int_vec.iter().nth(i).map(|v| v.to_string()).unwrap_or_default()
-                } else if let Some(float_vec) = col.as_float() {
-                    float_vec.iter().nth(i).map(|v| v.to_string()).unwrap_or_default()
-                } else {
-                    String::new()
-                };
-                key_parts.push(value_str);
-            }
+            let key_parts: Vec<&str> = group_col_values.iter()
+                .map(|col_vals| col_vals[i].as_str())
+                .collect();
             composite_keys.push(key_parts.join("__"));
         }
 
@@ -186,12 +189,12 @@ impl PositionAdjust for Dodge {
         for col_name in data.column_names() {
             let col = data.get(col_name.as_str()).unwrap();
             
-            let new_col: Box<dyn crate::data::GenericVector> = if let Some(int_vec) = col.as_int() {
-                Box::new(IntVec(int_vec.iter().copied().collect()))
-            } else if let Some(float_vec) = col.as_float() {
-                Box::new(FloatVec(float_vec.iter().copied().collect()))
-            } else if let Some(str_vec) = col.as_str() {
-                Box::new(StrVec(str_vec.iter().cloned().collect()))
+            let new_col: Box<dyn crate::data::GenericVector> = if let Some(int_iter) = col.iter_int() {
+                Box::new(IntVec(int_iter.copied().collect()))
+            } else if let Some(float_iter) = col.iter_float() {
+                Box::new(FloatVec(float_iter.copied().collect()))
+            } else if let Some(str_iter) = col.iter_str() {
+                Box::new(StrVec(str_iter.map(|s| s.to_string()).collect()))
             } else {
                 continue;
             };

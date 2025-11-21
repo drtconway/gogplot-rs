@@ -86,9 +86,11 @@ impl Bin {
             let col = data.get(col_name).ok_or_else(|| {
                 crate::error::PlotError::missing_column(col_name)
             })?;
-            let str_vec = col.as_str().ok_or_else(|| {
+            let str_iter = col.iter_str().ok_or_else(|| {
                 crate::error::PlotError::invalid_column_type(col_name, "string (categorical)")
             })?;
+            // Collect to vec since we need indexed access
+            let str_vec: Vec<String> = str_iter.map(|s| s.to_string()).collect();
             group_vectors.push((col_name.as_str(), str_vec));
         }
 
@@ -98,18 +100,17 @@ impl Bin {
             .map(|i| {
                 group_vectors
                     .iter()
-                    .map(|(_, vec)| vec.iter().nth(i).unwrap())
-                    .cloned()
+                    .map(|(_, vec)| vec[i].as_str())
                     .collect::<Vec<_>>()
                     .join("__") // Use __ as separator for composite keys
             })
             .collect();
 
         // Convert x to float values
-        let x_values: Vec<f64> = if let Some(int_vec) = x_col.as_int() {
-            int_vec.iter().map(|&v| v as f64).collect()
-        } else if let Some(float_vec) = x_col.as_float() {
-            float_vec.iter().copied().filter(|v| v.is_finite()).collect()
+        let x_values: Vec<f64> = if let Some(int_iter) = x_col.iter_int() {
+            int_iter.map(|&v| v as f64).collect()
+        } else if let Some(float_iter) = x_col.iter_float() {
+            float_iter.copied().filter(|v| v.is_finite()).collect()
         } else {
             return Err(crate::error::PlotError::invalid_column_type(
                 x_col_name,
@@ -251,8 +252,6 @@ impl Bin {
         let mut new_mapping = mapping.clone();
         new_mapping.set(Aesthetic::X, AesValue::column("x"));
         new_mapping.set(Aesthetic::Y, AesValue::column("count"));
-        new_mapping.set(Aesthetic::Xmin, AesValue::column("xmin"));
-        new_mapping.set(Aesthetic::Xmax, AesValue::column("xmax"));
 
         Ok(Some((Box::new(computed), new_mapping)))
     }
@@ -303,10 +302,10 @@ impl StatTransform for Bin {
         })?;
 
         // Convert to float values
-        let x_values: Vec<f64> = if let Some(int_vec) = x_col.as_int() {
-            int_vec.iter().map(|&v| v as f64).collect()
-        } else if let Some(float_vec) = x_col.as_float() {
-            float_vec.iter().copied().filter(|v| v.is_finite()).collect()
+        let x_values: Vec<f64> = if let Some(int_iter) = x_col.iter_int() {
+            int_iter.map(|&v| v as f64).collect()
+        } else if let Some(float_iter) = x_col.iter_float() {
+            float_iter.copied().filter(|v| v.is_finite()).collect()
         } else {
             return Err(crate::error::PlotError::invalid_column_type(
                 x_col_name.as_str(),
@@ -392,8 +391,6 @@ impl StatTransform for Bin {
         let mut new_mapping = mapping.clone();
         new_mapping.set(Aesthetic::X, AesValue::column("x"));
         new_mapping.set(Aesthetic::Y, AesValue::column("count"));
-        new_mapping.set(Aesthetic::Xmin, AesValue::column("xmin"));
-        new_mapping.set(Aesthetic::Xmax, AesValue::column("xmax"));
 
         Ok(Some((Box::new(computed), new_mapping)))
     }
@@ -429,7 +426,7 @@ mod tests {
 
         // Check that we have the right number of bins
         let count_col = data.get("count").unwrap();
-        let counts: Vec<i64> = count_col.as_int().unwrap().iter().copied().collect();
+        let counts: Vec<i64> = count_col.iter_int().unwrap().copied().collect();
         assert_eq!(counts.len(), 3);
         assert_eq!(counts.iter().sum::<i64>(), 6); // Total should equal input size
     }
@@ -446,7 +443,7 @@ mod tests {
         let (data, _) = bin.apply(Box::new(df), &mapping).unwrap().unwrap();
 
         let count_col = data.get("count").unwrap();
-        let counts: Vec<i64> = count_col.as_int().unwrap().iter().copied().collect();
+        let counts: Vec<i64> = count_col.iter_int().unwrap().copied().collect();
         assert_eq!(counts.len(), 5);
         assert_eq!(counts.iter().sum::<i64>(), 10);
     }
@@ -468,10 +465,10 @@ mod tests {
         // With binwidth=1.0 and range 0-4, we expect bins like:
         // [0-1), [1-2), [2-3), [3-4]
         let xmin_col = data.get("xmin").unwrap();
-        let xmins: Vec<f64> = xmin_col.as_float().unwrap().iter().copied().collect();
+        let xmins: Vec<f64> = xmin_col.iter_float().unwrap().copied().collect();
         
         let xmax_col = data.get("xmax").unwrap();
-        let xmaxs: Vec<f64> = xmax_col.as_float().unwrap().iter().copied().collect();
+        let xmaxs: Vec<f64> = xmax_col.iter_float().unwrap().copied().collect();
 
         // Verify bins are approximately 1.0 wide
         for i in 0..xmins.len() {
@@ -491,12 +488,12 @@ mod tests {
         let (data, _) = bin.apply(Box::new(df), &mapping).unwrap().unwrap();
 
         let x_col = data.get("x").unwrap();
-        let centers: Vec<f64> = x_col.as_float().unwrap().iter().copied().collect();
+        let centers: Vec<f64> = x_col.iter_float().unwrap().copied().collect();
         assert_eq!(centers.len(), 1);
         assert_eq!(centers[0], 5.0);
 
         let count_col = data.get("count").unwrap();
-        let counts: Vec<i64> = count_col.as_int().unwrap().iter().copied().collect();
+        let counts: Vec<i64> = count_col.iter_int().unwrap().copied().collect();
         assert_eq!(counts, vec![4]);
     }
 
@@ -535,7 +532,7 @@ mod tests {
         let (data, _) = bin.apply(Box::new(df), &mapping).unwrap().unwrap();
 
         let count_col = data.get("count").unwrap();
-        let counts: Vec<i64> = count_col.as_int().unwrap().iter().copied().collect();
+        let counts: Vec<i64> = count_col.iter_int().unwrap().copied().collect();
         // Only 5 valid values (NaNs filtered out)
         assert_eq!(counts.iter().sum::<i64>(), 5);
     }
@@ -554,10 +551,10 @@ mod tests {
         let (data, _) = bin.apply(Box::new(df), &mapping).unwrap().unwrap();
 
         let xmin_col = data.get("xmin").unwrap();
-        let xmins: Vec<f64> = xmin_col.as_float().unwrap().iter().copied().collect();
+        let xmins: Vec<f64> = xmin_col.iter_float().unwrap().copied().collect();
         
         let xmax_col = data.get("xmax").unwrap();
-        let xmaxs: Vec<f64> = xmax_col.as_float().unwrap().iter().copied().collect();
+        let xmaxs: Vec<f64> = xmax_col.iter_float().unwrap().copied().collect();
 
         println!("Binwidth 2.0 test - Number of bins: {}", xmins.len());
         for i in 0..xmins.len() {
@@ -601,23 +598,23 @@ mod tests {
 
         // Check that group column is preserved
         let group_col = data.get("group").unwrap();
-        assert!(group_col.as_str().is_some());
+        assert!(group_col.iter_str().is_some());
 
         // Check that we have data for both groups
-        let groups: Vec<String> = group_col.as_str().unwrap().iter().cloned().collect();
+        let groups: Vec<String> = group_col.iter_str().unwrap().map(|s| s.to_string()).collect();
         assert!(groups.contains(&"A".to_string()));
         assert!(groups.contains(&"B".to_string()));
 
         // Verify counts sum to original data size
         let count_col = data.get("count").unwrap();
-        let counts: Vec<i64> = count_col.as_int().unwrap().iter().copied().collect();
+        let counts: Vec<i64> = count_col.iter_int().unwrap().copied().collect();
         assert_eq!(counts.iter().sum::<i64>(), 10);
 
         // Verify all bins use the same boundaries (by checking xmin/xmax are consistent)
         let xmin_col = data.get("xmin").unwrap();
-        let xmins: Vec<f64> = xmin_col.as_float().unwrap().iter().copied().collect();
+        let xmins: Vec<f64> = xmin_col.iter_float().unwrap().copied().collect();
         let xmax_col = data.get("xmax").unwrap();
-        let xmaxs: Vec<f64> = xmax_col.as_float().unwrap().iter().copied().collect();
+        let xmaxs: Vec<f64> = xmax_col.iter_float().unwrap().copied().collect();
 
         // All bins should have the same width
         let bin_width = xmaxs[0] - xmins[0];
@@ -662,13 +659,13 @@ mod tests {
 
         // Check that both grouping columns are preserved
         let color_col = data.get("color").unwrap();
-        assert!(color_col.as_str().is_some());
+        assert!(color_col.iter_str().is_some());
         let shape_col = data.get("shape").unwrap();
-        assert!(shape_col.as_str().is_some());
+        assert!(shape_col.iter_str().is_some());
 
         // Should have 4 distinct groups: A-X, A-Y, B-X, B-Y
-        let colors: Vec<String> = color_col.as_str().unwrap().iter().cloned().collect();
-        let shapes: Vec<String> = shape_col.as_str().unwrap().iter().cloned().collect();
+        let colors: Vec<String> = color_col.iter_str().unwrap().map(|s| s.to_string()).collect();
+        let shapes: Vec<String> = shape_col.iter_str().unwrap().map(|s| s.to_string()).collect();
         
         let mut groups = std::collections::HashSet::new();
         for i in 0..colors.len() {
@@ -681,7 +678,7 @@ mod tests {
 
         // Verify counts sum to original data size
         let count_col = data.get("count").unwrap();
-        let counts: Vec<i64> = count_col.as_int().unwrap().iter().copied().collect();
+        let counts: Vec<i64> = count_col.iter_int().unwrap().copied().collect();
         assert_eq!(counts.iter().sum::<i64>(), 8);
     }
 }

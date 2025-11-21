@@ -131,11 +131,11 @@ mod tests {
         assert!(result.get("scaled").is_some());
         assert!(result.get("n").is_some());
 
-        let x = result.get("x").unwrap().as_float().unwrap();
-        assert_eq!(x.len(), 512);
+        let x = result.get("x").unwrap().iter_float().unwrap();
+        assert_eq!(x.count(), 512);
 
-        let scaled = result.get("scaled").unwrap().as_float().unwrap();
-        let max_scaled = scaled.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        let scaled = result.get("scaled").unwrap().iter_float().unwrap();
+        let max_scaled = scaled.copied().fold(f64::NEG_INFINITY, f64::max);
         assert!((max_scaled - 1.0).abs() < 1e-10);
     }
 
@@ -145,8 +145,8 @@ mod tests {
         let density = Density::new().n(100);
         let result = density.compute(&data).unwrap();
 
-        let x = result.get("x").unwrap().as_float().unwrap();
-        assert_eq!(x.len(), 100);
+        let x = result.get("x").unwrap().iter_float().unwrap();
+        assert_eq!(x.count(), 100);
     }
 
     #[test]
@@ -161,10 +161,10 @@ mod tests {
 
         // Smaller adjust should give more peaked density
         // Just check that we get different results
-        let d1 = result1.get("density").unwrap().as_float().unwrap();
-        let d2 = result2.get("density").unwrap().as_float().unwrap();
-        let max1 = d1.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-        let max2 = d2.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        let d1 = result1.get("density").unwrap().iter_float().unwrap();
+        let d2 = result2.get("density").unwrap().iter_float().unwrap();
+        let max1 = d1.copied().fold(f64::NEG_INFINITY, f64::max);
+        let max2 = d2.copied().fold(f64::NEG_INFINITY, f64::max);
         assert!(max1 > max2);
     }
 }

@@ -91,9 +91,9 @@ impl ScaleBase for Catagorical {
         let mut all_categories = HashSet::new();
 
         for vec in data {
-            if let Some(str_vec) = vec.as_str() {
-                for s in str_vec.iter() {
-                    all_categories.insert(s.clone());
+            if let Some(str_iter) = vec.iter_str() {
+                for s in str_iter {
+                    all_categories.insert(s.to_string());
                 }
             }
         }

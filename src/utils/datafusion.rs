@@ -1,7 +1,115 @@
+use crate::data::{FloatVector, GenericVector, IntVector, StrVector};
 use crate::utils::dataframe::{DataFrame, FloatVec, IntVec, StrVec};
 use arrow::array::{Array, ArrayRef, Float64Array, Int64Array, StringArray};
 use arrow::datatypes::DataType;
 use datafusion::arrow::record_batch::RecordBatch;
+
+impl GenericVector for Int64Array {
+    fn len(&self) -> usize {
+        arrow::array::Array::len(self)
+    }
+
+    fn vtype(&self) -> crate::data::VectorType {
+        crate::data::VectorType::Int
+    }
+
+    fn iter_int(&self) -> Option<Box<dyn Iterator<Item = &i64> + '_>> {
+        Some(Box::new(self.values().iter()))
+    }
+}
+
+impl IntVector for Int64Array {
+    type Iter<'a> = std::slice::Iter<'a, i64> where Self: 'a;
+    
+    fn iter(&self) -> Self::Iter<'_> {
+        // Arrow Int64Array stores data in a buffer. We can get a slice of the values
+        // if there are no nulls. For now, we'll use values() which gives us a slice.
+        // Note: This will include values at null positions if any exist.
+        // The caller should check for nulls separately if needed.
+        self.values().iter()
+    }
+}
+
+impl GenericVector for Float64Array {
+    fn len(&self) -> usize {
+        arrow::array::Array::len(self)
+    }
+
+    fn vtype(&self) -> crate::data::VectorType {
+        crate::data::VectorType::Float
+    }
+
+    fn iter_float(&self) -> Option<Box<dyn Iterator<Item = &f64> + '_>> {
+        Some(Box::new(self.values().iter()))
+    }
+}
+
+impl FloatVector for Float64Array {
+    type Iter<'a> = std::slice::Iter<'a, f64> where Self: 'a;
+    
+    fn iter(&self) -> Self::Iter<'_> {
+        self.values().iter()
+    }
+}
+
+impl GenericVector for StringArray {
+    fn len(&self) -> usize {
+        arrow::array::Array::len(self)
+    }
+
+    fn vtype(&self) -> crate::data::VectorType {
+        crate::data::VectorType::Str
+    }
+
+    fn iter_str(&self) -> Option<Box<dyn Iterator<Item = &str> + '_>> {
+        Some(Box::new(StringArrayIter {
+            array: self,
+            index: 0,
+        }))
+    }
+}
+
+/// Iterator for StringArray that yields &str values
+pub struct StringArrayIter<'a> {
+    array: &'a StringArray,
+    index: usize,
+}
+
+impl<'a> Iterator for StringArrayIter<'a> {
+    type Item = &'a str;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index < arrow::array::Array::len(self.array) {
+            let value = self.array.value(self.index);
+            self.index += 1;
+            Some(value)
+        } else {
+            None
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = arrow::array::Array::len(self.array) - self.index;
+        (remaining, Some(remaining))
+    }
+}
+
+impl<'a> ExactSizeIterator for StringArrayIter<'a> {
+    fn len(&self) -> usize {
+        arrow::array::Array::len(self.array) - self.index
+    }
+}
+
+impl StrVector for StringArray {
+    type Iter<'a> = StringArrayIter<'a> where Self: 'a;
+    
+    fn iter(&self) -> Self::Iter<'_> {
+        StringArrayIter {
+            array: self,
+            index: 0,
+        }
+    }
+}
 
 /// Convert a DataFusion RecordBatch into a gogplot DataFrame.
 ///
@@ -89,8 +197,9 @@ fn convert_array(
                 .downcast_ref::<StringArray>()
                 .ok_or("Failed to downcast to StringArray")?;
 
-            let mut values = Vec::with_capacity(arr.len());
-            for i in 0..arr.len() {
+            let len = arrow::array::Array::len(arr);
+            let mut values = Vec::with_capacity(len);
+            for i in 0..len {
                 if arr.is_null(i) {
                     return Err("Null values not supported in String columns".into());
                 }
@@ -123,8 +232,8 @@ mod tests {
         assert_eq!(df.len(), 5);
 
         let col = df.get("x").unwrap();
-        let int_vec = col.as_int().unwrap();
-        let values: Vec<i64> = int_vec.iter().copied().collect();
+        let int_iter = col.iter_int().unwrap();
+        let values: Vec<i64> = int_iter.copied().collect();
         assert_eq!(values, vec![1, 2, 3, 4, 5]);
     }
 
@@ -144,8 +253,8 @@ mod tests {
         assert_eq!(df.len(), 3);
 
         let col = df.get("y").unwrap();
-        let float_vec = col.as_float().unwrap();
-        let values: Vec<f64> = float_vec.iter().copied().collect();
+        let float_iter = col.iter_float().unwrap();
+        let values: Vec<f64> = float_iter.copied().collect();
         assert_eq!(values, vec![1.5, 2.5, 3.5]);
     }
 
@@ -161,8 +270,8 @@ mod tests {
         assert_eq!(df.len(), 3);
 
         let col = df.get("label").unwrap();
-        let str_vec = col.as_str().unwrap();
-        let values: Vec<String> = str_vec.iter().cloned().collect();
+        let str_iter = col.iter_str().unwrap();
+        let values: Vec<String> = str_iter.map(|s| s.to_string()).collect();
         assert_eq!(values, vec!["a", "b", "c"]);
     }
 
@@ -196,5 +305,28 @@ mod tests {
         assert!(df.get("x").is_some());
         assert!(df.get("y").is_some());
         assert!(df.get("label").is_some());
+    }
+
+    #[test]
+    fn test_string_array_str_vector_trait() {
+        // Test that StringArray implements StrVector correctly
+        use crate::data::StrVector;
+        
+        let string_array = StringArray::from(vec!["hello", "world", "test"]);
+        
+        // Test GAT iterator using explicit trait call
+        let values: Vec<&str> = StrVector::iter(&string_array).collect();
+        assert_eq!(values, vec!["hello", "world", "test"]);
+        
+        // Test that iterator is ExactSizeIterator
+        let mut iter = StrVector::iter(&string_array);
+        assert_eq!(iter.len(), 3);
+        iter.next();
+        assert_eq!(iter.len(), 2);
+        
+        // Test iter_str() from GenericVector
+        let str_iter = string_array.iter_str().unwrap();
+        let values2: Vec<&str> = str_iter.collect();
+        assert_eq!(values2, vec!["hello", "world", "test"]);
     }
 }

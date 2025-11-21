@@ -169,9 +169,9 @@ impl Geom for GeomBar {
 
                 let mut df = DataFrame::new();
 
-                if let Some(int_vec) = x_col.as_int() {
+                if let Some(int_iter) = x_col.iter_int() {
                     let mut counts: HashMap<i64, i64> = HashMap::new();
-                    for &val in int_vec.iter() {
+                    for &val in int_iter {
                         *counts.entry(val).or_insert(0) += 1;
                     }
                     let mut pairs: Vec<(i64, i64)> = counts.into_iter().collect();
@@ -182,9 +182,9 @@ impl Geom for GeomBar {
 
                     df.add_column("x", Box::new(IntVec(x_vals)));
                     df.add_column("y", Box::new(IntVec(y_vals)));
-                } else if let Some(float_vec) = x_col.as_float() {
+                } else if let Some(float_iter) = x_col.iter_float() {
                     let mut counts: HashMap<u64, (f64, i64)> = HashMap::new();
-                    for &val in float_vec.iter() {
+                    for &val in float_iter {
                         if val.is_nan() {
                             continue;
                         }
@@ -204,10 +204,10 @@ impl Geom for GeomBar {
 
                     df.add_column("x", Box::new(FloatVec(x_vals)));
                     df.add_column("y", Box::new(IntVec(y_vals)));
-                } else if let Some(str_vec) = x_col.as_str() {
+                } else if let Some(str_iter) = x_col.iter_str() {
                     let mut counts: HashMap<String, i64> = HashMap::new();
-                    for val in str_vec.iter() {
-                        *counts.entry(val.clone()).or_insert(0) += 1;
+                    for val in str_iter {
+                        *counts.entry(val.to_string()).or_insert(0) += 1;
                     }
                     let mut pairs: Vec<(String, i64)> = counts.into_iter().collect();
                     pairs.sort_by(|(a, _), (b, _)| a.cmp(b));

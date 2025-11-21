@@ -45,11 +45,11 @@ impl ScaleBase for DiscreteColor {
         let mut seen: HashSet<String> = HashSet::new();
 
         for vec in data {
-            if let Some(strings) = vec.as_str() {
-                for s in strings.iter() {
+            if let Some(strings) = vec.iter_str() {
+                for s in strings {
                     if !seen.contains(s) {
-                        categories.push(s.clone());
-                        seen.insert(s.clone());
+                        categories.push(s.to_string());
+                        seen.insert(s.to_string());
                     }
                 }
             }

@@ -13,13 +13,15 @@ impl GenericVector for IntVec {
         VectorType::Int
     }
 
-    fn as_int(&self) -> Option<&dyn IntVector> {
-        Some(self)
+    fn iter_int(&self) -> Option<Box<dyn Iterator<Item = &i64> + '_>> {
+        Some(Box::new(self.0.iter()))
     }
 }
 
 impl IntVector for IntVec {
-    fn iter(&self) -> std::slice::Iter<'_, i64> {
+    type Iter<'a> = std::slice::Iter<'a, i64> where Self: 'a;
+    
+    fn iter(&self) -> Self::Iter<'_> {
         self.0.iter()
     }
 }
@@ -35,13 +37,15 @@ impl GenericVector for FloatVec {
         VectorType::Float
     }
 
-    fn as_float(&self) -> Option<&dyn FloatVector> {
-        Some(self)
+    fn iter_float(&self) -> Option<Box<dyn Iterator<Item = &f64> + '_>> {
+        Some(Box::new(self.0.iter()))
     }
 }
 
 impl FloatVector for FloatVec {
-    fn iter(&self) -> std::slice::Iter<'_, f64> {
+    type Iter<'a> = std::slice::Iter<'a, f64> where Self: 'a;
+    
+    fn iter(&self) -> Self::Iter<'_> {
         self.0.iter()
     }
 }
@@ -57,14 +61,16 @@ impl GenericVector for StrVec {
         VectorType::Str
     }
 
-    fn as_str(&self) -> Option<&dyn StrVector> {
-        Some(self)
+    fn iter_str(&self) -> Option<Box<dyn Iterator<Item = &str> + '_>> {
+        Some(Box::new(self.0.iter().map(|s| s.as_str())))
     }
 }
 
 impl StrVector for StrVec {
-    fn iter(&self) -> std::slice::Iter<'_, String> {
-        self.0.iter()
+    type Iter<'a> = std::iter::Map<std::slice::Iter<'a, String>, fn(&'a String) -> &'a str> where Self: 'a;
+    
+    fn iter(&self) -> Self::Iter<'_> {
+        self.0.iter().map(|s| s.as_str())
     }
 }
 
@@ -148,12 +154,12 @@ impl Clone for DataFrame {
         let mut new_columns = HashMap::new();
         for (name, col) in &self.columns {
             // Reconstruct each column vector
-            let new_col: Box<dyn GenericVector> = if let Some(int_vec) = col.as_int() {
-                Box::new(IntVec(int_vec.iter().copied().collect()))
-            } else if let Some(float_vec) = col.as_float() {
-                Box::new(FloatVec(float_vec.iter().copied().collect()))
-            } else if let Some(str_vec) = col.as_str() {
-                Box::new(StrVec(str_vec.iter().cloned().collect()))
+            let new_col: Box<dyn GenericVector> = if let Some(int_iter) = col.iter_int() {
+                Box::new(IntVec(int_iter.copied().collect()))
+            } else if let Some(float_iter) = col.iter_float() {
+                Box::new(FloatVec(float_iter.copied().collect()))
+            } else if let Some(str_iter) = col.iter_str() {
+                Box::new(StrVec(str_iter.map(|s| s.to_string()).collect()))
             } else {
                 panic!("Unknown vector type");
             };
@@ -204,9 +210,9 @@ mod tests {
     #[test]
     fn test_intvec_as_int() {
         let vec = IntVec(vec![1, 2, 3]);
-        assert!(vec.as_int().is_some());
-        assert!(vec.as_float().is_none());
-        assert!(vec.as_str().is_none());
+        assert!(vec.iter_int().is_some());
+        assert!(vec.iter_float().is_none());
+        assert!(vec.iter_str().is_none());
     }
 
     #[test]
@@ -225,9 +231,9 @@ mod tests {
     #[test]
     fn test_floatvec_as_float() {
         let vec = FloatVec(vec![1.0, 2.0]);
-        assert!(vec.as_float().is_some());
-        assert!(vec.as_int().is_none());
-        assert!(vec.as_str().is_none());
+        assert!(vec.iter_float().is_some());
+        assert!(vec.iter_int().is_none());
+        assert!(vec.iter_str().is_none());
     }
 
     #[test]
@@ -239,16 +245,16 @@ mod tests {
     #[test]
     fn test_strvec_iter() {
         let vec = StrVec(vec!["hello".to_string(), "world".to_string()]);
-        let values: Vec<String> = vec.iter().cloned().collect();
+        let values: Vec<String> = vec.iter().map(|s| s.to_string()).collect();
         assert_eq!(values, vec!["hello".to_string(), "world".to_string()]);
     }
 
     #[test]
     fn test_strvec_as_str() {
         let vec = StrVec(vec!["test".to_string()]);
-        assert!(vec.as_str().is_some());
-        assert!(vec.as_int().is_none());
-        assert!(vec.as_float().is_none());
+        assert!(vec.iter_str().is_some());
+        assert!(vec.iter_int().is_none());
+        assert!(vec.iter_float().is_none());
     }
 
     #[test]
@@ -307,8 +313,8 @@ mod tests {
         df.add_column("x", Box::new(IntVec(vec![10, 20, 30])));
 
         let col = df.get("x").unwrap();
-        let int_vec = col.as_int().unwrap();
-        let values: Vec<i64> = int_vec.iter().copied().collect();
+        let int_iter = col.iter_int().unwrap();
+        let values: Vec<i64> = int_iter.copied().collect();
         assert_eq!(values, vec![10, 20, 30]);
     }
 
@@ -318,8 +324,8 @@ mod tests {
         df.add_column("y", Box::new(FloatVec(vec![1.5, 2.5, 3.5])));
 
         let col = df.get("y").unwrap();
-        let float_vec = col.as_float().unwrap();
-        let values: Vec<f64> = float_vec.iter().copied().collect();
+        let float_iter = col.iter_float().unwrap();
+        let values: Vec<f64> = float_iter.copied().collect();
         assert_eq!(values, vec![1.5, 2.5, 3.5]);
     }
 
@@ -332,8 +338,8 @@ mod tests {
         );
 
         let col = df.get("label").unwrap();
-        let str_vec = col.as_str().unwrap();
-        let values: Vec<String> = str_vec.iter().cloned().collect();
+        let str_iter = col.iter_str().unwrap();
+        let values: Vec<String> = str_iter.map(|s| s.to_string()).collect();
         assert_eq!(values, vec!["a".to_string(), "b".to_string()]);
     }
 

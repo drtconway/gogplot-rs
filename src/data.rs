@@ -32,27 +32,41 @@ impl std::fmt::Display for VectorType {
 pub trait GenericVector: Send + Sync {
     fn len(&self) -> usize;
     fn vtype(&self) -> VectorType;
-    fn as_int(&self) -> Option<&dyn IntVector> {
+    
+    // Boxed iterator methods - these replace as_int/as_float/as_str for trait objects
+    // Returns None if the vector is not of the requested type
+    fn iter_int(&self) -> Option<Box<dyn Iterator<Item = &i64> + '_>> {
         None
     }
-    fn as_float(&self) -> Option<&dyn FloatVector> {
+    fn iter_float(&self) -> Option<Box<dyn Iterator<Item = &f64> + '_>> {
         None
     }
-    fn as_str(&self) -> Option<&dyn StrVector> {
+    fn iter_str(&self) -> Option<Box<dyn Iterator<Item = &str> + '_>> {
         None
     }
 }
 
+// These traits are kept for concrete types that want zero-cost iteration
+// but they're not dyn-compatible due to GATs
 pub trait IntVector: GenericVector + Send + Sync {
-    fn iter(&self) -> std::slice::Iter<'_, i64>;
+    type Iter<'a>: Iterator<Item = &'a i64>
+    where
+        Self: 'a;
+    fn iter(&self) -> Self::Iter<'_>;
 }
 
 pub trait FloatVector: GenericVector + Send + Sync {
-    fn iter(&self) -> std::slice::Iter<'_, f64>;
+    type Iter<'a>: Iterator<Item = &'a f64>
+    where
+        Self: 'a;
+    fn iter(&self) -> Self::Iter<'_>;
 }
 
 pub trait StrVector: GenericVector + Send + Sync {
-    fn iter(&self) -> std::slice::Iter<'_, String>;
+    type Iter<'a>: Iterator<Item = &'a str>
+    where
+        Self: 'a;
+    fn iter(&self) -> Self::Iter<'_>;
 }
 
 /// Helper function to compute min and max from a slice of GenericVectors
@@ -63,14 +77,14 @@ pub(crate) fn compute_min_max(data: &[&dyn crate::data::GenericVector]) -> Optio
     let mut found_any = false;
 
     for vec in data {
-        if let Some(float_vec) = vec.as_float() {
-            for &value in float_vec.iter() {
+        if let Some(float_iter) = vec.iter_float() {
+            for &value in float_iter {
                 min = min.min(value);
                 max = max.max(value);
                 found_any = true;
             }
-        } else if let Some(int_vec) = vec.as_int() {
-            for &value in int_vec.iter() {
+        } else if let Some(int_iter) = vec.iter_int() {
+            for &value in int_iter {
                 let value_f64 = value as f64;
                 min = min.min(value_f64);
                 max = max.max(value_f64);

@@ -72,7 +72,7 @@ impl ScaleSet {
 
                     let is_categorical = data
                         .and_then(|d| d.get(col_name))
-                        .map(|col| col.as_str().is_some())
+                        .map(|col| col.iter_str().is_some())
                         .unwrap_or(false);
 
                     if is_categorical {
@@ -122,7 +122,7 @@ impl ScaleSet {
 
                     let is_categorical = data
                         .and_then(|d| d.get(col_name))
-                        .map(|col| col.as_str().is_some())
+                        .map(|col| col.iter_str().is_some())
                         .unwrap_or(false);
 
                     if is_categorical {

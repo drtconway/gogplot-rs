@@ -126,11 +126,11 @@ impl Geom for GeomDensity {
             .ok_or_else(|| PlotError::missing_column(x_col))?;
 
         let x_float = x_vec
-            .as_float()
+            .iter_float()
             .ok_or_else(|| PlotError::invalid_column_type(x_col, "numeric"))?;
 
         // Collect x values
-        let x_values: Vec<f64> = x_float.iter().copied().collect();
+        let x_values: Vec<f64> = x_float.copied().collect();
 
         // Compute density
         let density_stat = DensityStat::new().adjust(self.adjust).n(self.n);
@@ -156,29 +156,27 @@ impl Geom for GeomDensity {
             .ok_or_else(|| PlotError::missing_column("density"))?;
 
         let x_float = x_vec
-            .as_float()
+            .iter_float()
             .ok_or_else(|| PlotError::invalid_column_type("x", "numeric"))?;
         let y_float = y_vec
-            .as_float()
+            .iter_float()
             .ok_or_else(|| PlotError::invalid_column_type("density", "numeric"))?;
 
         // Normalize using scales
         let x_vals: Vec<f64> = if let Some(x_scale) = ctx.scales.x.as_deref() {
             x_float
-                .iter()
                 .filter_map(|&x| x_scale.map_value(x))
                 .collect()
         } else {
-            x_float.iter().copied().collect()
+            x_float.copied().collect()
         };
 
         let y_vals: Vec<f64> = if let Some(y_scale) = ctx.scales.y.as_deref() {
             y_float
-                .iter()
                 .filter_map(|&y| y_scale.map_value(y))
                 .collect()
         } else {
-            y_float.iter().copied().collect()
+            y_float.copied().collect()
         };
 
         // Get color, alpha, and size
