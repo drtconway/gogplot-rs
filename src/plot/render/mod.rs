@@ -38,10 +38,10 @@ pub fn render(
 ) -> Result<ImageSurface, PlotError> {
     // Create the surface
     let surface = ImageSurface::create(Format::ARgb32, width, height)
-        .map_err(|e| PlotError::ThemeError(format!("Failed to create surface: {}", e)))?;
+        .map_err(|e| PlotError::render_error("create surface", format!("{}", e)))?;
 
     let mut ctx = Context::new(&surface)
-        .map_err(|e| PlotError::ThemeError(format!("Failed to create context: {}", e)))?;
+        .map_err(|e| PlotError::render_error("create context", format!("{}", e)))?;
 
     // Use the common rendering code
     render_with_context(
@@ -66,7 +66,7 @@ pub fn render_with_context(
     // Fill background
     apply_fill_style(ctx, &theme.background.fill);
     ctx.paint()
-        .map_err(|e| PlotError::ThemeError(format!("Failed to paint background: {}", e)))?;
+        .map_err(|e| PlotError::render_error("paint background", format!("{}", e)))?;
 
     // Calculate required legend width and adjust right margin
     let legend_width = calculate_legend_width(layers, scales, guides);
@@ -181,7 +181,7 @@ pub fn render_with_context(
                 Some(d) => d.as_ref(),
                 None => match data {
                     Some(d) => d,
-                    None => return Err(PlotError::MissingAesthetic("No data source".to_string())),
+                    None => return Err(PlotError::NoDataSource),
                 },
             }
         };

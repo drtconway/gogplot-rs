@@ -2,7 +2,7 @@ use crate::data::PrimitiveValue;
 use std::collections::HashMap;
 
 // Supported aesthetics
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Aesthetic {
     X,
     Y,

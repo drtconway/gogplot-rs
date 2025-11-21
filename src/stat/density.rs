@@ -35,8 +35,8 @@ impl Density {
     /// Returns a DataFrame with columns: "x", "density", "count", "scaled", "n"
     pub fn compute(&self, data: &[f64]) -> Result<DataFrame, PlotError> {
         if data.is_empty() {
-            return Err(PlotError::InvalidData(
-                "Cannot compute density of empty data".to_string(),
+            return Err(PlotError::no_valid_data(
+                "cannot compute density of empty data"
             ));
         }
 
@@ -44,8 +44,8 @@ impl Density {
         let clean_data: Vec<f64> = data.iter().filter(|x| x.is_finite()).copied().collect();
 
         if clean_data.is_empty() {
-            return Err(PlotError::InvalidData(
-                "No finite values in data".to_string(),
+            return Err(PlotError::no_valid_data(
+                "no finite values in data"
             ));
         }
 

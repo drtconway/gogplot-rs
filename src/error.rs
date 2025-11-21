@@ -1,40 +1,132 @@
 use std::{
     error::Error,
     fmt::{Display, Formatter},
+    io,
 };
+
+use crate::aesthetics::Aesthetic;
 
 pub type Result<T> = std::result::Result<T, PlotError>;
 
 #[derive(Debug)]
 pub enum PlotError {
-    MissingAesthetic(String),
-    InvalidAestheticType(String),
-    ScaleError(String),
-    ThemeError(String),
-    InvalidData(String),
-    Generic(String),
+    /// A required aesthetic is missing from the mapping
+    MissingAesthetic { aesthetic: Aesthetic },
+    
+    /// A column referenced in a mapping is missing from the data
+    MissingColumn { column: String },
+    
+    /// An aesthetic has an invalid type (e.g., expected float but got string)
+    InvalidAestheticType {
+        aesthetic: Aesthetic,
+        expected: String,
+        actual: String,
+    },
+    
+    /// A column has an invalid type for the operation
+    InvalidColumnType {
+        column: String,
+        expected: String,
+    },
+    
+    /// Scale configuration error (e.g., mismatched breaks and labels)
+    ScaleMismatch {
+        breaks_count: usize,
+        labels_count: usize,
+    },
+    
+    /// Invalid scale limits
+    InvalidLimits {
+        min: f64,
+        max: f64,
+    },
+    
+    /// A required stat input is missing
+    MissingStatInput {
+        stat: String,
+        aesthetic: Aesthetic,
+    },
+    
+    /// No valid data for statistical transformation
+    NoValidData {
+        reason: String,
+    },
+    
+    /// Data source is missing
+    NoDataSource,
+    
+    /// File I/O error
+    IoError {
+        operation: String,
+        source: io::Error,
+    },
+    
+    /// Cairo rendering error
+    RenderError {
+        operation: String,
+        message: String,
+    },
+    
+    /// Invalid file path
+    InvalidPath {
+        path: String,
+    },
+    
+    /// Unsupported file format
+    UnsupportedFormat {
+        extension: String,
+    },
 }
 
 impl Display for PlotError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            PlotError::MissingAesthetic(aes) => {
-                write!(f, "Missing aesthetic: {}", aes)
+            PlotError::MissingAesthetic { aesthetic } => {
+                write!(f, "Missing required aesthetic: {:?}", aesthetic)
             }
-            PlotError::InvalidAestheticType(aes) => {
-                write!(f, "Invalid type for aesthetic: {}", aes)
+            PlotError::MissingColumn { column } => {
+                write!(f, "Column '{}' not found in data", column)
             }
-            PlotError::ScaleError(msg) => {
-                write!(f, "Scale error: {}", msg)
+            PlotError::InvalidAestheticType { aesthetic, expected, actual } => {
+                write!(
+                    f,
+                    "Invalid type for aesthetic {:?}: expected {}, got {}",
+                    aesthetic, expected, actual
+                )
             }
-            PlotError::ThemeError(msg) => {
-                write!(f, "Theme error: {}", msg)
+            PlotError::InvalidColumnType { column, expected } => {
+                write!(f, "Column '{}' has invalid type: expected {}", column, expected)
             }
-            PlotError::InvalidData(msg) => {
-                write!(f, "Invalid data: {}", msg)
+            PlotError::ScaleMismatch { breaks_count, labels_count } => {
+                write!(
+                    f,
+                    "Scale breaks and labels have mismatched lengths: {} breaks, {} labels",
+                    breaks_count, labels_count
+                )
             }
-            PlotError::Generic(msg) => {
-                write!(f, "Error: {}", msg)
+            PlotError::InvalidLimits { min, max } => {
+                write!(f, "Invalid scale limits: min={}, max={}", min, max)
+            }
+            PlotError::MissingStatInput { stat, aesthetic } => {
+                write!(f, "{} stat requires {:?} aesthetic", stat, aesthetic)
+            }
+            PlotError::NoValidData { reason } => {
+                write!(f, "No valid data for operation: {}", reason)
+            }
+            PlotError::NoDataSource => {
+                write!(f, "No data source provided")
+            }
+            PlotError::IoError { operation, source } => {
+                write!(f, "I/O error during {}: {}", operation, source)
+            }
+            PlotError::RenderError { operation, message } => {
+                write!(f, "Render error during {}: {}", operation, message)
+            }
+            PlotError::InvalidPath { path } => {
+                write!(f, "Invalid file path: {}", path)
+            }
+            PlotError::UnsupportedFormat { extension } => {
+                write!(f, "Unsupported file format: {}", extension)
             }
         }
     }
@@ -42,6 +134,64 @@ impl Display for PlotError {
 
 impl Error for PlotError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
-        None
+        match self {
+            PlotError::IoError { source, .. } => Some(source),
+            _ => None,
+        }
+    }
+}
+
+// Convenience constructors
+impl PlotError {
+    pub fn missing_column(column: impl Into<String>) -> Self {
+        PlotError::MissingColumn {
+            column: column.into(),
+        }
+    }
+
+    pub fn invalid_column_type(column: impl Into<String>, expected: impl Into<String>) -> Self {
+        PlotError::InvalidColumnType {
+            column: column.into(),
+            expected: expected.into(),
+        }
+    }
+
+    pub fn missing_stat_input(stat: impl Into<String>, aesthetic: Aesthetic) -> Self {
+        PlotError::MissingStatInput {
+            stat: stat.into(),
+            aesthetic,
+        }
+    }
+
+    pub fn no_valid_data(reason: impl Into<String>) -> Self {
+        PlotError::NoValidData {
+            reason: reason.into(),
+        }
+    }
+
+    pub fn io_error(operation: impl Into<String>, source: io::Error) -> Self {
+        PlotError::IoError {
+            operation: operation.into(),
+            source,
+        }
+    }
+
+    pub fn render_error(operation: impl Into<String>, message: impl Into<String>) -> Self {
+        PlotError::RenderError {
+            operation: operation.into(),
+            message: message.into(),
+        }
+    }
+
+    pub fn invalid_path(path: impl Into<String>) -> Self {
+        PlotError::InvalidPath {
+            path: path.into(),
+        }
+    }
+
+    pub fn unsupported_format(extension: impl Into<String>) -> Self {
+        PlotError::UnsupportedFormat {
+            extension: extension.into(),
+        }
     }
 }

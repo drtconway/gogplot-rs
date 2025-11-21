@@ -115,26 +115,32 @@ impl Geom for GeomLine {
             let group_col = match ctx.mapping.get(&Aesthetic::Group) {
                 Some(AesValue::Column(col)) => col,
                 _ => {
-                    return Err(PlotError::MissingAesthetic(
-                        "group must be a column".to_string(),
-                    ));
+                    return Err(PlotError::MissingAesthetic {
+                        aesthetic: Aesthetic::Group,
+                    });
                 }
             };
 
             let group_vec = ctx
                 .data
                 .get(group_col.as_str())
-                .ok_or_else(|| PlotError::MissingAesthetic(format!("column '{}'", group_col)))?;
+                .ok_or_else(|| PlotError::missing_column(group_col))?;
 
             // Group strings together
             let groups = match group_vec.vtype() {
                 VectorType::Str => group_vec.as_str().ok_or_else(|| {
-                    PlotError::InvalidAestheticType("expected string".to_string())
+                    PlotError::InvalidAestheticType {
+                        aesthetic: Aesthetic::Group,
+                        expected: "string".to_string(),
+                        actual: "unknown".to_string(),
+                    }
                 })?,
                 _ => {
-                    return Err(PlotError::InvalidAestheticType(
-                        "group must be string".to_string(),
-                    ));
+                    return Err(PlotError::InvalidAestheticType {
+                        aesthetic: Aesthetic::Group,
+                        expected: "string".to_string(),
+                        actual: "non-string".to_string(),
+                    });
                 }
             };
 
@@ -202,7 +208,7 @@ impl GeomLine {
                 let linetype_vec = ctx
                     .data
                     .get(col.as_str())
-                    .ok_or_else(|| PlotError::MissingAesthetic(format!("column '{}'", col)))?;
+                    .ok_or_else(|| PlotError::missing_column(col))?;
                 if let Some(strs) = linetype_vec.as_str() {
                     let idx = points[0].2;
                     Some(

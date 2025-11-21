@@ -96,21 +96,21 @@ impl Geom for GeomHLine {
                 let vec = ctx
                     .data
                     .get(col.as_str())
-                    .ok_or_else(|| PlotError::MissingAesthetic(format!("column '{}'", col)))?;
+                    .ok_or_else(|| PlotError::missing_column(col))?;
                 if let Some(floats) = vec.as_float() {
                     floats.iter().copied().collect()
                 } else if let Some(ints) = vec.as_int() {
                     ints.iter().map(|&i| i as f64).collect()
                 } else {
-                    return Err(PlotError::InvalidAestheticType(
-                        "yintercept must be numeric".to_string(),
-                    ));
+                    return Err(PlotError::invalid_column_type(col, "numeric"));
                 }
             }
             _ => {
-                return Err(PlotError::InvalidAestheticType(
-                    "yintercept must be numeric".to_string(),
-                ));
+                return Err(PlotError::InvalidAestheticType {
+                    aesthetic: Aesthetic::Y,
+                    expected: "numeric constant or column".to_string(),
+                    actual: "invalid value".to_string(),
+                });
             }
         };
 

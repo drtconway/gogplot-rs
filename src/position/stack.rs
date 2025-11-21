@@ -36,7 +36,7 @@ impl PositionAdjust for Stack {
             .filter(|(aes, _)| aes.is_grouping())
             .map(|(aes, val)| {
                 if let AesValue::Column(col_name) = val {
-                    Some((aes.clone(), col_name.clone()))
+                    Some((*aes, col_name.clone()))
                 } else {
                     None
                 }
@@ -52,10 +52,10 @@ impl PositionAdjust for Stack {
         // Get columns
         let x_col = data
             .get(x_col_name.as_str())
-            .ok_or_else(|| PlotError::MissingAesthetic(format!("column '{}'", x_col_name)))?;
+            .ok_or_else(|| PlotError::missing_column(&x_col_name))?;
         let y_col = data
             .get(y_col_name.as_str())
-            .ok_or_else(|| PlotError::MissingAesthetic(format!("column '{}'", y_col_name)))?;
+            .ok_or_else(|| PlotError::missing_column(&y_col_name))?;
 
         // Get y values as floats
         let y_values: Vec<f64> = if let Some(float_vec) = y_col.as_float() {
@@ -63,9 +63,11 @@ impl PositionAdjust for Stack {
         } else if let Some(int_vec) = y_col.as_int() {
             int_vec.iter().map(|&v| v as f64).collect()
         } else {
-            return Err(PlotError::InvalidAestheticType(
-                "y must be numeric for stacking".to_string(),
-            ));
+            return Err(PlotError::InvalidAestheticType {
+                aesthetic: Aesthetic::Y,
+                expected: "numeric (int or float)".to_string(),
+                actual: "string or other".to_string(),
+            });
         };
 
         // Create composite keys for each row
@@ -104,9 +106,11 @@ impl PositionAdjust for Stack {
                 .map(|v| PrimitiveValue::Str(v.clone()))
                 .collect()
         } else {
-            return Err(PlotError::InvalidAestheticType(
-                "x must be numeric or string".to_string(),
-            ));
+            return Err(PlotError::InvalidAestheticType {
+                aesthetic: Aesthetic::X,
+                expected: "numeric or string".to_string(),
+                actual: "unknown".to_string(),
+            });
         };
 
         // Group by x value and composite key, computing cumulative sums

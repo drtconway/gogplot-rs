@@ -20,7 +20,7 @@ pub trait GeomBuilder {
     fn merge_default_aesthetics(&self, layer: &mut Layer) {
         for (aesthetic, value) in self.default_aes().iter() {
             if layer.mapping.get(aesthetic).is_none() {
-                layer.mapping.set(aesthetic.clone(), value.clone());
+                layer.mapping.set(*aesthetic, value.clone());
             }
         }
     }

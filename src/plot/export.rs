@@ -43,26 +43,26 @@ pub fn save(
     let extension = path
         .extension()
         .and_then(|s| s.to_str())
-        .ok_or_else(|| PlotError::ThemeError("Invalid file path".to_string()))?;
+        .ok_or_else(|| PlotError::invalid_path(path.display().to_string()))?;
 
     match extension.to_lowercase().as_str() {
         "png" => {
             let surface =
                 render::render(layers, scales, theme, guides, title, data, width, height)?;
             let mut file = std::fs::File::create(path)
-                .map_err(|e| PlotError::ThemeError(format!("Failed to create file: {}", e)))?;
+                .map_err(|e| PlotError::io_error("create file", e))?;
             surface
                 .write_to_png(&mut file)
-                .map_err(|e| PlotError::ThemeError(format!("Failed to write PNG: {}", e)))?;
+                .map_err(|e| PlotError::render_error("write PNG", format!("{}", e)))?
         }
         "svg" => {
             let surface =
                 SvgSurface::new(width as f64, height as f64, Some(path)).map_err(|e| {
-                    PlotError::ThemeError(format!("Failed to create SVG surface: {}", e))
+                    PlotError::render_error("create SVG surface", format!("{}", e))
                 })?;
 
             let mut ctx = Context::new(&surface)
-                .map_err(|e| PlotError::ThemeError(format!("Failed to create context: {}", e)))?;
+                .map_err(|e| PlotError::render_error("create context", format!("{}", e)))?;
             render::render_with_context(
                 &mut ctx, layers, scales, theme, guides, title, data, width, height,
             )?;
@@ -70,21 +70,18 @@ pub fn save(
         }
         "pdf" => {
             let surface = PdfSurface::new(width as f64, height as f64, path).map_err(|e| {
-                PlotError::ThemeError(format!("Failed to create PDF surface: {}", e))
+                PlotError::render_error("create PDF surface", format!("{}", e))
             })?;
 
             let mut ctx = Context::new(&surface)
-                .map_err(|e| PlotError::ThemeError(format!("Failed to create context: {}", e)))?;
+                .map_err(|e| PlotError::render_error("create context", format!("{}", e)))?;
             render::render_with_context(
                 &mut ctx, layers, scales, theme, guides, title, data, width, height,
             )?;
             surface.finish();
         }
         _ => {
-            return Err(PlotError::ThemeError(format!(
-                "Unsupported file format: {}",
-                extension
-            )));
+            return Err(PlotError::unsupported_format(extension));
         }
     }
 

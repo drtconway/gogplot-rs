@@ -159,7 +159,7 @@ impl Geom for GeomBar {
                 };
 
                 let x_col = data.get(x_col_name.as_str()).ok_or_else(|| {
-                    PlotError::MissingAesthetic(format!("column '{}'", x_col_name))
+                    PlotError::missing_column(x_col_name.as_str())
                 })?;
 
                 // Count occurrences
@@ -217,9 +217,11 @@ impl Geom for GeomBar {
                     df.add_column("x", Box::new(StrVec(x_vals)));
                     df.add_column("y", Box::new(IntVec(y_vals)));
                 } else {
-                    return Err(PlotError::InvalidAestheticType(
-                        "x must be numeric or string".to_string(),
-                    ));
+                    return Err(PlotError::InvalidAestheticType {
+                        aesthetic: Aesthetic::X,
+                        expected: "numeric or string".to_string(),
+                        actual: "other".to_string(),
+                    });
                 }
 
                 // Create updated mapping with Y pointing to computed "y" column

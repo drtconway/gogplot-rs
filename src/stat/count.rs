@@ -32,22 +32,24 @@ impl StatTransform for Count {
     ) -> Result<Option<(Box<dyn DataSource>, AesMap)>> {
         // Get the x aesthetic - this is required for count
         let x_mapping = mapping.get(&Aesthetic::X).ok_or_else(|| {
-            crate::error::PlotError::Generic("Count stat requires X aesthetic".to_string())
+            crate::error::PlotError::missing_stat_input("Count", Aesthetic::X)
         })?;
 
         // Only support column mappings for now
         let x_col_name = match x_mapping {
             AesValue::Column(name) => name,
             _ => {
-                return Err(crate::error::PlotError::Generic(
-                    "Count stat requires X to be mapped to a column".to_string(),
-                ));
+                return Err(crate::error::PlotError::InvalidAestheticType {
+                    aesthetic: Aesthetic::X,
+                    expected: "column".to_string(),
+                    actual: "constant".to_string(),
+                });
             }
         };
 
         // Get the x column from data
         let x_col = data.get(x_col_name.as_str()).ok_or_else(|| {
-            crate::error::PlotError::Generic(format!("Column '{}' not found in data", x_col_name))
+            crate::error::PlotError::missing_column(x_col_name.as_str())
         })?;
 
         // Count by x value - we need to handle different types
@@ -61,8 +63,9 @@ impl StatTransform for Count {
             let (x, c) = count_str_values(str_vec.iter());
             (x, c)
         } else {
-            return Err(crate::error::PlotError::Generic(
-                "Unsupported column type for count stat".to_string(),
+            return Err(crate::error::PlotError::invalid_column_type(
+                x_col_name.as_str(),
+                "int, float, or string",
             ));
         };
 

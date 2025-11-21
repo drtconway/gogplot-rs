@@ -123,11 +123,11 @@ impl Geom for GeomDensity {
         // Get x data
         let x_vec = data
             .get(x_col.as_str())
-            .ok_or_else(|| PlotError::MissingAesthetic(format!("column '{}'", x_col)))?;
+            .ok_or_else(|| PlotError::missing_column(x_col))?;
 
         let x_float = x_vec
             .as_float()
-            .ok_or_else(|| PlotError::InvalidAestheticType("x must be numeric".to_string()))?;
+            .ok_or_else(|| PlotError::invalid_column_type(x_col, "numeric"))?;
 
         // Collect x values
         let x_values: Vec<f64> = x_float.iter().copied().collect();
@@ -149,18 +149,18 @@ impl Geom for GeomDensity {
         let x_vec = ctx
             .data
             .get("x")
-            .ok_or_else(|| PlotError::Generic("density data missing x column".to_string()))?;
+            .ok_or_else(|| PlotError::missing_column("x"))?;
         let y_vec = ctx
             .data
             .get("density")
-            .ok_or_else(|| PlotError::Generic("density data missing density column".to_string()))?;
+            .ok_or_else(|| PlotError::missing_column("density"))?;
 
         let x_float = x_vec
             .as_float()
-            .ok_or_else(|| PlotError::InvalidAestheticType("x must be numeric".to_string()))?;
+            .ok_or_else(|| PlotError::invalid_column_type("x", "numeric"))?;
         let y_float = y_vec
             .as_float()
-            .ok_or_else(|| PlotError::InvalidAestheticType("y must be numeric".to_string()))?;
+            .ok_or_else(|| PlotError::invalid_column_type("density", "numeric"))?;
 
         // Normalize using scales
         let x_vals: Vec<f64> = if let Some(x_scale) = ctx.scales.x.as_ref() {

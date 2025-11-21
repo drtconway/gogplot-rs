@@ -44,7 +44,7 @@ pub fn apply_stats(
         // Layer mappings take precedence over plot defaults
         let mut merged_mapping = plot_default_aes.clone();
         for (aes, value) in layers[i].mapping.iter() {
-            merged_mapping.set(aes.clone(), value.clone());
+            merged_mapping.set(*aes, value.clone());
         }
 
         // Apply the stat transformation

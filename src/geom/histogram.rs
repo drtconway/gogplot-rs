@@ -180,18 +180,18 @@ impl GeomHistogram {
         let xmin_col = ctx
             .data
             .get("xmin")
-            .ok_or_else(|| PlotError::MissingAesthetic("xmin".to_string()))?;
+            .ok_or_else(|| PlotError::missing_column("xmin"))?;
         let xmax_col = ctx
             .data
             .get("xmax")
-            .ok_or_else(|| PlotError::MissingAesthetic("xmax".to_string()))?;
+            .ok_or_else(|| PlotError::missing_column("xmax"))?;
 
         let xmins = xmin_col
             .as_float()
-            .ok_or_else(|| PlotError::InvalidAestheticType("xmin must be float".to_string()))?;
+            .ok_or_else(|| PlotError::invalid_column_type("xmin", "float"))?;
         let xmaxs = xmax_col
             .as_float()
-            .ok_or_else(|| PlotError::InvalidAestheticType("xmax must be float".to_string()))?;
+            .ok_or_else(|| PlotError::invalid_column_type("xmax", "float"))?;
 
         // Get y values (counts)
         let y_normalized = ctx.get_aesthetic_values(Aesthetic::Y, ctx.scales.y.as_ref())?;

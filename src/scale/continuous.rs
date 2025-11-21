@@ -243,11 +243,10 @@ impl Continuous {
             .unwrap_or_else(|| breaks.iter().map(|b| format!("{:.2}", b)).collect());
 
         if breaks.len() != labels.len() {
-            return Err(PlotError::ScaleError(format!(
-                "Breaks and labels must have the same length: {} breaks vs {} labels",
-                breaks.len(),
-                labels.len()
-            )));
+            return Err(PlotError::ScaleMismatch {
+                breaks_count: breaks.len(),
+                labels_count: labels.len(),
+            });
         }
 
         Ok(Linear {
@@ -287,10 +286,10 @@ impl Continuous {
         let mut domain = self.limits.unwrap_or((0.0, 1.0));
 
         if domain.0 < 0.0 || domain.1 < 0.0 {
-            return Err(PlotError::ScaleError(format!(
-                "Square root scale requires non-negative domain, got ({}, {})",
-                domain.0, domain.1
-            )));
+            return Err(PlotError::InvalidLimits {
+                min: domain.0,
+                max: domain.1,
+            });
         }
 
         // Apply expansion
@@ -308,11 +307,10 @@ impl Continuous {
             .unwrap_or_else(|| breaks.iter().map(|b| format!("{:.2}", b)).collect());
 
         if breaks.len() != labels.len() {
-            return Err(PlotError::ScaleError(format!(
-                "Breaks and labels must have the same length: {} breaks vs {} labels",
-                breaks.len(),
-                labels.len()
-            )));
+            return Err(PlotError::ScaleMismatch {
+                breaks_count: breaks.len(),
+                labels_count: labels.len(),
+            });
         }
 
         Ok(Sqrt {
@@ -352,10 +350,10 @@ impl Continuous {
         let mut domain = self.limits.unwrap_or((1.0, 10.0));
 
         if domain.0 <= 0.0 || domain.1 <= 0.0 {
-            return Err(PlotError::ScaleError(format!(
-                "Log10 scale requires positive domain, got ({}, {})",
-                domain.0, domain.1
-            )));
+            return Err(PlotError::InvalidLimits {
+                min: domain.0,
+                max: domain.1,
+            });
         }
 
         // Apply expansion (multiplicative expansion makes more sense for log scales)
@@ -373,11 +371,10 @@ impl Continuous {
             .unwrap_or_else(|| breaks.iter().map(|b| format!("{:.2}", b)).collect());
 
         if breaks.len() != labels.len() {
-            return Err(PlotError::ScaleError(format!(
-                "Breaks and labels must have the same length: {} breaks vs {} labels",
-                breaks.len(),
-                labels.len()
-            )));
+            return Err(PlotError::ScaleMismatch {
+                breaks_count: breaks.len(),
+                labels_count: labels.len(),
+            });
         }
 
         Ok(Log10 {

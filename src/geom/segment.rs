@@ -138,12 +138,16 @@ impl Geom for GeomSegment {
                 let vec = ctx
                     .data
                     .get(col.as_str())
-                    .ok_or_else(|| PlotError::MissingAesthetic(format!("column '{}'", col)))?;
+                    .ok_or_else(|| PlotError::missing_column(col))?;
                 if let VectorType::Str = vec.vtype() {
                     Some(
                         vec.as_str()
                             .ok_or_else(|| {
-                                PlotError::InvalidAestheticType("expected string".to_string())
+                                PlotError::InvalidAestheticType {
+                                    aesthetic: Aesthetic::Linetype,
+                                    expected: "string".to_string(),
+                                    actual: "unknown".to_string(),
+                                }
                             })?
                             .iter()
                             .map(|s| s.to_string())

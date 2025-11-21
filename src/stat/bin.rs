@@ -77,20 +77,17 @@ impl Bin {
     ) -> Result<Option<(Box<dyn DataSource>, AesMap)>> {
         // Get x column
         let x_col = data.get(x_col_name).ok_or_else(|| {
-            crate::error::PlotError::Generic(format!("Column '{}' not found", x_col_name))
+            crate::error::PlotError::missing_column(x_col_name)
         })?;
 
         // Get all grouping columns
         let mut group_vectors = Vec::new();
         for (_, col_name) in group_cols {
             let col = data.get(col_name).ok_or_else(|| {
-                crate::error::PlotError::Generic(format!("Column '{}' not found", col_name))
+                crate::error::PlotError::missing_column(col_name)
             })?;
             let str_vec = col.as_str().ok_or_else(|| {
-                crate::error::PlotError::Generic(format!(
-                    "Grouping column '{}' must be categorical (string)",
-                    col_name
-                ))
+                crate::error::PlotError::invalid_column_type(col_name, "string (categorical)")
             })?;
             group_vectors.push((col_name.as_str(), str_vec));
         }
@@ -114,14 +111,15 @@ impl Bin {
         } else if let Some(float_vec) = x_col.as_float() {
             float_vec.iter().copied().filter(|v| v.is_finite()).collect()
         } else {
-            return Err(crate::error::PlotError::Generic(
-                "Bin stat requires numeric X values".to_string(),
+            return Err(crate::error::PlotError::invalid_column_type(
+                x_col_name,
+                "numeric (int or float)",
             ));
         };
 
         if x_values.is_empty() {
-            return Err(crate::error::PlotError::Generic(
-                "No valid numeric values for binning".to_string(),
+            return Err(crate::error::PlotError::no_valid_data(
+                "no valid numeric values for binning"
             ));
         }
 
@@ -267,16 +265,18 @@ impl StatTransform for Bin {
     ) -> Result<Option<(Box<dyn DataSource>, AesMap)>> {
         // Get the x aesthetic - this is required for binning
         let x_mapping = mapping.get(&Aesthetic::X).ok_or_else(|| {
-            crate::error::PlotError::Generic("Bin stat requires X aesthetic".to_string())
+            crate::error::PlotError::missing_stat_input("Bin", Aesthetic::X)
         })?;
 
         // Only support column mappings for now
         let x_col_name = match x_mapping {
             AesValue::Column(name) => name,
             _ => {
-                return Err(crate::error::PlotError::Generic(
-                    "Bin stat requires X to be mapped to a column".to_string(),
-                ));
+                return Err(crate::error::PlotError::InvalidAestheticType {
+                    aesthetic: Aesthetic::X,
+                    expected: "column".to_string(),
+                    actual: "constant".to_string(),
+                });
             }
         };
 
@@ -285,7 +285,7 @@ impl StatTransform for Bin {
             .iter()
             .filter(|(aes, _)| aes.is_grouping())
             .filter_map(|(aes, aes_value)| match aes_value {
-                AesValue::Column(name) => Some((aes.clone(), name.clone())),
+                AesValue::Column(name) => Some((*aes, name.clone())),
                 _ => None,
             })
             .collect();
@@ -298,7 +298,7 @@ impl StatTransform for Bin {
         // Otherwise, use ungrouped binning (original logic)
         // Get the x column from data
         let x_col = data.get(x_col_name.as_str()).ok_or_else(|| {
-            crate::error::PlotError::Generic(format!("Column '{}' not found in data", x_col_name))
+            crate::error::PlotError::missing_column(x_col_name.as_str())
         })?;
 
         // Convert to float values
@@ -307,14 +307,15 @@ impl StatTransform for Bin {
         } else if let Some(float_vec) = x_col.as_float() {
             float_vec.iter().copied().filter(|v| v.is_finite()).collect()
         } else {
-            return Err(crate::error::PlotError::Generic(
-                "Bin stat requires numeric X values".to_string(),
+            return Err(crate::error::PlotError::invalid_column_type(
+                x_col_name.as_str(),
+                "numeric (int or float)",
             ));
         };
 
         if x_values.is_empty() {
-            return Err(crate::error::PlotError::Generic(
-                "No valid numeric values for binning".to_string(),
+            return Err(crate::error::PlotError::no_valid_data(
+                "no valid numeric values for binning"
             ));
         }
 
