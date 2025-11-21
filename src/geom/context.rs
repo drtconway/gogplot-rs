@@ -192,11 +192,11 @@ impl<'a> RenderContext<'a> {
                         if let Some(scale) = scale {
                             // Need to collect for scale application
                             let values: Vec<f64> =
-                                floats.filter_map(|&v| scale.map_value(v)).collect();
+                                floats.filter_map(|v| scale.map_value(v)).collect();
                             Ok(AestheticValues::Owned(values))
                         } else {
                             // Collect to owned since FloatRef expects std::slice::Iter
-                            let values: Vec<f64> = floats.copied().collect();
+                            let values: Vec<f64> = floats.collect();
                             Ok(AestheticValues::Owned(values))
                         }
                     }
@@ -210,7 +210,7 @@ impl<'a> RenderContext<'a> {
                         })?;
 
                         // Need to convert ints to f64, so collect
-                        let values: Vec<f64> = ints.map(|&x| x as f64).collect();
+                        let values: Vec<f64> = ints.map(|x| x as f64).collect();
 
                         if let Some(scale) = scale {
                             let scaled: Vec<f64> = values
@@ -314,7 +314,6 @@ impl<'a> RenderContext<'a> {
                                         actual: DataType::Custom("unknown".to_string()),
                                     }
                                 })?
-                                .copied()
                                 .collect(),
                             VectorType::Int => vec
                                 .iter_int()
@@ -325,7 +324,7 @@ impl<'a> RenderContext<'a> {
                                         actual: DataType::Custom("unknown".to_string()),
                                     }
                                 })?
-                                .map(|&x| x as f64)
+                                .map(|x| x as f64)
                                 .collect(),
                             _ => unreachable!(),
                         };
@@ -408,7 +407,6 @@ impl<'a> RenderContext<'a> {
                                         actual: DataType::Custom("unknown".to_string()),
                                     }
                                 })?
-                                .copied()
                                 .collect(),
                             VectorType::Int => vec
                                 .iter_int()
@@ -419,7 +417,7 @@ impl<'a> RenderContext<'a> {
                                         actual: DataType::Custom("unknown".to_string()),
                                     }
                                 })?
-                                .map(|&x| x as f64)
+                                .map(|x| x as f64)
                                 .collect(),
                             _ => unreachable!(),
                         };
@@ -612,7 +610,7 @@ impl<'a> RenderContext<'a> {
                         expected: DataType::Vector(VectorType::Float),
                         actual: DataType::Custom("unknown".to_string()),
                     })?;
-                floats.copied().collect()
+                floats.collect()
             }
             VectorType::Int => {
                 let ints = vec
@@ -622,7 +620,7 @@ impl<'a> RenderContext<'a> {
                         expected: DataType::Vector(VectorType::Int),
                         actual: DataType::Custom("unknown".to_string()),
                     })?;
-                ints.map(|&v| v as f64).collect()
+                ints.map(|v| v as f64).collect()
             }
             VectorType::Str => {
                 return Err(PlotError::InvalidAestheticType {

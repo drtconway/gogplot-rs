@@ -67,10 +67,10 @@ impl PositionAdjust for Dodge {
         // Get x values
         let x_values: Vec<PrimitiveValue> = if let Some(float_iter) = x_col.iter_float() {
             float_iter
-                .map(|&v| PrimitiveValue::Float(v))
+                .map(|v| PrimitiveValue::Float(v))
                 .collect()
         } else if let Some(int_iter) = x_col.iter_int() {
-            int_iter.map(|&v| PrimitiveValue::Int(v)).collect()
+            int_iter.map(|v| PrimitiveValue::Int(v)).collect()
         } else if let Some(str_iter) = x_col.iter_str() {
             str_iter
                 .map(|s| PrimitiveValue::Str(s.to_string()))
@@ -190,9 +190,9 @@ impl PositionAdjust for Dodge {
             let col = data.get(col_name.as_str()).unwrap();
             
             let new_col: Box<dyn crate::data::GenericVector> = if let Some(int_iter) = col.iter_int() {
-                Box::new(IntVec(int_iter.copied().collect()))
+                Box::new(IntVec(int_iter.collect()))
             } else if let Some(float_iter) = col.iter_float() {
-                Box::new(FloatVec(float_iter.copied().collect()))
+                Box::new(FloatVec(float_iter.collect()))
             } else if let Some(str_iter) = col.iter_str() {
                 Box::new(StrVec(str_iter.map(|s| s.to_string()).collect()))
             } else {

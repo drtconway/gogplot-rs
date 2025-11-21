@@ -54,10 +54,10 @@ impl StatTransform for Count {
 
         // Count by x value - we need to handle different types
         let (x_values, counts) = if let Some(int_iter) = x_col.iter_int() {
-            let (x, c) = count_int_values(int_iter.copied());
+            let (x, c) = count_int_values(int_iter);
             (x, c)
         } else if let Some(float_iter) = x_col.iter_float() {
-            let (x, c) = count_float_values(float_iter.copied());
+            let (x, c) = count_float_values(float_iter);
             (x, c)
         } else if let Some(str_iter) = x_col.iter_str() {
             let (x, c) = count_str_values(str_iter);
@@ -199,11 +199,11 @@ mod tests {
 
         // Check the computed values
         let x_col = data.get("x").unwrap();
-        let x_vals: Vec<i64> = x_col.iter_int().unwrap().copied().collect();
+        let x_vals: Vec<i64> = x_col.iter_int().unwrap().collect();
         assert_eq!(x_vals, vec![1, 2, 3]);
 
         let count_col = data.get("count").unwrap();
-        let count_vals: Vec<i64> = count_col.iter_int().unwrap().copied().collect();
+        let count_vals: Vec<i64> = count_col.iter_int().unwrap().collect();
         assert_eq!(count_vals, vec![2, 3, 1]);
     }
 
@@ -219,11 +219,11 @@ mod tests {
         let (data, _) = count.apply(Box::new(df), &mapping).unwrap().unwrap();
 
         let x_col = data.get("x").unwrap();
-        let x_vals: Vec<i64> = x_col.iter_int().unwrap().copied().collect();
+        let x_vals: Vec<i64> = x_col.iter_int().unwrap().collect();
         assert_eq!(x_vals, vec![5]);
 
         let count_col = data.get("count").unwrap();
-        let count_vals: Vec<i64> = count_col.iter_int().unwrap().copied().collect();
+        let count_vals: Vec<i64> = count_col.iter_int().unwrap().collect();
         assert_eq!(count_vals, vec![4]);
     }
 
@@ -239,7 +239,7 @@ mod tests {
         let (data, _) = count.apply(Box::new(df), &mapping).unwrap().unwrap();
 
         let count_col = data.get("count").unwrap();
-        let count_vals: Vec<i64> = count_col.iter_int().unwrap().copied().collect();
+        let count_vals: Vec<i64> = count_col.iter_int().unwrap().collect();
         assert_eq!(count_vals, vec![1, 1, 1, 1, 1]);
     }
 
@@ -280,11 +280,11 @@ mod tests {
         let (data, _) = count.apply(Box::new(df), &mapping).unwrap().unwrap();
 
         let x_col = data.get("x").unwrap();
-        let x_vals: Vec<f64> = x_col.iter_float().unwrap().copied().collect();
+        let x_vals: Vec<f64> = x_col.iter_float().unwrap().collect();
         assert_eq!(x_vals, vec![1.5, 2.5, 3.5]);
 
         let count_col = data.get("count").unwrap();
-        let count_vals: Vec<i64> = count_col.iter_int().unwrap().copied().collect();
+        let count_vals: Vec<i64> = count_col.iter_int().unwrap().collect();
         assert_eq!(count_vals, vec![2, 3, 1]);
     }
 
@@ -303,14 +303,14 @@ mod tests {
         let (data, _) = count.apply(Box::new(df), &mapping).unwrap().unwrap();
 
         let x_col = data.get("x").unwrap();
-        let x_vals: Vec<f64> = x_col.iter_float().unwrap().copied().collect();
+        let x_vals: Vec<f64> = x_col.iter_float().unwrap().collect();
         // NaN values are dropped, so we only have 1.0 and 2.0
         assert_eq!(x_vals.len(), 2);
         assert_eq!(x_vals[0], 1.0);
         assert_eq!(x_vals[1], 2.0);
 
         let count_col = data.get("count").unwrap();
-        let count_vals: Vec<i64> = count_col.iter_int().unwrap().copied().collect();
+        let count_vals: Vec<i64> = count_col.iter_int().unwrap().collect();
         assert_eq!(count_vals, vec![2, 3]); // 2 ones, 3 twos (NaNs dropped)
     }
 
@@ -336,7 +336,7 @@ mod tests {
         let (data, _) = count.apply(Box::new(df), &mapping).unwrap().unwrap();
 
         let x_col = data.get("x").unwrap();
-        let x_vals: Vec<f64> = x_col.iter_float().unwrap().copied().collect();
+        let x_vals: Vec<f64> = x_col.iter_float().unwrap().collect();
         // Should be: -inf, 1.0, 2.0, +inf
         assert_eq!(x_vals[0], f64::NEG_INFINITY);
         assert_eq!(x_vals[1], 1.0);
@@ -344,7 +344,7 @@ mod tests {
         assert_eq!(x_vals[3], f64::INFINITY);
 
         let count_col = data.get("count").unwrap();
-        let count_vals: Vec<i64> = count_col.iter_int().unwrap().copied().collect();
+        let count_vals: Vec<i64> = count_col.iter_int().unwrap().collect();
         assert_eq!(count_vals, vec![1, 2, 1, 2]); // 1 -inf, 2 ones, 1 two, 2 +inf
     }
 
@@ -376,7 +376,7 @@ mod tests {
         assert_eq!(x_vals, vec!["apple", "banana", "cherry"]);
 
         let count_col = data.get("count").unwrap();
-        let count_vals: Vec<i64> = count_col.iter_int().unwrap().copied().collect();
+        let count_vals: Vec<i64> = count_col.iter_int().unwrap().collect();
         assert_eq!(count_vals, vec![3, 2, 1]);
     }
 
@@ -404,7 +404,7 @@ mod tests {
         assert_eq!(x_vals, vec!["test"]);
 
         let count_col = data.get("count").unwrap();
-        let count_vals: Vec<i64> = count_col.iter_int().unwrap().copied().collect();
+        let count_vals: Vec<i64> = count_col.iter_int().unwrap().collect();
         assert_eq!(count_vals, vec![3]);
     }
 }

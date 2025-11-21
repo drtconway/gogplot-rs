@@ -171,7 +171,7 @@ impl Geom for GeomBar {
 
                 if let Some(int_iter) = x_col.iter_int() {
                     let mut counts: HashMap<i64, i64> = HashMap::new();
-                    for &val in int_iter {
+                    for val in int_iter {
                         *counts.entry(val).or_insert(0) += 1;
                     }
                     let mut pairs: Vec<(i64, i64)> = counts.into_iter().collect();
@@ -184,7 +184,7 @@ impl Geom for GeomBar {
                     df.add_column("y", Box::new(IntVec(y_vals)));
                 } else if let Some(float_iter) = x_col.iter_float() {
                     let mut counts: HashMap<u64, (f64, i64)> = HashMap::new();
-                    for &val in float_iter {
+                    for val in float_iter {
                         if val.is_nan() {
                             continue;
                         }

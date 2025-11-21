@@ -13,8 +13,8 @@ impl GenericVector for IntVec {
         VectorType::Int
     }
 
-    fn iter_int(&self) -> Option<Box<dyn Iterator<Item = &i64> + '_>> {
-        Some(Box::new(self.0.iter()))
+    fn iter_int(&self) -> Option<Box<dyn Iterator<Item = i64> + '_>> {
+        Some(Box::new(self.0.iter().copied()))
     }
 }
 
@@ -37,8 +37,8 @@ impl GenericVector for FloatVec {
         VectorType::Float
     }
 
-    fn iter_float(&self) -> Option<Box<dyn Iterator<Item = &f64> + '_>> {
-        Some(Box::new(self.0.iter()))
+    fn iter_float(&self) -> Option<Box<dyn Iterator<Item = f64> + '_>> {
+        Some(Box::new(self.0.iter().copied()))
     }
 }
 
@@ -155,9 +155,9 @@ impl Clone for DataFrame {
         for (name, col) in &self.columns {
             // Reconstruct each column vector
             let new_col: Box<dyn GenericVector> = if let Some(int_iter) = col.iter_int() {
-                Box::new(IntVec(int_iter.copied().collect()))
+                Box::new(IntVec(int_iter.collect()))
             } else if let Some(float_iter) = col.iter_float() {
-                Box::new(FloatVec(float_iter.copied().collect()))
+                Box::new(FloatVec(float_iter.collect()))
             } else if let Some(str_iter) = col.iter_str() {
                 Box::new(StrVec(str_iter.map(|s| s.to_string()).collect()))
             } else {
@@ -314,7 +314,7 @@ mod tests {
 
         let col = df.get("x").unwrap();
         let int_iter = col.iter_int().unwrap();
-        let values: Vec<i64> = int_iter.copied().collect();
+        let values: Vec<i64> = int_iter.collect();
         assert_eq!(values, vec![10, 20, 30]);
     }
 
@@ -325,7 +325,7 @@ mod tests {
 
         let col = df.get("y").unwrap();
         let float_iter = col.iter_float().unwrap();
-        let values: Vec<f64> = float_iter.copied().collect();
+        let values: Vec<f64> = float_iter.collect();
         assert_eq!(values, vec![1.5, 2.5, 3.5]);
     }
 

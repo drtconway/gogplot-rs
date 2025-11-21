@@ -108,9 +108,9 @@ impl Bin {
 
         // Convert x to float values
         let x_values: Vec<f64> = if let Some(int_iter) = x_col.iter_int() {
-            int_iter.map(|&v| v as f64).collect()
+            int_iter.map(|v| v as f64).collect()
         } else if let Some(float_iter) = x_col.iter_float() {
-            float_iter.copied().filter(|v| v.is_finite()).collect()
+            float_iter.filter(|v| v.is_finite()).collect()
         } else {
             return Err(crate::error::PlotError::invalid_column_type(
                 x_col_name,
@@ -303,9 +303,9 @@ impl StatTransform for Bin {
 
         // Convert to float values
         let x_values: Vec<f64> = if let Some(int_iter) = x_col.iter_int() {
-            int_iter.map(|&v| v as f64).collect()
+            int_iter.map(|v| v as f64).collect()
         } else if let Some(float_iter) = x_col.iter_float() {
-            float_iter.copied().filter(|v| v.is_finite()).collect()
+            float_iter.filter(|v| v.is_finite()).collect()
         } else {
             return Err(crate::error::PlotError::invalid_column_type(
                 x_col_name.as_str(),
@@ -426,7 +426,7 @@ mod tests {
 
         // Check that we have the right number of bins
         let count_col = data.get("count").unwrap();
-        let counts: Vec<i64> = count_col.iter_int().unwrap().copied().collect();
+        let counts: Vec<i64> = count_col.iter_int().unwrap().collect();
         assert_eq!(counts.len(), 3);
         assert_eq!(counts.iter().sum::<i64>(), 6); // Total should equal input size
     }
@@ -443,7 +443,7 @@ mod tests {
         let (data, _) = bin.apply(Box::new(df), &mapping).unwrap().unwrap();
 
         let count_col = data.get("count").unwrap();
-        let counts: Vec<i64> = count_col.iter_int().unwrap().copied().collect();
+        let counts: Vec<i64> = count_col.iter_int().unwrap().collect();
         assert_eq!(counts.len(), 5);
         assert_eq!(counts.iter().sum::<i64>(), 10);
     }
@@ -465,10 +465,10 @@ mod tests {
         // With binwidth=1.0 and range 0-4, we expect bins like:
         // [0-1), [1-2), [2-3), [3-4]
         let xmin_col = data.get("xmin").unwrap();
-        let xmins: Vec<f64> = xmin_col.iter_float().unwrap().copied().collect();
+        let xmins: Vec<f64> = xmin_col.iter_float().unwrap().collect();
         
         let xmax_col = data.get("xmax").unwrap();
-        let xmaxs: Vec<f64> = xmax_col.iter_float().unwrap().copied().collect();
+        let xmaxs: Vec<f64> = xmax_col.iter_float().unwrap().collect();
 
         // Verify bins are approximately 1.0 wide
         for i in 0..xmins.len() {
@@ -488,12 +488,12 @@ mod tests {
         let (data, _) = bin.apply(Box::new(df), &mapping).unwrap().unwrap();
 
         let x_col = data.get("x").unwrap();
-        let centers: Vec<f64> = x_col.iter_float().unwrap().copied().collect();
+        let centers: Vec<f64> = x_col.iter_float().unwrap().collect();
         assert_eq!(centers.len(), 1);
         assert_eq!(centers[0], 5.0);
 
         let count_col = data.get("count").unwrap();
-        let counts: Vec<i64> = count_col.iter_int().unwrap().copied().collect();
+        let counts: Vec<i64> = count_col.iter_int().unwrap().collect();
         assert_eq!(counts, vec![4]);
     }
 
@@ -532,7 +532,7 @@ mod tests {
         let (data, _) = bin.apply(Box::new(df), &mapping).unwrap().unwrap();
 
         let count_col = data.get("count").unwrap();
-        let counts: Vec<i64> = count_col.iter_int().unwrap().copied().collect();
+        let counts: Vec<i64> = count_col.iter_int().unwrap().collect();
         // Only 5 valid values (NaNs filtered out)
         assert_eq!(counts.iter().sum::<i64>(), 5);
     }
@@ -551,10 +551,10 @@ mod tests {
         let (data, _) = bin.apply(Box::new(df), &mapping).unwrap().unwrap();
 
         let xmin_col = data.get("xmin").unwrap();
-        let xmins: Vec<f64> = xmin_col.iter_float().unwrap().copied().collect();
+        let xmins: Vec<f64> = xmin_col.iter_float().unwrap().collect();
         
         let xmax_col = data.get("xmax").unwrap();
-        let xmaxs: Vec<f64> = xmax_col.iter_float().unwrap().copied().collect();
+        let xmaxs: Vec<f64> = xmax_col.iter_float().unwrap().collect();
 
         println!("Binwidth 2.0 test - Number of bins: {}", xmins.len());
         for i in 0..xmins.len() {
@@ -607,14 +607,14 @@ mod tests {
 
         // Verify counts sum to original data size
         let count_col = data.get("count").unwrap();
-        let counts: Vec<i64> = count_col.iter_int().unwrap().copied().collect();
+        let counts: Vec<i64> = count_col.iter_int().unwrap().collect();
         assert_eq!(counts.iter().sum::<i64>(), 10);
 
         // Verify all bins use the same boundaries (by checking xmin/xmax are consistent)
         let xmin_col = data.get("xmin").unwrap();
-        let xmins: Vec<f64> = xmin_col.iter_float().unwrap().copied().collect();
+        let xmins: Vec<f64> = xmin_col.iter_float().unwrap().collect();
         let xmax_col = data.get("xmax").unwrap();
-        let xmaxs: Vec<f64> = xmax_col.iter_float().unwrap().copied().collect();
+        let xmaxs: Vec<f64> = xmax_col.iter_float().unwrap().collect();
 
         // All bins should have the same width
         let bin_width = xmaxs[0] - xmins[0];
@@ -678,7 +678,7 @@ mod tests {
 
         // Verify counts sum to original data size
         let count_col = data.get("count").unwrap();
-        let counts: Vec<i64> = count_col.iter_int().unwrap().copied().collect();
+        let counts: Vec<i64> = count_col.iter_int().unwrap().collect();
         assert_eq!(counts.iter().sum::<i64>(), 8);
     }
 }

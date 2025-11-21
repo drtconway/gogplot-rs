@@ -135,7 +135,7 @@ mod tests {
         assert_eq!(x.count(), 512);
 
         let scaled = result.get("scaled").unwrap().iter_float().unwrap();
-        let max_scaled = scaled.copied().fold(f64::NEG_INFINITY, f64::max);
+        let max_scaled = scaled.fold(f64::NEG_INFINITY, f64::max);
         assert!((max_scaled - 1.0).abs() < 1e-10);
     }
 
@@ -163,8 +163,8 @@ mod tests {
         // Just check that we get different results
         let d1 = result1.get("density").unwrap().iter_float().unwrap();
         let d2 = result2.get("density").unwrap().iter_float().unwrap();
-        let max1 = d1.copied().fold(f64::NEG_INFINITY, f64::max);
-        let max2 = d2.copied().fold(f64::NEG_INFINITY, f64::max);
+        let max1 = d1.fold(f64::NEG_INFINITY, f64::max);
+        let max2 = d2.fold(f64::NEG_INFINITY, f64::max);
         assert!(max1 > max2);
     }
 }

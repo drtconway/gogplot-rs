@@ -17,8 +17,8 @@ impl GenericVector for Int64Array {
         crate::data::VectorType::Int
     }
 
-    fn iter_int(&self) -> Option<Box<dyn Iterator<Item = &i64> + '_>> {
-        Some(Box::new(self.values().iter()))
+    fn iter_int(&self) -> Option<Box<dyn Iterator<Item = i64> + '_>> {
+        Some(Box::new(self.values().iter().copied()))
     }
 }
 
@@ -34,6 +34,123 @@ impl IntVector for Int64Array {
     }
 }
 
+// Note: For integer types other than i64, we cannot implement the IntVector GAT trait
+// because it requires returning &i64, but these arrays store native types (i8, i16, etc.)
+// that need to be cast. They can only implement GenericVector with conversion.
+
+impl GenericVector for Int8Array {
+    fn len(&self) -> usize {
+        arrow::array::Array::len(self)
+    }
+
+    fn vtype(&self) -> crate::data::VectorType {
+        crate::data::VectorType::Int
+    }
+
+    fn iter_int(&self) -> Option<Box<dyn Iterator<Item = i64> + '_>> {
+        // Cannot provide zero-copy iteration - need to convert through IntVec
+        None
+    }
+}
+
+impl GenericVector for Int16Array {
+    fn len(&self) -> usize {
+        arrow::array::Array::len(self)
+    }
+
+    fn vtype(&self) -> crate::data::VectorType {
+        crate::data::VectorType::Int
+    }
+
+    fn iter_int(&self) -> Option<Box<dyn Iterator<Item = i64> + '_>> {
+        None
+    }
+}
+
+impl GenericVector for Int32Array {
+    fn len(&self) -> usize {
+        arrow::array::Array::len(self)
+    }
+
+    fn vtype(&self) -> crate::data::VectorType {
+        crate::data::VectorType::Int
+    }
+
+    fn iter_int(&self) -> Option<Box<dyn Iterator<Item = i64> + '_>> {
+        None
+    }
+}
+
+impl GenericVector for UInt8Array {
+    fn len(&self) -> usize {
+        arrow::array::Array::len(self)
+    }
+
+    fn vtype(&self) -> crate::data::VectorType {
+        crate::data::VectorType::Int
+    }
+
+    fn iter_int(&self) -> Option<Box<dyn Iterator<Item = i64> + '_>> {
+        None
+    }
+}
+
+impl GenericVector for UInt16Array {
+    fn len(&self) -> usize {
+        arrow::array::Array::len(self)
+    }
+
+    fn vtype(&self) -> crate::data::VectorType {
+        crate::data::VectorType::Int
+    }
+
+    fn iter_int(&self) -> Option<Box<dyn Iterator<Item = i64> + '_>> {
+        None
+    }
+}
+
+impl GenericVector for UInt32Array {
+    fn len(&self) -> usize {
+        arrow::array::Array::len(self)
+    }
+
+    fn vtype(&self) -> crate::data::VectorType {
+        crate::data::VectorType::Int
+    }
+
+    fn iter_int(&self) -> Option<Box<dyn Iterator<Item = i64> + '_>> {
+        None
+    }
+}
+
+impl GenericVector for UInt64Array {
+    fn len(&self) -> usize {
+        arrow::array::Array::len(self)
+    }
+
+    fn vtype(&self) -> crate::data::VectorType {
+        crate::data::VectorType::Int
+    }
+
+    fn iter_int(&self) -> Option<Box<dyn Iterator<Item = i64> + '_>> {
+        None
+    }
+}
+
+impl GenericVector for Float32Array {
+    fn len(&self) -> usize {
+        arrow::array::Array::len(self)
+    }
+
+    fn vtype(&self) -> crate::data::VectorType {
+        crate::data::VectorType::Float
+    }
+
+    fn iter_float(&self) -> Option<Box<dyn Iterator<Item = f64> + '_>> {
+        None
+    }
+}
+
 impl GenericVector for Float64Array {
     fn len(&self) -> usize {
         arrow::array::Array::len(self)
@@ -43,8 +160,8 @@ impl GenericVector for Float64Array {
         crate::data::VectorType::Float
     }
 
-    fn iter_float(&self) -> Option<Box<dyn Iterator<Item = &f64> + '_>> {
-        Some(Box::new(self.values().iter()))
+    fn iter_float(&self) -> Option<Box<dyn Iterator<Item = f64> + '_>> {
+        Some(Box::new(self.values().iter().copied()))
     }
 }
 
@@ -798,7 +915,7 @@ mod tests {
 
         let col = df.get("x").unwrap();
         let int_iter = col.iter_int().unwrap();
-        let values: Vec<i64> = int_iter.copied().collect();
+        let values: Vec<i64> = int_iter.collect();
         assert_eq!(values, vec![1, 2, 3, -4, -5]);
     }
 
@@ -814,7 +931,7 @@ mod tests {
 
         let col = df.get("x").unwrap();
         let int_iter = col.iter_int().unwrap();
-        let values: Vec<i64> = int_iter.copied().collect();
+        let values: Vec<i64> = int_iter.collect();
         assert_eq!(values, vec![100, 200, 300]);
     }
 
@@ -830,7 +947,7 @@ mod tests {
 
         let col = df.get("x").unwrap();
         let int_iter = col.iter_int().unwrap();
-        let values: Vec<i64> = int_iter.copied().collect();
+        let values: Vec<i64> = int_iter.collect();
         assert_eq!(values, vec![1000, 2000, 3000]);
     }
 
@@ -847,7 +964,7 @@ mod tests {
 
         let col = df.get("x").unwrap();
         let int_iter = col.iter_int().unwrap();
-        let values: Vec<i64> = int_iter.copied().collect();
+        let values: Vec<i64> = int_iter.collect();
         assert_eq!(values, vec![1, 2, 3, 4, 5]);
     }
 
@@ -863,7 +980,7 @@ mod tests {
 
         let col = df.get("x").unwrap();
         let int_iter = col.iter_int().unwrap();
-        let values: Vec<i64> = int_iter.copied().collect();
+        let values: Vec<i64> = int_iter.collect();
         assert_eq!(values, vec![10, 20, 30, 255]);
     }
 
@@ -879,7 +996,7 @@ mod tests {
 
         let col = df.get("x").unwrap();
         let int_iter = col.iter_int().unwrap();
-        let values: Vec<i64> = int_iter.copied().collect();
+        let values: Vec<i64> = int_iter.collect();
         assert_eq!(values, vec![1000, 2000, 3000]);
     }
 
@@ -895,7 +1012,7 @@ mod tests {
 
         let col = df.get("x").unwrap();
         let int_iter = col.iter_int().unwrap();
-        let values: Vec<i64> = int_iter.copied().collect();
+        let values: Vec<i64> = int_iter.collect();
         assert_eq!(values, vec![100000, 200000, 300000]);
     }
 
@@ -911,7 +1028,7 @@ mod tests {
 
         let col = df.get("x").unwrap();
         let int_iter = col.iter_int().unwrap();
-        let values: Vec<i64> = int_iter.copied().collect();
+        let values: Vec<i64> = int_iter.collect();
         assert_eq!(values, vec![1000000, 2000000, 3000000]);
     }
 
@@ -946,19 +1063,19 @@ mod tests {
 
         // Verify all columns are present and have correct values
         let int8_col = df.get("int8").unwrap();
-        let int8_values: Vec<i64> = int8_col.iter_int().unwrap().copied().collect();
+        let int8_values: Vec<i64> = int8_col.iter_int().unwrap().collect();
         assert_eq!(int8_values, vec![1, 2, 3]);
 
         let int16_col = df.get("int16").unwrap();
-        let int16_values: Vec<i64> = int16_col.iter_int().unwrap().copied().collect();
+        let int16_values: Vec<i64> = int16_col.iter_int().unwrap().collect();
         assert_eq!(int16_values, vec![100, 200, 300]);
 
         let int32_col = df.get("int32").unwrap();
-        let int32_values: Vec<i64> = int32_col.iter_int().unwrap().copied().collect();
+        let int32_values: Vec<i64> = int32_col.iter_int().unwrap().collect();
         assert_eq!(int32_values, vec![1000, 2000, 3000]);
 
         let uint8_col = df.get("uint8").unwrap();
-        let uint8_values: Vec<i64> = uint8_col.iter_int().unwrap().copied().collect();
+        let uint8_values: Vec<i64> = uint8_col.iter_int().unwrap().collect();
         assert_eq!(uint8_values, vec![10, 20, 30]);
     }
 
@@ -978,7 +1095,7 @@ mod tests {
 
         let col = df.get("y").unwrap();
         let float_iter = col.iter_float().unwrap();
-        let values: Vec<f64> = float_iter.copied().collect();
+        let values: Vec<f64> = float_iter.collect();
         assert_eq!(values, vec![1.5, 2.5, 3.5]);
     }
 
@@ -999,7 +1116,7 @@ mod tests {
 
         let col = df.get("y").unwrap();
         let float_iter = col.iter_float().unwrap();
-        let values: Vec<f64> = float_iter.copied().collect();
+        let values: Vec<f64> = float_iter.collect();
         assert_eq!(values, vec![1.5, 2.5, 3.5]);
     }
 
