@@ -1,16 +1,17 @@
-// Example: DataFusion integration
-// Demonstrates converting DataFusion RecordBatch to gogplot DataFrame
+// Example: Arrow/DataFusion integration
+// Demonstrates using Arrow RecordBatch directly as a DataSource
 //
 // To run this example, use:
+//   cargo run --example datafusion_integration --features arrow
+// or with the datafusion feature (alias for backwards compatibility):
 //   cargo run --example datafusion_integration --features datafusion
 
-#[cfg(feature = "datafusion")]
+#[cfg(feature = "arrow")]
 mod example {
-    use datafusion::arrow::array::{Float64Array, StringArray};
-    use datafusion::arrow::datatypes::{DataType, Field, Schema};
-    use datafusion::arrow::record_batch::RecordBatch;
+    use arrow::array::{Float64Array, StringArray};
+    use arrow::datatypes::{DataType, Field, Schema};
+    use arrow::record_batch::RecordBatch;
     use gogplot::plot::{GeomBuilder, Plot};
-    use gogplot::utils::datafusion::record_batch_to_dataframe;
     use std::sync::Arc;
 
     pub fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -31,11 +32,9 @@ mod example {
             vec![Arc::new(x_array), Arc::new(y_array), Arc::new(cat_array)],
         )?;
 
-        // Convert the RecordBatch to a gogplot DataFrame
-        let df = record_batch_to_dataframe(&batch)?;
-
-        // Create a plot using the converted data
-        let plot = Plot::new(Some(Box::new(df)))
+        // Use the RecordBatch directly as a DataSource - no conversion needed!
+        // RecordBatch implements DataSource, providing zero-copy access to Arrow arrays
+        let plot = Plot::new(Some(Box::new(batch)))
             .aes(|a| {
                 a.x("x");
                 a.y("y");
@@ -51,13 +50,14 @@ mod example {
     }
 }
 
-#[cfg(feature = "datafusion")]
+#[cfg(feature = "arrow")]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     example::main()
 }
 
-#[cfg(not(feature = "datafusion"))]
+#[cfg(not(feature = "arrow"))]
 fn main() {
-    println!("This example requires the 'datafusion' feature.");
-    println!("Run with: cargo run --example datafusion_integration --features datafusion");
+    println!("This example requires the 'arrow' feature.");
+    println!("Run with: cargo run --example datafusion_integration --features arrow");
+    println!("Or use --features datafusion for backwards compatibility.");
 }

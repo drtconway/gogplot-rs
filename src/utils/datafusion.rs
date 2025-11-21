@@ -1,12 +1,38 @@
+//! Apache Arrow integration for gogplot.
+//!
+//! This module provides implementations of `GenericVector`, `StrVector`, and `DataSource`
+//! for Apache Arrow array types and `RecordBatch`. This enables zero-copy plotting of data
+//! from Arrow/DataFusion/Polars and other Arrow-based data processing frameworks.
+//!
+//! # Usage
+//!
+//! Enable the `arrow` feature in your `Cargo.toml`:
+//! ```toml
+//! gogplot = { version = "0.1", features = ["arrow"] }
+//! ```
+//!
+//! Then you can use `RecordBatch` directly as a data source:
+//! ```ignore
+//! use arrow::record_batch::RecordBatch;
+//! use gogplot::plot::Plot;
+//!
+//! let batch = /* create or load RecordBatch */;
+//! let plot = Plot::new(Some(Box::new(batch)))
+//!     .aes(|a| {
+//!         a.x("column1");
+//!         a.y("column2");
+//!     })
+//!     .geom_point();
+//! ```
+
 use crate::data::{GenericVector, StrVector};
-use crate::utils::dataframe::{DataFrame, FloatVec, IntVec, StrVec};
 use arrow::array::{
-    Array, ArrayRef, DictionaryArray, Float32Array, Float64Array, Int16Array,
-    Int32Array, Int64Array, Int8Array, LargeStringArray, StringArray, StringViewArray,
-    UInt16Array, UInt32Array, UInt64Array, UInt8Array,
+    Array, DictionaryArray, Float32Array, Float64Array, Int8Array, Int16Array, Int32Array,
+    Int64Array, LargeStringArray, StringArray, StringViewArray, UInt8Array, UInt16Array,
+    UInt32Array, UInt64Array,
 };
 use arrow::datatypes::{DataType, Int32Type};
-use datafusion::arrow::record_batch::RecordBatch;
+use arrow::record_batch::RecordBatch;
 
 impl GenericVector for Int64Array {
     fn len(&self) -> usize {
@@ -203,8 +229,11 @@ impl<'a> ExactSizeIterator for StringArrayIter<'a> {
 }
 
 impl StrVector for StringArray {
-    type Iter<'a> = StringArrayIter<'a> where Self: 'a;
-    
+    type Iter<'a>
+        = StringArrayIter<'a>
+    where
+        Self: 'a;
+
     fn iter(&self) -> Self::Iter<'_> {
         StringArrayIter {
             array: self,
@@ -262,8 +291,11 @@ impl<'a> ExactSizeIterator for LargeStringArrayIter<'a> {
 }
 
 impl StrVector for LargeStringArray {
-    type Iter<'a> = LargeStringArrayIter<'a> where Self: 'a;
-    
+    type Iter<'a>
+        = LargeStringArrayIter<'a>
+    where
+        Self: 'a;
+
     fn iter(&self) -> Self::Iter<'_> {
         LargeStringArrayIter {
             array: self,
@@ -321,8 +353,11 @@ impl<'a> ExactSizeIterator for StringViewArrayIter<'a> {
 }
 
 impl StrVector for StringViewArray {
-    type Iter<'a> = StringViewArrayIter<'a> where Self: 'a;
-    
+    type Iter<'a>
+        = StringViewArrayIter<'a>
+    where
+        Self: 'a;
+
     fn iter(&self) -> Self::Iter<'_> {
         StringViewArrayIter {
             array: self,
@@ -345,7 +380,7 @@ impl GenericVector for DictionaryArray<Int32Type> {
     fn iter_str(&self) -> Option<Box<dyn Iterator<Item = &str> + '_>> {
         // Determine the value type of the dictionary
         let values = self.values();
-        
+
         if values.as_any().is::<StringArray>() {
             Some(Box::new(DictUtf8ArrayIter {
                 dict_array: self,
@@ -504,11 +539,14 @@ impl<'a> ExactSizeIterator for DictStringArrayIter<'a> {
 }
 
 impl StrVector for DictionaryArray<Int32Type> {
-    type Iter<'a> = DictStringArrayIter<'a> where Self: 'a;
-    
+    type Iter<'a>
+        = DictStringArrayIter<'a>
+    where
+        Self: 'a;
+
     fn iter(&self) -> Self::Iter<'_> {
         let values = self.values();
-        
+
         if let Some(values_array) = values.as_any().downcast_ref::<StringArray>() {
             DictStringArrayIter::Utf8(DictUtf8ArrayIter {
                 dict_array: self,
@@ -535,343 +573,99 @@ impl StrVector for DictionaryArray<Int32Type> {
     }
 }
 
-/// Convert a DataFusion RecordBatch into a gogplot DataFrame.
-///
-/// This function supports the following Arrow data types:
-/// - Int8, Int16, Int32, Int64 -> IntVec
-/// - UInt8, UInt16, UInt32, UInt64 -> IntVec (cast to i64)
-/// - Float32, Float64 -> FloatVec (cast to f64)
-/// - Utf8 (String) -> StrVec
-/// - LargeUtf8 (LargeString) -> StrVec
-/// - Utf8View (StringView) -> StrVec
-/// - Dictionary(Int32, Utf8/LargeUtf8/Utf8View) -> StrVec (dictionary-encoded strings)
-///
-/// # Errors
-///
-/// Returns an error if:
-/// - The RecordBatch contains unsupported column types
-/// - Column data cannot be downcast to the expected array type
-///
-/// # Examples
-///
-/// ```ignore
-/// use datafusion::prelude::*;
-/// use gogplot::utils::datafusion::record_batch_to_dataframe;
-///
-/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// let ctx = SessionContext::new();
-/// let df = ctx.read_csv("data.csv", CsvReadOptions::new()).await?;
-/// let batches = df.collect().await?;
-/// 
-/// for batch in batches {
-///     let gg_df = record_batch_to_dataframe(&batch)?;
-///     // Use gg_df with gogplot...
-/// }
-/// # Ok(())
-/// # }
-/// ```
-pub fn record_batch_to_dataframe(
-    batch: &RecordBatch,
-) -> Result<DataFrame, Box<dyn std::error::Error>> {
-    let mut df = DataFrame::new();
+/// Implement DataSource for RecordBatch to allow direct use with plotting functions.
+/// This provides zero-copy access to Arrow arrays without converting to DataFrame first.
+impl crate::data::DataSource for RecordBatch {
+    fn get(&self, name: &str) -> Option<&dyn crate::data::GenericVector> {
+        let schema = self.schema();
+        let field_index = schema.fields().iter().position(|f| f.name() == name)?;
+        let column = self.column(field_index);
 
-    for (field, column) in batch.schema().fields().iter().zip(batch.columns()) {
-        let name = field.name();
-        let col_data = convert_array(column, field.data_type())?;
-        df.add_column(name, col_data);
-    }
+        // Return a reference to the array as a GenericVector
+        // We need to downcast to the concrete type to get the trait object
+        let data_type = schema.field(field_index).data_type();
 
-    Ok(df)
-}
-
-fn convert_array(
-    array: &ArrayRef,
-    data_type: &DataType,
-) -> Result<Box<dyn crate::data::GenericVector>, Box<dyn std::error::Error>> {
-    match data_type {
-        DataType::Int8 => {
-            let arr = array
-                .as_any()
-                .downcast_ref::<Int8Array>()
-                .ok_or("Failed to downcast to Int8Array")?;
-
-            let mut values = Vec::with_capacity(arr.len());
-            for i in 0..arr.len() {
-                if arr.is_null(i) {
-                    return Err("Null values not supported in Int8 columns".into());
-                }
-                values.push(arr.value(i) as i64);
-            }
-            Ok(Box::new(IntVec(values)))
-        }
-        DataType::Int16 => {
-            let arr = array
-                .as_any()
-                .downcast_ref::<Int16Array>()
-                .ok_or("Failed to downcast to Int16Array")?;
-
-            let mut values = Vec::with_capacity(arr.len());
-            for i in 0..arr.len() {
-                if arr.is_null(i) {
-                    return Err("Null values not supported in Int16 columns".into());
-                }
-                values.push(arr.value(i) as i64);
-            }
-            Ok(Box::new(IntVec(values)))
-        }
-        DataType::Int32 => {
-            let arr = array
-                .as_any()
-                .downcast_ref::<Int32Array>()
-                .ok_or("Failed to downcast to Int32Array")?;
-
-            let mut values = Vec::with_capacity(arr.len());
-            for i in 0..arr.len() {
-                if arr.is_null(i) {
-                    return Err("Null values not supported in Int32 columns".into());
-                }
-                values.push(arr.value(i) as i64);
-            }
-            Ok(Box::new(IntVec(values)))
-        }
-        DataType::Int64 => {
-            let arr = array
+        match data_type {
+            DataType::Int64 => column
                 .as_any()
                 .downcast_ref::<Int64Array>()
-                .ok_or("Failed to downcast to Int64Array")?;
-
-            let mut values = Vec::with_capacity(arr.len());
-            for i in 0..arr.len() {
-                if arr.is_null(i) {
-                    return Err("Null values not supported in Int64 columns".into());
-                }
-                values.push(arr.value(i));
-            }
-            Ok(Box::new(IntVec(values)))
-        }
-        DataType::UInt8 => {
-            let arr = array
+                .map(|arr| arr as &dyn crate::data::GenericVector),
+            DataType::Int8 => column
+                .as_any()
+                .downcast_ref::<Int8Array>()
+                .map(|arr| arr as &dyn crate::data::GenericVector),
+            DataType::Int16 => column
+                .as_any()
+                .downcast_ref::<Int16Array>()
+                .map(|arr| arr as &dyn crate::data::GenericVector),
+            DataType::Int32 => column
+                .as_any()
+                .downcast_ref::<Int32Array>()
+                .map(|arr| arr as &dyn crate::data::GenericVector),
+            DataType::UInt8 => column
                 .as_any()
                 .downcast_ref::<UInt8Array>()
-                .ok_or("Failed to downcast to UInt8Array")?;
-
-            let mut values = Vec::with_capacity(arr.len());
-            for i in 0..arr.len() {
-                if arr.is_null(i) {
-                    return Err("Null values not supported in UInt8 columns".into());
-                }
-                values.push(arr.value(i) as i64);
-            }
-            Ok(Box::new(IntVec(values)))
-        }
-        DataType::UInt16 => {
-            let arr = array
+                .map(|arr| arr as &dyn crate::data::GenericVector),
+            DataType::UInt16 => column
                 .as_any()
                 .downcast_ref::<UInt16Array>()
-                .ok_or("Failed to downcast to UInt16Array")?;
-
-            let mut values = Vec::with_capacity(arr.len());
-            for i in 0..arr.len() {
-                if arr.is_null(i) {
-                    return Err("Null values not supported in UInt16 columns".into());
-                }
-                values.push(arr.value(i) as i64);
-            }
-            Ok(Box::new(IntVec(values)))
-        }
-        DataType::UInt32 => {
-            let arr = array
+                .map(|arr| arr as &dyn crate::data::GenericVector),
+            DataType::UInt32 => column
                 .as_any()
                 .downcast_ref::<UInt32Array>()
-                .ok_or("Failed to downcast to UInt32Array")?;
-
-            let mut values = Vec::with_capacity(arr.len());
-            for i in 0..arr.len() {
-                if arr.is_null(i) {
-                    return Err("Null values not supported in UInt32 columns".into());
-                }
-                values.push(arr.value(i) as i64);
-            }
-            Ok(Box::new(IntVec(values)))
-        }
-        DataType::UInt64 => {
-            let arr = array
+                .map(|arr| arr as &dyn crate::data::GenericVector),
+            DataType::UInt64 => column
                 .as_any()
                 .downcast_ref::<UInt64Array>()
-                .ok_or("Failed to downcast to UInt64Array")?;
-
-            let mut values = Vec::with_capacity(arr.len());
-            for i in 0..arr.len() {
-                if arr.is_null(i) {
-                    return Err("Null values not supported in UInt64 columns".into());
-                }
-                // Note: UInt64 values > i64::MAX will wrap when cast to i64
-                values.push(arr.value(i) as i64);
-            }
-            Ok(Box::new(IntVec(values)))
-        }
-        DataType::Float32 => {
-            let arr = array
+                .map(|arr| arr as &dyn crate::data::GenericVector),
+            DataType::Float32 => column
                 .as_any()
                 .downcast_ref::<Float32Array>()
-                .ok_or("Failed to downcast to Float32Array")?;
-
-            let mut values = Vec::with_capacity(arr.len());
-            for i in 0..arr.len() {
-                if arr.is_null(i) {
-                    return Err("Null values not supported in Float32 columns".into());
-                }
-                values.push(arr.value(i) as f64);
-            }
-            Ok(Box::new(FloatVec(values)))
-        }
-        DataType::Float64 => {
-            let arr = array
+                .map(|arr| arr as &dyn crate::data::GenericVector),
+            DataType::Float64 => column
                 .as_any()
                 .downcast_ref::<Float64Array>()
-                .ok_or("Failed to downcast to Float64Array")?;
-
-            let mut values = Vec::with_capacity(arr.len());
-            for i in 0..arr.len() {
-                if arr.is_null(i) {
-                    return Err("Null values not supported in Float64 columns".into());
-                }
-                values.push(arr.value(i));
-            }
-            Ok(Box::new(FloatVec(values)))
-        }
-        DataType::Utf8 => {
-            let arr = array
+                .map(|arr| arr as &dyn crate::data::GenericVector),
+            DataType::Utf8 => column
                 .as_any()
                 .downcast_ref::<StringArray>()
-                .ok_or("Failed to downcast to StringArray")?;
-
-            let len = arrow::array::Array::len(arr);
-            let mut values = Vec::with_capacity(len);
-            for i in 0..len {
-                if arr.is_null(i) {
-                    return Err("Null values not supported in String columns".into());
-                }
-                values.push(arr.value(i).to_string());
-            }
-            Ok(Box::new(StrVec(values)))
-        }
-        DataType::LargeUtf8 => {
-            let arr = array
+                .map(|arr| arr as &dyn crate::data::GenericVector),
+            DataType::LargeUtf8 => column
                 .as_any()
                 .downcast_ref::<LargeStringArray>()
-                .ok_or("Failed to downcast to LargeStringArray")?;
-
-            let len = arrow::array::Array::len(arr);
-            let mut values = Vec::with_capacity(len);
-            for i in 0..len {
-                if arr.is_null(i) {
-                    return Err("Null values not supported in LargeString columns".into());
-                }
-                values.push(arr.value(i).to_string());
-            }
-            Ok(Box::new(StrVec(values)))
-        }
-        DataType::Utf8View => {
-            let arr = array
+                .map(|arr| arr as &dyn crate::data::GenericVector),
+            DataType::Utf8View => column
                 .as_any()
                 .downcast_ref::<StringViewArray>()
-                .ok_or("Failed to downcast to StringViewArray")?;
-
-            let len = arrow::array::Array::len(arr);
-            let mut values = Vec::with_capacity(len);
-            for i in 0..len {
-                if arr.is_null(i) {
-                    return Err("Null values not supported in StringView columns".into());
+                .map(|arr| arr as &dyn crate::data::GenericVector),
+            DataType::Dictionary(key_type, _value_type) => {
+                if matches!(key_type.as_ref(), DataType::Int32) {
+                    column
+                        .as_any()
+                        .downcast_ref::<DictionaryArray<Int32Type>>()
+                        .map(|arr| arr as &dyn crate::data::GenericVector)
+                } else {
+                    None
                 }
-                values.push(arr.value(i).to_string());
             }
-            Ok(Box::new(StrVec(values)))
+            _ => None,
         }
-        DataType::Dictionary(key_type, value_type) => {
-            // Handle dictionary-encoded columns
-            // Most common case is Int32 keys with String values
-            match (key_type.as_ref(), value_type.as_ref()) {
-                (DataType::Int32, DataType::Utf8) => {
-                    let dict_array = array
-                        .as_any()
-                        .downcast_ref::<DictionaryArray<Int32Type>>()
-                        .ok_or("Failed to downcast to DictionaryArray<Int32>")?;
+    }
 
-                    let values_array = dict_array
-                        .values()
-                        .as_any()
-                        .downcast_ref::<StringArray>()
-                        .ok_or("Failed to downcast dictionary values to StringArray")?;
+    fn column_names(&self) -> Vec<String> {
+        self.schema()
+            .fields()
+            .iter()
+            .map(|f| f.name().to_string())
+            .collect()
+    }
 
-                    let len = arrow::array::Array::len(dict_array);
-                    let mut values = Vec::with_capacity(len);
-                    for i in 0..len {
-                        if dict_array.is_null(i) {
-                            return Err("Null values not supported in Dictionary columns".into());
-                        }
-                        let key = dict_array.key(i).ok_or("Failed to get dictionary key")?;
-                        let value = values_array.value(key as usize);
-                        values.push(value.to_string());
-                    }
-                    Ok(Box::new(StrVec(values)))
-                }
-                (DataType::Int32, DataType::LargeUtf8) => {
-                    let dict_array = array
-                        .as_any()
-                        .downcast_ref::<DictionaryArray<Int32Type>>()
-                        .ok_or("Failed to downcast to DictionaryArray<Int32>")?;
+    fn len(&self) -> usize {
+        self.num_rows()
+    }
 
-                    let values_array = dict_array
-                        .values()
-                        .as_any()
-                        .downcast_ref::<LargeStringArray>()
-                        .ok_or("Failed to downcast dictionary values to LargeStringArray")?;
-
-                    let len = arrow::array::Array::len(dict_array);
-                    let mut values = Vec::with_capacity(len);
-                    for i in 0..len {
-                        if dict_array.is_null(i) {
-                            return Err("Null values not supported in Dictionary columns".into());
-                        }
-                        let key = dict_array.key(i).ok_or("Failed to get dictionary key")?;
-                        let value = values_array.value(key as usize);
-                        values.push(value.to_string());
-                    }
-                    Ok(Box::new(StrVec(values)))
-                }
-                (DataType::Int32, DataType::Utf8View) => {
-                    let dict_array = array
-                        .as_any()
-                        .downcast_ref::<DictionaryArray<Int32Type>>()
-                        .ok_or("Failed to downcast to DictionaryArray<Int32>")?;
-
-                    let values_array = dict_array
-                        .values()
-                        .as_any()
-                        .downcast_ref::<StringViewArray>()
-                        .ok_or("Failed to downcast dictionary values to StringViewArray")?;
-
-                    let len = arrow::array::Array::len(dict_array);
-                    let mut values = Vec::with_capacity(len);
-                    for i in 0..len {
-                        if dict_array.is_null(i) {
-                            return Err("Null values not supported in Dictionary columns".into());
-                        }
-                        let key = dict_array.key(i).ok_or("Failed to get dictionary key")?;
-                        let value = values_array.value(key as usize);
-                        values.push(value.to_string());
-                    }
-                    Ok(Box::new(StrVec(values)))
-                }
-                _ => Err(format!(
-                    "Unsupported dictionary type: key={:?}, value={:?}",
-                    key_type, value_type
-                )
-                .into()),
-            }
-        }
-        other => Err(format!("Unsupported data type: {:?}", other).into()),
+    fn clone_box(&self) -> Box<dyn crate::data::DataSource> {
+        Box::new(self.clone())
     }
 }
 
@@ -879,9 +673,9 @@ fn convert_array(
 mod tests {
     use super::*;
     use crate::data::DataSource;
-    use arrow::array::{Float64Array, Int64Array, StringArray};
+    use arrow::array::{ArrayRef, Float64Array, Int64Array, StringArray};
     use arrow::datatypes::{DataType, Field, Schema};
-    use datafusion::arrow::record_batch::RecordBatch;
+    use arrow::record_batch::RecordBatch;
     use std::sync::Arc;
 
     #[test]
@@ -891,10 +685,9 @@ mod tests {
         let int_array = Int8Array::from(vec![1_i8, 2, 3, -4, -5]);
         let batch = RecordBatch::try_new(schema, vec![Arc::new(int_array) as ArrayRef]).unwrap();
 
-        let df = record_batch_to_dataframe(&batch).unwrap();
-        assert_eq!(df.len(), 5);
+        assert_eq!(batch.len(), 5);
 
-        let col = df.get("x").unwrap();
+        let col = batch.get("x").unwrap();
         let int_iter = col.iter_int().unwrap();
         let values: Vec<i64> = int_iter.collect();
         assert_eq!(values, vec![1, 2, 3, -4, -5]);
@@ -907,10 +700,9 @@ mod tests {
         let int_array = Int16Array::from(vec![100_i16, 200, 300]);
         let batch = RecordBatch::try_new(schema, vec![Arc::new(int_array) as ArrayRef]).unwrap();
 
-        let df = record_batch_to_dataframe(&batch).unwrap();
-        assert_eq!(df.len(), 3);
+        assert_eq!(batch.len(), 3);
 
-        let col = df.get("x").unwrap();
+        let col = batch.get("x").unwrap();
         let int_iter = col.iter_int().unwrap();
         let values: Vec<i64> = int_iter.collect();
         assert_eq!(values, vec![100, 200, 300]);
@@ -923,10 +715,9 @@ mod tests {
         let int_array = Int32Array::from(vec![1000, 2000, 3000]);
         let batch = RecordBatch::try_new(schema, vec![Arc::new(int_array) as ArrayRef]).unwrap();
 
-        let df = record_batch_to_dataframe(&batch).unwrap();
-        assert_eq!(df.len(), 3);
+        assert_eq!(batch.len(), 3);
 
-        let col = df.get("x").unwrap();
+        let col = batch.get("x").unwrap();
         let int_iter = col.iter_int().unwrap();
         let values: Vec<i64> = int_iter.collect();
         assert_eq!(values, vec![1000, 2000, 3000]);
@@ -937,13 +728,11 @@ mod tests {
         let schema = Arc::new(Schema::new(vec![Field::new("x", DataType::Int64, false)]));
 
         let int_array = Int64Array::from(vec![1, 2, 3, 4, 5]);
-        let batch =
-            RecordBatch::try_new(schema, vec![Arc::new(int_array) as ArrayRef]).unwrap();
+        let batch = RecordBatch::try_new(schema, vec![Arc::new(int_array) as ArrayRef]).unwrap();
 
-        let df = record_batch_to_dataframe(&batch).unwrap();
-        assert_eq!(df.len(), 5);
+        assert_eq!(batch.len(), 5);
 
-        let col = df.get("x").unwrap();
+        let col = batch.get("x").unwrap();
         let int_iter = col.iter_int().unwrap();
         let values: Vec<i64> = int_iter.collect();
         assert_eq!(values, vec![1, 2, 3, 4, 5]);
@@ -956,10 +745,9 @@ mod tests {
         let int_array = UInt8Array::from(vec![10_u8, 20, 30, 255]);
         let batch = RecordBatch::try_new(schema, vec![Arc::new(int_array) as ArrayRef]).unwrap();
 
-        let df = record_batch_to_dataframe(&batch).unwrap();
-        assert_eq!(df.len(), 4);
+        assert_eq!(batch.len(), 4);
 
-        let col = df.get("x").unwrap();
+        let col = batch.get("x").unwrap();
         let int_iter = col.iter_int().unwrap();
         let values: Vec<i64> = int_iter.collect();
         assert_eq!(values, vec![10, 20, 30, 255]);
@@ -972,10 +760,9 @@ mod tests {
         let int_array = UInt16Array::from(vec![1000_u16, 2000, 3000]);
         let batch = RecordBatch::try_new(schema, vec![Arc::new(int_array) as ArrayRef]).unwrap();
 
-        let df = record_batch_to_dataframe(&batch).unwrap();
-        assert_eq!(df.len(), 3);
+        assert_eq!(batch.len(), 3);
 
-        let col = df.get("x").unwrap();
+        let col = batch.get("x").unwrap();
         let int_iter = col.iter_int().unwrap();
         let values: Vec<i64> = int_iter.collect();
         assert_eq!(values, vec![1000, 2000, 3000]);
@@ -988,10 +775,9 @@ mod tests {
         let int_array = UInt32Array::from(vec![100000_u32, 200000, 300000]);
         let batch = RecordBatch::try_new(schema, vec![Arc::new(int_array) as ArrayRef]).unwrap();
 
-        let df = record_batch_to_dataframe(&batch).unwrap();
-        assert_eq!(df.len(), 3);
+        assert_eq!(batch.len(), 3);
 
-        let col = df.get("x").unwrap();
+        let col = batch.get("x").unwrap();
         let int_iter = col.iter_int().unwrap();
         let values: Vec<i64> = int_iter.collect();
         assert_eq!(values, vec![100000, 200000, 300000]);
@@ -1004,10 +790,9 @@ mod tests {
         let int_array = UInt64Array::from(vec![1000000_u64, 2000000, 3000000]);
         let batch = RecordBatch::try_new(schema, vec![Arc::new(int_array) as ArrayRef]).unwrap();
 
-        let df = record_batch_to_dataframe(&batch).unwrap();
-        assert_eq!(df.len(), 3);
+        assert_eq!(batch.len(), 3);
 
-        let col = df.get("x").unwrap();
+        let col = batch.get("x").unwrap();
         let int_iter = col.iter_int().unwrap();
         let values: Vec<i64> = int_iter.collect();
         assert_eq!(values, vec![1000000, 2000000, 3000000]);
@@ -1038,43 +823,37 @@ mod tests {
         )
         .unwrap();
 
-        let df = record_batch_to_dataframe(&batch).unwrap();
-        assert_eq!(df.len(), 3);
-        assert_eq!(df.column_names().len(), 4);
+        assert_eq!(batch.len(), 3);
+        assert_eq!(batch.column_names().len(), 4);
 
         // Verify all columns are present and have correct values
-        let int8_col = df.get("int8").unwrap();
+        let int8_col = batch.get("int8").unwrap();
         let int8_values: Vec<i64> = int8_col.iter_int().unwrap().collect();
         assert_eq!(int8_values, vec![1, 2, 3]);
 
-        let int16_col = df.get("int16").unwrap();
+        let int16_col = batch.get("int16").unwrap();
         let int16_values: Vec<i64> = int16_col.iter_int().unwrap().collect();
         assert_eq!(int16_values, vec![100, 200, 300]);
 
-        let int32_col = df.get("int32").unwrap();
+        let int32_col = batch.get("int32").unwrap();
         let int32_values: Vec<i64> = int32_col.iter_int().unwrap().collect();
         assert_eq!(int32_values, vec![1000, 2000, 3000]);
 
-        let uint8_col = df.get("uint8").unwrap();
+        let uint8_col = batch.get("uint8").unwrap();
         let uint8_values: Vec<i64> = uint8_col.iter_int().unwrap().collect();
         assert_eq!(uint8_values, vec![10, 20, 30]);
     }
 
     #[test]
     fn test_convert_float32_column() {
-        let schema = Arc::new(Schema::new(vec![Field::new(
-            "y",
-            DataType::Float32,
-            false,
-        )]));
+        let schema = Arc::new(Schema::new(vec![Field::new("y", DataType::Float32, false)]));
 
         let float_array = Float32Array::from(vec![1.5_f32, 2.5, 3.5]);
         let batch = RecordBatch::try_new(schema, vec![Arc::new(float_array) as ArrayRef]).unwrap();
 
-        let df = record_batch_to_dataframe(&batch).unwrap();
-        assert_eq!(df.len(), 3);
+        assert_eq!(batch.len(), 3);
 
-        let col = df.get("y").unwrap();
+        let col = batch.get("y").unwrap();
         let float_iter = col.iter_float().unwrap();
         let values: Vec<f64> = float_iter.collect();
         assert_eq!(values, vec![1.5, 2.5, 3.5]);
@@ -1082,20 +861,14 @@ mod tests {
 
     #[test]
     fn test_convert_float64_column() {
-        let schema = Arc::new(Schema::new(vec![Field::new(
-            "y",
-            DataType::Float64,
-            false,
-        )]));
+        let schema = Arc::new(Schema::new(vec![Field::new("y", DataType::Float64, false)]));
 
         let float_array = Float64Array::from(vec![1.5, 2.5, 3.5]);
-        let batch =
-            RecordBatch::try_new(schema, vec![Arc::new(float_array) as ArrayRef]).unwrap();
+        let batch = RecordBatch::try_new(schema, vec![Arc::new(float_array) as ArrayRef]).unwrap();
 
-        let df = record_batch_to_dataframe(&batch).unwrap();
-        assert_eq!(df.len(), 3);
+        assert_eq!(batch.len(), 3);
 
-        let col = df.get("y").unwrap();
+        let col = batch.get("y").unwrap();
         let float_iter = col.iter_float().unwrap();
         let values: Vec<f64> = float_iter.collect();
         assert_eq!(values, vec![1.5, 2.5, 3.5]);
@@ -1103,16 +876,18 @@ mod tests {
 
     #[test]
     fn test_convert_string_column() {
-        let schema = Arc::new(Schema::new(vec![Field::new("label", DataType::Utf8, false)]));
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "label",
+            DataType::Utf8,
+            false,
+        )]));
 
         let string_array = StringArray::from(vec!["a", "b", "c"]);
-        let batch =
-            RecordBatch::try_new(schema, vec![Arc::new(string_array) as ArrayRef]).unwrap();
+        let batch = RecordBatch::try_new(schema, vec![Arc::new(string_array) as ArrayRef]).unwrap();
 
-        let df = record_batch_to_dataframe(&batch).unwrap();
-        assert_eq!(df.len(), 3);
+        assert_eq!(batch.len(), 3);
 
-        let col = df.get("label").unwrap();
+        let col = batch.get("label").unwrap();
         let str_iter = col.iter_str().unwrap();
         let values: Vec<String> = str_iter.map(|s| s.to_string()).collect();
         assert_eq!(values, vec!["a", "b", "c"]);
@@ -1140,33 +915,32 @@ mod tests {
         )
         .unwrap();
 
-        let df = record_batch_to_dataframe(&batch).unwrap();
-        assert_eq!(df.len(), 3);
-        assert_eq!(df.column_names().len(), 3);
+        assert_eq!(batch.len(), 3);
+        assert_eq!(batch.column_names().len(), 3);
 
         // Verify all columns are present
-        assert!(df.get("x").is_some());
-        assert!(df.get("y").is_some());
-        assert!(df.get("label").is_some());
+        assert!(batch.get("x").is_some());
+        assert!(batch.get("y").is_some());
+        assert!(batch.get("label").is_some());
     }
 
     #[test]
     fn test_string_array_str_vector_trait() {
         // Test that StringArray implements StrVector correctly
         use crate::data::StrVector;
-        
+
         let string_array = StringArray::from(vec!["hello", "world", "test"]);
-        
+
         // Test GAT iterator using explicit trait call
         let values: Vec<&str> = StrVector::iter(&string_array).collect();
         assert_eq!(values, vec!["hello", "world", "test"]);
-        
+
         // Test that iterator is ExactSizeIterator
         let mut iter = StrVector::iter(&string_array);
         assert_eq!(iter.len(), 3);
         iter.next();
         assert_eq!(iter.len(), 2);
-        
+
         // Test iter_str() from GenericVector
         let str_iter = string_array.iter_str().unwrap();
         let values2: Vec<&str> = str_iter.collect();
@@ -1177,13 +951,13 @@ mod tests {
     fn test_large_string_array_str_vector_trait() {
         // Test that LargeStringArray implements StrVector correctly
         use crate::data::StrVector;
-        
+
         let large_string_array = LargeStringArray::from(vec!["foo", "bar", "baz"]);
-        
+
         // Test GAT iterator
         let values: Vec<&str> = StrVector::iter(&large_string_array).collect();
         assert_eq!(values, vec!["foo", "bar", "baz"]);
-        
+
         // Test iter_str() from GenericVector
         let str_iter = large_string_array.iter_str().unwrap();
         let values2: Vec<&str> = str_iter.collect();
@@ -1194,13 +968,13 @@ mod tests {
     fn test_string_view_array_str_vector_trait() {
         // Test that StringViewArray implements StrVector correctly
         use crate::data::StrVector;
-        
+
         let string_view_array = StringViewArray::from(vec!["alpha", "beta", "gamma"]);
-        
+
         // Test GAT iterator
         let values: Vec<&str> = StrVector::iter(&string_view_array).collect();
         assert_eq!(values, vec!["alpha", "beta", "gamma"]);
-        
+
         // Test iter_str() from GenericVector
         let str_iter = string_view_array.iter_str().unwrap();
         let values2: Vec<&str> = str_iter.collect();
@@ -1216,13 +990,12 @@ mod tests {
         )]));
 
         let large_string_array = LargeStringArray::from(vec!["x", "y", "z"]);
-        let batch = RecordBatch::try_new(schema, vec![Arc::new(large_string_array) as ArrayRef])
-            .unwrap();
+        let batch =
+            RecordBatch::try_new(schema, vec![Arc::new(large_string_array) as ArrayRef]).unwrap();
 
-        let df = record_batch_to_dataframe(&batch).unwrap();
-        assert_eq!(df.len(), 3);
+        assert_eq!(batch.len(), 3);
 
-        let col = df.get("label").unwrap();
+        let col = batch.get("label").unwrap();
         let str_iter = col.iter_str().unwrap();
         let values: Vec<String> = str_iter.map(|s| s.to_string()).collect();
         assert_eq!(values, vec!["x", "y", "z"]);
@@ -1237,13 +1010,12 @@ mod tests {
         )]));
 
         let string_view_array = StringViewArray::from(vec!["one", "two", "three"]);
-        let batch = RecordBatch::try_new(schema, vec![Arc::new(string_view_array) as ArrayRef])
-            .unwrap();
+        let batch =
+            RecordBatch::try_new(schema, vec![Arc::new(string_view_array) as ArrayRef]).unwrap();
 
-        let df = record_batch_to_dataframe(&batch).unwrap();
-        assert_eq!(df.len(), 3);
+        assert_eq!(batch.len(), 3);
 
-        let col = df.get("label").unwrap();
+        let col = batch.get("label").unwrap();
         let str_iter = col.iter_str().unwrap();
         let values: Vec<String> = str_iter.map(|s| s.to_string()).collect();
         assert_eq!(values, vec!["one", "two", "three"]);
@@ -1267,16 +1039,12 @@ mod tests {
 
         let batch = RecordBatch::try_new(schema, vec![Arc::new(dict_array) as ArrayRef]).unwrap();
 
-        let df = record_batch_to_dataframe(&batch).unwrap();
-        assert_eq!(df.len(), 5);
+        assert_eq!(batch.len(), 5);
 
-        let col = df.get("category").unwrap();
+        let col = batch.get("category").unwrap();
         let str_iter = col.iter_str().unwrap();
         let values_vec: Vec<String> = str_iter.map(|s| s.to_string()).collect();
-        assert_eq!(
-            values_vec,
-            vec!["red", "green", "red", "blue", "green"]
-        );
+        assert_eq!(values_vec, vec!["red", "green", "red", "blue", "green"]);
     }
 
     #[test]
@@ -1295,10 +1063,9 @@ mod tests {
 
         let batch = RecordBatch::try_new(schema, vec![Arc::new(dict_array) as ArrayRef]).unwrap();
 
-        let df = record_batch_to_dataframe(&batch).unwrap();
-        assert_eq!(df.len(), 3);
+        assert_eq!(batch.len(), 3);
 
-        let col = df.get("category").unwrap();
+        let col = batch.get("category").unwrap();
         let str_iter = col.iter_str().unwrap();
         let values_vec: Vec<String> = str_iter.map(|s| s.to_string()).collect();
         assert_eq!(values_vec, vec!["alpha", "beta", "gamma"]);
@@ -1320,10 +1087,9 @@ mod tests {
 
         let batch = RecordBatch::try_new(schema, vec![Arc::new(dict_array) as ArrayRef]).unwrap();
 
-        let df = record_batch_to_dataframe(&batch).unwrap();
-        assert_eq!(df.len(), 5);
+        assert_eq!(batch.len(), 5);
 
-        let col = df.get("category").unwrap();
+        let col = batch.get("category").unwrap();
         let str_iter = col.iter_str().unwrap();
         let values_vec: Vec<String> = str_iter.map(|s| s.to_string()).collect();
         assert_eq!(values_vec, vec!["bar", "foo", "bar", "baz", "foo"]);
@@ -1359,19 +1125,75 @@ mod tests {
         )
         .unwrap();
 
-        let df = record_batch_to_dataframe(&batch).unwrap();
-        assert_eq!(df.len(), 3);
-        assert_eq!(df.column_names().len(), 3);
+        assert_eq!(batch.len(), 3);
+        assert_eq!(batch.column_names().len(), 3);
 
         // Verify all columns
-        assert!(df.get("x").is_some());
-        assert!(df.get("category").is_some());
-        assert!(df.get("y").is_some());
+        assert!(batch.get("x").is_some());
+        assert!(batch.get("category").is_some());
+        assert!(batch.get("y").is_some());
 
         // Check dictionary values
-        let col = df.get("category").unwrap();
+        let col = batch.get("category").unwrap();
         let str_iter = col.iter_str().unwrap();
         let values_vec: Vec<String> = str_iter.map(|s| s.to_string()).collect();
         assert_eq!(values_vec, vec!["A", "B", "A"]);
+    }
+
+    #[test]
+    fn test_record_batch_as_datasource() {
+        // Test that RecordBatch implements DataSource directly
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("x", DataType::Int64, false),
+            Field::new("y", DataType::Float64, false),
+            Field::new("label", DataType::Utf8, false),
+        ]));
+
+        let int_array = Int64Array::from(vec![1, 2, 3, 4]);
+        let float_array = Float64Array::from(vec![1.5, 2.5, 3.5, 4.5]);
+        let string_array = StringArray::from(vec!["a", "b", "c", "d"]);
+
+        let batch = RecordBatch::try_new(
+            schema,
+            vec![
+                Arc::new(int_array) as ArrayRef,
+                Arc::new(float_array) as ArrayRef,
+                Arc::new(string_array) as ArrayRef,
+            ],
+        )
+        .unwrap();
+
+        // Test DataSource methods
+        assert_eq!(batch.len(), 4);
+        assert!(!batch.is_empty());
+        assert_eq!(batch.column_names().len(), 3);
+        assert!(batch.column_names().contains(&"x".to_string()));
+        assert!(batch.column_names().contains(&"y".to_string()));
+        assert!(batch.column_names().contains(&"label".to_string()));
+
+        // Test getting integer column
+        let x_col = batch.get("x").unwrap();
+        assert_eq!(x_col.len(), 4);
+        let x_values: Vec<i64> = x_col.iter_int().unwrap().collect();
+        assert_eq!(x_values, vec![1, 2, 3, 4]);
+
+        // Test getting float column
+        let y_col = batch.get("y").unwrap();
+        assert_eq!(y_col.len(), 4);
+        let y_values: Vec<f64> = y_col.iter_float().unwrap().collect();
+        assert_eq!(y_values, vec![1.5, 2.5, 3.5, 4.5]);
+
+        // Test getting string column
+        let label_col = batch.get("label").unwrap();
+        assert_eq!(label_col.len(), 4);
+        let label_values: Vec<String> = label_col
+            .iter_str()
+            .unwrap()
+            .map(|s| s.to_string())
+            .collect();
+        assert_eq!(label_values, vec!["a", "b", "c", "d"]);
+
+        // Test getting non-existent column
+        assert!(batch.get("nonexistent").is_none());
     }
 }

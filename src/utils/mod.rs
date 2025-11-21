@@ -1,4 +1,4 @@
 pub mod dataframe;
 
-#[cfg(feature = "datafusion")]
+#[cfg(feature = "arrow")]
 pub mod datafusion;
