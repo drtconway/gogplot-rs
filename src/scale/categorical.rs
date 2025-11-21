@@ -92,8 +92,19 @@ impl ScaleBase for Catagorical {
 
         for vec in data {
             if let Some(str_iter) = vec.iter_str() {
+                // String data - use directly
                 for s in str_iter {
                     all_categories.insert(s.to_string());
+                }
+            } else if let Some(int_iter) = vec.iter_int() {
+                // Integer data - convert to strings for categorical use
+                for i in int_iter {
+                    all_categories.insert(i.to_string());
+                }
+            } else if let Some(float_iter) = vec.iter_float() {
+                // Float data - convert to strings for categorical use
+                for f in float_iter {
+                    all_categories.insert(f.to_string());
                 }
             }
         }

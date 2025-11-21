@@ -62,6 +62,7 @@ impl Aesthetic {
 #[derive(Debug, Clone, PartialEq)]
 pub enum AesValue {
     Column(String), // Column name from data
+    CategoricalColumn(String), // Column name that should be treated as categorical even if numeric
     Constant(PrimitiveValue), // Fixed value
                     // Computed?
 }
@@ -70,6 +71,27 @@ impl AesValue {
     /// Create a Column variant from a string-like value
     pub fn column(name: impl Into<String>) -> Self {
         AesValue::Column(name.into())
+    }
+
+    /// Create a CategoricalColumn variant from a string-like value.
+    /// Use this when you want to treat a numeric column as categorical.
+    pub fn categorical(name: impl Into<String>) -> Self {
+        AesValue::CategoricalColumn(name.into())
+    }
+
+    /// Extract the column name from Column or CategoricalColumn variants.
+    /// Returns None for Constant values.
+    pub fn as_column_name(&self) -> Option<&str> {
+        match self {
+            AesValue::Column(name) | AesValue::CategoricalColumn(name) => Some(name.as_str()),
+            AesValue::Constant(_) => None,
+        }
+    }
+
+    /// Returns true if this value represents a categorical column
+    /// (either explicitly marked as categorical, or will be treated as categorical)
+    pub fn is_categorical(&self) -> bool {
+        matches!(self, AesValue::CategoricalColumn(_))
     }
 }
 
@@ -136,6 +158,30 @@ impl AesMap {
     }
     pub fn linetype(&mut self, column: impl Into<String>) {
         self.set_to_column(Aesthetic::Linetype, column);
+    }
+
+    // Convenience methods for categorical column mappings
+    // Use these when you want to treat a numeric column as categorical
+    pub fn x_categorical(&mut self, column: impl Into<String>) {
+        self.set(Aesthetic::X, AesValue::categorical(column));
+    }
+    pub fn y_categorical(&mut self, column: impl Into<String>) {
+        self.set(Aesthetic::Y, AesValue::categorical(column));
+    }
+    pub fn color_categorical(&mut self, column: impl Into<String>) {
+        self.set(Aesthetic::Color, AesValue::categorical(column));
+    }
+    pub fn fill_categorical(&mut self, column: impl Into<String>) {
+        self.set(Aesthetic::Fill, AesValue::categorical(column));
+    }
+    pub fn shape_categorical(&mut self, column: impl Into<String>) {
+        self.set(Aesthetic::Shape, AesValue::categorical(column));
+    }
+    pub fn group_categorical(&mut self, column: impl Into<String>) {
+        self.set(Aesthetic::Group, AesValue::categorical(column));
+    }
+    pub fn linetype_categorical(&mut self, column: impl Into<String>) {
+        self.set(Aesthetic::Linetype, AesValue::categorical(column));
     }
 
     // Convenience methods for constant value mappings

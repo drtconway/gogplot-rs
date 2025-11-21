@@ -46,10 +46,29 @@ impl ScaleBase for DiscreteColor {
 
         for vec in data {
             if let Some(strings) = vec.iter_str() {
+                // String data
                 for s in strings {
                     if !seen.contains(s) {
                         categories.push(s.to_string());
                         seen.insert(s.to_string());
+                    }
+                }
+            } else if let Some(ints) = vec.iter_int() {
+                // Integer data - convert to strings for categorical treatment
+                for i in ints {
+                    let s = i.to_string();
+                    if !seen.contains(&s) {
+                        categories.push(s.clone());
+                        seen.insert(s);
+                    }
+                }
+            } else if let Some(floats) = vec.iter_float() {
+                // Float data - convert to strings for categorical treatment
+                for f in floats {
+                    let s = f.to_string();
+                    if !seen.contains(&s) {
+                        categories.push(s.clone());
+                        seen.insert(s);
                     }
                 }
             }

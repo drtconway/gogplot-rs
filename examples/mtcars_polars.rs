@@ -38,18 +38,11 @@ mod example {
         // Plot 2: MPG vs Weight colored by cylinder count
         println!("\nCreating colored scatter plot: MPG vs Weight by Cylinders...");
         
-        // Convert cylinder count to string for categorical coloring
-        let df_with_cyl_str = df
-            .clone()
-            .lazy()
-            .with_column(col("cyl").cast(DataType::String).alias("cyl_str"))
-            .collect()?;
-        
-        let plot2 = Plot::new(Some(Box::new(df_with_cyl_str)))
+        let plot2 = Plot::new(Some(Box::new(df.clone())))
             .aes(|a| {
                 a.x("wt");
                 a.y("mpg");
-                a.color("cyl_str");
+                a.color_categorical("cyl"); // Treat numeric cyl as categorical
             })
             .geom_point_with(|geom| geom.size(6.0))
             .title("Fuel Efficiency vs Weight by Cylinder Count");
@@ -73,19 +66,18 @@ mod example {
         // Plot 4: Bar chart of average MPG by cylinder count
         println!("\nCreating bar chart: Average MPG by Cylinder Count...");
         
-        // Calculate average MPG by cylinder count and convert cyl to string for categorical plotting
+        // Calculate average MPG by cylinder count
         let mpg_by_cyl = df
             .clone()
             .lazy()
             .group_by([col("cyl")])
             .agg([col("mpg").mean().alias("avg_mpg")])
             .sort(["cyl"], Default::default())
-            .with_column(col("cyl").cast(DataType::String).alias("cyl_str"))
             .collect()?;
 
         let plot4 = Plot::new(Some(Box::new(mpg_by_cyl)))
             .aes(|a| {
-                a.x("cyl_str");
+                a.x_categorical("cyl"); // Treat numeric cyl as categorical for x-axis
                 a.y("avg_mpg");
             })
             .geom_bar_with(|geom| geom.stat(Stat::Identity))

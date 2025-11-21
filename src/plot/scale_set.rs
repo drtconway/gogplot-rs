@@ -50,17 +50,17 @@ impl ScaleSet {
                 let mapping = layer.computed_mapping.as_ref().unwrap_or(&layer.mapping);
                 
                 // Find the first x-like aesthetic that's mapped to a column
-                let col_name = mapping.iter().find_map(|(aes, value)| {
+                let col_info = mapping.iter().find_map(|(aes, value)| {
                     if aes.is_x_like() {
-                        if let AesValue::Column(name) = value {
-                            return Some(name);
+                        if let Some(name) = value.as_column_name() {
+                            return Some((name, value.is_categorical()));
                         }
                     }
                     None
                 });
 
-                if let Some(col_name) = col_name {
-                    // Check if this column is categorical (string type)
+                if let Some((col_name, force_categorical)) = col_info {
+                    // Check if this column is categorical (explicitly marked or string type)
                     let data = if let Some(ref computed) = layer.computed_data {
                         Some(computed.as_ref())
                     } else {
@@ -70,7 +70,7 @@ impl ScaleSet {
                         }
                     };
 
-                    let is_categorical = data
+                    let is_categorical = force_categorical || data
                         .and_then(|d| d.get(col_name))
                         .map(|col| col.iter_str().is_some())
                         .unwrap_or(false);
@@ -89,7 +89,7 @@ impl ScaleSet {
 
                     // Set default axis title if not already set
                     if x_axis_title.is_none() {
-                        *x_axis_title = Some(col_name.clone());
+                        *x_axis_title = Some(col_name.to_string());
                     }
                 }
             }
@@ -100,17 +100,17 @@ impl ScaleSet {
                 let mapping = layer.computed_mapping.as_ref().unwrap_or(&layer.mapping);
                 
                 // Find the first y-like aesthetic that's mapped to a column
-                let col_name = mapping.iter().find_map(|(aes, value)| {
+                let col_info = mapping.iter().find_map(|(aes, value)| {
                     if aes.is_y_like() {
-                        if let AesValue::Column(name) = value {
-                            return Some(name);
+                        if let Some(name) = value.as_column_name() {
+                            return Some((name, value.is_categorical()));
                         }
                     }
                     None
                 });
 
-                if let Some(col_name) = col_name {
-                    // Check if this column is categorical (string type)
+                if let Some((col_name, force_categorical)) = col_info {
+                    // Check if this column is categorical (explicitly marked or string type)
                     let data = if let Some(ref computed) = layer.computed_data {
                         Some(computed.as_ref())
                     } else {
@@ -120,7 +120,7 @@ impl ScaleSet {
                         }
                     };
 
-                    let is_categorical = data
+                    let is_categorical = force_categorical || data
                         .and_then(|d| d.get(col_name))
                         .map(|col| col.iter_str().is_some())
                         .unwrap_or(false);
@@ -139,14 +139,14 @@ impl ScaleSet {
 
                     // Set default axis title if not already set
                     if y_axis_title.is_none() {
-                        *y_axis_title = Some(col_name.clone());
+                        *y_axis_title = Some(col_name.to_string());
                     }
                 }
             }
 
             // Color scale
             if self.color.is_none() {
-                if let Some(AesValue::Column(_)) = layer.mapping.get(&Aesthetic::Color) {
+                if matches!(layer.mapping.get(&Aesthetic::Color), Some(AesValue::Column(_) | AesValue::CategoricalColumn(_))) {
                     // Create default discrete color scale
                     self.color = Some(Box::new(DiscreteColor::default_palette()));
                 }
@@ -154,7 +154,7 @@ impl ScaleSet {
 
             // Fill scale
             if self.fill.is_none() {
-                if let Some(AesValue::Column(_)) = layer.mapping.get(&Aesthetic::Fill) {
+                if matches!(layer.mapping.get(&Aesthetic::Fill), Some(AesValue::Column(_) | AesValue::CategoricalColumn(_))) {
                     // Create default discrete color scale for fill
                     self.fill = Some(Box::new(DiscreteColor::default_palette()));
                 }
@@ -162,7 +162,7 @@ impl ScaleSet {
 
             // Shape scale
             if self.shape.is_none() {
-                if let Some(AesValue::Column(_)) = layer.mapping.get(&Aesthetic::Shape) {
+                if matches!(layer.mapping.get(&Aesthetic::Shape), Some(AesValue::Column(_) | AesValue::CategoricalColumn(_))) {
                     // Create default discrete shape scale
                     self.shape = Some(Box::new(DiscreteShape::default_shapes()));
                 }
@@ -170,7 +170,7 @@ impl ScaleSet {
 
             // Size scale
             if self.size.is_none() {
-                if let Some(AesValue::Column(_)) = layer.mapping.get(&Aesthetic::Size) {
+                if matches!(layer.mapping.get(&Aesthetic::Size), Some(AesValue::Column(_) | AesValue::CategoricalColumn(_))) {
                     // Create default linear scale for size
                     if let Ok(scale) = Continuous::new().linear() {
                         self.size = Some(Box::new(scale));
@@ -180,7 +180,7 @@ impl ScaleSet {
 
             // Alpha scale
             if self.alpha.is_none() {
-                if let Some(AesValue::Column(_)) = layer.mapping.get(&Aesthetic::Alpha) {
+                if matches!(layer.mapping.get(&Aesthetic::Alpha), Some(AesValue::Column(_) | AesValue::CategoricalColumn(_))) {
                     // Create default linear scale for alpha
                     if let Ok(scale) = Continuous::new().linear() {
                         self.alpha = Some(Box::new(scale));
@@ -214,7 +214,7 @@ impl ScaleSet {
             let mut x_vecs = Vec::new();
             for (aes, aes_value) in mapping.iter() {
                 if aes.is_x_like() {
-                    if let AesValue::Column(col_name) = aes_value {
+                    if let Some(col_name) = aes_value.as_column_name() {
                         if let Some(vec) = data.get(col_name) {
                             x_vecs.push(vec);
                         }
@@ -233,7 +233,7 @@ impl ScaleSet {
             let mut y_vecs = Vec::new();
             for (aes, aes_value) in mapping.iter() {
                 if aes.is_y_like() {
-                    if let AesValue::Column(col_name) = aes_value {
+                    if let Some(col_name) = aes_value.as_column_name() {
                         if let Some(vec) = data.get(col_name) {
                             y_vecs.push(vec);
                         }
@@ -249,7 +249,7 @@ impl ScaleSet {
             }
 
             // Train color scale
-            if let Some(AesValue::Column(col_name)) = mapping.get(&Aesthetic::Color) {
+            if let Some(col_name) = mapping.get(&Aesthetic::Color).and_then(|v| v.as_column_name()) {
                 if let Some(ref mut scale) = self.color {
                     if let Some(vec) = data.get(col_name) {
                         scale.train(&[vec]);
@@ -258,7 +258,7 @@ impl ScaleSet {
             }
 
             // Train fill scale
-            if let Some(AesValue::Column(col_name)) = mapping.get(&Aesthetic::Fill) {
+            if let Some(col_name) = mapping.get(&Aesthetic::Fill).and_then(|v| v.as_column_name()) {
                 if let Some(ref mut scale) = self.fill {
                     if let Some(vec) = data.get(col_name) {
                         scale.train(&[vec]);
@@ -267,7 +267,7 @@ impl ScaleSet {
             }
 
             // Train shape scale
-            if let Some(AesValue::Column(col_name)) = mapping.get(&Aesthetic::Shape) {
+            if let Some(col_name) = mapping.get(&Aesthetic::Shape).and_then(|v| v.as_column_name()) {
                 if let Some(ref mut scale) = self.shape {
                     if let Some(vec) = data.get(col_name) {
                         scale.train(&[vec]);
@@ -276,7 +276,7 @@ impl ScaleSet {
             }
 
             // Train size scale
-            if let Some(AesValue::Column(col_name)) = mapping.get(&Aesthetic::Size) {
+            if let Some(col_name) = mapping.get(&Aesthetic::Size).and_then(|v| v.as_column_name()) {
                 if let Some(ref mut scale) = self.size {
                     if let Some(vec) = data.get(col_name) {
                         scale.train(&[vec]);
@@ -285,7 +285,7 @@ impl ScaleSet {
             }
 
             // Train alpha scale
-            if let Some(AesValue::Column(col_name)) = mapping.get(&Aesthetic::Alpha) {
+            if let Some(col_name) = mapping.get(&Aesthetic::Alpha).and_then(|v| v.as_column_name()) {
                 if let Some(ref mut scale) = self.alpha {
                     if let Some(vec) = data.get(col_name) {
                         scale.train(&[vec]);
