@@ -162,7 +162,7 @@ impl<'a> RenderContext<'a> {
     pub fn get_aesthetic_values(
         &self,
         aesthetic: Aesthetic,
-        scale: Option<&Box<dyn ContinuousScale>>,
+        scale: Option<&dyn ContinuousScale>,
     ) -> Result<AestheticValues<'a>, PlotError> {
         use crate::aesthetics::AesValue;
         use crate::data::PrimitiveValue;
@@ -580,7 +580,7 @@ impl<'a> RenderContext<'a> {
     pub fn get_scaled_values(
         &self,
         aesthetic: Aesthetic,
-        scale: Option<&Box<dyn ContinuousScale>>,
+        scale: Option<&dyn ContinuousScale>,
     ) -> Result<Vec<f64>, PlotError> {
         // Get the aesthetic mapping
         let mapping = self

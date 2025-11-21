@@ -152,7 +152,7 @@ impl Geom for GeomHLine {
         // Draw horizontal line(s) across the full width of the plot
         for y_data in y_values {
             // Map y value to visual coordinates
-            if let Some(y_normalized) = ctx.scales.y.as_ref().and_then(|s| s.map_value(y_data)) {
+            if let Some(y_normalized) = ctx.scales.y.as_deref().and_then(|s| s.map_value(y_data)) {
                 let y_visual = ctx.map_y(y_normalized);
 
                 // Draw line from left to right edge of plot area

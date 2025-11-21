@@ -163,7 +163,7 @@ impl Geom for GeomDensity {
             .ok_or_else(|| PlotError::invalid_column_type("density", "numeric"))?;
 
         // Normalize using scales
-        let x_vals: Vec<f64> = if let Some(x_scale) = ctx.scales.x.as_ref() {
+        let x_vals: Vec<f64> = if let Some(x_scale) = ctx.scales.x.as_deref() {
             x_float
                 .iter()
                 .filter_map(|&x| x_scale.map_value(x))
@@ -172,7 +172,7 @@ impl Geom for GeomDensity {
             x_float.iter().copied().collect()
         };
 
-        let y_vals: Vec<f64> = if let Some(y_scale) = ctx.scales.y.as_ref() {
+        let y_vals: Vec<f64> = if let Some(y_scale) = ctx.scales.y.as_deref() {
             y_float
                 .iter()
                 .filter_map(|&y| y_scale.map_value(y))

@@ -243,19 +243,19 @@ impl Geom for GeomBar {
         let has_ymin_ymax = ctx.data.get("ymin").is_some() && ctx.data.get("ymax").is_some();
 
         // Get aesthetic values
-        let x_normalized = ctx.get_aesthetic_values(Aesthetic::X, ctx.scales.x.as_ref())?;
+        let x_normalized = ctx.get_aesthetic_values(Aesthetic::X, ctx.scales.x.as_deref())?;
         
         let (ymin_normalized, ymax_normalized) = if has_ymin_ymax {
             // Use Ymin/Ymax for stacked bars
-            let ymin = ctx.get_aesthetic_values(Aesthetic::Ymin, ctx.scales.y.as_ref())?;
-            let ymax = ctx.get_aesthetic_values(Aesthetic::Ymax, ctx.scales.y.as_ref())?;
+            let ymin = ctx.get_aesthetic_values(Aesthetic::Ymin, ctx.scales.y.as_deref())?;
+            let ymax = ctx.get_aesthetic_values(Aesthetic::Ymax, ctx.scales.y.as_deref())?;
             (Some(ymin), Some(ymax))
         } else {
             (None, None)
         };
         
         let y_normalized = if !has_ymin_ymax {
-            Some(ctx.get_aesthetic_values(Aesthetic::Y, ctx.scales.y.as_ref())?)
+            Some(ctx.get_aesthetic_values(Aesthetic::Y, ctx.scales.y.as_deref())?)
         } else {
             None
         };
@@ -304,7 +304,7 @@ impl Geom for GeomBar {
         };
 
         // Get y=0 in normalized coordinates (for non-stacked bars)
-        let zero_normalized = if let Some(y_scale) = ctx.scales.y.as_ref() {
+        let zero_normalized = if let Some(y_scale) = ctx.scales.y.as_deref() {
             y_scale.map_value(0.0).unwrap_or(0.0)
         } else {
             0.0

@@ -16,7 +16,7 @@ use crate::stat::StatTransform;
 /// Layers without their own mappings will inherit from plot_default_aes.
 pub fn apply_stats(
     layers: &mut [Layer],
-    plot_data: Option<&Box<dyn crate::data::DataSource>>,
+    plot_data: Option<&dyn crate::data::DataSource>,
     plot_default_aes: &crate::aesthetics::AesMap,
 ) -> Result<(), PlotError> {
     // We need to transform each layer that has a non-Identity stat
@@ -35,7 +35,7 @@ pub fn apply_stats(
             layer_data
         } else if let Some(plot_data) = plot_data {
             // Clone plot-level data for this layer
-            plot_data.as_ref().clone_box()
+            plot_data.clone_box()
         } else {
             continue;
         };

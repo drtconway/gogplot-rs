@@ -100,8 +100,8 @@ impl Geom for GeomLine {
         use crate::data::VectorType;
 
         // Get x and y values
-        let x_normalized = ctx.get_aesthetic_values(Aesthetic::X, ctx.scales.x.as_ref())?;
-        let y_normalized = ctx.get_aesthetic_values(Aesthetic::Y, ctx.scales.y.as_ref())?;
+        let x_normalized = ctx.get_aesthetic_values(Aesthetic::X, ctx.scales.x.as_deref())?;
+        let y_normalized = ctx.get_aesthetic_values(Aesthetic::Y, ctx.scales.y.as_deref())?;
 
         // Collect into vectors for sorting
         let x_vals: Vec<f64> = x_normalized.collect();

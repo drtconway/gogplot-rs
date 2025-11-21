@@ -271,7 +271,7 @@ impl Plot {
         height: i32,
     ) -> Result<(), PlotError> {
         // Apply stat transformations to layers
-        stats::apply_stats(&mut self.layers, self.data.as_ref(), &self.default_aes)?;
+        stats::apply_stats(&mut self.layers, self.data.as_deref(), &self.default_aes)?;
 
         // Apply position adjustments to layers
         positions::apply_positions(&mut self.layers)?;

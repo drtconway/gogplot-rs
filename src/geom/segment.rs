@@ -115,10 +115,10 @@ impl Geom for GeomSegment {
         use crate::data::VectorType;
 
         // Get all aesthetic iterators
-        let x_normalized = ctx.get_aesthetic_values(Aesthetic::X, ctx.scales.x.as_ref())?;
-        let y_normalized = ctx.get_aesthetic_values(Aesthetic::Y, ctx.scales.y.as_ref())?;
-        let xend_normalized = ctx.get_aesthetic_values(Aesthetic::XEnd, ctx.scales.x.as_ref())?;
-        let yend_normalized = ctx.get_aesthetic_values(Aesthetic::YEnd, ctx.scales.y.as_ref())?;
+        let x_normalized = ctx.get_aesthetic_values(Aesthetic::X, ctx.scales.x.as_deref())?;
+        let y_normalized = ctx.get_aesthetic_values(Aesthetic::Y, ctx.scales.y.as_deref())?;
+        let xend_normalized = ctx.get_aesthetic_values(Aesthetic::XEnd, ctx.scales.x.as_deref())?;
+        let yend_normalized = ctx.get_aesthetic_values(Aesthetic::YEnd, ctx.scales.y.as_deref())?;
         let colors = ctx.get_color_values()?;
         let alphas = ctx.get_aesthetic_values(Aesthetic::Alpha, None)?;
         let sizes = ctx.get_aesthetic_values(Aesthetic::Size, None)?;

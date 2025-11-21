@@ -91,8 +91,8 @@ impl Geom for GeomPoint {
 
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
         // Get all aesthetic iterators (constants use lazy repeat iterators)
-        let x_normalized = ctx.get_aesthetic_values(Aesthetic::X, ctx.scales.x.as_ref())?;
-        let y_normalized = ctx.get_aesthetic_values(Aesthetic::Y, ctx.scales.y.as_ref())?;
+        let x_normalized = ctx.get_aesthetic_values(Aesthetic::X, ctx.scales.x.as_deref())?;
+        let y_normalized = ctx.get_aesthetic_values(Aesthetic::Y, ctx.scales.y.as_deref())?;
         let colors = ctx.get_color_values()?;
         let alphas = ctx.get_aesthetic_values(Aesthetic::Alpha, None)?;
         let sizes = ctx.get_aesthetic_values(Aesthetic::Size, None)?;

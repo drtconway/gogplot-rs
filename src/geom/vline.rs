@@ -152,7 +152,7 @@ impl Geom for GeomVLine {
         // Draw vertical line(s) across the full height of the plot
         for x_data in x_values {
             // Map x value to visual coordinates
-            if let Some(x_normalized) = ctx.scales.x.as_ref().and_then(|s| s.map_value(x_data)) {
+            if let Some(x_normalized) = ctx.scales.x.as_deref().and_then(|s| s.map_value(x_data)) {
                 let x_visual = ctx.map_x(x_normalized);
 
                 // Draw line from bottom to top edge of plot area

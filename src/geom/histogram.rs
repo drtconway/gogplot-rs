@@ -194,7 +194,7 @@ impl GeomHistogram {
             .ok_or_else(|| PlotError::invalid_column_type("xmax", "float"))?;
 
         // Get y values (counts)
-        let y_normalized = ctx.get_aesthetic_values(Aesthetic::Y, ctx.scales.y.as_ref())?;
+        let y_normalized = ctx.get_aesthetic_values(Aesthetic::Y, ctx.scales.y.as_deref())?;
         let y_norm_vec: Vec<f64> = y_normalized.collect();
 
         // Get fill, color, and alpha
@@ -207,7 +207,7 @@ impl GeomHistogram {
         let alphas_vec: Vec<f64> = alphas.collect();
 
         // Get y=0 in normalized coordinates
-        let zero_normalized = if let Some(y_scale) = ctx.scales.y.as_ref() {
+        let zero_normalized = if let Some(y_scale) = ctx.scales.y.as_deref() {
             y_scale.map_value(0.0).unwrap_or(0.0)
         } else {
             0.0
@@ -224,12 +224,12 @@ impl GeomHistogram {
             .zip(colors_vec.iter().zip(alphas_vec.iter()))
         {
             // Normalize x boundaries
-            let xmin_norm = if let Some(x_scale) = ctx.scales.x.as_ref() {
+            let xmin_norm = if let Some(x_scale) = ctx.scales.x.as_deref() {
                 x_scale.map_value(xmin).unwrap_or(0.0)
             } else {
                 xmin
             };
-            let xmax_norm = if let Some(x_scale) = ctx.scales.x.as_ref() {
+            let xmax_norm = if let Some(x_scale) = ctx.scales.x.as_deref() {
                 x_scale.map_value(xmax).unwrap_or(1.0)
             } else {
                 xmax
@@ -264,8 +264,8 @@ impl GeomHistogram {
     /// Render histogram without explicit bin boundaries (fallback)
     fn render_without_boundaries(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
         // Fallback to using x centers and computing width from spacing
-        let x_normalized = ctx.get_aesthetic_values(Aesthetic::X, ctx.scales.x.as_ref())?;
-        let y_normalized = ctx.get_aesthetic_values(Aesthetic::Y, ctx.scales.y.as_ref())?;
+        let x_normalized = ctx.get_aesthetic_values(Aesthetic::X, ctx.scales.x.as_deref())?;
+        let y_normalized = ctx.get_aesthetic_values(Aesthetic::Y, ctx.scales.y.as_deref())?;
 
         let x_norm_vec: Vec<f64> = x_normalized.collect();
         let y_norm_vec: Vec<f64> = y_normalized.collect();
@@ -301,7 +301,7 @@ impl GeomHistogram {
         };
 
         // Get y=0 in normalized coordinates
-        let zero_normalized = if let Some(y_scale) = ctx.scales.y.as_ref() {
+        let zero_normalized = if let Some(y_scale) = ctx.scales.y.as_deref() {
             y_scale.map_value(0.0).unwrap_or(0.0)
         } else {
             0.0
