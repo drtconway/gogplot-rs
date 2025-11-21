@@ -607,13 +607,12 @@ impl<'a> RenderContext<'a> {
             .ok_or_else(|| PlotError::missing_column(col_name))?;
 
         // Convert to f64 based on type
-        let aesthetic_clone = aesthetic;
         let values: Vec<f64> = match vec.vtype() {
             VectorType::Float => {
                 let floats = vec
                     .as_float()
                     .ok_or_else(|| PlotError::InvalidAestheticType {
-                        aesthetic: aesthetic_clone.clone(),
+                        aesthetic,
                         expected: DataType::Vector(VectorType::Float),
                         actual: DataType::Custom("unknown".to_string()),
                     })?;
@@ -623,7 +622,7 @@ impl<'a> RenderContext<'a> {
                 let ints = vec
                     .as_int()
                     .ok_or_else(|| PlotError::InvalidAestheticType {
-                        aesthetic: aesthetic_clone.clone(),
+                        aesthetic,
                         expected: DataType::Vector(VectorType::Int),
                         actual: DataType::Custom("unknown".to_string()),
                     })?;
@@ -631,7 +630,7 @@ impl<'a> RenderContext<'a> {
             }
             VectorType::Str => {
                 return Err(PlotError::InvalidAestheticType {
-                    aesthetic: aesthetic_clone,
+                    aesthetic,
                     expected: DataType::Numeric,
                     actual: DataType::Vector(VectorType::Str),
                 });
