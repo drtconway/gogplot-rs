@@ -1,9 +1,9 @@
 use crate::data::{FloatVector, GenericVector, IntVector, StrVector};
 use crate::utils::dataframe::{DataFrame, FloatVec, IntVec, StrVec};
 use arrow::array::{
-    Array, ArrayRef, DictionaryArray, Float64Array, Int16Array, Int32Array, Int64Array,
-    Int8Array, LargeStringArray, StringArray, StringViewArray, UInt16Array, UInt32Array,
-    UInt64Array, UInt8Array,
+    Array, ArrayRef, DictionaryArray, Float32Array, Float64Array, Int16Array,
+    Int32Array, Int64Array, Int8Array, LargeStringArray, StringArray, StringViewArray,
+    UInt16Array, UInt32Array, UInt64Array, UInt8Array,
 };
 use arrow::datatypes::{DataType, Int32Type};
 use datafusion::arrow::record_batch::RecordBatch;
@@ -233,12 +233,216 @@ impl StrVector for StringViewArray {
     }
 }
 
+// Dictionary array implementations for Utf8 values
+impl GenericVector for DictionaryArray<Int32Type> {
+    fn len(&self) -> usize {
+        arrow::array::Array::len(self)
+    }
+
+    fn vtype(&self) -> crate::data::VectorType {
+        // Dictionary arrays with string values are treated as strings
+        crate::data::VectorType::Str
+    }
+
+    fn iter_str(&self) -> Option<Box<dyn Iterator<Item = &str> + '_>> {
+        // Determine the value type of the dictionary
+        let values = self.values();
+        
+        if values.as_any().is::<StringArray>() {
+            Some(Box::new(DictUtf8ArrayIter {
+                dict_array: self,
+                values_array: values.as_any().downcast_ref::<StringArray>().unwrap(),
+                index: 0,
+            }))
+        } else if values.as_any().is::<LargeStringArray>() {
+            Some(Box::new(DictLargeUtf8ArrayIter {
+                dict_array: self,
+                values_array: values.as_any().downcast_ref::<LargeStringArray>().unwrap(),
+                index: 0,
+            }))
+        } else if values.as_any().is::<StringViewArray>() {
+            Some(Box::new(DictUtf8ViewArrayIter {
+                dict_array: self,
+                values_array: values.as_any().downcast_ref::<StringViewArray>().unwrap(),
+                index: 0,
+            }))
+        } else {
+            None
+        }
+    }
+}
+
+/// Iterator for DictionaryArray<Int32Type> with Utf8 values
+pub struct DictUtf8ArrayIter<'a> {
+    dict_array: &'a DictionaryArray<Int32Type>,
+    values_array: &'a StringArray,
+    index: usize,
+}
+
+impl<'a> Iterator for DictUtf8ArrayIter<'a> {
+    type Item = &'a str;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index < arrow::array::Array::len(self.dict_array) {
+            let key = self.dict_array.key(self.index)?;
+            self.index += 1;
+            Some(self.values_array.value(key as usize))
+        } else {
+            None
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = arrow::array::Array::len(self.dict_array) - self.index;
+        (remaining, Some(remaining))
+    }
+}
+
+impl<'a> ExactSizeIterator for DictUtf8ArrayIter<'a> {
+    fn len(&self) -> usize {
+        arrow::array::Array::len(self.dict_array) - self.index
+    }
+}
+
+/// Iterator for DictionaryArray<Int32Type> with LargeUtf8 values
+pub struct DictLargeUtf8ArrayIter<'a> {
+    dict_array: &'a DictionaryArray<Int32Type>,
+    values_array: &'a LargeStringArray,
+    index: usize,
+}
+
+impl<'a> Iterator for DictLargeUtf8ArrayIter<'a> {
+    type Item = &'a str;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index < arrow::array::Array::len(self.dict_array) {
+            let key = self.dict_array.key(self.index)?;
+            self.index += 1;
+            Some(self.values_array.value(key as usize))
+        } else {
+            None
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = arrow::array::Array::len(self.dict_array) - self.index;
+        (remaining, Some(remaining))
+    }
+}
+
+impl<'a> ExactSizeIterator for DictLargeUtf8ArrayIter<'a> {
+    fn len(&self) -> usize {
+        arrow::array::Array::len(self.dict_array) - self.index
+    }
+}
+
+/// Iterator for DictionaryArray<Int32Type> with Utf8View values
+pub struct DictUtf8ViewArrayIter<'a> {
+    dict_array: &'a DictionaryArray<Int32Type>,
+    values_array: &'a StringViewArray,
+    index: usize,
+}
+
+impl<'a> Iterator for DictUtf8ViewArrayIter<'a> {
+    type Item = &'a str;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index < arrow::array::Array::len(self.dict_array) {
+            let key = self.dict_array.key(self.index)?;
+            self.index += 1;
+            Some(self.values_array.value(key as usize))
+        } else {
+            None
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = arrow::array::Array::len(self.dict_array) - self.index;
+        (remaining, Some(remaining))
+    }
+}
+
+impl<'a> ExactSizeIterator for DictUtf8ViewArrayIter<'a> {
+    fn len(&self) -> usize {
+        arrow::array::Array::len(self.dict_array) - self.index
+    }
+}
+
+/// Enum to handle different dictionary value types with a unified iterator interface
+pub enum DictStringArrayIter<'a> {
+    Utf8(DictUtf8ArrayIter<'a>),
+    LargeUtf8(DictLargeUtf8ArrayIter<'a>),
+    Utf8View(DictUtf8ViewArrayIter<'a>),
+}
+
+impl<'a> Iterator for DictStringArrayIter<'a> {
+    type Item = &'a str;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            DictStringArrayIter::Utf8(iter) => iter.next(),
+            DictStringArrayIter::LargeUtf8(iter) => iter.next(),
+            DictStringArrayIter::Utf8View(iter) => iter.next(),
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        match self {
+            DictStringArrayIter::Utf8(iter) => iter.size_hint(),
+            DictStringArrayIter::LargeUtf8(iter) => iter.size_hint(),
+            DictStringArrayIter::Utf8View(iter) => iter.size_hint(),
+        }
+    }
+}
+
+impl<'a> ExactSizeIterator for DictStringArrayIter<'a> {
+    fn len(&self) -> usize {
+        match self {
+            DictStringArrayIter::Utf8(iter) => iter.len(),
+            DictStringArrayIter::LargeUtf8(iter) => iter.len(),
+            DictStringArrayIter::Utf8View(iter) => iter.len(),
+        }
+    }
+}
+
+impl StrVector for DictionaryArray<Int32Type> {
+    type Iter<'a> = DictStringArrayIter<'a> where Self: 'a;
+    
+    fn iter(&self) -> Self::Iter<'_> {
+        let values = self.values();
+        
+        if let Some(values_array) = values.as_any().downcast_ref::<StringArray>() {
+            DictStringArrayIter::Utf8(DictUtf8ArrayIter {
+                dict_array: self,
+                values_array,
+                index: 0,
+            })
+        } else if let Some(values_array) = values.as_any().downcast_ref::<LargeStringArray>() {
+            DictStringArrayIter::LargeUtf8(DictLargeUtf8ArrayIter {
+                dict_array: self,
+                values_array,
+                index: 0,
+            })
+        } else if let Some(values_array) = values.as_any().downcast_ref::<StringViewArray>() {
+            DictStringArrayIter::Utf8View(DictUtf8ViewArrayIter {
+                dict_array: self,
+                values_array,
+                index: 0,
+            })
+        } else {
+            // This should not happen if the array is properly constructed
+            // Return an empty iterator for Utf8 as fallback
+            panic!("Dictionary array has unsupported value type for string iteration")
+        }
+    }
+}
+
 /// Convert a DataFusion RecordBatch into a gogplot DataFrame.
 ///
 /// This function supports the following Arrow data types:
 /// - Int8, Int16, Int32, Int64 -> IntVec
 /// - UInt8, UInt16, UInt32, UInt64 -> IntVec (cast to i64)
-/// - Float64 -> FloatVec  
+/// - Float32, Float64 -> FloatVec (cast to f64)
 /// - Utf8 (String) -> StrVec
 /// - LargeUtf8 (LargeString) -> StrVec
 /// - Utf8View (StringView) -> StrVec
@@ -407,6 +611,21 @@ fn convert_array(
                 values.push(arr.value(i) as i64);
             }
             Ok(Box::new(IntVec(values)))
+        }
+        DataType::Float32 => {
+            let arr = array
+                .as_any()
+                .downcast_ref::<Float32Array>()
+                .ok_or("Failed to downcast to Float32Array")?;
+
+            let mut values = Vec::with_capacity(arr.len());
+            for i in 0..arr.len() {
+                if arr.is_null(i) {
+                    return Err("Null values not supported in Float32 columns".into());
+                }
+                values.push(arr.value(i) as f64);
+            }
+            Ok(Box::new(FloatVec(values)))
         }
         DataType::Float64 => {
             let arr = array
@@ -741,6 +960,26 @@ mod tests {
         let uint8_col = df.get("uint8").unwrap();
         let uint8_values: Vec<i64> = uint8_col.iter_int().unwrap().copied().collect();
         assert_eq!(uint8_values, vec![10, 20, 30]);
+    }
+
+    #[test]
+    fn test_convert_float32_column() {
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "y",
+            DataType::Float32,
+            false,
+        )]));
+
+        let float_array = Float32Array::from(vec![1.5_f32, 2.5, 3.5]);
+        let batch = RecordBatch::try_new(schema, vec![Arc::new(float_array) as ArrayRef]).unwrap();
+
+        let df = record_batch_to_dataframe(&batch).unwrap();
+        assert_eq!(df.len(), 3);
+
+        let col = df.get("y").unwrap();
+        let float_iter = col.iter_float().unwrap();
+        let values: Vec<f64> = float_iter.copied().collect();
+        assert_eq!(values, vec![1.5, 2.5, 3.5]);
     }
 
     #[test]
