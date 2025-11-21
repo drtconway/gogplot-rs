@@ -37,11 +37,19 @@ mod example {
 
         // Plot 2: MPG vs Weight colored by cylinder count
         println!("\nCreating colored scatter plot: MPG vs Weight by Cylinders...");
-        let plot2 = Plot::new(Some(Box::new(df.clone())))
+        
+        // Convert cylinder count to string for categorical coloring
+        let df_with_cyl_str = df
+            .clone()
+            .lazy()
+            .with_column(col("cyl").cast(DataType::String).alias("cyl_str"))
+            .collect()?;
+        
+        let plot2 = Plot::new(Some(Box::new(df_with_cyl_str)))
             .aes(|a| {
                 a.x("wt");
                 a.y("mpg");
-                a.color("cyl");
+                a.color("cyl_str");
             })
             .geom_point_with(|geom| geom.size(6.0))
             .title("Fuel Efficiency vs Weight by Cylinder Count");
@@ -65,18 +73,19 @@ mod example {
         // Plot 4: Bar chart of average MPG by cylinder count
         println!("\nCreating bar chart: Average MPG by Cylinder Count...");
         
-        // Calculate average MPG by cylinder count
+        // Calculate average MPG by cylinder count and convert cyl to string for categorical plotting
         let mpg_by_cyl = df
             .clone()
             .lazy()
             .group_by([col("cyl")])
             .agg([col("mpg").mean().alias("avg_mpg")])
             .sort(["cyl"], Default::default())
+            .with_column(col("cyl").cast(DataType::String).alias("cyl_str"))
             .collect()?;
 
         let plot4 = Plot::new(Some(Box::new(mpg_by_cyl)))
             .aes(|a| {
-                a.x("cyl");
+                a.x("cyl_str");
                 a.y("avg_mpg");
             })
             .geom_bar_with(|geom| geom.stat(Stat::Identity))
@@ -87,11 +96,24 @@ mod example {
 
         // Plot 5: MPG distribution by transmission type (am: 0=automatic, 1=manual)
         println!("\nCreating scatter plot: MPG by Transmission Type...");
-        let plot5 = Plot::new(Some(Box::new(df.clone())))
+        
+        // Create a new dataframe with transmission as a string label
+        let df_with_trans = df
+            .clone()
+            .lazy()
+            .with_column(
+                when(col("am").eq(lit(0)))
+                    .then(lit("Automatic"))
+                    .otherwise(lit("Manual"))
+                    .alias("transmission")
+            )
+            .collect()?;
+        
+        let plot5 = Plot::new(Some(Box::new(df_with_trans)))
             .aes(|a| {
-                a.x("am");
+                a.x("transmission");
                 a.y("mpg");
-                a.color("am");
+                a.color("transmission");
             })
             .geom_point_with(|geom| geom.size(6.0))
             .title("Fuel Efficiency by Transmission Type");
