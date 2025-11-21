@@ -1,8 +1,9 @@
 use crate::data::{FloatVector, GenericVector, IntVector, StrVector};
 use crate::utils::dataframe::{DataFrame, FloatVec, IntVec, StrVec};
 use arrow::array::{
-    Array, ArrayRef, DictionaryArray, Float64Array, Int64Array, LargeStringArray, StringArray,
-    StringViewArray,
+    Array, ArrayRef, DictionaryArray, Float64Array, Int16Array, Int32Array, Int64Array,
+    Int8Array, LargeStringArray, StringArray, StringViewArray, UInt16Array, UInt32Array,
+    UInt64Array, UInt8Array,
 };
 use arrow::datatypes::{DataType, Int32Type};
 use datafusion::arrow::record_batch::RecordBatch;
@@ -235,7 +236,8 @@ impl StrVector for StringViewArray {
 /// Convert a DataFusion RecordBatch into a gogplot DataFrame.
 ///
 /// This function supports the following Arrow data types:
-/// - Int64 -> IntVec
+/// - Int8, Int16, Int32, Int64 -> IntVec
+/// - UInt8, UInt16, UInt32, UInt64 -> IntVec (cast to i64)
 /// - Float64 -> FloatVec  
 /// - Utf8 (String) -> StrVec
 /// - LargeUtf8 (LargeString) -> StrVec
@@ -285,6 +287,51 @@ fn convert_array(
     data_type: &DataType,
 ) -> Result<Box<dyn crate::data::GenericVector>, Box<dyn std::error::Error>> {
     match data_type {
+        DataType::Int8 => {
+            let arr = array
+                .as_any()
+                .downcast_ref::<Int8Array>()
+                .ok_or("Failed to downcast to Int8Array")?;
+
+            let mut values = Vec::with_capacity(arr.len());
+            for i in 0..arr.len() {
+                if arr.is_null(i) {
+                    return Err("Null values not supported in Int8 columns".into());
+                }
+                values.push(arr.value(i) as i64);
+            }
+            Ok(Box::new(IntVec(values)))
+        }
+        DataType::Int16 => {
+            let arr = array
+                .as_any()
+                .downcast_ref::<Int16Array>()
+                .ok_or("Failed to downcast to Int16Array")?;
+
+            let mut values = Vec::with_capacity(arr.len());
+            for i in 0..arr.len() {
+                if arr.is_null(i) {
+                    return Err("Null values not supported in Int16 columns".into());
+                }
+                values.push(arr.value(i) as i64);
+            }
+            Ok(Box::new(IntVec(values)))
+        }
+        DataType::Int32 => {
+            let arr = array
+                .as_any()
+                .downcast_ref::<Int32Array>()
+                .ok_or("Failed to downcast to Int32Array")?;
+
+            let mut values = Vec::with_capacity(arr.len());
+            for i in 0..arr.len() {
+                if arr.is_null(i) {
+                    return Err("Null values not supported in Int32 columns".into());
+                }
+                values.push(arr.value(i) as i64);
+            }
+            Ok(Box::new(IntVec(values)))
+        }
         DataType::Int64 => {
             let arr = array
                 .as_any()
@@ -297,6 +344,67 @@ fn convert_array(
                     return Err("Null values not supported in Int64 columns".into());
                 }
                 values.push(arr.value(i));
+            }
+            Ok(Box::new(IntVec(values)))
+        }
+        DataType::UInt8 => {
+            let arr = array
+                .as_any()
+                .downcast_ref::<UInt8Array>()
+                .ok_or("Failed to downcast to UInt8Array")?;
+
+            let mut values = Vec::with_capacity(arr.len());
+            for i in 0..arr.len() {
+                if arr.is_null(i) {
+                    return Err("Null values not supported in UInt8 columns".into());
+                }
+                values.push(arr.value(i) as i64);
+            }
+            Ok(Box::new(IntVec(values)))
+        }
+        DataType::UInt16 => {
+            let arr = array
+                .as_any()
+                .downcast_ref::<UInt16Array>()
+                .ok_or("Failed to downcast to UInt16Array")?;
+
+            let mut values = Vec::with_capacity(arr.len());
+            for i in 0..arr.len() {
+                if arr.is_null(i) {
+                    return Err("Null values not supported in UInt16 columns".into());
+                }
+                values.push(arr.value(i) as i64);
+            }
+            Ok(Box::new(IntVec(values)))
+        }
+        DataType::UInt32 => {
+            let arr = array
+                .as_any()
+                .downcast_ref::<UInt32Array>()
+                .ok_or("Failed to downcast to UInt32Array")?;
+
+            let mut values = Vec::with_capacity(arr.len());
+            for i in 0..arr.len() {
+                if arr.is_null(i) {
+                    return Err("Null values not supported in UInt32 columns".into());
+                }
+                values.push(arr.value(i) as i64);
+            }
+            Ok(Box::new(IntVec(values)))
+        }
+        DataType::UInt64 => {
+            let arr = array
+                .as_any()
+                .downcast_ref::<UInt64Array>()
+                .ok_or("Failed to downcast to UInt64Array")?;
+
+            let mut values = Vec::with_capacity(arr.len());
+            for i in 0..arr.len() {
+                if arr.is_null(i) {
+                    return Err("Null values not supported in UInt64 columns".into());
+                }
+                // Note: UInt64 values > i64::MAX will wrap when cast to i64
+                values.push(arr.value(i) as i64);
             }
             Ok(Box::new(IntVec(values)))
         }
@@ -460,6 +568,54 @@ mod tests {
     use std::sync::Arc;
 
     #[test]
+    fn test_convert_int8_column() {
+        let schema = Arc::new(Schema::new(vec![Field::new("x", DataType::Int8, false)]));
+
+        let int_array = Int8Array::from(vec![1_i8, 2, 3, -4, -5]);
+        let batch = RecordBatch::try_new(schema, vec![Arc::new(int_array) as ArrayRef]).unwrap();
+
+        let df = record_batch_to_dataframe(&batch).unwrap();
+        assert_eq!(df.len(), 5);
+
+        let col = df.get("x").unwrap();
+        let int_iter = col.iter_int().unwrap();
+        let values: Vec<i64> = int_iter.copied().collect();
+        assert_eq!(values, vec![1, 2, 3, -4, -5]);
+    }
+
+    #[test]
+    fn test_convert_int16_column() {
+        let schema = Arc::new(Schema::new(vec![Field::new("x", DataType::Int16, false)]));
+
+        let int_array = Int16Array::from(vec![100_i16, 200, 300]);
+        let batch = RecordBatch::try_new(schema, vec![Arc::new(int_array) as ArrayRef]).unwrap();
+
+        let df = record_batch_to_dataframe(&batch).unwrap();
+        assert_eq!(df.len(), 3);
+
+        let col = df.get("x").unwrap();
+        let int_iter = col.iter_int().unwrap();
+        let values: Vec<i64> = int_iter.copied().collect();
+        assert_eq!(values, vec![100, 200, 300]);
+    }
+
+    #[test]
+    fn test_convert_int32_column() {
+        let schema = Arc::new(Schema::new(vec![Field::new("x", DataType::Int32, false)]));
+
+        let int_array = Int32Array::from(vec![1000, 2000, 3000]);
+        let batch = RecordBatch::try_new(schema, vec![Arc::new(int_array) as ArrayRef]).unwrap();
+
+        let df = record_batch_to_dataframe(&batch).unwrap();
+        assert_eq!(df.len(), 3);
+
+        let col = df.get("x").unwrap();
+        let int_iter = col.iter_int().unwrap();
+        let values: Vec<i64> = int_iter.copied().collect();
+        assert_eq!(values, vec![1000, 2000, 3000]);
+    }
+
+    #[test]
     fn test_convert_int64_column() {
         let schema = Arc::new(Schema::new(vec![Field::new("x", DataType::Int64, false)]));
 
@@ -474,6 +630,117 @@ mod tests {
         let int_iter = col.iter_int().unwrap();
         let values: Vec<i64> = int_iter.copied().collect();
         assert_eq!(values, vec![1, 2, 3, 4, 5]);
+    }
+
+    #[test]
+    fn test_convert_uint8_column() {
+        let schema = Arc::new(Schema::new(vec![Field::new("x", DataType::UInt8, false)]));
+
+        let int_array = UInt8Array::from(vec![10_u8, 20, 30, 255]);
+        let batch = RecordBatch::try_new(schema, vec![Arc::new(int_array) as ArrayRef]).unwrap();
+
+        let df = record_batch_to_dataframe(&batch).unwrap();
+        assert_eq!(df.len(), 4);
+
+        let col = df.get("x").unwrap();
+        let int_iter = col.iter_int().unwrap();
+        let values: Vec<i64> = int_iter.copied().collect();
+        assert_eq!(values, vec![10, 20, 30, 255]);
+    }
+
+    #[test]
+    fn test_convert_uint16_column() {
+        let schema = Arc::new(Schema::new(vec![Field::new("x", DataType::UInt16, false)]));
+
+        let int_array = UInt16Array::from(vec![1000_u16, 2000, 3000]);
+        let batch = RecordBatch::try_new(schema, vec![Arc::new(int_array) as ArrayRef]).unwrap();
+
+        let df = record_batch_to_dataframe(&batch).unwrap();
+        assert_eq!(df.len(), 3);
+
+        let col = df.get("x").unwrap();
+        let int_iter = col.iter_int().unwrap();
+        let values: Vec<i64> = int_iter.copied().collect();
+        assert_eq!(values, vec![1000, 2000, 3000]);
+    }
+
+    #[test]
+    fn test_convert_uint32_column() {
+        let schema = Arc::new(Schema::new(vec![Field::new("x", DataType::UInt32, false)]));
+
+        let int_array = UInt32Array::from(vec![100000_u32, 200000, 300000]);
+        let batch = RecordBatch::try_new(schema, vec![Arc::new(int_array) as ArrayRef]).unwrap();
+
+        let df = record_batch_to_dataframe(&batch).unwrap();
+        assert_eq!(df.len(), 3);
+
+        let col = df.get("x").unwrap();
+        let int_iter = col.iter_int().unwrap();
+        let values: Vec<i64> = int_iter.copied().collect();
+        assert_eq!(values, vec![100000, 200000, 300000]);
+    }
+
+    #[test]
+    fn test_convert_uint64_column() {
+        let schema = Arc::new(Schema::new(vec![Field::new("x", DataType::UInt64, false)]));
+
+        let int_array = UInt64Array::from(vec![1000000_u64, 2000000, 3000000]);
+        let batch = RecordBatch::try_new(schema, vec![Arc::new(int_array) as ArrayRef]).unwrap();
+
+        let df = record_batch_to_dataframe(&batch).unwrap();
+        assert_eq!(df.len(), 3);
+
+        let col = df.get("x").unwrap();
+        let int_iter = col.iter_int().unwrap();
+        let values: Vec<i64> = int_iter.copied().collect();
+        assert_eq!(values, vec![1000000, 2000000, 3000000]);
+    }
+
+    #[test]
+    fn test_convert_mixed_integer_types() {
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("int8", DataType::Int8, false),
+            Field::new("int16", DataType::Int16, false),
+            Field::new("int32", DataType::Int32, false),
+            Field::new("uint8", DataType::UInt8, false),
+        ]));
+
+        let int8_array = Int8Array::from(vec![1_i8, 2, 3]);
+        let int16_array = Int16Array::from(vec![100_i16, 200, 300]);
+        let int32_array = Int32Array::from(vec![1000, 2000, 3000]);
+        let uint8_array = UInt8Array::from(vec![10_u8, 20, 30]);
+
+        let batch = RecordBatch::try_new(
+            schema,
+            vec![
+                Arc::new(int8_array) as ArrayRef,
+                Arc::new(int16_array) as ArrayRef,
+                Arc::new(int32_array) as ArrayRef,
+                Arc::new(uint8_array) as ArrayRef,
+            ],
+        )
+        .unwrap();
+
+        let df = record_batch_to_dataframe(&batch).unwrap();
+        assert_eq!(df.len(), 3);
+        assert_eq!(df.column_names().len(), 4);
+
+        // Verify all columns are present and have correct values
+        let int8_col = df.get("int8").unwrap();
+        let int8_values: Vec<i64> = int8_col.iter_int().unwrap().copied().collect();
+        assert_eq!(int8_values, vec![1, 2, 3]);
+
+        let int16_col = df.get("int16").unwrap();
+        let int16_values: Vec<i64> = int16_col.iter_int().unwrap().copied().collect();
+        assert_eq!(int16_values, vec![100, 200, 300]);
+
+        let int32_col = df.get("int32").unwrap();
+        let int32_values: Vec<i64> = int32_col.iter_int().unwrap().copied().collect();
+        assert_eq!(int32_values, vec![1000, 2000, 3000]);
+
+        let uint8_col = df.get("uint8").unwrap();
+        let uint8_values: Vec<i64> = uint8_col.iter_int().unwrap().copied().collect();
+        assert_eq!(uint8_values, vec![10, 20, 30]);
     }
 
     #[test]
