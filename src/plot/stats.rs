@@ -38,10 +38,9 @@ pub fn apply_stats(layers: &mut [Layer]) -> Result<(), PlotError> {
         // Apply the stat transformation
         let stat_result = match &layers[i].stat {
             Stat::Count => Count.apply(data, &layers[i].mapping)?,
-            Stat::Bin { bins, binwidth } => {
+            Stat::Bin(strategy) => {
                 let bin_stat = Bin {
-                    bins: *bins,
-                    binwidth: *binwidth,
+                    strategy: strategy.clone(),
                 };
                 bin_stat.apply(data, &layers[i].mapping)?
             }

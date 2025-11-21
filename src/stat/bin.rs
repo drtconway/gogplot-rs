@@ -4,15 +4,25 @@ use crate::error::Result;
 use crate::stat::StatTransform;
 use crate::utils::dataframe::{DataFrame, FloatVec, IntVec};
 
+/// Bin configuration strategy
+#[derive(Debug, Clone)]
+pub enum BinStrategy {
+    /// Fixed number of bins
+    Count(usize),
+    /// Fixed bin width
+    Width(f64),
+}
+
+impl Default for BinStrategy {
+    fn default() -> Self {
+        BinStrategy::Count(30)
+    }
+}
+
 /// Bin statistical transformation
 ///
 /// Divides the range of x values into equally-spaced bins and counts the number of
 /// observations in each bin. Produces new columns for bin centers and counts.
-///
-/// # Parameters
-///
-/// - `bins`: Number of bins (default: 30)
-/// - `binwidth`: Width of bins (overrides `bins` if specified)
 ///
 /// # Example
 ///
@@ -21,31 +31,28 @@ use crate::utils::dataframe::{DataFrame, FloatVec, IntVec};
 /// - Centers: [1.42, 2.25, 3.08]
 /// - Counts: [2, 2, 2]
 pub struct Bin {
-    pub bins: usize,
-    pub binwidth: Option<f64>,
+    pub strategy: BinStrategy,
 }
 
 impl Bin {
     /// Create a new Bin stat with the specified number of bins
-    pub fn new(bins: usize) -> Self {
+    pub fn with_count(bins: usize) -> Self {
         Self {
-            bins,
-            binwidth: None,
+            strategy: BinStrategy::Count(bins),
         }
     }
 
     /// Create a new Bin stat with a specific bin width
     pub fn with_width(binwidth: f64) -> Self {
         Self {
-            bins: 30, // Will be overridden by binwidth
-            binwidth: Some(binwidth),
+            strategy: BinStrategy::Width(binwidth),
         }
     }
 }
 
 impl Default for Bin {
     fn default() -> Self {
-        Self::new(30)
+        Self::with_count(30)
     }
 }
 
@@ -119,11 +126,10 @@ impl StatTransform for Bin {
             return Ok(Some((Box::new(stacked), new_mapping)));
         }
 
-        // Determine bin width
-        let binwidth = if let Some(width) = self.binwidth {
-            width
-        } else {
-            range / self.bins as f64
+        // Determine bin width based on strategy
+        let binwidth = match self.strategy {
+            BinStrategy::Width(width) => width,
+            BinStrategy::Count(bins) => range / bins as f64,
         };
 
         // Determine actual number of bins needed
@@ -190,7 +196,7 @@ mod tests {
         let mut mapping = AesMap::new();
         mapping.x("x");
 
-        let bin = Bin::new(3);
+        let bin = Bin::with_count(3);
         let result = bin.apply(Box::new(df), &mapping);
         assert!(result.is_ok());
 
@@ -217,7 +223,7 @@ mod tests {
         let mut mapping = AesMap::new();
         mapping.x("x");
 
-        let bin = Bin::new(5);
+        let bin = Bin::with_count(5);
         let (data, _) = bin.apply(Box::new(df), &mapping).unwrap().unwrap();
 
         let count_col = data.get("count").unwrap();
@@ -262,7 +268,7 @@ mod tests {
         let mut mapping = AesMap::new();
         mapping.x("x");
 
-        let bin = Bin::new(3);
+        let bin = Bin::with_count(3);
         let (data, _) = bin.apply(Box::new(df), &mapping).unwrap().unwrap();
 
         let x_col = data.get("x").unwrap();
@@ -306,7 +312,7 @@ mod tests {
         let mut mapping = AesMap::new();
         mapping.x("x");
 
-        let bin = Bin::new(2);
+        let bin = Bin::with_count(2);
         let (data, _) = bin.apply(Box::new(df), &mapping).unwrap().unwrap();
 
         let count_col = data.get("count").unwrap();

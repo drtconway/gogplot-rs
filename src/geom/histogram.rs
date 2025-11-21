@@ -16,13 +16,7 @@ pub struct GeomHistogram {
     /// Default alpha/opacity (if not mapped)
     pub alpha: Option<AesValue>,
 
-    /// Number of bins (default: 30)
-    pub bins: usize,
-
-    /// Bin width (overrides bins if specified)
-    pub binwidth: Option<f64>,
-
-    /// The stat to use (default is Bin)
+    /// The stat to use (default is Bin with 30 bins)
     pub stat: Stat,
 
     /// The position adjustment (default is Identity, but Stack is common)
@@ -36,9 +30,7 @@ impl GeomHistogram {
             fill: None,
             color: None,
             alpha: None,
-            bins: 30,
-            binwidth: None,
-            stat: Stat::Bin { bins: 30, binwidth: None },
+            stat: Stat::Bin(crate::stat::bin::BinStrategy::Count(30)),
             position: Position::Identity,
         }
     }
@@ -65,15 +57,13 @@ impl GeomHistogram {
 
     /// Set the number of bins
     pub fn bins(mut self, bins: usize) -> Self {
-        self.bins = bins;
-        self.stat = Stat::Bin { bins, binwidth: self.binwidth };
+        self.stat = Stat::Bin(crate::stat::bin::BinStrategy::Count(bins));
         self
     }
 
-    /// Set the bin width (overrides bins)
+    /// Set the bin width
     pub fn binwidth(mut self, binwidth: f64) -> Self {
-        self.binwidth = Some(binwidth);
-        self.stat = Stat::Bin { bins: self.bins, binwidth: Some(binwidth) };
+        self.stat = Stat::Bin(crate::stat::bin::BinStrategy::Width(binwidth));
         self
     }
 

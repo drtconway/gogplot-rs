@@ -9,7 +9,7 @@ use crate::geom::Geom;
 pub enum Stat {
     Identity,
     Count,
-    Bin { bins: usize, binwidth: Option<f64> },
+    Bin(crate::stat::bin::BinStrategy),
     Smooth,
     // Add more as needed
 }
