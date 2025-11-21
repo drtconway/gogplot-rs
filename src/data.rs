@@ -12,10 +12,21 @@ pub enum PrimitiveValue {
     Str(String),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VectorType {
     Int,
     Float,
     Str,
+}
+
+impl std::fmt::Display for VectorType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            VectorType::Int => write!(f, "integer"),
+            VectorType::Float => write!(f, "float"),
+            VectorType::Str => write!(f, "string"),
+        }
+    }
 }
 
 pub trait GenericVector: Send + Sync {

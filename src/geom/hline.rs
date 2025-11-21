@@ -1,7 +1,7 @@
 use super::{Geom, IntoLayer, RenderContext};
 use crate::aesthetics::{AesValue, Aesthetic};
 use crate::data::PrimitiveValue;
-use crate::error::PlotError;
+use crate::error::{DataType, PlotError};
 
 /// GeomHLine renders horizontal reference lines at specified y-intercepts
 pub struct GeomHLine {
@@ -108,8 +108,8 @@ impl Geom for GeomHLine {
             _ => {
                 return Err(PlotError::InvalidAestheticType {
                     aesthetic: Aesthetic::Y,
-                    expected: "numeric constant or column".to_string(),
-                    actual: "invalid value".to_string(),
+                    expected: DataType::Custom("numeric constant or column".to_string()),
+                    actual: DataType::Custom("invalid value".to_string()),
                 });
             }
         };

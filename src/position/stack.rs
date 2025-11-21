@@ -3,7 +3,7 @@
 use super::PositionAdjust;
 use crate::aesthetics::{AesMap, AesValue, Aesthetic};
 use crate::data::{DataSource, PrimitiveValue};
-use crate::error::PlotError;
+use crate::error::{DataType, PlotError};
 use crate::utils::dataframe::{DataFrame, FloatVec};
 use std::collections::HashMap;
 
@@ -65,8 +65,8 @@ impl PositionAdjust for Stack {
         } else {
             return Err(PlotError::InvalidAestheticType {
                 aesthetic: Aesthetic::Y,
-                expected: "numeric (int or float)".to_string(),
-                actual: "string or other".to_string(),
+                expected: DataType::Numeric,
+                actual: DataType::Custom("string or other".to_string()),
             });
         };
 
@@ -108,8 +108,8 @@ impl PositionAdjust for Stack {
         } else {
             return Err(PlotError::InvalidAestheticType {
                 aesthetic: Aesthetic::X,
-                expected: "numeric or string".to_string(),
-                actual: "unknown".to_string(),
+                expected: DataType::Custom("numeric or string".to_string()),
+                actual: DataType::Custom("unknown".to_string()),
             });
         };
 

@@ -5,8 +5,42 @@ use std::{
 };
 
 use crate::aesthetics::Aesthetic;
+use crate::data::VectorType;
 
 pub type Result<T> = std::result::Result<T, PlotError>;
+
+/// Describes expected or actual data types in error messages
+#[derive(Debug, Clone, PartialEq)]
+pub enum DataType {
+    /// A vector type (int, float, string)
+    Vector(VectorType),
+    /// A numeric type (int or float)
+    Numeric,
+    /// A constant value of a specific type
+    Constant(VectorType),
+    /// An RGBA integer constant for colors
+    RgbaConstant,
+    /// A column mapping
+    ColumnMapping,
+    /// A categorical scale
+    CategoricalScale,
+    /// A custom description
+    Custom(String),
+}
+
+impl Display for DataType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DataType::Vector(vtype) => write!(f, "{}", vtype),
+            DataType::Numeric => write!(f, "numeric"),
+            DataType::Constant(vtype) => write!(f, "{} constant", vtype),
+            DataType::RgbaConstant => write!(f, "RGBA integer constant"),
+            DataType::ColumnMapping => write!(f, "column mapping"),
+            DataType::CategoricalScale => write!(f, "categorical scale"),
+            DataType::Custom(s) => write!(f, "{}", s),
+        }
+    }
+}
 
 #[derive(Debug)]
 pub enum PlotError {
@@ -19,14 +53,14 @@ pub enum PlotError {
     /// An aesthetic has an invalid type (e.g., expected float but got string)
     InvalidAestheticType {
         aesthetic: Aesthetic,
-        expected: String,
-        actual: String,
+        expected: DataType,
+        actual: DataType,
     },
     
     /// A column has an invalid type for the operation
     InvalidColumnType {
         column: String,
-        expected: String,
+        expected: DataType,
     },
     
     /// Scale configuration error (e.g., mismatched breaks and labels)
@@ -149,7 +183,7 @@ impl PlotError {
         }
     }
 
-    pub fn invalid_column_type(column: impl Into<String>, expected: impl Into<String>) -> Self {
+    pub fn invalid_column_type(column: impl Into<String>, expected: impl Into<DataType>) -> Self {
         PlotError::InvalidColumnType {
             column: column.into(),
             expected: expected.into(),
@@ -193,5 +227,30 @@ impl PlotError {
         PlotError::UnsupportedFormat {
             extension: extension.into(),
         }
+    }
+}
+
+// Conversions for ergonomic error creation
+impl From<&str> for DataType {
+    fn from(s: &str) -> Self {
+        match s {
+            "numeric" => DataType::Numeric,
+            "int" | "integer" => DataType::Vector(VectorType::Int),
+            "float" => DataType::Vector(VectorType::Float),
+            "str" | "string" => DataType::Vector(VectorType::Str),
+            _ => DataType::Custom(s.to_string()),
+        }
+    }
+}
+
+impl From<String> for DataType {
+    fn from(s: String) -> Self {
+        s.as_str().into()
+    }
+}
+
+impl From<VectorType> for DataType {
+    fn from(vtype: VectorType) -> Self {
+        DataType::Vector(vtype)
     }
 }

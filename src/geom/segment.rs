@@ -1,7 +1,7 @@
 use super::{Geom, IntoLayer, RenderContext};
 use crate::aesthetics::{AesValue, Aesthetic};
 use crate::data::PrimitiveValue;
-use crate::error::PlotError;
+use crate::error::{DataType, PlotError};
 
 /// Geometry for drawing line segments.
 ///
@@ -145,8 +145,8 @@ impl Geom for GeomSegment {
                             .ok_or_else(|| {
                                 PlotError::InvalidAestheticType {
                                     aesthetic: Aesthetic::Linetype,
-                                    expected: "string".to_string(),
-                                    actual: "unknown".to_string(),
+                                    expected: DataType::Vector(VectorType::Str),
+                                    actual: DataType::Custom("unknown".to_string()),
                                 }
                             })?
                             .iter()

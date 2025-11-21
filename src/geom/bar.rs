@@ -1,7 +1,7 @@
 use super::{Geom, IntoLayer, RenderContext};
 use crate::aesthetics::{AesValue, Aesthetic};
 use crate::data::PrimitiveValue;
-use crate::error::PlotError;
+use crate::error::{DataType, PlotError};
 use crate::layer::{Position, Stat};
 
 /// GeomBar renders bars from y=0 to y=value
@@ -219,8 +219,8 @@ impl Geom for GeomBar {
                 } else {
                     return Err(PlotError::InvalidAestheticType {
                         aesthetic: Aesthetic::X,
-                        expected: "numeric or string".to_string(),
-                        actual: "other".to_string(),
+                        expected: DataType::Custom("numeric or string".to_string()),
+                        actual: DataType::Custom("unknown".to_string()),
                     });
                 }
 

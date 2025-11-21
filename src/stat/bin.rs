@@ -1,6 +1,6 @@
 use crate::aesthetics::{AesMap, AesValue, Aesthetic};
 use crate::data::DataSource;
-use crate::error::Result;
+use crate::error::{DataType, Result};
 use crate::stat::StatTransform;
 use crate::utils::dataframe::{DataFrame, FloatVec, IntVec, StrVec};
 use std::collections::HashMap;
@@ -274,8 +274,8 @@ impl StatTransform for Bin {
             _ => {
                 return Err(crate::error::PlotError::InvalidAestheticType {
                     aesthetic: Aesthetic::X,
-                    expected: "column".to_string(),
-                    actual: "constant".to_string(),
+                    expected: DataType::ColumnMapping,
+                    actual: DataType::Custom("constant".to_string()),
                 });
             }
         };

@@ -1,7 +1,7 @@
 use super::{Geom, IntoLayer, RenderContext};
 use crate::aesthetics::{AesValue, Aesthetic};
 use crate::data::PrimitiveValue;
-use crate::error::PlotError;
+use crate::error::{DataType, PlotError};
 
 /// GeomLine renders lines connecting points
 pub struct GeomLine {
@@ -131,15 +131,15 @@ impl Geom for GeomLine {
                 VectorType::Str => group_vec.as_str().ok_or_else(|| {
                     PlotError::InvalidAestheticType {
                         aesthetic: Aesthetic::Group,
-                        expected: "string".to_string(),
-                        actual: "unknown".to_string(),
+                        expected: DataType::Vector(VectorType::Str),
+                        actual: DataType::Custom("unknown".to_string()),
                     }
                 })?,
                 _ => {
                     return Err(PlotError::InvalidAestheticType {
                         aesthetic: Aesthetic::Group,
-                        expected: "string".to_string(),
-                        actual: "non-string".to_string(),
+                        expected: DataType::Vector(VectorType::Str),
+                        actual: DataType::Custom("non-string".to_string()),
                     });
                 }
             };
