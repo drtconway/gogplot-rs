@@ -23,6 +23,14 @@ pub fn generate_automatic_legends(layers: &[Layer], scales: &ScaleSet, guides: &
         )
     });
 
+    // Check if any layer maps Fill aesthetic to a column
+    let has_fill_mapping = layers.iter().any(|layer| {
+        matches!(
+            layer.mapping.get(&Aesthetic::Fill),
+            Some(AesValue::Column(_))
+        )
+    });
+
     // Check if any layer maps Shape aesthetic to a column
     let has_shape_mapping = layers.iter().any(|layer| {
         matches!(
@@ -82,6 +90,58 @@ pub fn generate_automatic_legends(layers: &[Layer], scales: &ScaleSet, guides: &
         }
     }
 
+    // Generate fill legend if Fill is mapped and we have a fill scale
+    if has_fill_mapping && scales.fill.is_some() && guides.fill.is_none() {
+        if let Some(ref fill_scale) = scales.fill {
+            let mut legend = LegendGuide::new();
+            legend.position = LegendPosition::Right;
+
+            // Get the column name for the title
+            for layer in layers {
+                if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::Fill) {
+                    legend.title = Some(col_name.clone());
+                    break;
+                }
+            }
+
+            if fill_scale.is_continuous() {
+                // Create a continuous color bar
+                if let Some(domain) = fill_scale.get_continuous_domain() {
+                    // Sample colors across the domain
+                    let n_samples = 50;
+                    let mut colors = Vec::new();
+                    for i in 0..=n_samples {
+                        let t = i as f64 / n_samples as f64;
+                        let value = domain.0 + t * (domain.1 - domain.0);
+                        if let Some(color) = fill_scale.map_continuous_to_color(value) {
+                            colors.push(color);
+                        }
+                    }
+
+                    legend.legend_type = LegendType::ColorBar { domain, colors };
+                    guides.fill = Some(legend);
+                }
+            } else {
+                // Create discrete legend entries
+                let breaks = fill_scale.legend_breaks();
+                if !breaks.is_empty() {
+                    for category in breaks {
+                        if let Some(color) = fill_scale.map_discrete_to_color(&category) {
+                            legend.entries.push(LegendEntry {
+                                label: category.clone(),
+                                color: Some(color),
+                                shape: Some(Shape::Square), // Use square for fill legend
+                                size: Some(5.0),
+                            });
+                        }
+                    }
+                    guides.fill = Some(legend);
+                } else {
+                }
+            }
+        }
+    }
+
     // Generate shape legend if Shape is mapped and we have a shape scale
     if has_shape_mapping && scales.shape.is_some() && guides.shape.is_none() {
         if let Some(ref shape_scale) = scales.shape {
@@ -136,6 +196,12 @@ pub fn calculate_legend_width(layers: &[Layer], scales: &ScaleSet, guides: &Guid
         }
     }
 
+    if let Some(ref legend) = guides.fill {
+        if !matches!(legend.position, LegendPosition::None) {
+            legend_count += 1;
+        }
+    }
+
     if let Some(ref legend) = guides.shape {
         if !matches!(legend.position, LegendPosition::None) {
             legend_count += 1;
@@ -179,6 +245,11 @@ pub fn draw_legends(
     // Add color legend if present
     if let Some(ref color_guide) = guides.color {
         legends.push(color_guide);
+    }
+
+    // Add fill legend if present
+    if let Some(ref fill_guide) = guides.fill {
+        legends.push(fill_guide);
     }
 
     // Add shape legend if present

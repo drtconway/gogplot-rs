@@ -280,6 +280,8 @@ pub struct Guides {
     pub y_axis: Option<AxisGuide>,
     /// Color legend
     pub color: Option<LegendGuide>,
+    /// Fill legend
+    pub fill: Option<LegendGuide>,
     /// Shape legend
     pub shape: Option<LegendGuide>,
     /// Size legend
@@ -294,6 +296,7 @@ impl Default for Guides {
             x_axis: None,
             y_axis: None,
             color: None,
+            fill: None,
             shape: None,
             size: None,
             alpha: None,
@@ -318,6 +321,11 @@ impl Guides {
 
     pub fn color(mut self, guide: LegendGuide) -> Self {
         self.color = Some(guide);
+        self
+    }
+
+    pub fn fill(mut self, guide: LegendGuide) -> Self {
+        self.fill = Some(guide);
         self
     }
 

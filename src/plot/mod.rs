@@ -184,6 +184,26 @@ impl Plot {
         self
     }
 
+    /// Set the fill scale (builder style)
+    pub fn scale_fill(mut self, scale: Box<dyn ColorScale>) -> Self {
+        self.scales.fill = Some(scale);
+        self
+    }
+
+    /// Set a continuous fill scale with custom gradient colors (builder style)
+    pub fn scale_fill_continuous(mut self, colors: Vec<Color>) -> Self {
+        use crate::scale::color::ContinuousColor;
+        self.scales.fill = Some(Box::new(ContinuousColor::new((0.0, 1.0), colors)));
+        self
+    }
+
+    /// Set a discrete fill scale with custom colors (builder style)
+    pub fn scale_fill_manual(mut self, colors: Vec<Color>) -> Self {
+        use crate::scale::color::DiscreteColor;
+        self.scales.fill = Some(Box::new(DiscreteColor::new(colors)));
+        self
+    }
+
     /// Set the size scale (builder style)
     pub fn scale_size(mut self, scale: Box<dyn ContinuousScale>) -> Self {
         self.scales.size = Some(scale);

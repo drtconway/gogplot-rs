@@ -352,7 +352,7 @@ impl<'a> RenderContext<'a> {
 
         let n = self.data.len();
         let mapping = self.mapping.get(&Aesthetic::Fill);
-        let color_scale = self.scales.color.as_ref();
+        let color_scale = self.scales.fill.as_ref();
 
         match (mapping, color_scale) {
             // Column mapped with scale

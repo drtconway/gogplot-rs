@@ -10,6 +10,7 @@ pub struct ScaleSet {
     pub x: Option<Box<dyn ContinuousScale>>,
     pub y: Option<Box<dyn ContinuousScale>>,
     pub color: Option<Box<dyn ColorScale>>,
+    pub fill: Option<Box<dyn ColorScale>>,
     pub size: Option<Box<dyn ContinuousScale>>,
     pub alpha: Option<Box<dyn ContinuousScale>>,
     pub shape: Option<Box<dyn ShapeScale>>,
@@ -22,6 +23,7 @@ impl ScaleSet {
             x: None,
             y: None,
             color: None,
+            fill: None,
             size: None,
             alpha: None,
             shape: None,
@@ -128,6 +130,14 @@ impl ScaleSet {
                 }
             }
 
+            // Fill scale
+            if self.fill.is_none() {
+                if let Some(AesValue::Column(_)) = layer.mapping.get(&Aesthetic::Fill) {
+                    // Create default discrete color scale for fill
+                    self.fill = Some(Box::new(DiscreteColor::default_palette()));
+                }
+            }
+
             // Shape scale
             if self.shape.is_none() {
                 if let Some(AesValue::Column(_)) = layer.mapping.get(&Aesthetic::Shape) {
@@ -231,6 +241,15 @@ impl ScaleSet {
             // Train color scale
             if let Some(AesValue::Column(col_name)) = mapping.get(&Aesthetic::Color) {
                 if let Some(ref mut scale) = self.color {
+                    if let Some(vec) = data.get(col_name) {
+                        scale.train(&[vec]);
+                    }
+                }
+            }
+
+            // Train fill scale
+            if let Some(AesValue::Column(col_name)) = mapping.get(&Aesthetic::Fill) {
+                if let Some(ref mut scale) = self.fill {
                     if let Some(vec) = data.get(col_name) {
                         scale.train(&[vec]);
                     }
