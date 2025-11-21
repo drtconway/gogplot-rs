@@ -46,22 +46,6 @@ pub trait GenericVector: Send + Sync {
     }
 }
 
-// These traits are kept for concrete types that want zero-cost iteration
-// but they're not dyn-compatible due to GATs
-pub trait IntVector: GenericVector + Send + Sync {
-    type Iter<'a>: Iterator<Item = &'a i64>
-    where
-        Self: 'a;
-    fn iter(&self) -> Self::Iter<'_>;
-}
-
-pub trait FloatVector: GenericVector + Send + Sync {
-    type Iter<'a>: Iterator<Item = &'a f64>
-    where
-        Self: 'a;
-    fn iter(&self) -> Self::Iter<'_>;
-}
-
 pub trait StrVector: GenericVector + Send + Sync {
     type Iter<'a>: Iterator<Item = &'a str>
     where

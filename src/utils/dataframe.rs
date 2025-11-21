@@ -1,4 +1,4 @@
-use crate::data::{DataSource, FloatVector, GenericVector, IntVector, StrVector, VectorType};
+use crate::data::{DataSource, GenericVector, StrVector, VectorType};
 use std::collections::HashMap;
 
 // Concrete vector implementations
@@ -18,14 +18,6 @@ impl GenericVector for IntVec {
     }
 }
 
-impl IntVector for IntVec {
-    type Iter<'a> = std::slice::Iter<'a, i64> where Self: 'a;
-    
-    fn iter(&self) -> Self::Iter<'_> {
-        self.0.iter()
-    }
-}
-
 pub struct FloatVec(pub Vec<f64>);
 
 impl GenericVector for FloatVec {
@@ -39,14 +31,6 @@ impl GenericVector for FloatVec {
 
     fn iter_float(&self) -> Option<Box<dyn Iterator<Item = f64> + '_>> {
         Some(Box::new(self.0.iter().copied()))
-    }
-}
-
-impl FloatVector for FloatVec {
-    type Iter<'a> = std::slice::Iter<'a, f64> where Self: 'a;
-    
-    fn iter(&self) -> Self::Iter<'_> {
-        self.0.iter()
     }
 }
 
@@ -203,7 +187,7 @@ mod tests {
     #[test]
     fn test_intvec_iter() {
         let vec = IntVec(vec![1, 2, 3]);
-        let values: Vec<i64> = vec.iter().copied().collect();
+        let values: Vec<i64> = vec.iter_int().unwrap().collect();
         assert_eq!(values, vec![1, 2, 3]);
     }
 
@@ -224,7 +208,7 @@ mod tests {
     #[test]
     fn test_floatvec_iter() {
         let vec = FloatVec(vec![1.5, 2.5, 3.5]);
-        let values: Vec<f64> = vec.iter().copied().collect();
+        let values: Vec<f64> = vec.iter_float().unwrap().collect();
         assert_eq!(values, vec![1.5, 2.5, 3.5]);
     }
 

@@ -1,4 +1,4 @@
-use crate::data::{FloatVector, GenericVector, IntVector, StrVector};
+use crate::data::{GenericVector, StrVector};
 use crate::utils::dataframe::{DataFrame, FloatVec, IntVec, StrVec};
 use arrow::array::{
     Array, ArrayRef, DictionaryArray, Float32Array, Float64Array, Int16Array,
@@ -22,21 +22,10 @@ impl GenericVector for Int64Array {
     }
 }
 
-impl IntVector for Int64Array {
-    type Iter<'a> = std::slice::Iter<'a, i64> where Self: 'a;
-    
-    fn iter(&self) -> Self::Iter<'_> {
-        // Arrow Int64Array stores data in a buffer. We can get a slice of the values
-        // if there are no nulls. For now, we'll use values() which gives us a slice.
-        // Note: This will include values at null positions if any exist.
-        // The caller should check for nulls separately if needed.
-        self.values().iter()
-    }
-}
-
-// Note: For integer types other than i64, we cannot implement the IntVector GAT trait
-// because it requires returning &i64, but these arrays store native types (i8, i16, etc.)
-// that need to be cast. They can only implement GenericVector with conversion.
+// Note: For integer types other than i64, we would need a GAT trait to return zero-copy iterators
+// because it requires returning &i64, but these arrays store native types (i8, i16, etc.).
+// However, they do implement GenericVector::iter_int() which returns Iterator<Item = i64>
+// by value (with casting). Similarly for Float32Array with FloatVector.
 
 impl GenericVector for Int8Array {
     fn len(&self) -> usize {
@@ -48,8 +37,7 @@ impl GenericVector for Int8Array {
     }
 
     fn iter_int(&self) -> Option<Box<dyn Iterator<Item = i64> + '_>> {
-        // Cannot provide zero-copy iteration - need to convert through IntVec
-        None
+        Some(Box::new(self.values().iter().map(|&v| v as i64)))
     }
 }
 
@@ -63,7 +51,7 @@ impl GenericVector for Int16Array {
     }
 
     fn iter_int(&self) -> Option<Box<dyn Iterator<Item = i64> + '_>> {
-        None
+        Some(Box::new(self.values().iter().map(|&v| v as i64)))
     }
 }
 
@@ -77,7 +65,7 @@ impl GenericVector for Int32Array {
     }
 
     fn iter_int(&self) -> Option<Box<dyn Iterator<Item = i64> + '_>> {
-        None
+        Some(Box::new(self.values().iter().map(|&v| v as i64)))
     }
 }
 
@@ -91,7 +79,7 @@ impl GenericVector for UInt8Array {
     }
 
     fn iter_int(&self) -> Option<Box<dyn Iterator<Item = i64> + '_>> {
-        None
+        Some(Box::new(self.values().iter().map(|&v| v as i64)))
     }
 }
 
@@ -105,7 +93,7 @@ impl GenericVector for UInt16Array {
     }
 
     fn iter_int(&self) -> Option<Box<dyn Iterator<Item = i64> + '_>> {
-        None
+        Some(Box::new(self.values().iter().map(|&v| v as i64)))
     }
 }
 
@@ -119,7 +107,7 @@ impl GenericVector for UInt32Array {
     }
 
     fn iter_int(&self) -> Option<Box<dyn Iterator<Item = i64> + '_>> {
-        None
+        Some(Box::new(self.values().iter().map(|&v| v as i64)))
     }
 }
 
@@ -133,7 +121,8 @@ impl GenericVector for UInt64Array {
     }
 
     fn iter_int(&self) -> Option<Box<dyn Iterator<Item = i64> + '_>> {
-        None
+        // Note: UInt64 values > i64::MAX will wrap when cast to i64
+        Some(Box::new(self.values().iter().map(|&v| v as i64)))
     }
 }
 
@@ -147,7 +136,7 @@ impl GenericVector for Float32Array {
     }
 
     fn iter_float(&self) -> Option<Box<dyn Iterator<Item = f64> + '_>> {
-        None
+        Some(Box::new(self.values().iter().map(|&v| v as f64)))
     }
 }
 
@@ -162,14 +151,6 @@ impl GenericVector for Float64Array {
 
     fn iter_float(&self) -> Option<Box<dyn Iterator<Item = f64> + '_>> {
         Some(Box::new(self.values().iter().copied()))
-    }
-}
-
-impl FloatVector for Float64Array {
-    type Iter<'a> = std::slice::Iter<'a, f64> where Self: 'a;
-    
-    fn iter(&self) -> Self::Iter<'_> {
-        self.values().iter()
     }
 }
 
