@@ -5,6 +5,7 @@ pub mod geom;
 pub mod guide;
 pub mod layer;
 pub mod plot;
+pub mod position;
 pub mod prelude;
 pub mod scale;
 pub mod stat;

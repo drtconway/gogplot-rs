@@ -15,7 +15,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let u2 = ((i * 7 + 13) % 500) as f64 / 500.0;
         let z = (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos();
         values.push(z * 1.5 + 5.0);
-        groups.push("A".to_string());
+        groups.push("A");
     }
     
     // Group B: centered around 7
@@ -24,12 +24,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let u2 = ((i * 11 + 17) % 500) as f64 / 500.0;
         let z = (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos();
         values.push(z * 1.5 + 7.0);
-        groups.push("B".to_string());
+        groups.push("B");
     }
 
     let mut df = DataFrame::new();
     df.add_column("value", Box::new(FloatVec(values)));
-    df.add_column("group", Box::new(StrVec(groups)));
+    df.add_column("group", Box::new(StrVec::from(groups)));
 
     // Example 1: Overlapping histograms with transparency
     Plot::new(Some(Box::new(df)))

@@ -79,6 +79,9 @@ pub trait DataSource: Send + Sync {
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
+    
+    /// Clone into a new Box - required for cloning trait objects
+    fn clone_box(&self) -> Box<dyn DataSource>;
 }
 
 /// A DataSource that layers multiple data sources, checking them in order.
@@ -129,6 +132,12 @@ impl DataSource for StackedDataSource {
     fn len(&self) -> usize {
         // Return length of first source, or 0 if no sources
         self.sources.first().map_or(0, |s| s.len())
+    }
+    
+    fn clone_box(&self) -> Box<dyn DataSource> {
+        Box::new(StackedDataSource {
+            sources: self.sources.iter().map(|s| s.clone_box()).collect(),
+        })
     }
 }
 

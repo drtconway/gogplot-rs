@@ -175,7 +175,7 @@ pub fn render_with_context(
     for layer in layers {
         // Use computed data if available, otherwise use original data
         let layer_data: &dyn DataSource = if let Some(ref computed) = layer.computed_data {
-            computed as &dyn DataSource
+            computed.as_ref()
         } else {
             match &layer.data {
                 Some(d) => d.as_ref(),

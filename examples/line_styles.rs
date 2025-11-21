@@ -22,25 +22,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for i in 0..x.len() {
         all_x.push(x[i]);
         all_y.push(y1[i]);
-        all_style.push("solid".to_string());
+        all_style.push("solid");
 
         all_x.push(x[i]);
         all_y.push(y2[i]);
-        all_style.push("-".to_string());
+        all_style.push("-");
 
         all_x.push(x[i]);
         all_y.push(y3[i]);
-        all_style.push(".".to_string());
+        all_style.push(".");
 
         all_x.push(x[i]);
         all_y.push(y4[i]);
-        all_style.push("-.".to_string());
+        all_style.push("-.");
     }
 
     let mut df = DataFrame::new();
     df.add_column("x", Box::new(FloatVec(all_x)));
     df.add_column("y", Box::new(FloatVec(all_y)));
-    df.add_column("style", Box::new(StrVec(all_style)));
+    df.add_column("style", Box::new(StrVec::from(all_style)));
 
     // Create plot with different line styles
     let plot = Plot::new(Some(Box::new(df)))

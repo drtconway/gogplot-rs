@@ -237,16 +237,43 @@ impl Geom for GeomBar {
     }
 
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
+        // Check if we have Ymin/Ymax (from position adjustment like Stack)
+        let has_ymin_ymax = ctx.data.get("ymin").is_some() && ctx.data.get("ymax").is_some();
+
         // Get aesthetic values
         let x_normalized = ctx.get_aesthetic_values(Aesthetic::X, ctx.scales.x.as_ref())?;
-        let y_normalized = ctx.get_aesthetic_values(Aesthetic::Y, ctx.scales.y.as_ref())?;
+        
+        let (ymin_normalized, ymax_normalized) = if has_ymin_ymax {
+            // Use Ymin/Ymax for stacked bars
+            let ymin = ctx.get_aesthetic_values(Aesthetic::Ymin, ctx.scales.y.as_ref())?;
+            let ymax = ctx.get_aesthetic_values(Aesthetic::Ymax, ctx.scales.y.as_ref())?;
+            (Some(ymin), Some(ymax))
+        } else {
+            (None, None)
+        };
+        
+        let y_normalized = if !has_ymin_ymax {
+            Some(ctx.get_aesthetic_values(Aesthetic::Y, ctx.scales.y.as_ref())?)
+        } else {
+            None
+        };
+        
         let fills = ctx.get_fill_color_values()?;
         let colors = ctx.get_color_values()?;
         let alphas = ctx.get_aesthetic_values(Aesthetic::Alpha, None)?;
 
         // Collect x values to compute bar width
         let x_norm_vec: Vec<f64> = x_normalized.collect();
-        let y_norm_vec: Vec<f64> = y_normalized.collect();
+        
+        let (ymin_norm_vec, ymax_norm_vec, y_norm_vec) = if has_ymin_ymax {
+            let ymin_vec: Vec<f64> = ymin_normalized.unwrap().collect();
+            let ymax_vec: Vec<f64> = ymax_normalized.unwrap().collect();
+            (Some(ymin_vec), Some(ymax_vec), None)
+        } else {
+            let y_vec: Vec<f64> = y_normalized.unwrap().collect();
+            (None, None, Some(y_vec))
+        };
+        
         let fills_vec: Vec<crate::theme::Color> = fills.collect();
         let colors_vec: Vec<crate::theme::Color> = colors.collect();
         let alphas_vec: Vec<f64> = alphas.collect();
@@ -274,7 +301,7 @@ impl Geom for GeomBar {
             0.1 // Single bar fallback width
         };
 
-        // Get y=0 in normalized coordinates
+        // Get y=0 in normalized coordinates (for non-stacked bars)
         let zero_normalized = if let Some(y_scale) = ctx.scales.y.as_ref() {
             y_scale.map_value(0.0).unwrap_or(0.0)
         } else {
@@ -282,19 +309,24 @@ impl Geom for GeomBar {
         };
 
         // Render bars
-        for ((((x_norm, y_norm), fill), color), alpha) in x_norm_vec
-            .iter()
-            .zip(y_norm_vec.iter())
-            .zip(fills_vec.iter())
-            .zip(colors_vec.iter())
-            .zip(alphas_vec.iter())
-        {
-            let x_norm = *x_norm;
-            let y_norm = *y_norm;
+        let n = x_norm_vec.len();
+        for i in 0..n {
+            let x_norm = x_norm_vec[i];
+            let fill = fills_vec[i];
+            let color = colors_vec[i];
+            let alpha = alphas_vec[i];
+            
+            // Determine y_top and y_bottom based on whether we're stacking
+            let (y_top_norm, y_bottom_norm) = if has_ymin_ymax {
+                (ymax_norm_vec.as_ref().unwrap()[i], ymin_norm_vec.as_ref().unwrap()[i])
+            } else {
+                (y_norm_vec.as_ref().unwrap()[i], zero_normalized)
+            };
+            
             // Map to device coordinates
             let x_center = ctx.map_x(x_norm);
-            let y_top = ctx.map_y(y_norm);
-            let y_bottom = ctx.map_y(zero_normalized);
+            let y_top = ctx.map_y(y_top_norm);
+            let y_bottom = ctx.map_y(y_bottom_norm);
 
             // Calculate bar width in device coordinates
             let half_width = ctx.map_x(x_norm + bar_width_normalized / 2.0)
@@ -307,13 +339,13 @@ impl Geom for GeomBar {
             let y = y_top.min(y_bottom);
 
             // Fill the bar
-            ctx.set_color_alpha(fill, *alpha);
+            ctx.set_color_alpha(&fill, alpha);
             ctx.cairo.rectangle(x_left, y, width, height);
             ctx.cairo.fill().ok();
 
             // Stroke the bar if a stroke color is defined
             if self.color.is_some() {
-                ctx.set_color_alpha(color, *alpha);
+                ctx.set_color_alpha(&color, alpha);
                 ctx.cairo.rectangle(x_left, y, width, height);
                 ctx.cairo.stroke().ok();
             }

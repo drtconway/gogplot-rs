@@ -17,24 +17,27 @@ pub fn generate_automatic_legends(layers: &[Layer], scales: &ScaleSet, guides: &
 
     // Check if any layer maps Color aesthetic to a column
     let has_color_mapping = layers.iter().any(|layer| {
+        let mapping = layer.computed_mapping.as_ref().unwrap_or(&layer.mapping);
         matches!(
-            layer.mapping.get(&Aesthetic::Color),
+            mapping.get(&Aesthetic::Color),
             Some(AesValue::Column(_))
         )
     });
 
     // Check if any layer maps Fill aesthetic to a column
     let has_fill_mapping = layers.iter().any(|layer| {
+        let mapping = layer.computed_mapping.as_ref().unwrap_or(&layer.mapping);
         matches!(
-            layer.mapping.get(&Aesthetic::Fill),
+            mapping.get(&Aesthetic::Fill),
             Some(AesValue::Column(_))
         )
     });
 
     // Check if any layer maps Shape aesthetic to a column
     let has_shape_mapping = layers.iter().any(|layer| {
+        let mapping = layer.computed_mapping.as_ref().unwrap_or(&layer.mapping);
         matches!(
-            layer.mapping.get(&Aesthetic::Shape),
+            mapping.get(&Aesthetic::Shape),
             Some(AesValue::Column(_))
         )
     });
@@ -47,7 +50,8 @@ pub fn generate_automatic_legends(layers: &[Layer], scales: &ScaleSet, guides: &
 
             // Get the column name for the title
             for layer in layers {
-                if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::Color) {
+                let mapping = layer.computed_mapping.as_ref().unwrap_or(&layer.mapping);
+                if let Some(AesValue::Column(col_name)) = mapping.get(&Aesthetic::Color) {
                     legend.title = Some(col_name.clone());
                     break;
                 }
@@ -98,7 +102,8 @@ pub fn generate_automatic_legends(layers: &[Layer], scales: &ScaleSet, guides: &
 
             // Get the column name for the title
             for layer in layers {
-                if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::Fill) {
+                let mapping = layer.computed_mapping.as_ref().unwrap_or(&layer.mapping);
+                if let Some(AesValue::Column(col_name)) = mapping.get(&Aesthetic::Fill) {
                     legend.title = Some(col_name.clone());
                     break;
                 }
@@ -152,7 +157,8 @@ pub fn generate_automatic_legends(layers: &[Layer], scales: &ScaleSet, guides: &
 
                 // Get the column name for the title
                 for layer in layers {
-                    if let Some(AesValue::Column(col_name)) = layer.mapping.get(&Aesthetic::Shape) {
+                    let mapping = layer.computed_mapping.as_ref().unwrap_or(&layer.mapping);
+                    if let Some(AesValue::Column(col_name)) = mapping.get(&Aesthetic::Shape) {
                         legend.title = Some(col_name.clone());
                         break;
                     }

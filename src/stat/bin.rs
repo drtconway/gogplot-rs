@@ -2,7 +2,8 @@ use crate::aesthetics::{AesMap, AesValue, Aesthetic};
 use crate::data::{DataSource, StackedDataSource};
 use crate::error::Result;
 use crate::stat::StatTransform;
-use crate::utils::dataframe::{DataFrame, FloatVec, IntVec};
+use crate::utils::dataframe::{DataFrame, FloatVec, IntVec, StrVec};
+use std::collections::HashMap;
 
 /// Bin configuration strategy
 #[derive(Debug, Clone)]
@@ -56,6 +57,211 @@ impl Default for Bin {
     }
 }
 
+impl Bin {
+    /// Apply grouped binning - bin each group separately using the same bin boundaries.
+    ///
+    /// When multiple grouping aesthetics are mapped (e.g., both Fill and Shape), this creates
+    /// groups based on the intersection of all grouping columns. For example:
+    /// - Fill="A", Shape="Circle" → Group "A__Circle"
+    /// - Fill="A", Shape="Square" → Group "A__Square"
+    /// - Fill="B", Shape="Circle" → Group "B__Circle"
+    ///
+    /// All groups use the same bin boundaries (computed from the combined data range),
+    /// but are counted separately. This matches ggplot2 behavior.
+    fn apply_grouped(
+        &self,
+        data: Box<dyn DataSource>,
+        mapping: &AesMap,
+        x_col_name: &str,
+        group_cols: &[(Aesthetic, String)],
+    ) -> Result<Option<(Box<dyn DataSource>, AesMap)>> {
+        // Get x column
+        let x_col = data.get(x_col_name).ok_or_else(|| {
+            crate::error::PlotError::Generic(format!("Column '{}' not found", x_col_name))
+        })?;
+
+        // Get all grouping columns
+        let mut group_vectors = Vec::new();
+        for (_, col_name) in group_cols {
+            let col = data.get(col_name).ok_or_else(|| {
+                crate::error::PlotError::Generic(format!("Column '{}' not found", col_name))
+            })?;
+            let str_vec = col.as_str().ok_or_else(|| {
+                crate::error::PlotError::Generic(format!(
+                    "Grouping column '{}' must be categorical (string)",
+                    col_name
+                ))
+            })?;
+            group_vectors.push((col_name.as_str(), str_vec));
+        }
+
+        // Create composite group keys by combining all grouping columns
+        let n_rows = data.len();
+        let composite_keys: Vec<String> = (0..n_rows)
+            .map(|i| {
+                group_vectors
+                    .iter()
+                    .map(|(_, vec)| vec.iter().nth(i).unwrap())
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join("__") // Use __ as separator for composite keys
+            })
+            .collect();
+
+        // Convert x to float values
+        let x_values: Vec<f64> = if let Some(int_vec) = x_col.as_int() {
+            int_vec.iter().map(|&v| v as f64).collect()
+        } else if let Some(float_vec) = x_col.as_float() {
+            float_vec.iter().copied().filter(|v| v.is_finite()).collect()
+        } else {
+            return Err(crate::error::PlotError::Generic(
+                "Bin stat requires numeric X values".to_string(),
+            ));
+        };
+
+        if x_values.is_empty() {
+            return Err(crate::error::PlotError::Generic(
+                "No valid numeric values for binning".to_string(),
+            ));
+        }
+
+        // Calculate global bin boundaries based on all data
+        let min_val = x_values.iter().copied().fold(f64::INFINITY, f64::min);
+        let max_val = x_values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        let range = max_val - min_val;
+
+        if range == 0.0 {
+            // All values the same - single bin per group
+            let mut groups_map: HashMap<String, i64> = HashMap::new();
+            for key in &composite_keys {
+                *groups_map.entry(key.clone()).or_insert(0) += 1;
+            }
+
+            let mut x_centers = Vec::new();
+            let mut counts = Vec::new();
+            let mut xmins = Vec::new();
+            let mut xmaxs = Vec::new();
+            let mut group_keys = Vec::new();
+
+            for (group, count) in groups_map {
+                x_centers.push(min_val);
+                counts.push(count);
+                xmins.push(min_val - 0.5);
+                xmaxs.push(min_val + 0.5);
+                group_keys.push(group);
+            }
+
+            let mut computed = DataFrame::new();
+            computed.add_column("x", Box::new(FloatVec(x_centers)));
+            computed.add_column("count", Box::new(IntVec(counts)));
+            computed.add_column("xmin", Box::new(FloatVec(xmins)));
+            computed.add_column("xmax", Box::new(FloatVec(xmaxs)));
+            
+            // Add columns for each grouping aesthetic
+            for (aesthetic, col_name) in group_cols {
+                let values: Vec<String> = group_keys
+                    .iter()
+                    .map(|key| {
+                        // Extract the value for this aesthetic from composite key
+                        let parts: Vec<&str> = key.split("__").collect();
+                        let idx = group_cols.iter().position(|(a, _)| a == aesthetic).unwrap();
+                        parts[idx].to_string()
+                    })
+                    .collect();
+                computed.add_column(col_name, Box::new(StrVec(values)));
+            }
+
+            let stacked = StackedDataSource::two_layer(Box::new(computed), data);
+            let mut new_mapping = mapping.clone();
+            new_mapping.set(Aesthetic::X, AesValue::column("x"));
+            new_mapping.set(Aesthetic::Y, AesValue::column("count"));
+
+            return Ok(Some((Box::new(stacked), new_mapping)));
+        }
+
+        // Determine bin width based on strategy
+        let binwidth = match self.strategy {
+            BinStrategy::Width(width) => width,
+            BinStrategy::Count(bins) => range / bins as f64,
+        };
+
+        let n_bins = ((range / binwidth).ceil() as usize).max(1);
+        let adjusted_range = binwidth * n_bins as f64;
+        let offset = (adjusted_range - range) / 2.0;
+        let bin_min = min_val - offset;
+
+        // Group data by composite key
+        let mut groups_data: HashMap<String, Vec<f64>> = HashMap::new();
+        for (i, key) in composite_keys.iter().enumerate() {
+            if i < x_values.len() {
+                groups_data
+                    .entry(key.clone())
+                    .or_insert_with(Vec::new)
+                    .push(x_values[i]);
+            }
+        }
+
+        // Bin each group separately using the same boundaries
+        let mut all_x_centers = Vec::new();
+        let mut all_counts = Vec::new();
+        let mut all_xmins = Vec::new();
+        let mut all_xmaxs = Vec::new();
+        let mut all_group_keys = Vec::new();
+
+        for (group_key, group_x_values) in groups_data {
+            // Count values in each bin for this group
+            let mut counts = vec![0i64; n_bins];
+            for &value in &group_x_values {
+                let bin_idx = ((value - bin_min) / binwidth).floor() as usize;
+                let bin_idx = bin_idx.min(n_bins - 1);
+                counts[bin_idx] += 1;
+            }
+
+            // Generate output rows for this group (only non-empty bins)
+            for i in 0..n_bins {
+                if counts[i] > 0 {
+                    let bin_start = bin_min + i as f64 * binwidth;
+                    let bin_end = bin_start + binwidth;
+                    all_x_centers.push((bin_start + bin_end) / 2.0);
+                    all_counts.push(counts[i]);
+                    all_xmins.push(bin_start);
+                    all_xmaxs.push(bin_end);
+                    all_group_keys.push(group_key.clone());
+                }
+            }
+        }
+
+        // Create computed DataFrame
+        let mut computed = DataFrame::new();
+        computed.add_column("x", Box::new(FloatVec(all_x_centers)));
+        computed.add_column("count", Box::new(IntVec(all_counts)));
+        computed.add_column("xmin", Box::new(FloatVec(all_xmins)));
+        computed.add_column("xmax", Box::new(FloatVec(all_xmaxs)));
+        
+        // Add columns for each grouping aesthetic by splitting composite keys
+        for (aesthetic, col_name) in group_cols {
+            let values: Vec<String> = all_group_keys
+                .iter()
+                .map(|key| {
+                    let parts: Vec<&str> = key.split("__").collect();
+                    let idx = group_cols.iter().position(|(a, _)| a == aesthetic).unwrap();
+                    parts[idx].to_string()
+                })
+                .collect();
+            computed.add_column(col_name, Box::new(StrVec(values)));
+        }
+
+        let stacked = StackedDataSource::two_layer(Box::new(computed), data);
+
+        // Update mapping
+        let mut new_mapping = mapping.clone();
+        new_mapping.set(Aesthetic::X, AesValue::column("x"));
+        new_mapping.set(Aesthetic::Y, AesValue::column("count"));
+
+        Ok(Some((Box::new(stacked), new_mapping)))
+    }
+}
+
 impl StatTransform for Bin {
     fn apply(
         &self,
@@ -77,6 +283,22 @@ impl StatTransform for Bin {
             }
         };
 
+        // Collect all grouping aesthetics mapped to columns
+        let group_col_names: Vec<(Aesthetic, String)> = mapping
+            .iter()
+            .filter(|(aes, _)| aes.is_grouping())
+            .filter_map(|(aes, aes_value)| match aes_value {
+                AesValue::Column(name) => Some((aes.clone(), name.clone())),
+                _ => None,
+            })
+            .collect();
+
+        // If we have any grouping aesthetics, use grouped binning
+        if !group_col_names.is_empty() {
+            return self.apply_grouped(data, mapping, x_col_name.as_str(), &group_col_names);
+        }
+
+        // Otherwise, use ungrouped binning (original logic)
         // Get the x column from data
         let x_col = data.get(x_col_name.as_str()).ok_or_else(|| {
             crate::error::PlotError::Generic(format!("Column '{}' not found in data", x_col_name))
@@ -350,5 +572,119 @@ mod tests {
         
         // Should have 5 bins (range 10 / binwidth 2 = 5)
         assert_eq!(xmins.len(), 5, "Expected 5 bins with binwidth 2.0 over range 10");
+    }
+
+    #[test]
+    fn test_grouped_binning() {
+        use crate::utils::dataframe::StrVec;
+        
+        // Create data with two groups
+        let mut df = DataFrame::new();
+        df.add_column("x", Box::new(FloatVec(vec![
+            1.0, 1.5, 2.0, 2.5, 3.0,  // Group A
+            2.0, 2.5, 3.0, 3.5, 4.0,  // Group B
+        ])));
+        df.add_column("group", Box::new(StrVec(vec![
+            "A".to_string(), "A".to_string(), "A".to_string(), "A".to_string(), "A".to_string(),
+            "B".to_string(), "B".to_string(), "B".to_string(), "B".to_string(), "B".to_string(),
+        ])));
+
+        let mut mapping = AesMap::new();
+        mapping.x("x");
+        mapping.set(Aesthetic::Fill, AesValue::column("group"));
+
+        let bin = Bin::with_count(3);
+        let (data, new_mapping) = bin.apply(Box::new(df), &mapping).unwrap().unwrap();
+
+        // Check that y is mapped to count
+        assert_eq!(
+            new_mapping.get(&Aesthetic::Y),
+            Some(&AesValue::column("count"))
+        );
+
+        // Check that group column is preserved
+        let group_col = data.get("group").unwrap();
+        assert!(group_col.as_str().is_some());
+
+        // Check that we have data for both groups
+        let groups: Vec<String> = group_col.as_str().unwrap().iter().cloned().collect();
+        assert!(groups.contains(&"A".to_string()));
+        assert!(groups.contains(&"B".to_string()));
+
+        // Verify counts sum to original data size
+        let count_col = data.get("count").unwrap();
+        let counts: Vec<i64> = count_col.as_int().unwrap().iter().copied().collect();
+        assert_eq!(counts.iter().sum::<i64>(), 10);
+
+        // Verify all bins use the same boundaries (by checking xmin/xmax are consistent)
+        let xmin_col = data.get("xmin").unwrap();
+        let xmins: Vec<f64> = xmin_col.as_float().unwrap().iter().copied().collect();
+        let xmax_col = data.get("xmax").unwrap();
+        let xmaxs: Vec<f64> = xmax_col.as_float().unwrap().iter().copied().collect();
+
+        // All bins should have the same width
+        let bin_width = xmaxs[0] - xmins[0];
+        for i in 0..xmins.len() {
+            let width = xmaxs[i] - xmins[i];
+            assert!((width - bin_width).abs() < 0.01, "Bin widths should be consistent");
+        }
+    }
+
+    #[test]
+    fn test_multiple_grouping_aesthetics() {
+        use crate::utils::dataframe::StrVec;
+        
+        // Create data with two grouping dimensions
+        let mut df = DataFrame::new();
+        df.add_column("x", Box::new(FloatVec(vec![
+            1.0, 2.0,  // Color A, Shape X
+            3.0, 4.0,  // Color A, Shape Y
+            1.5, 2.5,  // Color B, Shape X
+            3.5, 4.5,  // Color B, Shape Y
+        ])));
+        df.add_column("color", Box::new(StrVec(vec![
+            "A".to_string(), "A".to_string(),
+            "A".to_string(), "A".to_string(),
+            "B".to_string(), "B".to_string(),
+            "B".to_string(), "B".to_string(),
+        ])));
+        df.add_column("shape", Box::new(StrVec(vec![
+            "X".to_string(), "X".to_string(),
+            "Y".to_string(), "Y".to_string(),
+            "X".to_string(), "X".to_string(),
+            "Y".to_string(), "Y".to_string(),
+        ])));
+
+        let mut mapping = AesMap::new();
+        mapping.x("x");
+        mapping.set(Aesthetic::Fill, AesValue::column("color"));
+        mapping.set(Aesthetic::Shape, AesValue::column("shape"));
+
+        let bin = Bin::with_count(3);
+        let (data, _) = bin.apply(Box::new(df), &mapping).unwrap().unwrap();
+
+        // Check that both grouping columns are preserved
+        let color_col = data.get("color").unwrap();
+        assert!(color_col.as_str().is_some());
+        let shape_col = data.get("shape").unwrap();
+        assert!(shape_col.as_str().is_some());
+
+        // Should have 4 distinct groups: A-X, A-Y, B-X, B-Y
+        let colors: Vec<String> = color_col.as_str().unwrap().iter().cloned().collect();
+        let shapes: Vec<String> = shape_col.as_str().unwrap().iter().cloned().collect();
+        
+        let mut groups = std::collections::HashSet::new();
+        for i in 0..colors.len() {
+            groups.insert(format!("{}-{}", colors[i], shapes[i]));
+        }
+        
+        // We expect up to 4 groups (some bins may be empty for some groups)
+        assert!(groups.len() <= 4);
+        assert!(groups.len() >= 2); // At least some groups should be present
+
+        // Verify counts sum to original data size
+        let count_col = data.get("count").unwrap();
+        let counts: Vec<i64> = count_col.as_int().unwrap().iter().copied().collect();
+        assert_eq!(counts.iter().sum::<i64>(), 8);
     }
 }

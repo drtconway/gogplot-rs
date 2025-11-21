@@ -6,6 +6,8 @@ use std::collections::HashMap;
 pub enum Aesthetic {
     X,
     Y,
+    Ymin,
+    Ymax,
     Color,
     Fill,
     Alpha,
@@ -17,6 +19,22 @@ pub enum Aesthetic {
     XEnd,
     YBegin,
     YEnd,
+}
+
+impl Aesthetic {
+    /// Returns true if this aesthetic creates groups when mapped to categorical data.
+    /// Grouping aesthetics are used to split data into subsets for operations like
+    /// binning, smoothing, or statistical transformations.
+    pub fn is_grouping(&self) -> bool {
+        matches!(
+            self,
+            Aesthetic::Color
+                | Aesthetic::Fill
+                | Aesthetic::Shape
+                | Aesthetic::Linetype
+                | Aesthetic::Group
+        )
+    }
 }
 
 // AesValue is a type that can be mapped to an aesthetic
@@ -156,5 +174,25 @@ mod tests {
         assert_eq!(aes.get(&Aesthetic::X), Some(&AesValue::column("col_x")));
         assert_eq!(aes.get(&Aesthetic::Y), Some(&AesValue::column("col_y")));
         assert_eq!(aes.get(&Aesthetic::Color), Some(&AesValue::column("group")));
+    }
+
+    #[test]
+    fn test_is_grouping() {
+        // Grouping aesthetics
+        assert!(Aesthetic::Color.is_grouping());
+        assert!(Aesthetic::Fill.is_grouping());
+        assert!(Aesthetic::Shape.is_grouping());
+        assert!(Aesthetic::Linetype.is_grouping());
+        assert!(Aesthetic::Group.is_grouping());
+
+        // Non-grouping aesthetics
+        assert!(!Aesthetic::X.is_grouping());
+        assert!(!Aesthetic::Y.is_grouping());
+        assert!(!Aesthetic::Alpha.is_grouping());
+        assert!(!Aesthetic::Size.is_grouping());
+        assert!(!Aesthetic::XBegin.is_grouping());
+        assert!(!Aesthetic::XEnd.is_grouping());
+        assert!(!Aesthetic::YBegin.is_grouping());
+        assert!(!Aesthetic::YEnd.is_grouping());
     }
 }

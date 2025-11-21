@@ -25,8 +25,6 @@ pub enum Position {
     // Add more as needed
 }
 
-use crate::utils::dataframe::DataFrame;
-
 /// Layer struct - represents one layer in a plot
 /// Each layer has its own geom, optional data, aesthetic mappings, stat, and position
 pub struct Layer {
@@ -36,7 +34,7 @@ pub struct Layer {
     pub stat: Stat,
     pub position: Position,
     /// Computed stat data (filled in during stat computation phase)
-    pub computed_data: Option<DataFrame>,
+    pub computed_data: Option<Box<dyn DataSource>>,
     /// Updated aesthetic mapping after stat computation (if stat was applied)
     pub computed_mapping: Option<AesMap>,
 }

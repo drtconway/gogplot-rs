@@ -2,6 +2,7 @@
 
 mod export;
 mod geom_builder;
+mod positions;
 mod render;
 mod scale_set;
 mod stats;
@@ -270,7 +271,10 @@ impl Plot {
         height: i32,
     ) -> Result<(), PlotError> {
         // Apply stat transformations to layers
-        stats::apply_stats(&mut self.layers)?;
+        stats::apply_stats(&mut self.layers, self.data.as_ref(), &self.default_aes)?;
+
+        // Apply position adjustments to layers
+        positions::apply_positions(&mut self.layers)?;
 
         // Create axis titles from mapped columns if not already set
         let mut x_axis_title = self

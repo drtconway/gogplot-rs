@@ -9,12 +9,16 @@ use crate::stat::StatTransform;
 /// Apply statistical transformations to layers
 ///
 /// This function transforms layers that have stats other than Identity.
-/// The transformed data is stored in each layer's data field, and the
-/// aesthetic mapping is updated to reflect the transformation.
+/// The transformed data is stored in computed_data, and the
+/// aesthetic mapping is updated in computed_mapping.
 ///
-/// Note: Currently, this only works for layers that have their own data.
-/// Layers that rely on plot-level data cannot be transformed yet.
-pub fn apply_stats(layers: &mut [Layer]) -> Result<(), PlotError> {
+/// Layers without their own data will use plot_data if available.
+/// Layers without their own mappings will inherit from plot_default_aes.
+pub fn apply_stats(
+    layers: &mut [Layer],
+    plot_data: Option<&Box<dyn crate::data::DataSource>>,
+    plot_default_aes: &crate::aesthetics::AesMap,
+) -> Result<(), PlotError> {
     // We need to transform each layer that has a non-Identity stat
     // We'll process layers in reverse order so we can swap data out
     let num_layers = layers.len();
@@ -26,45 +30,50 @@ pub fn apply_stats(layers: &mut [Layer]) -> Result<(), PlotError> {
             continue;
         }
 
-        // If layer doesn't have data, it can't be transformed
-        // (stat transformations need owned data)
-        if layers[i].data.is_none() {
+        // Get data source - either layer-specific or plot-level
+        let data = if let Some(layer_data) = layers[i].data.take() {
+            layer_data
+        } else if let Some(plot_data) = plot_data {
+            // Clone plot-level data for this layer
+            plot_data.as_ref().clone_box()
+        } else {
             continue;
+        };
+
+        // Merge plot-level aesthetics with layer-specific mappings
+        // Layer mappings take precedence over plot defaults
+        let mut merged_mapping = plot_default_aes.clone();
+        for (aes, value) in layers[i].mapping.iter() {
+            merged_mapping.set(aes.clone(), value.clone());
         }
 
-        // Take ownership of the layer's data
-        let data = layers[i].data.take().unwrap();
-
         // Apply the stat transformation
-        let stat_result = match &layers[i].stat {
-            Stat::Count => Count.apply(data, &layers[i].mapping)?,
+        match &layers[i].stat {
+            Stat::Count => {
+                let stat_result = Count.apply(data, &merged_mapping)?;
+                if let Some((transformed_data, new_mapping)) = stat_result {
+                    layers[i].computed_data = Some(transformed_data);
+                    layers[i].computed_mapping = Some(new_mapping);
+                }
+            }
             Stat::Bin(strategy) => {
                 let bin_stat = Bin {
                     strategy: strategy.clone(),
                 };
-                bin_stat.apply(data, &layers[i].mapping)?
+                let stat_result = bin_stat.apply(data, &merged_mapping)?;
+                if let Some((transformed_data, new_mapping)) = stat_result {
+                    layers[i].computed_data = Some(transformed_data);
+                    layers[i].computed_mapping = Some(new_mapping);
+                }
             }
             Stat::Identity => {
                 // Put the data back and continue
                 layers[i].data = Some(data);
-                continue;
             }
             Stat::Smooth => {
                 // Not implemented yet - put data back
                 layers[i].data = Some(data);
-                continue;
             }
-        };
-
-        // If transformation succeeded, store the result
-        if let Some((transformed_data, new_mapping)) = stat_result {
-            layers[i].data = Some(transformed_data);
-
-            // Replace the layer's mapping with the new mapping from the stat
-            // The stat knows best what the transformed data looks like
-            layers[i].mapping = new_mapping;
-        } else {
-            // No transformation needed - data is already back in place from match arm
         }
     }
 

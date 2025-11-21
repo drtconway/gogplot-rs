@@ -143,6 +143,29 @@ impl Default for DataFrame {
     }
 }
 
+impl Clone for DataFrame {
+    fn clone(&self) -> Self {
+        let mut new_columns = HashMap::new();
+        for (name, col) in &self.columns {
+            // Reconstruct each column vector
+            let new_col: Box<dyn GenericVector> = if let Some(int_vec) = col.as_int() {
+                Box::new(IntVec(int_vec.iter().copied().collect()))
+            } else if let Some(float_vec) = col.as_float() {
+                Box::new(FloatVec(float_vec.iter().copied().collect()))
+            } else if let Some(str_vec) = col.as_str() {
+                Box::new(StrVec(str_vec.iter().cloned().collect()))
+            } else {
+                panic!("Unknown vector type");
+            };
+            new_columns.insert(name.clone(), new_col);
+        }
+        DataFrame {
+            columns: new_columns,
+            len: self.len,
+        }
+    }
+}
+
 impl DataSource for DataFrame {
     fn get(&self, name: &str) -> Option<&dyn GenericVector> {
         self.columns.get(name).map(|b| b.as_ref())
@@ -154,6 +177,10 @@ impl DataSource for DataFrame {
 
     fn len(&self) -> usize {
         self.len
+    }
+    
+    fn clone_box(&self) -> Box<dyn DataSource> {
+        Box::new(self.clone())
     }
 }
 
