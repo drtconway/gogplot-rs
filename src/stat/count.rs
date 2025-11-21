@@ -1,5 +1,5 @@
 use crate::aesthetics::{AesMap, AesValue, Aesthetic};
-use crate::data::{DataSource, StackedDataSource};
+use crate::data::DataSource;
 use crate::error::Result;
 use crate::stat::StatTransform;
 use crate::utils::dataframe::{DataFrame, FloatVec, IntVec, StrVec};
@@ -83,16 +83,12 @@ impl StatTransform for Count {
         }
         computed.add_column("count", Box::new(IntVec(counts)));
 
-        // Create a stacked data source with computed data on top
-        let stacked = StackedDataSource::two_layer(Box::new(computed), data);
-
         // Update the mapping to use the count column for y
         let mut new_mapping = mapping.clone();
         new_mapping.set(Aesthetic::Y, AesValue::column("count"));
-        // Keep x mapping to the original column (which is now shadowed in stacked source)
         new_mapping.set(Aesthetic::X, AesValue::column("x"));
 
-        Ok(Some((Box::new(stacked), new_mapping)))
+        Ok(Some((Box::new(computed), new_mapping)))
     }
 }
 
@@ -244,22 +240,7 @@ mod tests {
         assert_eq!(count_vals, vec![1, 1, 1, 1, 1]);
     }
 
-    #[test]
-    fn test_count_preserves_original_columns() {
-        let mut df = DataFrame::new();
-        df.add_column("x", Box::new(IntVec(vec![1, 1, 2, 2])));
-        df.add_column("label", Box::new(IntVec(vec![10, 20, 30, 40])));
 
-        let mut mapping = AesMap::new();
-        mapping.x("x");
-
-        let count = Count;
-        let (data, _) = count.apply(Box::new(df), &mapping).unwrap().unwrap();
-
-        // Should be able to access original label column
-        let label_col = data.get("label");
-        assert!(label_col.is_some());
-    }
 
     #[test]
     fn test_count_requires_x() {

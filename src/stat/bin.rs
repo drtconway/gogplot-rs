@@ -1,5 +1,5 @@
 use crate::aesthetics::{AesMap, AesValue, Aesthetic};
-use crate::data::{DataSource, StackedDataSource};
+use crate::data::DataSource;
 use crate::error::Result;
 use crate::stat::StatTransform;
 use crate::utils::dataframe::{DataFrame, FloatVec, IntVec, StrVec};
@@ -171,12 +171,11 @@ impl Bin {
                 computed.add_column(col_name, Box::new(StrVec(values)));
             }
 
-            let stacked = StackedDataSource::two_layer(Box::new(computed), data);
             let mut new_mapping = mapping.clone();
             new_mapping.set(Aesthetic::X, AesValue::column("x"));
             new_mapping.set(Aesthetic::Y, AesValue::column("count"));
 
-            return Ok(Some((Box::new(stacked), new_mapping)));
+            return Ok(Some((Box::new(computed), new_mapping)));
         }
 
         // Determine bin width based on strategy
@@ -251,14 +250,12 @@ impl Bin {
             computed.add_column(col_name, Box::new(StrVec(values)));
         }
 
-        let stacked = StackedDataSource::two_layer(Box::new(computed), data);
-
         // Update mapping
         let mut new_mapping = mapping.clone();
         new_mapping.set(Aesthetic::X, AesValue::column("x"));
         new_mapping.set(Aesthetic::Y, AesValue::column("count"));
 
-        Ok(Some((Box::new(stacked), new_mapping)))
+        Ok(Some((Box::new(computed), new_mapping)))
     }
 }
 
@@ -340,12 +337,11 @@ impl StatTransform for Bin {
             computed.add_column("xmin", Box::new(FloatVec(vec![min_val - 0.5])));
             computed.add_column("xmax", Box::new(FloatVec(vec![min_val + 0.5])));
 
-            let stacked = StackedDataSource::two_layer(Box::new(computed), data);
             let mut new_mapping = mapping.clone();
             new_mapping.set(Aesthetic::X, AesValue::column("x"));
             new_mapping.set(Aesthetic::Y, AesValue::column("count"));
 
-            return Ok(Some((Box::new(stacked), new_mapping)));
+            return Ok(Some((Box::new(computed), new_mapping)));
         }
 
         // Determine bin width based on strategy
@@ -390,15 +386,12 @@ impl StatTransform for Bin {
         computed.add_column("xmin", Box::new(FloatVec(xmins)));
         computed.add_column("xmax", Box::new(FloatVec(xmaxs)));
 
-        // Create stacked data source
-        let stacked = StackedDataSource::two_layer(Box::new(computed), data);
-
         // Update mapping
         let mut new_mapping = mapping.clone();
         new_mapping.set(Aesthetic::X, AesValue::column("x"));
         new_mapping.set(Aesthetic::Y, AesValue::column("count"));
 
-        Ok(Some((Box::new(stacked), new_mapping)))
+        Ok(Some((Box::new(computed), new_mapping)))
     }
 }
 

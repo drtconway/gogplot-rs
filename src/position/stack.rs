@@ -142,16 +142,9 @@ impl PositionAdjust for Stack {
         let mut new_df = DataFrame::new();
         
         // Copy all original columns by reconstructing them
-        // Only copy columns that match the expected length (n_rows)
         use crate::utils::dataframe::{IntVec, StrVec};
         for col_name in data.column_names() {
             let col = data.get(col_name.as_str()).unwrap();
-            
-            // Skip columns that don't match the expected length
-            // (This happens with StackedDataSource which has columns from multiple layers)
-            if col.len() != n_rows {
-                continue;
-            }
             
             let new_col: Box<dyn crate::data::GenericVector> = if let Some(int_vec) = col.as_int() {
                 Box::new(IntVec(int_vec.iter().copied().collect()))

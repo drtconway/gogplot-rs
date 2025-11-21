@@ -21,8 +21,8 @@ pub trait StatTransform: Send + Sync {
     /// Apply the statistical transformation.
     ///
     /// Takes ownership of the original data source and returns a new data source
-    /// (which may be a StackedDataSource layering computed data over the original)
-    /// and an updated aesthetic mapping that references the computed columns.
+    /// with the computed statistical values and an updated aesthetic mapping
+    /// that references the computed columns.
     ///
     /// For the Identity stat, this returns None to signal that the original data
     /// should be used unchanged.
