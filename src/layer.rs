@@ -15,7 +15,7 @@ pub enum Stat {
 }
 
 /// Position adjustment for overlapping geoms
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Position {
     Identity,
     Stack,
@@ -37,4 +37,7 @@ pub struct Layer {
     pub computed_data: Option<Box<dyn DataSource>>,
     /// Updated aesthetic mapping after stat computation (if stat was applied)
     pub computed_mapping: Option<AesMap>,
+    /// Transformed scales after stat/position adjustments
+    /// If None, uses plot-level scales. If Some, uses these for rendering this layer.
+    pub computed_scales: Option<crate::plot::ScaleSet>,
 }

@@ -83,6 +83,7 @@ pub trait IntoLayer: Sized {
             position: Position::Identity,
             computed_data: None,
             computed_mapping: None,
+            computed_scales: None,
         }
     }
 }

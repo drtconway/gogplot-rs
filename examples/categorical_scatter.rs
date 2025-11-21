@@ -34,6 +34,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         position: Position::Identity,
         computed_data: None,
         computed_mapping: None,
+        computed_scales: None,
     };
 
     let mut plot1 = Plot::new(None);
@@ -68,6 +69,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         position: Position::Identity,
         computed_data: None,
         computed_mapping: None,
+        computed_scales: None,
     };
 
     let mut plot2 = Plot::new(None);

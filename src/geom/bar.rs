@@ -124,6 +124,7 @@ impl IntoLayer for GeomBar {
             position,
             computed_data: None,
             computed_mapping: None,
+            computed_scales: None,
         }
     }
 }
@@ -241,9 +242,26 @@ impl Geom for GeomBar {
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
         // Check if we have Ymin/Ymax (from position adjustment like Stack)
         let has_ymin_ymax = ctx.data.get("ymin").is_some() && ctx.data.get("ymax").is_some();
-
+        
+        // Check if we have Xmin/Xmax (from position adjustment like Dodge)
+        let has_xmin_xmax = ctx.data.get("xmin").is_some() && ctx.data.get("xmax").is_some();
+        
         // Get aesthetic values
-        let x_normalized = ctx.get_aesthetic_values(Aesthetic::X, ctx.scales.x.as_deref())?;
+        let x_normalized = if !has_xmin_xmax {
+            Some(ctx.get_aesthetic_values(Aesthetic::X, ctx.scales.x.as_deref())?)
+        } else {
+            None
+        };
+        
+        let (xmin_normalized, xmax_normalized) = if has_xmin_xmax {
+            // Xmin/Xmax are already in normalized [0,1] space from position adjustment
+            // Don't map them through the scale again (that would be double-mapping!)
+            let xmin = ctx.get_aesthetic_values(Aesthetic::Xmin, None)?;
+            let xmax = ctx.get_aesthetic_values(Aesthetic::Xmax, None)?;
+            (Some(xmin), Some(xmax))
+        } else {
+            (None, None)
+        };
         
         let (ymin_normalized, ymax_normalized) = if has_ymin_ymax {
             // Use Ymin/Ymax for stacked bars
@@ -265,7 +283,14 @@ impl Geom for GeomBar {
         let alphas = ctx.get_aesthetic_values(Aesthetic::Alpha, None)?;
 
         // Collect x values to compute bar width
-        let x_norm_vec: Vec<f64> = x_normalized.collect();
+        let (x_norm_vec, xmin_norm_vec, xmax_norm_vec) = if has_xmin_xmax {
+            let xmin_vec: Vec<f64> = xmin_normalized.unwrap().collect();
+            let xmax_vec: Vec<f64> = xmax_normalized.unwrap().collect();
+            (None, Some(xmin_vec), Some(xmax_vec))
+        } else {
+            let x_vec: Vec<f64> = x_normalized.unwrap().collect();
+            (Some(x_vec), None, None)
+        };
         
         let (ymin_norm_vec, ymax_norm_vec, y_norm_vec) = if has_ymin_ymax {
             let ymin_vec: Vec<f64> = ymin_normalized.unwrap().collect();
@@ -280,27 +305,32 @@ impl Geom for GeomBar {
         let colors_vec: Vec<crate::theme::Color> = colors.collect();
         let alphas_vec: Vec<f64> = alphas.collect();
 
-        // Calculate the width of bars based on x spacing
-        let bar_width_normalized = if x_norm_vec.len() > 1 {
-            // Find minimum spacing between consecutive x values
-            let mut min_spacing = f64::INFINITY;
-            let mut sorted_x = x_norm_vec.clone();
-            sorted_x.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        // Calculate the width of bars based on x spacing (only if not using xmin/xmax)
+        let bar_width_normalized = if !has_xmin_xmax {
+            let x_vec = x_norm_vec.as_ref().unwrap();
+            if x_vec.len() > 1 {
+                // Find minimum spacing between consecutive x values
+                let mut min_spacing = f64::INFINITY;
+                let mut sorted_x = x_vec.clone();
+                sorted_x.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
-            for i in 1..sorted_x.len() {
-                let spacing = sorted_x[i] - sorted_x[i - 1];
-                if spacing > 0.0 && spacing < min_spacing {
-                    min_spacing = spacing;
+                for i in 1..sorted_x.len() {
+                    let spacing = sorted_x[i] - sorted_x[i - 1];
+                    if spacing > 0.0 && spacing < min_spacing {
+                        min_spacing = spacing;
+                    }
                 }
-            }
 
-            if min_spacing.is_finite() {
-                min_spacing * self.width
+                if min_spacing.is_finite() {
+                    min_spacing * self.width
+                } else {
+                    0.1 // Fallback width
+                }
             } else {
-                0.1 // Fallback width
+                0.1 // Single bar fallback width
             }
         } else {
-            0.1 // Single bar fallback width
+            0.0 // Not used when xmin/xmax are provided
         };
 
         // Get y=0 in normalized coordinates (for non-stacked bars)
@@ -311,9 +341,25 @@ impl Geom for GeomBar {
         };
 
         // Render bars
-        let n = x_norm_vec.len();
+        let mut n = if has_xmin_xmax {
+            xmin_norm_vec.as_ref().unwrap().len()
+        } else {
+            x_norm_vec.as_ref().unwrap().len()
+        };
+        
+        // Ensure aesthetic vectors match data length
+        n = n.min(fills_vec.len()).min(colors_vec.len()).min(alphas_vec.len());
+        
+        if has_ymin_ymax {
+            let ymin_len = ymin_norm_vec.as_ref().unwrap().len();
+            let ymax_len = ymax_norm_vec.as_ref().unwrap().len();
+            n = n.min(ymin_len).min(ymax_len);
+        } else {
+            let y_len = y_norm_vec.as_ref().unwrap().len();
+            n = n.min(y_len);
+        }
+        
         for i in 0..n {
-            let x_norm = x_norm_vec[i];
             let fill = fills_vec[i];
             let color = colors_vec[i];
             let alpha = alphas_vec[i];
@@ -326,17 +372,26 @@ impl Geom for GeomBar {
             };
             
             // Map to device coordinates
-            let x_center = ctx.map_x(x_norm);
             let y_top = ctx.map_y(y_top_norm);
             let y_bottom = ctx.map_y(y_bottom_norm);
 
-            // Calculate bar width in device coordinates
-            let half_width = ctx.map_x(x_norm + bar_width_normalized / 2.0)
-                - ctx.map_x(x_norm - bar_width_normalized / 2.0);
-            let half_width = (half_width / 2.0).abs();
-
-            let x_left = x_center - half_width;
-            let width = half_width * 2.0;
+            // Calculate bar position and width in device coordinates
+            let (x_left, width) = if has_xmin_xmax {
+                // Use xmin/xmax directly (from dodge position adjustment)
+                let xmin_norm = xmin_norm_vec.as_ref().unwrap()[i];
+                let xmax_norm = xmax_norm_vec.as_ref().unwrap()[i];
+                let x_left = ctx.map_x(xmin_norm);
+                let x_right = ctx.map_x(xmax_norm);
+                (x_left, (x_right - x_left).abs())
+            } else {
+                // Use x center and calculated width
+                let x_norm = x_norm_vec.as_ref().unwrap()[i];
+                let x_center = ctx.map_x(x_norm);
+                let half_width = ctx.map_x(x_norm + bar_width_normalized / 2.0)
+                    - ctx.map_x(x_norm - bar_width_normalized / 2.0);
+                let half_width = (half_width / 2.0).abs();
+                (x_center - half_width, half_width * 2.0)
+            };
             let height = (y_bottom - y_top).abs();
             let y = y_top.min(y_bottom);
 

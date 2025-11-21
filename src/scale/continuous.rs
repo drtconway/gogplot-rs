@@ -403,11 +403,18 @@ pub struct Linear {
 
 impl ScaleBase for Linear {
     fn train(&mut self, data: &[&dyn crate::data::GenericVector]) {
-        // Only auto-train if domain wasn't explicitly set
-        if !self.trained {
-            if let Some((mut min, mut max)) = compute_min_max(data) {
-                // Respect lower bound if set
-                if let Some(lower) = self.lower_bound {
+        // Auto-train: expand domain to include new data
+        // If already trained, expand the existing domain rather than replacing it
+        if let Some((mut min, mut max)) = compute_min_max(data) {
+            // If already trained, expand to include new data
+            if self.trained {
+                let (curr_min, curr_max) = self.domain;
+                min = min.min(curr_min);
+                max = max.max(curr_max);
+            }
+            
+            // Respect lower bound if set
+            if let Some(lower) = self.lower_bound {
                     min = min.min(lower);
                 }
 
@@ -467,8 +474,7 @@ impl ScaleBase for Linear {
                     })
                     .collect();
 
-                self.trained = true;
-            }
+            self.trained = true;
         }
     }
 }
@@ -508,9 +514,18 @@ pub struct Sqrt {
 
 impl ScaleBase for Sqrt {
     fn train(&mut self, data: &[&dyn crate::data::GenericVector]) {
-        if !self.trained {
-            if let Some((min, max)) = compute_min_max(data) {
-                let min = min.max(0.0); // Clamp to non-negative for sqrt
+        if let Some((min, max)) = compute_min_max(data) {
+            let mut min = min;
+            let mut max = max;
+            
+            // If already trained, expand to include new data
+            if self.trained {
+                let (curr_min, curr_max) = self.domain;
+                min = min.min(curr_min);
+                max = max.max(curr_max);
+            }
+            
+            let min = min.max(0.0); // Clamp to non-negative for sqrt
 
                 let range = max - min;
                 let expansion = if range.abs() < 1e-10 {
@@ -546,8 +561,7 @@ impl ScaleBase for Sqrt {
                     })
                     .collect();
 
-                self.trained = true;
-            }
+            self.trained = true;
         }
     }
 }
@@ -593,9 +607,18 @@ pub struct Log10 {
 
 impl ScaleBase for Log10 {
     fn train(&mut self, data: &[&dyn crate::data::GenericVector]) {
-        if !self.trained {
-            if let Some((min, max)) = compute_min_max(data) {
-                let min = min.max(0.001); // Clamp to positive values for log
+        if let Some((min, max)) = compute_min_max(data) {
+            let mut min = min;
+            let mut max = max;
+            
+            // If already trained, expand to include new data
+            if self.trained {
+                let (curr_min, curr_max) = self.domain;
+                min = min.min(curr_min);
+                max = max.max(curr_max);
+            }
+            
+            let min = min.max(0.001); // Clamp to positive values for log
                 let range = max - min;
                 let expansion = if range.abs() < 1e-10 {
                     // Degenerate case: all values are the same
@@ -626,8 +649,7 @@ impl ScaleBase for Log10 {
                     })
                     .collect();
 
-                self.trained = true;
-            }
+            self.trained = true;
         }
     }
 }

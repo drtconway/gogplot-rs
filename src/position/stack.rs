@@ -18,7 +18,8 @@ impl PositionAdjust for Stack {
         &self,
         data: Box<dyn DataSource>,
         mapping: &AesMap,
-    ) -> Result<Option<(Box<dyn DataSource>, AesMap)>, PlotError> {
+        _scales: &crate::plot::ScaleSet,
+    ) -> Result<Option<(Box<dyn DataSource>, AesMap, Option<crate::plot::ScaleSet>)>, PlotError> {
         // Get x and y column names
         let x_col_name = match mapping.get(&Aesthetic::X) {
             Some(AesValue::Column(name)) => name.clone(),
@@ -185,6 +186,7 @@ impl PositionAdjust for Stack {
         new_mapping.set(Aesthetic::Ymin, AesValue::column("ymin"));
         new_mapping.set(Aesthetic::Ymax, AesValue::column("ymax"));
 
-        Ok(Some((Box::new(new_df), new_mapping)))
+        // Stack doesn't transform scales, returns None
+        Ok(Some((Box::new(new_df), new_mapping, None)))
     }
 }

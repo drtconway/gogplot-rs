@@ -1,5 +1,6 @@
 // Position adjustments for overlapping geoms
 
+pub mod dodge;
 pub mod stack;
 
 use crate::aesthetics::AesMap;
@@ -8,16 +9,24 @@ use crate::error::PlotError;
 
 /// Trait for position adjustments
 ///
-/// Position adjustments follow the same pattern as StatTransform:
-/// they take ownership of data, potentially transform it, and return
-/// new data with updated mappings.
+/// Position adjustments can transform data, aesthetic mappings, and scales.
+/// This allows adjustments like dodge to modify how data is positioned without
+/// requiring intermediate data-space coordinates.
 pub trait PositionAdjust {
     /// Apply position adjustment to data
     ///
-    /// Returns None if no adjustment is needed, or Some((adjusted_data, adjusted_mapping))
+    /// # Arguments
+    /// * `data` - The data to adjust
+    /// * `mapping` - The aesthetic mappings
+    /// * `scales` - The current scales (for reference/transformation)
+    ///
+    /// # Returns
+    /// * `None` - No adjustment needed
+    /// * `Some((data, mapping, scales))` - Adjusted data, mapping, and optionally transformed scales
     fn apply(
         &self,
         data: Box<dyn DataSource>,
         mapping: &AesMap,
-    ) -> Result<Option<(Box<dyn DataSource>, AesMap)>, PlotError>;
+        scales: &crate::plot::ScaleSet,
+    ) -> Result<Option<(Box<dyn DataSource>, AesMap, Option<crate::plot::ScaleSet>)>, PlotError>;
 }

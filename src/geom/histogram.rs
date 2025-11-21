@@ -126,6 +126,7 @@ impl IntoLayer for GeomHistogram {
             position,
             computed_data: None,
             computed_mapping: None,
+            computed_scales: None,
         }
     }
 }

@@ -273,9 +273,6 @@ impl Plot {
         // Apply stat transformations to layers
         stats::apply_stats(&mut self.layers, self.data.as_deref(), &self.default_aes)?;
 
-        // Apply position adjustments to layers
-        positions::apply_positions(&mut self.layers)?;
-
         // Create axis titles from mapped columns if not already set
         let mut x_axis_title = self
             .guides
@@ -288,13 +285,28 @@ impl Plot {
             .as_ref()
             .and_then(|axis| axis.title.clone());
 
-        // Create default scales for unmapped aesthetics
+        // Create default scales for unmapped aesthetics (before position adjustments)
         self.scales.create_defaults(
             &self.layers,
             self.data.as_ref().map(|d| d.as_ref()),
             &mut x_axis_title,
             &mut y_axis_title,
         );
+
+        // Train scales BEFORE position adjustments
+        // This is needed for position adjustments like Dodge that need to map
+        // categorical values through the scale to get positions
+        self.scales
+            .train(&self.layers, self.data.as_ref().map(|d| d.as_ref()));
+
+        // Apply position adjustments to layers (after scales are created AND trained)
+        positions::apply_positions(&mut self.layers, self.data.as_deref(), &self.default_aes, &self.scales)?;
+
+        // Train scales AGAIN after position adjustments
+        // This is needed because position adjustments like Stack add new columns
+        // (ymin/ymax) that need to be included in the scale domain
+        self.scales
+            .train(&self.layers, self.data.as_ref().map(|d| d.as_ref()));
 
         // Update axis guides with titles if they were auto-generated
         if x_axis_title.is_some() && self.guides.x_axis.is_none() {
@@ -303,10 +315,6 @@ impl Plot {
         if y_axis_title.is_some() && self.guides.y_axis.is_none() {
             self.guides.y_axis = Some(AxisGuide::y().title(y_axis_title.unwrap()));
         }
-
-        // Train scales on data before rendering
-        self.scales
-            .train(&self.layers, self.data.as_ref().map(|d| d.as_ref()));
 
         export::save(
             path,
