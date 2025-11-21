@@ -214,17 +214,16 @@ impl Bin {
                 counts[bin_idx] += 1;
             }
 
-            // Generate output rows for this group (only non-empty bins)
+            // Generate output rows for this group (include all bins, even empty ones)
+            // This is important for position adjustments like Stack/Dodge
             for i in 0..n_bins {
-                if counts[i] > 0 {
-                    let bin_start = bin_min + i as f64 * binwidth;
-                    let bin_end = bin_start + binwidth;
-                    all_x_centers.push((bin_start + bin_end) / 2.0);
-                    all_counts.push(counts[i]);
-                    all_xmins.push(bin_start);
-                    all_xmaxs.push(bin_end);
-                    all_group_keys.push(group_key.clone());
-                }
+                let bin_start = bin_min + i as f64 * binwidth;
+                let bin_end = bin_start + binwidth;
+                all_x_centers.push((bin_start + bin_end) / 2.0);
+                all_counts.push(counts[i]);
+                all_xmins.push(bin_start);
+                all_xmaxs.push(bin_end);
+                all_group_keys.push(group_key.clone());
             }
         }
 
@@ -252,6 +251,8 @@ impl Bin {
         let mut new_mapping = mapping.clone();
         new_mapping.set(Aesthetic::X, AesValue::column("x"));
         new_mapping.set(Aesthetic::Y, AesValue::column("count"));
+        new_mapping.set(Aesthetic::Xmin, AesValue::column("xmin"));
+        new_mapping.set(Aesthetic::Xmax, AesValue::column("xmax"));
 
         Ok(Some((Box::new(computed), new_mapping)))
     }
@@ -391,6 +392,8 @@ impl StatTransform for Bin {
         let mut new_mapping = mapping.clone();
         new_mapping.set(Aesthetic::X, AesValue::column("x"));
         new_mapping.set(Aesthetic::Y, AesValue::column("count"));
+        new_mapping.set(Aesthetic::Xmin, AesValue::column("xmin"));
+        new_mapping.set(Aesthetic::Xmax, AesValue::column("xmax"));
 
         Ok(Some((Box::new(computed), new_mapping)))
     }

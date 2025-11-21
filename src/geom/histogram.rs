@@ -154,16 +154,13 @@ impl Geom for GeomHistogram {
 
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
         // After stat transformation, we should have:
-        // - x: bin centers (for positioning labels if needed)
-        // - y or count: bin counts
-        // - xmin, xmax: bin boundaries
+        // - X: bin centers (for positioning labels if needed)
+        // - Y or count: bin counts
+        // - Xmin, Xmax: bin boundaries (mapped from xmin/xmax columns)
 
-        // Try to get xmin and xmax for precise bin boundaries
-        let has_bin_boundaries = ctx
-            .data
-            .get("xmin")
-            .is_some()
-            && ctx.data.get("xmax").is_some();
+        // Try to use Xmin and Xmax for precise bin boundaries
+        let has_bin_boundaries = ctx.mapping.get(&Aesthetic::Xmin).is_some()
+            && ctx.mapping.get(&Aesthetic::Xmax).is_some();
 
         if has_bin_boundaries {
             self.render_with_boundaries(ctx)
@@ -174,28 +171,36 @@ impl Geom for GeomHistogram {
 }
 
 impl GeomHistogram {
-    /// Render histogram using xmin/xmax bin boundaries (preferred)
+    /// Render histogram using Xmin/Xmax bin boundaries (preferred)
     fn render_with_boundaries(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
-        // Get bin boundaries
-        let xmin_col = ctx
-            .data
-            .get("xmin")
-            .ok_or_else(|| PlotError::missing_column("xmin"))?;
-        let xmax_col = ctx
-            .data
-            .get("xmax")
-            .ok_or_else(|| PlotError::missing_column("xmax"))?;
+        // Get bin boundaries from aesthetics
+        let xmin_values = ctx.get_aesthetic_values(Aesthetic::Xmin, None)?;
+        let xmax_values = ctx.get_aesthetic_values(Aesthetic::Xmax, None)?;
 
-        let xmins = xmin_col
-            .as_float()
-            .ok_or_else(|| PlotError::invalid_column_type("xmin", "float"))?;
-        let xmaxs = xmax_col
-            .as_float()
-            .ok_or_else(|| PlotError::invalid_column_type("xmax", "float"))?;
+        let xmin_vec: Vec<f64> = xmin_values.collect();
+        let xmax_vec: Vec<f64> = xmax_values.collect();
 
-        // Get y values (counts)
-        let y_normalized = ctx.get_aesthetic_values(Aesthetic::Y, ctx.scales.y.as_deref())?;
-        let y_norm_vec: Vec<f64> = y_normalized.collect();
+        // Check if we have Ymin/Ymax (from position adjustment like Stack)
+        let has_ymin_ymax = ctx.data.get("ymin").is_some() && ctx.data.get("ymax").is_some();
+
+        // Get y values (counts) or ymin/ymax for stacking
+        let (ymin_normalized, ymax_normalized, y_normalized) = if has_ymin_ymax {
+            let ymin = ctx.get_aesthetic_values(Aesthetic::Ymin, ctx.scales.y.as_deref())?;
+            let ymax = ctx.get_aesthetic_values(Aesthetic::Ymax, ctx.scales.y.as_deref())?;
+            (Some(ymin), Some(ymax), None)
+        } else {
+            let y = ctx.get_aesthetic_values(Aesthetic::Y, ctx.scales.y.as_deref())?;
+            (None, None, Some(y))
+        };
+
+        let (ymin_norm_vec, ymax_norm_vec, y_norm_vec) = if has_ymin_ymax {
+            let ymin_vec: Vec<f64> = ymin_normalized.unwrap().collect();
+            let ymax_vec: Vec<f64> = ymax_normalized.unwrap().collect();
+            (Some(ymin_vec), Some(ymax_vec), None)
+        } else {
+            let y_vec: Vec<f64> = y_normalized.unwrap().collect();
+            (None, None, Some(y_vec))
+        };
 
         // Get fill, color, and alpha
         let fills = ctx.get_fill_color_values()?;
@@ -206,7 +211,7 @@ impl GeomHistogram {
         let colors_vec: Vec<crate::theme::Color> = colors.collect();
         let alphas_vec: Vec<f64> = alphas.collect();
 
-        // Get y=0 in normalized coordinates
+        // Get y=0 in normalized coordinates (for non-stacked histograms)
         let zero_normalized = if let Some(y_scale) = ctx.scales.y.as_deref() {
             y_scale.map_value(0.0).unwrap_or(0.0)
         } else {
@@ -214,15 +219,20 @@ impl GeomHistogram {
         };
 
         // Render bars using bin boundaries
-        let xmin_iter = xmins.iter();
-        let xmax_iter = xmaxs.iter();
-        
-        for ((((&xmin, &xmax), y_norm), fill), (color, alpha)) in xmin_iter
-            .zip(xmax_iter)
-            .zip(y_norm_vec.iter())
-            .zip(fills_vec.iter())
-            .zip(colors_vec.iter().zip(alphas_vec.iter()))
-        {
+        let n = xmin_vec.len();
+        for i in 0..n {
+            let xmin = xmin_vec[i];
+            let xmax = xmax_vec[i];
+            let fill = &fills_vec[i];
+            let color = &colors_vec[i];
+            let alpha = alphas_vec[i];
+            
+            // Determine y_top and y_bottom based on whether we're stacking
+            let (y_top_norm, y_bottom_norm) = if has_ymin_ymax {
+                (ymax_norm_vec.as_ref().unwrap()[i], ymin_norm_vec.as_ref().unwrap()[i])
+            } else {
+                (y_norm_vec.as_ref().unwrap()[i], zero_normalized)
+            };
             // Normalize x boundaries
             let xmin_norm = if let Some(x_scale) = ctx.scales.x.as_deref() {
                 x_scale.map_value(xmin).unwrap_or(0.0)
@@ -238,21 +248,21 @@ impl GeomHistogram {
             // Map to device coordinates
             let x_left = ctx.map_x(xmin_norm);
             let x_right = ctx.map_x(xmax_norm);
-            let y_top = ctx.map_y(*y_norm);
-            let y_bottom = ctx.map_y(zero_normalized);
+            let y_top = ctx.map_y(y_top_norm);
+            let y_bottom = ctx.map_y(y_bottom_norm);
 
             let width = (x_right - x_left).abs();
             let height = (y_bottom - y_top).abs();
             let y = y_top.min(y_bottom);
 
             // Fill the bar
-            ctx.set_color_alpha(fill, *alpha);
+            ctx.set_color_alpha(fill, alpha);
             ctx.cairo.rectangle(x_left, y, width, height);
             ctx.cairo.fill().ok();
 
             // Stroke the bar if a stroke color is defined
             if self.color.is_some() {
-                ctx.set_color_alpha(color, *alpha);
+                ctx.set_color_alpha(color, alpha);
                 ctx.cairo.rectangle(x_left, y, width, height);
                 ctx.cairo.stroke().ok();
             }

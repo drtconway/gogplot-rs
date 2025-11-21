@@ -6,6 +6,8 @@ use std::collections::HashMap;
 pub enum Aesthetic {
     X,
     Y,
+    Xmin,
+    Xmax,
     Ymin,
     Ymax,
     Color,
@@ -33,6 +35,24 @@ impl Aesthetic {
                 | Aesthetic::Shape
                 | Aesthetic::Linetype
                 | Aesthetic::Group
+        )
+    }
+
+    /// Returns true if this aesthetic relates to the x-axis position.
+    /// Used for training x-scales on all relevant data.
+    pub fn is_x_like(&self) -> bool {
+        matches!(
+            self,
+            Aesthetic::X | Aesthetic::XBegin | Aesthetic::XEnd | Aesthetic::Xmin | Aesthetic::Xmax
+        )
+    }
+
+    /// Returns true if this aesthetic relates to the y-axis position.
+    /// Used for training y-scales on all relevant data.
+    pub fn is_y_like(&self) -> bool {
+        matches!(
+            self,
+            Aesthetic::Y | Aesthetic::YBegin | Aesthetic::YEnd | Aesthetic::Ymin | Aesthetic::Ymax
         )
     }
 }
@@ -200,5 +220,37 @@ mod tests {
         assert!(!Aesthetic::XEnd.is_grouping());
         assert!(!Aesthetic::YBegin.is_grouping());
         assert!(!Aesthetic::YEnd.is_grouping());
+    }
+
+    #[test]
+    fn test_is_x_like() {
+        // X-like aesthetics
+        assert!(Aesthetic::X.is_x_like());
+        assert!(Aesthetic::XBegin.is_x_like());
+        assert!(Aesthetic::XEnd.is_x_like());
+        assert!(Aesthetic::Xmin.is_x_like());
+        assert!(Aesthetic::Xmax.is_x_like());
+
+        // Non-X-like aesthetics
+        assert!(!Aesthetic::Y.is_x_like());
+        assert!(!Aesthetic::Color.is_x_like());
+        assert!(!Aesthetic::Fill.is_x_like());
+    }
+
+    #[test]
+    fn test_is_y_like() {
+        // Y-like aesthetics
+        assert!(Aesthetic::Y.is_y_like());
+        assert!(Aesthetic::YBegin.is_y_like());
+        assert!(Aesthetic::YEnd.is_y_like());
+        assert!(Aesthetic::Ymin.is_y_like());
+        assert!(Aesthetic::Ymax.is_y_like());
+
+        // Non-Y-like aesthetics
+        assert!(!Aesthetic::X.is_y_like());
+        assert!(!Aesthetic::Xmin.is_y_like());
+        assert!(!Aesthetic::Xmax.is_y_like());
+        assert!(!Aesthetic::Color.is_y_like());
+        assert!(!Aesthetic::Fill.is_y_like());
     }
 }

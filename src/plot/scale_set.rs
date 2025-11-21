@@ -48,12 +48,18 @@ impl ScaleSet {
             if self.x.is_none() {
                 // Check both computed_mapping (from stats/positions) and original mapping
                 let mapping = layer.computed_mapping.as_ref().unwrap_or(&layer.mapping);
-                let col_name = mapping
-                    .get(&Aesthetic::X)
-                    .or_else(|| mapping.get(&Aesthetic::XBegin))
-                    .or_else(|| mapping.get(&Aesthetic::XEnd));
+                
+                // Find the first x-like aesthetic that's mapped to a column
+                let col_name = mapping.iter().find_map(|(aes, value)| {
+                    if aes.is_x_like() {
+                        if let AesValue::Column(name) = value {
+                            return Some(name);
+                        }
+                    }
+                    None
+                });
 
-                if let Some(AesValue::Column(col_name)) = col_name {
+                if let Some(col_name) = col_name {
                     // Check if this column is categorical (string type)
                     let data = if let Some(ref computed) = layer.computed_data {
                         Some(computed.as_ref())
@@ -92,14 +98,18 @@ impl ScaleSet {
             if self.y.is_none() {
                 // Check both computed_mapping (from stats/positions) and original mapping
                 let mapping = layer.computed_mapping.as_ref().unwrap_or(&layer.mapping);
-                let col_name = mapping
-                    .get(&Aesthetic::Y)
-                    .or_else(|| mapping.get(&Aesthetic::YBegin))
-                    .or_else(|| mapping.get(&Aesthetic::YEnd))
-                    .or_else(|| mapping.get(&Aesthetic::Ymin))
-                    .or_else(|| mapping.get(&Aesthetic::Ymax));
+                
+                // Find the first y-like aesthetic that's mapped to a column
+                let col_name = mapping.iter().find_map(|(aes, value)| {
+                    if aes.is_y_like() {
+                        if let AesValue::Column(name) = value {
+                            return Some(name);
+                        }
+                    }
+                    None
+                });
 
-                if let Some(AesValue::Column(col_name)) = col_name {
+                if let Some(col_name) = col_name {
                     // Check if this column is categorical (string type)
                     let data = if let Some(ref computed) = layer.computed_data {
                         Some(computed.as_ref())
@@ -200,21 +210,15 @@ impl ScaleSet {
             // Use computed mapping if available, otherwise use original mapping
             let mapping = layer.computed_mapping.as_ref().unwrap_or(&layer.mapping);
 
-            // Collect all x-related vectors (X, XBegin, XEnd)
+            // Collect all x-related vectors (X, XBegin, XEnd, Xmin, Xmax, etc.)
             let mut x_vecs = Vec::new();
-            if let Some(AesValue::Column(col_name)) = mapping.get(&Aesthetic::X) {
-                if let Some(vec) = data.get(col_name) {
-                    x_vecs.push(vec);
-                }
-            }
-            if let Some(AesValue::Column(col_name)) = mapping.get(&Aesthetic::XBegin) {
-                if let Some(vec) = data.get(col_name) {
-                    x_vecs.push(vec);
-                }
-            }
-            if let Some(AesValue::Column(col_name)) = mapping.get(&Aesthetic::XEnd) {
-                if let Some(vec) = data.get(col_name) {
-                    x_vecs.push(vec);
+            for (aes, aes_value) in mapping.iter() {
+                if aes.is_x_like() {
+                    if let AesValue::Column(col_name) = aes_value {
+                        if let Some(vec) = data.get(col_name) {
+                            x_vecs.push(vec);
+                        }
+                    }
                 }
             }
 
@@ -225,31 +229,15 @@ impl ScaleSet {
                 }
             }
 
-            // Collect all y-related vectors (Y, YBegin, YEnd, Ymin, Ymax)
+            // Collect all y-related vectors (Y, YBegin, YEnd, Ymin, Ymax, etc.)
             let mut y_vecs = Vec::new();
-            if let Some(AesValue::Column(col_name)) = mapping.get(&Aesthetic::Y) {
-                if let Some(vec) = data.get(col_name) {
-                    y_vecs.push(vec);
-                }
-            }
-            if let Some(AesValue::Column(col_name)) = mapping.get(&Aesthetic::YBegin) {
-                if let Some(vec) = data.get(col_name) {
-                    y_vecs.push(vec);
-                }
-            }
-            if let Some(AesValue::Column(col_name)) = mapping.get(&Aesthetic::YEnd) {
-                if let Some(vec) = data.get(col_name) {
-                    y_vecs.push(vec);
-                }
-            }
-            if let Some(AesValue::Column(col_name)) = mapping.get(&Aesthetic::Ymin) {
-                if let Some(vec) = data.get(col_name) {
-                    y_vecs.push(vec);
-                }
-            }
-            if let Some(AesValue::Column(col_name)) = mapping.get(&Aesthetic::Ymax) {
-                if let Some(vec) = data.get(col_name) {
-                    y_vecs.push(vec);
+            for (aes, aes_value) in mapping.iter() {
+                if aes.is_y_like() {
+                    if let AesValue::Column(col_name) = aes_value {
+                        if let Some(vec) = data.get(col_name) {
+                            y_vecs.push(vec);
+                        }
+                    }
                 }
             }
 
