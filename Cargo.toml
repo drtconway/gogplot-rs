@@ -3,5 +3,11 @@ name = "gogplot"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = []
+datafusion = ["dep:datafusion", "dep:arrow"]
+
 [dependencies]
 cairo-rs = { version = "0.21.2", features = ["pdf", "png", "svg"] }
+datafusion = { version = "42", optional = true }
+arrow = { version = "53", optional = true }
