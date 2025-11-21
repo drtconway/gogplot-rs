@@ -186,19 +186,12 @@ impl Default for AxisTextTheme {
 
 /// Theme for axis components
 #[derive(Clone, Debug, PartialEq)]
+#[derive(Default)]
 pub struct AxisTheme {
     pub line: AxisLineTheme,
     pub text: AxisTextTheme,
 }
 
-impl Default for AxisTheme {
-    fn default() -> Self {
-        AxisTheme {
-            line: AxisLineTheme::default(),
-            text: AxisTextTheme::default(),
-        }
-    }
-}
 
 /// Theme for legend components
 #[derive(Clone, Debug, PartialEq)]

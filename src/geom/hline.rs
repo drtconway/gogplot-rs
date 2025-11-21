@@ -144,9 +144,9 @@ impl Geom for GeomHLine {
         use crate::visuals::LineStyle;
         if let Some(pattern) = linetype_pattern {
             let style = LineStyle::from(pattern.as_str());
-            style.apply(&mut ctx.cairo);
+            style.apply(ctx.cairo);
         } else {
-            LineStyle::default().apply(&mut ctx.cairo);
+            LineStyle::default().apply(ctx.cairo);
         }
 
         // Draw horizontal line(s) across the full width of the plot

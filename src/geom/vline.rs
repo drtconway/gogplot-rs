@@ -144,9 +144,9 @@ impl Geom for GeomVLine {
         use crate::visuals::LineStyle;
         if let Some(pattern) = linetype_pattern {
             let style = LineStyle::from(pattern.as_str());
-            style.apply(&mut ctx.cairo);
+            style.apply(ctx.cairo);
         } else {
-            LineStyle::default().apply(&mut ctx.cairo);
+            LineStyle::default().apply(ctx.cairo);
         }
 
         // Draw vertical line(s) across the full height of the plot

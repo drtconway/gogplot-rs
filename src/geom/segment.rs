@@ -186,14 +186,14 @@ impl Geom for GeomSegment {
             let pattern = if let Some(ref vec) = linetype_vec {
                 vec.get(i).map(|s| s.as_str())
             } else {
-                constant_linetype.as_ref().map(|s| s.as_str())
+                constant_linetype.as_deref()
             };
 
             if let Some(p) = pattern {
                 let style = LineStyle::from(p);
-                style.apply(&mut ctx.cairo);
+                style.apply(ctx.cairo);
             } else {
-                LineStyle::default().apply(&mut ctx.cairo);
+                LineStyle::default().apply(ctx.cairo);
             }
 
             // Draw the segment

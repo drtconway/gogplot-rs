@@ -4,18 +4,15 @@ use cairo::Context;
 
 /// Line style patterns for line geoms
 #[derive(Clone, Debug, PartialEq)]
+#[derive(Default)]
 pub enum LineStyle {
     /// Solid line (no dashing)
+    #[default]
     Solid,
     /// Custom dash pattern specified as array of on/off lengths
     Custom(Vec<f64>),
 }
 
-impl Default for LineStyle {
-    fn default() -> Self {
-        LineStyle::Solid
-    }
-}
 
 impl From<&str> for LineStyle {
     /// Create a LineStyle from a pattern string.

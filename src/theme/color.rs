@@ -659,7 +659,7 @@ pub const YELLOW4: Color = Color(139, 139, 0, 255); // "yellow4"
 pub const YELLOWGREEN: Color = Color(154, 205, 50, 255); // "yellowgreen"
 
 pub fn color_map() -> &'static [(&'static str, Color)] {
-    static V: [(&'static str, Color); 657] = [
+    static V: [(&str, Color); 657] = [
         ("white", WHITE),
         ("aliceblue", ALICEBLUE),
         ("antiquewhite", ANTIQUEWHITE),

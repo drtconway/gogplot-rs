@@ -193,7 +193,7 @@ impl Bin {
             if i < x_values.len() {
                 groups_data
                     .entry(key.clone())
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(x_values[i]);
             }
         }

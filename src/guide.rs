@@ -5,12 +5,14 @@ use crate::visuals::Shape;
 
 /// Position for a legend
 #[derive(Clone, Debug, PartialEq)]
+#[derive(Default)]
 pub enum LegendPosition {
     /// No legend displayed
     None,
     /// Left side of plot
     Left,
     /// Right side of plot (default)
+    #[default]
     Right,
     /// Top of plot
     Top,
@@ -20,59 +22,46 @@ pub enum LegendPosition {
     Inside(f64, f64),
 }
 
-impl Default for LegendPosition {
-    fn default() -> Self {
-        LegendPosition::Right
-    }
-}
 
 /// Direction for legend items
 #[derive(Clone, Debug, PartialEq)]
+#[derive(Default)]
 pub enum LegendDirection {
     /// Items arranged vertically (default)
+    #[default]
     Vertical,
     /// Items arranged horizontally
     Horizontal,
 }
 
-impl Default for LegendDirection {
-    fn default() -> Self {
-        LegendDirection::Vertical
-    }
-}
 
 /// Position for X-axis
 #[derive(Clone, Debug, PartialEq)]
+#[derive(Default)]
 pub enum XAxisPosition {
     /// Bottom of plot (default)
+    #[default]
     Bottom,
     /// Top of plot
     Top,
 }
 
-impl Default for XAxisPosition {
-    fn default() -> Self {
-        XAxisPosition::Bottom
-    }
-}
 
 /// Position for Y-axis
 #[derive(Clone, Debug, PartialEq)]
+#[derive(Default)]
 pub enum YAxisPosition {
     /// Left side of plot (default)
+    #[default]
     Left,
     /// Right side of plot
     Right,
 }
 
-impl Default for YAxisPosition {
-    fn default() -> Self {
-        YAxisPosition::Left
-    }
-}
 
 /// A single legend entry
 #[derive(Clone, Debug)]
+#[derive(Default)]
 pub struct LegendEntry {
     /// Label text
     pub label: String,
@@ -84,16 +73,6 @@ pub struct LegendEntry {
     pub size: Option<f64>,
 }
 
-impl Default for LegendEntry {
-    fn default() -> Self {
-        LegendEntry {
-            label: String::new(),
-            color: None,
-            shape: None,
-            size: None,
-        }
-    }
-}
 
 impl LegendEntry {
     pub fn new(label: impl Into<String>) -> Self {
@@ -273,6 +252,7 @@ impl AxisGuide {
 
 /// Guide configuration for a plot
 #[derive(Clone, Debug)]
+#[derive(Default)]
 pub struct Guides {
     /// X-axis guide
     pub x_axis: Option<AxisGuide>,
@@ -290,19 +270,6 @@ pub struct Guides {
     pub alpha: Option<LegendGuide>,
 }
 
-impl Default for Guides {
-    fn default() -> Self {
-        Guides {
-            x_axis: None,
-            y_axis: None,
-            color: None,
-            fill: None,
-            shape: None,
-            size: None,
-            alpha: None,
-        }
-    }
-}
 
 impl Guides {
     pub fn new() -> Self {

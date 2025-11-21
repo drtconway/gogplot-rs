@@ -121,7 +121,7 @@ impl Geom for GeomRect {
 
             // Stroke the rectangle if a stroke color is defined
             // Only stroke if the color is different from fill or explicitly set
-            if let Some(_) = &self.color {
+            if self.color.is_some() {
                 ctx.set_color_alpha(&color, alpha);
                 ctx.cairo.rectangle(x, y, width, height);
                 ctx.cairo.stroke().ok();

@@ -34,14 +34,13 @@ impl PositionAdjust for Stack {
         let group_aesthetics: Vec<(Aesthetic, String)> = mapping
             .iter()
             .filter(|(aes, _)| aes.is_grouping())
-            .map(|(aes, val)| {
+            .filter_map(|(aes, val)| {
                 if let AesValue::Column(col_name) = val {
                     Some((*aes, col_name.clone()))
                 } else {
                     None
                 }
             })
-            .flatten()
             .collect();
 
         // If no grouping, no stacking needed
@@ -124,7 +123,7 @@ impl PositionAdjust for Stack {
             
             stacked_data
                 .entry(x_key)
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push((group_key.clone(), y_val, 0.0));
         }
 

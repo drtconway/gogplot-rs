@@ -151,7 +151,7 @@ impl Geom for GeomLine {
             for (i, group) in groups.iter().enumerate() {
                 grouped_points
                     .entry(group.clone())
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push((x_vals[i], y_vals[i], i));
             }
 
@@ -242,9 +242,9 @@ impl GeomLine {
         use crate::visuals::LineStyle;
         if let Some(pattern) = linetype_pattern {
             let style = LineStyle::from(pattern.as_str());
-            style.apply(&mut ctx.cairo);
+            style.apply(ctx.cairo);
         } else {
-            LineStyle::default().apply(&mut ctx.cairo);
+            LineStyle::default().apply(ctx.cairo);
         }
 
         // Start path at first point

@@ -80,8 +80,8 @@ impl Density {
                 .iter()
                 .map(|&xi| {
                     let u = (x - xi) / bandwidth;
-                    let kernel = (-0.5 * u * u).exp() / (2.0 * std::f64::consts::PI).sqrt();
-                    kernel
+                    
+                    (-0.5 * u * u).exp() / (2.0 * std::f64::consts::PI).sqrt()
                 })
                 .sum::<f64>()
                 / (n_obs * bandwidth);

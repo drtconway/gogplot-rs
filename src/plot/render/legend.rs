@@ -141,8 +141,7 @@ pub fn generate_automatic_legends(layers: &[Layer], scales: &ScaleSet, guides: &
                         }
                     }
                     guides.fill = Some(legend);
-                } else {
-                }
+                } 
             }
         }
     }

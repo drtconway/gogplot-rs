@@ -59,6 +59,12 @@ pub struct AesMap {
     map: HashMap<Aesthetic, AesValue>,
 }
 
+impl Default for AesMap {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AesMap {
     pub fn new() -> Self {
         Self {

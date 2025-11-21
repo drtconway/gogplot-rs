@@ -237,18 +237,18 @@ impl<'a> RenderContext<'a> {
                             if mapped.len() == strs.len() {
                                 Ok(AestheticValues::Owned(mapped))
                             } else {
-                                return Err(PlotError::InvalidAestheticType {
+                                Err(PlotError::InvalidAestheticType {
                                     aesthetic,
                                     expected: DataType::Custom("all values mapped by scale".to_string()),
                                     actual: DataType::Custom("some values not mapped".to_string()),
-                                });
+                                })
                             }
                         } else {
-                            return Err(PlotError::InvalidAestheticType {
+                            Err(PlotError::InvalidAestheticType {
                                 aesthetic,
                                 expected: DataType::CategoricalScale,
                                 actual: DataType::Custom("no scale provided".to_string()),
-                            });
+                            })
                         }
                     }
                 }
@@ -273,7 +273,7 @@ impl<'a> RenderContext<'a> {
                 let default_value = match aesthetic {
                     Aesthetic::Size => 2.0,
                     Aesthetic::Alpha => 1.0,
-                    _ => return Err(PlotError::MissingAesthetic { aesthetic: aesthetic }),
+                    _ => return Err(PlotError::MissingAesthetic { aesthetic }),
                 };
                 Ok(AestheticValues::Constant(default_value, n))
             }
@@ -586,14 +586,14 @@ impl<'a> RenderContext<'a> {
         let mapping = self
             .mapping
             .get(&aesthetic)
-            .ok_or_else(|| PlotError::MissingAesthetic { aesthetic })?;
+            .ok_or(PlotError::MissingAesthetic { aesthetic })?;
 
         // Extract column name
         let col_name = match mapping {
             AesValue::Column(name) => name.as_str(),
             AesValue::Constant(_) => {
                 return Err(PlotError::InvalidAestheticType {
-                    aesthetic: aesthetic,
+                    aesthetic,
                     expected: DataType::ColumnMapping,
                     actual: DataType::Custom("constant".to_string()),
                 });

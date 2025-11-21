@@ -32,6 +32,12 @@ pub struct Continuous {
     upper_bound: Option<f64>,
 }
 
+impl Default for Continuous {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Continuous {
     /// Create a new scale builder with default settings.
     ///
@@ -699,7 +705,7 @@ pub fn extended_breaks(domain: (f64, f64), n: usize) -> Vec<f64> {
         // Score: coverage, simplicity, density, legibility (simplified)
         let coverage = (min - breaks[0]).abs() + (breaks.last().unwrap() - max).abs();
         let simplicity = if q == 1.0 { 1.0 } else { 0.5 };
-        let density = ((breaks.len() as f64 - n as f64).abs()) as f64;
+        let density = (breaks.len() as f64 - n as f64).abs();
         let score = -coverage - density + simplicity;
         if score > best_score {
             best_score = score;
