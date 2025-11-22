@@ -24,7 +24,7 @@
 //!     .geom_point();
 //! ```
 
-use crate::data::{DataSource, GenericVector};
+use crate::data::{DataSource, GenericVector, VectorIter};
 use polars::prelude::*;
 
 impl DataSource for DataFrame {
@@ -73,10 +73,107 @@ impl GenericVector for Series {
             }
             PolarsDataType::Float32 | PolarsDataType::Float64 => crate::data::VectorType::Float,
             PolarsDataType::String => crate::data::VectorType::Str,
+            PolarsDataType::Boolean => crate::data::VectorType::Bool,
             _ => {
                 // Default to string for unsupported types
                 crate::data::VectorType::Str
             }
+        }
+    }
+
+    fn iter(&self) -> VectorIter<'_> {
+        use polars::datatypes::DataType as PolarsDataType;
+        match self.dtype() {
+            // Integer types
+            PolarsDataType::Int64 => {
+                if let Ok(ca) = self.i64() {
+                    VectorIter::Int(Box::new(ca.into_iter().map(|opt| opt.unwrap_or(0))))
+                } else {
+                    VectorIter::Int(Box::new(std::iter::empty()))
+                }
+            }
+            PolarsDataType::Int32 => {
+                if let Ok(ca) = self.i32() {
+                    VectorIter::Int(Box::new(ca.into_iter().map(|opt| opt.unwrap_or(0) as i64)))
+                } else {
+                    VectorIter::Int(Box::new(std::iter::empty()))
+                }
+            }
+            PolarsDataType::Int16 => {
+                if let Ok(ca) = self.i16() {
+                    VectorIter::Int(Box::new(ca.into_iter().map(|opt| opt.unwrap_or(0) as i64)))
+                } else {
+                    VectorIter::Int(Box::new(std::iter::empty()))
+                }
+            }
+            PolarsDataType::Int8 => {
+                if let Ok(ca) = self.i8() {
+                    VectorIter::Int(Box::new(ca.into_iter().map(|opt| opt.unwrap_or(0) as i64)))
+                } else {
+                    VectorIter::Int(Box::new(std::iter::empty()))
+                }
+            }
+            PolarsDataType::UInt64 => {
+                if let Ok(ca) = self.u64() {
+                    VectorIter::Int(Box::new(ca.into_iter().map(|opt| opt.unwrap_or(0) as i64)))
+                } else {
+                    VectorIter::Int(Box::new(std::iter::empty()))
+                }
+            }
+            PolarsDataType::UInt32 => {
+                if let Ok(ca) = self.u32() {
+                    VectorIter::Int(Box::new(ca.into_iter().map(|opt| opt.unwrap_or(0) as i64)))
+                } else {
+                    VectorIter::Int(Box::new(std::iter::empty()))
+                }
+            }
+            PolarsDataType::UInt16 => {
+                if let Ok(ca) = self.u16() {
+                    VectorIter::Int(Box::new(ca.into_iter().map(|opt| opt.unwrap_or(0) as i64)))
+                } else {
+                    VectorIter::Int(Box::new(std::iter::empty()))
+                }
+            }
+            PolarsDataType::UInt8 => {
+                if let Ok(ca) = self.u8() {
+                    VectorIter::Int(Box::new(ca.into_iter().map(|opt| opt.unwrap_or(0) as i64)))
+                } else {
+                    VectorIter::Int(Box::new(std::iter::empty()))
+                }
+            }
+            // Float types
+            PolarsDataType::Float64 => {
+                if let Ok(ca) = self.f64() {
+                    VectorIter::Float(Box::new(ca.into_iter().map(|opt| opt.unwrap_or(0.0))))
+                } else {
+                    VectorIter::Float(Box::new(std::iter::empty()))
+                }
+            }
+            PolarsDataType::Float32 => {
+                if let Ok(ca) = self.f32() {
+                    VectorIter::Float(Box::new(ca.into_iter().map(|opt| opt.unwrap_or(0.0) as f64)))
+                } else {
+                    VectorIter::Float(Box::new(std::iter::empty()))
+                }
+            }
+            // String type
+            PolarsDataType::String => {
+                if let Ok(ca) = self.str() {
+                    VectorIter::Str(Box::new(ca.into_iter().map(|opt| opt.unwrap_or(""))))
+                } else {
+                    VectorIter::Str(Box::new(std::iter::empty()))
+                }
+            }
+            // Boolean type
+            PolarsDataType::Boolean => {
+                if let Ok(ca) = self.bool() {
+                    VectorIter::Bool(Box::new(ca.into_iter().map(|opt| opt.unwrap_or(false))))
+                } else {
+                    VectorIter::Bool(Box::new(std::iter::empty()))
+                }
+            }
+            // Default fallback
+            _ => VectorIter::Str(Box::new(std::iter::empty())),
         }
     }
 
@@ -140,6 +237,17 @@ impl GenericVector for Series {
             PolarsDataType::String => {
                 let ca = self.str().ok()?;
                 Some(Box::new(ca.into_iter().map(|opt| opt.unwrap_or(""))))
+            }
+            _ => None,
+        }
+    }
+
+    fn iter_bool(&self) -> Option<Box<dyn Iterator<Item = bool> + '_>> {
+        use polars::datatypes::DataType as PolarsDataType;
+        match self.dtype() {
+            PolarsDataType::Boolean => {
+                let ca = self.bool().ok()?;
+                Some(Box::new(ca.into_iter().map(|opt| opt.unwrap_or(false))))
             }
             _ => None,
         }
@@ -248,5 +356,64 @@ mod tests {
         .unwrap();
 
         assert!(DataSource::get(&df, "nonexistent").is_none());
+    }
+
+    #[test]
+    fn test_polars_boolean_column() {
+        let df = df! {
+            "flag" => &[true, false, true, false]
+        }
+        .unwrap();
+
+        let col = DataSource::get(&df, "flag").unwrap();
+        let values: Vec<bool> = col.iter_bool().unwrap().collect();
+        assert_eq!(values, vec![true, false, true, false]);
+    }
+
+    #[test]
+    fn test_polars_boolean_vector_iter() {
+        let df = df! {
+            "active" => &[true, false, true]
+        }
+        .unwrap();
+
+        let col = DataSource::get(&df, "active").unwrap();
+        match col.iter() {
+            VectorIter::Bool(mut iter) => {
+                assert_eq!(iter.next(), Some(true));
+                assert_eq!(iter.next(), Some(false));
+                assert_eq!(iter.next(), Some(true));
+                assert_eq!(iter.next(), None);
+            }
+            _ => panic!("Expected Bool variant"),
+        }
+    }
+
+    #[test]
+    fn test_polars_mixed_with_boolean() {
+        let df = df! {
+            "x" => &[1i64, 2, 3],
+            "active" => &[true, false, true],
+            "label" => &["a", "b", "c"]
+        }
+        .unwrap();
+
+        assert_eq!(df.len(), 3);
+        assert_eq!(df.column_names().len(), 3);
+
+        // Check boolean values
+        let bool_col = DataSource::get(&df, "active").unwrap();
+        let bool_values: Vec<bool> = bool_col.iter_bool().unwrap().collect();
+        assert_eq!(bool_values, vec![true, false, true]);
+
+        // Check int values
+        let int_col = DataSource::get(&df, "x").unwrap();
+        let int_values: Vec<i64> = int_col.iter_int().unwrap().collect();
+        assert_eq!(int_values, vec![1, 2, 3]);
+
+        // Check string values
+        let str_col = DataSource::get(&df, "label").unwrap();
+        let str_values: Vec<String> = str_col.iter_str().unwrap().map(|s| s.to_string()).collect();
+        assert_eq!(str_values, vec!["a", "b", "c"]);
     }
 }

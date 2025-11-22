@@ -25,14 +25,32 @@
 //!     .geom_point();
 //! ```
 
-use crate::data::{GenericVector, StrVector};
+use crate::data::{GenericVector, StrVector, VectorIter};
 use arrow::array::{
-    Array, DictionaryArray, Float32Array, Float64Array, Int8Array, Int16Array, Int32Array,
-    Int64Array, LargeStringArray, StringArray, StringViewArray, UInt8Array, UInt16Array,
-    UInt32Array, UInt64Array,
+    Array, BooleanArray, DictionaryArray, Float32Array, Float64Array, Int8Array, Int16Array,
+    Int32Array, Int64Array, LargeStringArray, StringArray, StringViewArray, UInt8Array,
+    UInt16Array, UInt32Array, UInt64Array,
 };
 use arrow::datatypes::{DataType, Int32Type};
 use arrow::record_batch::RecordBatch;
+
+impl GenericVector for BooleanArray {
+    fn len(&self) -> usize {
+        arrow::array::Array::len(self)
+    }
+
+    fn vtype(&self) -> crate::data::VectorType {
+        crate::data::VectorType::Bool
+    }
+
+    fn iter(&self) -> VectorIter<'_> {
+        VectorIter::Bool(Box::new((0..arrow::array::Array::len(self)).map(|i| self.value(i))))
+    }
+
+    fn iter_bool(&self) -> Option<Box<dyn Iterator<Item = bool> + '_>> {
+        Some(Box::new((0..arrow::array::Array::len(self)).map(|i| self.value(i))))
+    }
+}
 
 impl GenericVector for Int64Array {
     fn len(&self) -> usize {
@@ -41,6 +59,10 @@ impl GenericVector for Int64Array {
 
     fn vtype(&self) -> crate::data::VectorType {
         crate::data::VectorType::Int
+    }
+
+    fn iter(&self) -> VectorIter<'_> {
+        VectorIter::Int(Box::new(self.values().iter().copied()))
     }
 
     fn iter_int(&self) -> Option<Box<dyn Iterator<Item = i64> + '_>> {
@@ -62,6 +84,10 @@ impl GenericVector for Int8Array {
         crate::data::VectorType::Int
     }
 
+    fn iter(&self) -> VectorIter<'_> {
+        VectorIter::Int(Box::new(self.values().iter().map(|&v| v as i64)))
+    }
+
     fn iter_int(&self) -> Option<Box<dyn Iterator<Item = i64> + '_>> {
         Some(Box::new(self.values().iter().map(|&v| v as i64)))
     }
@@ -74,6 +100,10 @@ impl GenericVector for Int16Array {
 
     fn vtype(&self) -> crate::data::VectorType {
         crate::data::VectorType::Int
+    }
+
+    fn iter(&self) -> VectorIter<'_> {
+        VectorIter::Int(Box::new(self.values().iter().map(|&v| v as i64)))
     }
 
     fn iter_int(&self) -> Option<Box<dyn Iterator<Item = i64> + '_>> {
@@ -90,6 +120,10 @@ impl GenericVector for Int32Array {
         crate::data::VectorType::Int
     }
 
+    fn iter(&self) -> VectorIter<'_> {
+        VectorIter::Int(Box::new(self.values().iter().map(|&v| v as i64)))
+    }
+
     fn iter_int(&self) -> Option<Box<dyn Iterator<Item = i64> + '_>> {
         Some(Box::new(self.values().iter().map(|&v| v as i64)))
     }
@@ -102,6 +136,10 @@ impl GenericVector for UInt8Array {
 
     fn vtype(&self) -> crate::data::VectorType {
         crate::data::VectorType::Int
+    }
+
+    fn iter(&self) -> VectorIter<'_> {
+        VectorIter::Int(Box::new(self.values().iter().map(|&v| v as i64)))
     }
 
     fn iter_int(&self) -> Option<Box<dyn Iterator<Item = i64> + '_>> {
@@ -118,6 +156,10 @@ impl GenericVector for UInt16Array {
         crate::data::VectorType::Int
     }
 
+    fn iter(&self) -> VectorIter<'_> {
+        VectorIter::Int(Box::new(self.values().iter().map(|&v| v as i64)))
+    }
+
     fn iter_int(&self) -> Option<Box<dyn Iterator<Item = i64> + '_>> {
         Some(Box::new(self.values().iter().map(|&v| v as i64)))
     }
@@ -132,6 +174,10 @@ impl GenericVector for UInt32Array {
         crate::data::VectorType::Int
     }
 
+    fn iter(&self) -> VectorIter<'_> {
+        VectorIter::Int(Box::new(self.values().iter().map(|&v| v as i64)))
+    }
+
     fn iter_int(&self) -> Option<Box<dyn Iterator<Item = i64> + '_>> {
         Some(Box::new(self.values().iter().map(|&v| v as i64)))
     }
@@ -144,6 +190,11 @@ impl GenericVector for UInt64Array {
 
     fn vtype(&self) -> crate::data::VectorType {
         crate::data::VectorType::Int
+    }
+
+    fn iter(&self) -> VectorIter<'_> {
+        // Note: UInt64 values > i64::MAX will wrap when cast to i64
+        VectorIter::Int(Box::new(self.values().iter().map(|&v| v as i64)))
     }
 
     fn iter_int(&self) -> Option<Box<dyn Iterator<Item = i64> + '_>> {
@@ -161,6 +212,10 @@ impl GenericVector for Float32Array {
         crate::data::VectorType::Float
     }
 
+    fn iter(&self) -> VectorIter<'_> {
+        VectorIter::Float(Box::new(self.values().iter().map(|&v| v as f64)))
+    }
+
     fn iter_float(&self) -> Option<Box<dyn Iterator<Item = f64> + '_>> {
         Some(Box::new(self.values().iter().map(|&v| v as f64)))
     }
@@ -175,6 +230,10 @@ impl GenericVector for Float64Array {
         crate::data::VectorType::Float
     }
 
+    fn iter(&self) -> VectorIter<'_> {
+        VectorIter::Float(Box::new(self.values().iter().copied()))
+    }
+
     fn iter_float(&self) -> Option<Box<dyn Iterator<Item = f64> + '_>> {
         Some(Box::new(self.values().iter().copied()))
     }
@@ -187,6 +246,13 @@ impl GenericVector for StringArray {
 
     fn vtype(&self) -> crate::data::VectorType {
         crate::data::VectorType::Str
+    }
+
+    fn iter(&self) -> VectorIter<'_> {
+        VectorIter::Str(Box::new(StringArrayIter {
+            array: self,
+            index: 0,
+        }))
     }
 
     fn iter_str(&self) -> Option<Box<dyn Iterator<Item = &str> + '_>> {
@@ -251,6 +317,13 @@ impl GenericVector for LargeStringArray {
         crate::data::VectorType::Str
     }
 
+    fn iter(&self) -> VectorIter<'_> {
+        VectorIter::Str(Box::new(LargeStringArrayIter {
+            array: self,
+            index: 0,
+        }))
+    }
+
     fn iter_str(&self) -> Option<Box<dyn Iterator<Item = &str> + '_>> {
         Some(Box::new(LargeStringArrayIter {
             array: self,
@@ -311,6 +384,13 @@ impl GenericVector for StringViewArray {
 
     fn vtype(&self) -> crate::data::VectorType {
         crate::data::VectorType::Str
+    }
+
+    fn iter(&self) -> VectorIter<'_> {
+        VectorIter::Str(Box::new(StringViewArrayIter {
+            array: self,
+            index: 0,
+        }))
     }
 
     fn iter_str(&self) -> Option<Box<dyn Iterator<Item = &str> + '_>> {
@@ -375,6 +455,34 @@ impl GenericVector for DictionaryArray<Int32Type> {
     fn vtype(&self) -> crate::data::VectorType {
         // Dictionary arrays with string values are treated as strings
         crate::data::VectorType::Str
+    }
+
+    fn iter(&self) -> VectorIter<'_> {
+        // Determine the value type of the dictionary
+        let values = self.values();
+
+        if values.as_any().is::<StringArray>() {
+            VectorIter::Str(Box::new(DictUtf8ArrayIter {
+                dict_array: self,
+                values_array: values.as_any().downcast_ref::<StringArray>().unwrap(),
+                index: 0,
+            }))
+        } else if values.as_any().is::<LargeStringArray>() {
+            VectorIter::Str(Box::new(DictLargeUtf8ArrayIter {
+                dict_array: self,
+                values_array: values.as_any().downcast_ref::<LargeStringArray>().unwrap(),
+                index: 0,
+            }))
+        } else if values.as_any().is::<StringViewArray>() {
+            VectorIter::Str(Box::new(DictUtf8ViewArrayIter {
+                dict_array: self,
+                values_array: values.as_any().downcast_ref::<StringViewArray>().unwrap(),
+                index: 0,
+            }))
+        } else {
+            // Fallback - return empty iterator
+            VectorIter::Str(Box::new(std::iter::empty()))
+        }
     }
 
     fn iter_str(&self) -> Option<Box<dyn Iterator<Item = &str> + '_>> {
@@ -586,6 +694,10 @@ impl crate::data::DataSource for RecordBatch {
         let data_type = schema.field(field_index).data_type();
 
         match data_type {
+            DataType::Boolean => column
+                .as_any()
+                .downcast_ref::<BooleanArray>()
+                .map(|arr| arr as &dyn crate::data::GenericVector),
             DataType::Int64 => column
                 .as_any()
                 .downcast_ref::<Int64Array>()
@@ -1195,5 +1307,75 @@ mod tests {
 
         // Test getting non-existent column
         assert!(batch.get("nonexistent").is_none());
+    }
+
+    #[test]
+    fn test_convert_boolean_column() {
+        let schema = Arc::new(Schema::new(vec![Field::new(
+            "flag",
+            DataType::Boolean,
+            false,
+        )]));
+
+        let bool_array = BooleanArray::from(vec![true, false, true, false, true]);
+        let batch = RecordBatch::try_new(schema, vec![Arc::new(bool_array) as ArrayRef]).unwrap();
+
+        assert_eq!(batch.len(), 5);
+
+        let col = batch.get("flag").unwrap();
+        let bool_iter = col.iter_bool().unwrap();
+        let values: Vec<bool> = bool_iter.collect();
+        assert_eq!(values, vec![true, false, true, false, true]);
+    }
+
+    #[test]
+    fn test_boolean_vector_iter() {
+        let bool_array = BooleanArray::from(vec![true, false, true]);
+        
+        match GenericVector::iter(&bool_array) {
+            VectorIter::Bool(mut iter) => {
+                assert_eq!(iter.next(), Some(true));
+                assert_eq!(iter.next(), Some(false));
+                assert_eq!(iter.next(), Some(true));
+                assert_eq!(iter.next(), None);
+            }
+            _ => panic!("Expected Bool variant"),
+        }
+    }
+
+    #[test]
+    fn test_mixed_with_boolean() {
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("x", DataType::Int64, false),
+            Field::new("active", DataType::Boolean, false),
+            Field::new("label", DataType::Utf8, false),
+        ]));
+
+        let int_array = Int64Array::from(vec![1, 2, 3]);
+        let bool_array = BooleanArray::from(vec![true, false, true]);
+        let string_array = StringArray::from(vec!["a", "b", "c"]);
+
+        let batch = RecordBatch::try_new(
+            schema,
+            vec![
+                Arc::new(int_array) as ArrayRef,
+                Arc::new(bool_array) as ArrayRef,
+                Arc::new(string_array) as ArrayRef,
+            ],
+        )
+        .unwrap();
+
+        assert_eq!(batch.len(), 3);
+        assert_eq!(batch.column_names().len(), 3);
+
+        // Verify all columns are present
+        assert!(batch.get("x").is_some());
+        assert!(batch.get("active").is_some());
+        assert!(batch.get("label").is_some());
+
+        // Check boolean values
+        let bool_col = batch.get("active").unwrap();
+        let bool_values: Vec<bool> = bool_col.iter_bool().unwrap().collect();
+        assert_eq!(bool_values, vec![true, false, true]);
     }
 }
