@@ -2,6 +2,8 @@ use crate::data::GenericVector;
 use crate::theme::Color;
 use crate::visuals::Shape;
 
+pub mod transform;
+
 /// Base trait for all scales providing common functionality.
 pub trait ScaleBase: Send + Sync {
     /// Train the scale on data to automatically determine the domain.
