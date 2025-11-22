@@ -29,8 +29,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.y("sales");
             a.fill("region");
         })
-        .geom_bar_with(|geom| {
-            geom.stat(Stat::Identity).position(Position::Dodge)
+        .geom_bar_with(|layer| {
+            layer.geom.stat(Stat::Identity).position(Position::Dodge);
         })
         .title("Dodged Bars")
         .y_scale_with(|scale| scale.set_lower_bound(0.0));
@@ -45,8 +45,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.y("sales");
             a.fill("region");
         })
-        .geom_bar_with(|geom| {
-            geom.stat(Stat::Identity).position(Position::Stack)
+        .geom_bar_with(|layer| {
+            layer.geom.stat(Stat::Identity).position(Position::Stack);
         })
         .title("Stacked Bars")
         .y_scale_with(|scale| scale.set_lower_bound(0.0));
@@ -61,8 +61,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.y("sales");
             a.fill("region");
         })
-        .geom_bar_with(|geom| {
-            geom.stat(Stat::Identity).position(Position::Identity)
+        .geom_bar_with(|layer| {
+            layer.geom.stat(Stat::Identity).position(Position::Identity);
         })
         .title("Identity (Overlapping) Bars")
         .y_scale_with(|scale| scale.set_lower_bound(0.0));

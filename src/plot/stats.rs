@@ -4,6 +4,7 @@ use crate::error::PlotError;
 use crate::layer::{Layer, Stat};
 use crate::stat::bin::Bin;
 use crate::stat::count::Count;
+use crate::stat::summary::Summary;
 use crate::stat::StatTransform;
 
 /// Apply statistical transformations to layers
@@ -61,6 +62,16 @@ pub fn apply_stats(
                     strategy: strategy.clone(),
                 };
                 let stat_result = bin_stat.apply(data, &merged_mapping)?;
+                if let Some((transformed_data, new_mapping)) = stat_result {
+                    layers[i].computed_data = Some(transformed_data);
+                    layers[i].computed_mapping = Some(new_mapping);
+                }
+            }
+            Stat::Summary(aesthetics) => {
+                let summary_stat = Summary {
+                    aesthetics: aesthetics.clone(),
+                };
+                let stat_result = summary_stat.apply(data, &merged_mapping)?;
                 if let Some((transformed_data, new_mapping)) = stat_result {
                     layers[i].computed_data = Some(transformed_data);
                     layers[i].computed_mapping = Some(new_mapping);

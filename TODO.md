@@ -103,10 +103,6 @@
   - Add trait extension for dot notation: `data_source.to_arrow_record_batch()`
   - Similar converter for Polars: `data_source.to_polars_dataframe()`
   - Enables easy interop between different data formats
-- [ ] **Boolean vector type** - Add boolean/logical data type support to GenericVector trait
-  - Implement `iter_bool()` method
-  - Support for Arrow BooleanArray, Polars Boolean series, and built-in Vec<bool>
-  - Enable filtering, conditional aesthetics, and logical operations
 
 ## Interactivity (Future)
 

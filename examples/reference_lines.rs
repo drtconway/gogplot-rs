@@ -20,8 +20,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("x");
             a.y("y");
         })
-        .geom_point_with(|geom| geom.size(4.0).color(color::BLUE))
-        .geom_hline_with(4.0, |geom| geom.color(color::RED).size(2.0).linetype("-"));
+        .geom_point_with(|layer| { layer.geom.size(4.0).color(color::BLUE); })
+        .geom_hline_with(|layer| {
+            layer.aes.yintercept_const(4.0);
+            layer.geom.color(color::RED).size(2.0).linetype("-");
+        });
     plot.save("reference_hline.png", 800, 600)?;
     println!("Saved reference_hline.png");
 
@@ -36,8 +39,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("x");
             a.y("y");
         })
-        .geom_point_with(|geom| geom.size(4.0).color(color::BLUE))
-        .geom_vline_with(5.0, |geom| geom.color(color::GREEN).size(2.0).linetype("-"));
+        .geom_point_with(|layer| { layer.geom.size(4.0).color(color::BLUE); })
+        .geom_vline_with(|layer| {
+            layer.aes.xintercept_const(5.0);
+            layer.geom.color(color::GREEN).size(2.0).linetype("-");
+        });
     plot.save("reference_vline.png", 800, 600)?;
     println!("Saved reference_vline.png");
 
@@ -52,15 +58,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("x");
             a.y("y");
         })
-        .geom_point_with(|geom| geom.size(4.0).color(color::BLUE))
-        .geom_hline_with(3.0, |geom| {
-            geom.color(color::BLUE).size(1.5).linetype(".").alpha(0.6)
+        .geom_point_with(|layer| { layer.geom.size(4.0).color(color::BLUE); })
+        .geom_hline_with(|layer| {
+            layer.aes.yintercept_const(3.0);
+            layer.geom.color(color::BLUE).size(1.5).linetype(".").alpha(0.6);
         })
-        .geom_hline_with(5.0, |geom| {
-            geom.color(color::GREEN).size(1.5).linetype(".").alpha(0.6)
+        .geom_hline_with(|layer| {
+            layer.aes.yintercept_const(5.0);
+            layer.geom.color(color::GREEN).size(1.5).linetype(".").alpha(0.6);
         })
-        .geom_vline_with(5.5, |geom| {
-            geom.color(color::RED).size(2.0).linetype("-.").alpha(0.8)
+        .geom_vline_with(|layer| {
+            layer.aes.xintercept_const(5.5);
+            layer.geom.color(color::RED).size(2.0).linetype("-.").alpha(0.8);
         });
     plot.save("reference_multiple.png", 800, 600)?;
     println!("Saved reference_multiple.png");
@@ -79,12 +88,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("x");
             a.y("y");
         })
-        .geom_point_with(|geom| geom.size(4.0).color(color::BLUE))
-        .geom_hline_with(mean_y, |geom| {
-            geom.color(color::RED).size(2.0).linetype("- -").alpha(0.7)
+        .geom_point_with(|layer| { layer.geom.size(4.0).color(color::BLUE); })
+        .geom_hline_with(|layer| {
+            layer.aes.yintercept_const(mean_y);
+            layer.geom.color(color::RED).size(2.0).linetype("- -").alpha(0.7);
         })
-        .geom_vline_with(mean_x, |geom| {
-            geom.color(color::RED).size(2.0).linetype("- -").alpha(0.7)
+        .geom_vline_with(|layer| {
+            layer.aes.xintercept_const(mean_x);
+            layer.geom.color(color::RED).size(2.0).linetype("- -").alpha(0.7);
         });
     plot.save("reference_mean.png", 800, 600)?;
     println!("Saved reference_mean.png");

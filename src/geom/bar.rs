@@ -40,19 +40,19 @@ impl GeomBar {
     }
 
     /// Set the default fill color
-    pub fn fill(mut self, color: crate::theme::Color) -> Self {
+    pub fn fill(&mut self, color: crate::theme::Color) -> &mut Self {
         self.fill = Some(AesValue::Constant(PrimitiveValue::Int(color.into())));
         self
     }
 
     /// Set the default stroke color
-    pub fn color(mut self, color: crate::theme::Color) -> Self {
+    pub fn color(&mut self, color: crate::theme::Color) -> &mut Self {
         self.color = Some(AesValue::Constant(PrimitiveValue::Int(color.into())));
         self
     }
 
     /// Set the default alpha/opacity
-    pub fn alpha(mut self, alpha: f64) -> Self {
+    pub fn alpha(&mut self, alpha: f64) -> &mut Self {
         self.alpha = Some(AesValue::Constant(PrimitiveValue::Float(
             alpha.clamp(0.0, 1.0),
         )));
@@ -60,19 +60,19 @@ impl GeomBar {
     }
 
     /// Set the bar width (as a proportion of spacing, typically 0.0-1.0)
-    pub fn width(mut self, width: f64) -> Self {
+    pub fn width(&mut self, width: f64) -> &mut Self {
         self.width = width;
         self
     }
 
     /// Set the stat to use (default is Count)
-    pub fn stat(mut self, stat: Stat) -> Self {
+    pub fn stat(&mut self, stat: Stat) -> &mut Self {
         self.stat = stat;
         self
     }
 
     /// Set the position adjustment (default is Identity)
-    pub fn position(mut self, position: Position) -> Self {
+    pub fn position(&mut self, position: Position) -> &mut Self {
         self.position = position;
         self
     }

@@ -47,20 +47,20 @@ impl GeomSegment {
     }
 
     /// Set a constant color for all segments
-    pub fn color(mut self, color: crate::theme::Color) -> Self {
+    pub fn color(&mut self, color: crate::theme::Color) -> &mut Self {
         let rgba = color.into();
         self.color = Some(AesValue::Constant(PrimitiveValue::Int(rgba)));
         self
     }
 
     /// Set a constant alpha (transparency) for all segments
-    pub fn alpha(mut self, alpha: f64) -> Self {
+    pub fn alpha(&mut self, alpha: f64) -> &mut Self {
         self.alpha = Some(AesValue::Constant(PrimitiveValue::Float(alpha)));
         self
     }
 
     /// Set a constant size (line width) for all segments
-    pub fn size(mut self, size: f64) -> Self {
+    pub fn size(&mut self, size: f64) -> &mut Self {
         self.size = Some(AesValue::Constant(PrimitiveValue::Float(size)));
         self
     }
@@ -73,7 +73,7 @@ impl GeomSegment {
     /// - ` ` : long gap
     ///
     /// Examples: `"-"`, `"."`, `"-."`, `"- -"`, `". ."`
-    pub fn linetype(mut self, pattern: impl Into<String>) -> Self {
+    pub fn linetype(&mut self, pattern: impl Into<String>) -> &mut Self {
         self.linetype = Some(AesValue::Constant(PrimitiveValue::Str(pattern.into())));
         self
     }

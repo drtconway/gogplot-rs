@@ -31,25 +31,25 @@ impl GeomPoint {
     }
 
     /// Set the default point size
-    pub fn size(mut self, size: f64) -> Self {
+    pub fn size(&mut self, size: f64) -> &mut Self {
         self.size = Some(AesValue::Constant(PrimitiveValue::Float(size)));
         self
     }
 
     /// Set the default point color
-    pub fn color(mut self, color: crate::theme::Color) -> Self {
+    pub fn color(&mut self, color: crate::theme::Color) -> &mut Self {
         self.color = Some(AesValue::Constant(PrimitiveValue::Int(color.into())));
         self
     }
 
     /// Set the default point shape
-    pub fn shape(mut self, shape: Shape) -> Self {
+    pub fn shape(&mut self, shape: Shape) -> &mut Self {
         self.shape = Some(AesValue::Constant(PrimitiveValue::Int(shape as i64)));
         self
     }
 
     /// Set the default alpha/opacity
-    pub fn alpha(mut self, alpha: f64) -> Self {
+    pub fn alpha(&mut self, alpha: f64) -> &mut Self {
         self.alpha = Some(AesValue::Constant(PrimitiveValue::Float(
             alpha.clamp(0.0, 1.0),
         )));

@@ -1,6 +1,7 @@
 pub mod bin;
 pub mod count;
 pub mod density;
+pub mod summary;
 
 use crate::aesthetics::AesMap;
 use crate::data::DataSource;

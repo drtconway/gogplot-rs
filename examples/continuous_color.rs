@@ -30,7 +30,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 color::LIGHTBLUE2, // dark blue
                 color::BLACK,      // black
             ])
-            .geom_point_with(|geom| geom.size(8.0))
+            .geom_point_with(|layer| { layer.geom.size(8.0); })
             .save("continuous_color_default.png", 800, 600)?;
         println!("Saved continuous_color_default.png");
     }
@@ -60,7 +60,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Color::rgb(0, 0, 255), // blue
                 Color::rgb(255, 0, 0), // red
             ])
-            .geom_point_with(|geom| geom.size(8.0))
+            .geom_point_with(|layer| { layer.geom.size(8.0); })
             .save("continuous_color_two_colors.png", 800, 600)?;
         println!("Saved continuous_color_two_colors.png");
     }
@@ -101,7 +101,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Color::rgb(94, 201, 98),  // green
                 Color::rgb(253, 231, 37), // yellow
             ])
-            .geom_point_with(|geom| geom.size(4.0))
+            .geom_point_with(|layer| { layer.geom.size(4.0); })
             .save("continuous_color_viridis.png", 800, 800)?;
         println!("Saved continuous_color_viridis.png");
     }
@@ -129,7 +129,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Color::rgb(255, 255, 255), // white
                 Color::rgb(255, 0, 0),     // red
             ])
-            .geom_point_with(|geom| geom.size(10.0))
+            .geom_point_with(|layer| { layer.geom.size(10.0); })
             .save("continuous_color_diverging.png", 800, 600)?;
         println!("Saved continuous_color_diverging.png");
     }

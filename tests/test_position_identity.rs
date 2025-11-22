@@ -22,9 +22,9 @@ fn test_position_identity_preserves_values() {
             a.y("y");
             a.fill("group");
         })
-        .geom_bar_with(|g| {
-            g.stat(gogplot::layer::Stat::Identity)
-                .position(Position::Identity)
+        .geom_bar_with(|layer| {
+            layer.geom.stat(gogplot::layer::Stat::Identity)
+                .position(Position::Identity);
         })
         .save("test_position_identity.png", 400, 300);
 
@@ -50,7 +50,7 @@ fn test_position_identity_with_histogram() {
             a.x("value");
             a.fill("category");
         })
-        .geom_histogram_with(|g| g.bins(4).position(Position::Identity))
+        .geom_histogram_with(|layer| { layer.geom.bins(4).position(Position::Identity); })
         .save("test_histogram_identity.png", 400, 300);
 
     assert!(

@@ -30,20 +30,20 @@ impl GeomLine {
     }
 
     /// Set the default line color
-    pub fn color(mut self, color: crate::theme::Color) -> Self {
+    pub fn color(&mut self, color: crate::theme::Color) -> &mut Self {
         let rgba = color.into();
         self.color = Some(AesValue::Constant(PrimitiveValue::Int(rgba)));
         self
     }
 
     /// Set the default line width
-    pub fn size(mut self, size: f64) -> Self {
+    pub fn size(&mut self, size: f64) -> &mut Self {
         self.size = Some(AesValue::Constant(PrimitiveValue::Float(size)));
         self
     }
 
     /// Set the default alpha/opacity
-    pub fn alpha(mut self, alpha: f64) -> Self {
+    pub fn alpha(&mut self, alpha: f64) -> &mut Self {
         self.alpha = Some(AesValue::Constant(PrimitiveValue::Float(
             alpha.clamp(0.0, 1.0),
         )));
@@ -58,7 +58,7 @@ impl GeomLine {
     /// - ` ` : long gap
     ///
     /// Examples: `"-"`, `"."`, `"-."`, `"- -"`, `". ."`
-    pub fn linetype(mut self, pattern: impl Into<String>) -> Self {
+    pub fn linetype(&mut self, pattern: impl Into<String>) -> &mut Self {
         self.linetype = Some(AesValue::Constant(PrimitiveValue::Str(pattern.into())));
         self
     }

@@ -21,6 +21,8 @@ pub enum Aesthetic {
     XEnd,
     YBegin,
     YEnd,
+    XIntercept,
+    YIntercept,
 }
 
 impl Aesthetic {
@@ -43,7 +45,7 @@ impl Aesthetic {
     pub fn is_x_like(&self) -> bool {
         matches!(
             self,
-            Aesthetic::X | Aesthetic::XBegin | Aesthetic::XEnd | Aesthetic::Xmin | Aesthetic::Xmax
+            Aesthetic::X | Aesthetic::XBegin | Aesthetic::XEnd | Aesthetic::Xmin | Aesthetic::Xmax | Aesthetic::XIntercept
         )
     }
 
@@ -52,7 +54,7 @@ impl Aesthetic {
     pub fn is_y_like(&self) -> bool {
         matches!(
             self,
-            Aesthetic::Y | Aesthetic::YBegin | Aesthetic::YEnd | Aesthetic::Ymin | Aesthetic::Ymax
+            Aesthetic::Y | Aesthetic::YBegin | Aesthetic::YEnd | Aesthetic::Ymin | Aesthetic::Ymax | Aesthetic::YIntercept
         )
     }
 }
@@ -159,6 +161,12 @@ impl AesMap {
     pub fn linetype(&mut self, column: impl Into<String>) {
         self.set_to_column(Aesthetic::Linetype, column);
     }
+    pub fn yintercept(&mut self, column: impl Into<String>) {
+        self.set_to_column(Aesthetic::YIntercept, column);
+    }
+    pub fn xintercept(&mut self, column: impl Into<String>) {
+        self.set_to_column(Aesthetic::XIntercept, column);
+    }
 
     // Convenience methods for categorical column mappings
     // Use these when you want to treat a numeric column as categorical
@@ -230,6 +238,20 @@ impl AesMap {
             AesValue::Constant(PrimitiveValue::Str(pattern.into())),
         );
     }
+
+    pub fn yintercept_const(&mut self, value: f64) {
+        self.set(
+            Aesthetic::YIntercept,
+            AesValue::Constant(PrimitiveValue::Float(value)),
+        );
+    }
+
+    pub fn xintercept_const(&mut self, value: f64) {
+        self.set(
+            Aesthetic::XIntercept,
+            AesValue::Constant(PrimitiveValue::Float(value)),
+        );
+    }
 }
 
 #[cfg(test)]
@@ -276,6 +298,7 @@ mod tests {
         assert!(Aesthetic::XEnd.is_x_like());
         assert!(Aesthetic::Xmin.is_x_like());
         assert!(Aesthetic::Xmax.is_x_like());
+        assert!(Aesthetic::XIntercept.is_x_like());
 
         // Non-X-like aesthetics
         assert!(!Aesthetic::Y.is_x_like());
@@ -291,6 +314,7 @@ mod tests {
         assert!(Aesthetic::YEnd.is_y_like());
         assert!(Aesthetic::Ymin.is_y_like());
         assert!(Aesthetic::Ymax.is_y_like());
+        assert!(Aesthetic::YIntercept.is_y_like());
 
         // Non-Y-like aesthetics
         assert!(!Aesthetic::X.is_y_like());

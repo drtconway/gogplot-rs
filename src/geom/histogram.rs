@@ -36,19 +36,19 @@ impl GeomHistogram {
     }
 
     /// Set the default fill color
-    pub fn fill(mut self, color: crate::theme::Color) -> Self {
+    pub fn fill(&mut self, color: crate::theme::Color) -> &mut Self {
         self.fill = Some(AesValue::Constant(PrimitiveValue::Int(color.into())));
         self
     }
 
     /// Set the default stroke color
-    pub fn color(mut self, color: crate::theme::Color) -> Self {
+    pub fn color(&mut self, color: crate::theme::Color) -> &mut Self {
         self.color = Some(AesValue::Constant(PrimitiveValue::Int(color.into())));
         self
     }
 
     /// Set the default alpha/opacity
-    pub fn alpha(mut self, alpha: f64) -> Self {
+    pub fn alpha(&mut self, alpha: f64) -> &mut Self {
         self.alpha = Some(AesValue::Constant(PrimitiveValue::Float(
             alpha.clamp(0.0, 1.0),
         )));
@@ -56,19 +56,19 @@ impl GeomHistogram {
     }
 
     /// Set the number of bins
-    pub fn bins(mut self, bins: usize) -> Self {
+    pub fn bins(&mut self, bins: usize) -> &mut Self {
         self.stat = Stat::Bin(crate::stat::bin::BinStrategy::Count(bins).into());
         self
     }
 
     /// Set the bin width
-    pub fn binwidth(mut self, binwidth: f64) -> Self {
+    pub fn binwidth(&mut self, binwidth: f64) -> &mut Self {
         self.stat = Stat::Bin(crate::stat::bin::BinStrategy::Width(binwidth).into());
         self
     }
 
     /// Enable or disable cumulative histogram
-    pub fn cumulative(mut self, cumulative: bool) -> Self {
+    pub fn cumulative(&mut self, cumulative: bool) -> &mut Self {
         // Extract the current strategy and update it with cumulative flag
         if let Stat::Bin(ref strategy) = self.stat {
             let mut new_strategy = strategy.clone();
@@ -79,13 +79,13 @@ impl GeomHistogram {
     }
 
     /// Set the stat to use (default is Bin)
-    pub fn stat(mut self, stat: Stat) -> Self {
+    pub fn stat(&mut self, stat: Stat) -> &mut Self {
         self.stat = stat;
         self
     }
 
     /// Set the position adjustment (default is Identity)
-    pub fn position(mut self, position: Position) -> Self {
+    pub fn position(&mut self, position: Position) -> &mut Self {
         self.position = position;
         self
     }

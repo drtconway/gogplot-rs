@@ -21,7 +21,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 aes.set_to_column(Aesthetic::YBegin, "ymin");
                 aes.set_to_column(Aesthetic::YEnd, "ymax");
             })
-            .geom_rect_with(|geom| geom.fill(color::STEELBLUE).alpha(0.7))
+            .geom_rect_with(|layer| { layer.geom.fill(color::STEELBLUE).alpha(0.7); })
             .save("rectangle_simple.png", 600, 400)?;
         println!("Saved rectangle_simple.png");
     }
@@ -41,7 +41,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 aes.set_to_column(Aesthetic::YBegin, "ymin");
                 aes.set_to_column(Aesthetic::YEnd, "ymax");
             })
-            .geom_rect_with(|geom| geom.fill(color::CORAL).color(color::DARKRED).alpha(0.6))
+            .geom_rect_with(|layer| { layer.geom.fill(color::CORAL).color(color::DARKRED).alpha(0.6); })
             .save("rectangle_stroke.png", 600, 400)?;
         println!("Saved rectangle_stroke.png");
     }
@@ -75,7 +75,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 aes.set_to_column(Aesthetic::YBegin, "ymin");
                 aes.set_to_column(Aesthetic::YEnd, "ymax");
             })
-            .geom_rect_with(|geom| geom.fill(color::LIGHTBLUE).color(color::GRAY50).alpha(0.8))
+            .geom_rect_with(|layer| { layer.geom.fill(color::LIGHTBLUE).color(color::GRAY50).alpha(0.8); })
             .save("rectangle_grid.png", 600, 600)?;
         println!("Saved rectangle_grid.png");
     }
@@ -95,7 +95,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 aes.set_to_column(Aesthetic::YBegin, "ymin");
                 aes.set_to_column(Aesthetic::YEnd, "ymax");
             })
-            .geom_rect_with(|geom| geom.fill(color::PURPLE).alpha(0.3))
+            .geom_rect_with(|layer| { layer.geom.fill(color::PURPLE).alpha(0.3); })
             .save("rectangle_overlap.png", 600, 400)?;
         println!("Saved rectangle_overlap.png");
     }

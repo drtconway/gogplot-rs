@@ -24,7 +24,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     mapping1.set(Aesthetic::X, AesValue::column("category"));
     mapping1.set(Aesthetic::Y, AesValue::column("value"));
 
-    let geom1 = GeomPoint::new().color(color::STEELBLUE).size(4.0);
+    let mut geom1 = GeomPoint::new();
+    geom1.color(color::STEELBLUE).size(4.0);
 
     let layer1 = Layer {
         geom: Box::new(geom1),
@@ -59,7 +60,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     mapping2.set(Aesthetic::X, AesValue::column("value"));
     mapping2.set(Aesthetic::Y, AesValue::column("category"));
 
-    let geom2 = GeomPoint::new().color(color::CORAL).size(4.0);
+    let mut geom2 = GeomPoint::new();
+    geom2.color(color::CORAL).size(4.0);
 
     let layer2 = Layer {
         geom: Box::new(geom2),

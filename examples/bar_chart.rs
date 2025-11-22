@@ -16,7 +16,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let plot = Plot::new(Some(Box::new(df)))
         .title("Bar Chart - Category Counts")
         .aes(|a| a.x("category"))
-        .geom_bar_with(|geom| geom.fill(color::STEELBLUE).width(0.7).alpha(0.9))
+        .geom_bar_with(|layer| { layer.geom.fill(color::STEELBLUE).width(0.7).alpha(0.9); })
         .y_scale_with(|scale| scale.set_lower_bound(0.0));
 
     // Save the plot

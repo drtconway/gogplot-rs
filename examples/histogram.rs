@@ -35,7 +35,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .aes(|a| {
             a.x("value");
         })
-        .geom_histogram_with(|g| g.fill(color::STEELBLUE).bins(30))
+        .geom_histogram_with(|layer| { layer.geom.fill(color::STEELBLUE).bins(30); })
         .title("Basic Histogram (30 bins)")
         .save("histogram_basic.png", 800, 600)?;
 
@@ -47,7 +47,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .aes(|a| {
             a.x("value");
         })
-        .geom_histogram_with(|g| g.fill(color::CORAL).bins(50).alpha(0.7))
+        .geom_histogram_with(|layer| { layer.geom.fill(color::CORAL).bins(50).alpha(0.7); })
         .title("Histogram with 50 Bins")
         .save("histogram_50bins.png", 800, 600)?;
 
@@ -59,7 +59,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .aes(|a| {
             a.x("value");
         })
-        .geom_histogram_with(|g| g.fill(color::FORESTGREEN).binwidth(0.5).alpha(0.8))
+        .geom_histogram_with(|layer| { layer.geom.fill(color::FORESTGREEN).binwidth(0.5).alpha(0.8); })
         .title("Histogram (binwidth = 0.5)")
         .save("histogram_binwidth.png", 800, 600)?;
 
@@ -71,11 +71,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .aes(|a| {
             a.x("value");
         })
-        .geom_histogram_with(|g| {
-            g.fill(color::LIGHTBLUE)
+        .geom_histogram_with(|layer| {
+            layer.geom.fill(color::LIGHTBLUE)
                 .color(color::DARKBLUE)
                 .bins(25)
-                .alpha(0.9)
+                .alpha(0.9);
         })
         .title("Histogram with Border (25 bins)")
         .save("histogram_border.png", 800, 600)?;

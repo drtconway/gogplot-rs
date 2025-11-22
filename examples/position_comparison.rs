@@ -33,10 +33,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.y("sales");
             a.fill("region");
         })
-        .geom_bar_with(|g| {
-            g.stat(Stat::Identity)
+        .geom_bar_with(|layer| {
+            layer.geom.stat(Stat::Identity)
                 .position(Position::Identity)
-                .alpha(0.7) // Make semi-transparent to see overlap
+                .alpha(0.7); // Make semi-transparent to see overlap
         })
         .y_scale_with(|scale| scale.set_lower_bound(0.0))
         .save("position_identity.png", 800, 600)?;
@@ -51,7 +51,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.y("sales");
             a.fill("region");
         })
-        .geom_bar_with(|g| g.stat(Stat::Identity).position(Position::Stack))
+        .geom_bar_with(|layer| { layer.geom.stat(Stat::Identity).position(Position::Stack); })
         .y_scale_with(|scale| scale.set_lower_bound(0.0))
         .save("position_stack.png", 800, 600)?;
 
@@ -78,10 +78,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("value");
             a.fill("group");
         })
-        .geom_histogram_with(|g| {
-            g.bins(4)
+        .geom_histogram_with(|layer| {
+            layer.geom.bins(4)
                 .position(Position::Identity)
-                .alpha(0.6) // Semi-transparent to see overlap
+                .alpha(0.6); // Semi-transparent to see overlap
         })
         .save("histogram_identity.png", 800, 600)?;
 
@@ -94,7 +94,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("value");
             a.fill("group");
         })
-        .geom_histogram_with(|g| g.bins(4).position(Position::Stack))
+        .geom_histogram_with(|layer| { layer.geom.bins(4).position(Position::Stack); })
         .save("histogram_stack.png", 800, 600)?;
 
     println!("Saved histogram_stack.png - stacked histograms");

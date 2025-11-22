@@ -54,7 +54,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.set_to_column(Aesthetic::Fill, "color_group");
             a.set_to_column(Aesthetic::Shape, "shape_group");
         })
-        .geom_histogram_with(|g| g.bins(10).alpha(0.6))
+        .geom_histogram_with(|layer| { layer.geom.bins(10).alpha(0.6); })
         .title("Histogram with Multiple Grouping Aesthetics (Fill + Shape)")
         .save("histogram_multiple_groups.png", 900, 600)?;
 

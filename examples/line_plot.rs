@@ -16,7 +16,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("x");
             a.y("y");
         })
-        .geom_line_with(|geom| geom.size(2.0).color(color::BLUE));
+        .geom_line_with(|layer| { layer.geom.size(2.0).color(color::BLUE); });
     plot.save("line_simple.png", 800, 600)?;
 
     // Grouped line plot
@@ -42,7 +42,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.color("group");
             a.group("group");
         })
-        .geom_line_with(|geom| geom.size(2.0));
+        .geom_line_with(|layer| { layer.geom.size(2.0); });
     plot.save("line_grouped.png", 800, 600)?;
 
     println!("Saved line_simple.png and line_grouped.png");

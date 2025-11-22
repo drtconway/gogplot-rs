@@ -38,7 +38,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("value");
             a.fill("group");
         })
-        .geom_histogram_with(|geom| geom.bins(8).position(Position::Dodge))
+        .geom_histogram_with(|layer| { layer.geom.bins(8).position(Position::Dodge); })
         .title("Dodged Histogram")
         .y_scale_with(|scale| scale.set_lower_bound(0.0));
 
@@ -51,7 +51,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("value");
             a.fill("group");
         })
-        .geom_histogram_with(|geom| geom.bins(8).position(Position::Stack))
+        .geom_histogram_with(|layer| { layer.geom.bins(8).position(Position::Stack); })
         .title("Stacked Histogram")
         .y_scale_with(|scale| scale.set_lower_bound(0.0));
 
@@ -64,7 +64,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("value");
             a.fill("group");
         })
-        .geom_histogram_with(|geom| geom.bins(8).position(Position::Identity).alpha(0.6))
+        .geom_histogram_with(|layer| { layer.geom.bins(8).position(Position::Identity).alpha(0.6); })
         .title("Overlapping Histogram")
         .y_scale_with(|scale| scale.set_lower_bound(0.0));
 

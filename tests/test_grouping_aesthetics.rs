@@ -31,7 +31,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.set_to_column(Aesthetic::X, "value");
             a.set_to_column(Aesthetic::Fill, "category");
         })
-        .geom_histogram_with(|g| g.bins(5).alpha(0.6))
+        .geom_histogram_with(|layer| { layer.geom.bins(5).alpha(0.6); })
         .title("Grouped by Fill Aesthetic")
         .save("grouped_by_fill.png", 800, 600)?;
     println!("✓ Saved grouped_by_fill.png");
@@ -42,7 +42,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.set_to_column(Aesthetic::X, "value");
             a.set_to_column(Aesthetic::Color, "category");
         })
-        .geom_histogram_with(|g| g.bins(5))
+        .geom_histogram_with(|layer| { layer.geom.bins(5); })
         .title("Grouped by Color Aesthetic")
         .save("grouped_by_color.png", 800, 600)?;
     println!("✓ Saved grouped_by_color.png");
@@ -54,7 +54,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.set_to_column(Aesthetic::Group, "category");
             a.set_to_column(Aesthetic::Fill, "category");
         })
-        .geom_histogram_with(|g| g.bins(5).alpha(0.7))
+        .geom_histogram_with(|layer| { layer.geom.bins(5).alpha(0.7); })
         .title("Grouped by Group + Fill Aesthetics")
         .save("grouped_by_group.png", 800, 600)?;
     println!("✓ Saved grouped_by_group.png");

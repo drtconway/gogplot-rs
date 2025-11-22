@@ -22,7 +22,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 aes.set_to_column(Aesthetic::XEnd, "xend");
                 aes.set_to_column(Aesthetic::YEnd, "yend");
             })
-            .geom_segment_with(|geom| geom.color(color::STEELBLUE).size(2.0))
+            .geom_segment_with(|layer| { layer.geom.color(color::STEELBLUE).size(2.0); })
             .save("segment_simple.png", 600, 400)?;
         println!("Saved segment_simple.png");
     }
@@ -47,7 +47,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 aes.set_to_column(Aesthetic::YEnd, "yend");
                 aes.set_to_column(Aesthetic::Color, "group");
             })
-            .geom_segment_with(|geom| geom.size(3.0))
+            .geom_segment_with(|layer| { layer.geom.size(3.0); })
             .save("segment_colored.png", 600, 400)?;
         println!("Saved segment_colored.png");
     }
@@ -74,7 +74,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 aes.set_to_column(Aesthetic::Color, "group");
             })
             .guides(Guides::new().no_color_legend()) // Suppress the color legend
-            .geom_segment_with(|geom| geom.size(3.0))
+            .geom_segment_with(|layer| { layer.geom.size(3.0); })
             .save("segment_colored_no_legend.png", 600, 400)?;
         println!("Saved segment_colored_no_legend.png (legend suppressed)");
     }
@@ -110,7 +110,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 aes.set_to_column(Aesthetic::XEnd, "xend");
                 aes.set_to_column(Aesthetic::YEnd, "yend");
             })
-            .geom_segment_with(|geom| geom.color(color::CORAL).size(3.0).alpha(0.7))
+            .geom_segment_with(|layer| { layer.geom.color(color::CORAL).size(3.0).alpha(0.7); })
             .save("segment_radial.png", 600, 400)?;
         println!("Saved segment_radial.png");
     }
@@ -153,7 +153,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 aes.set_to_column(Aesthetic::XEnd, "xend");
                 aes.set_to_column(Aesthetic::YEnd, "yend");
             })
-            .geom_segment_with(|geom| geom.color(color::GRAY).size(1.0))
+            .geom_segment_with(|layer| { layer.geom.color(color::GRAY).size(1.0); })
             .save("segment_grid.png", 600, 400)?;
         println!("Saved segment_grid.png");
     }
@@ -178,7 +178,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 aes.set_to_column(Aesthetic::YEnd, "yend");
                 aes.set_to_column(Aesthetic::Linetype, "style");
             })
-            .geom_segment_with(|geom| geom.color(color::NAVY).size(2.0))
+            .geom_segment_with(|layer| { layer.geom.color(color::NAVY).size(2.0); })
             .save("segment_linestyles.png", 600, 400)?;
         println!("Saved segment_linestyles.png");
     }

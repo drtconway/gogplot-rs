@@ -36,12 +36,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Color(100, 150, 200, 255),  // Blue for A
             Color(220, 120, 100, 255),  // Red for B
         ])
-        .layer(
-            GeomBar::new()
-                .stat(Stat::Bin(BinStrategy::Count(3).into()))
-                .position(Position::Stack)
-                .into_layer(),
-        )
+        .layer({
+            let mut geom = GeomBar::new();
+            geom.stat(Stat::Bin(BinStrategy::Count(3).into()))
+                .position(Position::Stack);
+            geom.into_layer()
+        })
         .save("debug_stacked_histogram.png", 800, 600)?;
 
     println!("Saved debug_stacked_histogram.png");

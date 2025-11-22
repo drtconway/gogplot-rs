@@ -65,7 +65,7 @@ fn automatic_legend() -> Result<(), Box<dyn std::error::Error>> {
             a.y("y");
             a.color("species"); // Map color to species column
         })
-        .geom_point_with(|geom| geom.size(6.0));
+        .geom_point_with(|layer| { layer.geom.size(6.0); });
 
     plot.save("automatic_legend.png", 800, 600)?;
     println!("Plot saved to automatic_legend.png");
@@ -126,7 +126,7 @@ fn manual_legend() -> Result<(), Box<dyn std::error::Error>> {
             a.x("x");
             a.y("y");
         })
-        .geom_point_with(|geom| geom.size(6.0).color(Color::rgb(230, 97, 0)));
+        .geom_point_with(|layer| { layer.geom.size(6.0).color(Color::rgb(230, 97, 0)); });
 
     plot.save("manual_legend.png", 800, 600)?;
     println!("Plot saved to manual_legend.png");
@@ -187,7 +187,7 @@ fn dark_themed_legend() -> Result<(), Box<dyn std::error::Error>> {
             a.x("x");
             a.y("y");
         })
-        .geom_point_with(|geom| geom.size(6.0).color(Color::rgb(230, 97, 0)));
+        .geom_point_with(|layer| { layer.geom.size(6.0).color(Color::rgb(230, 97, 0)); });
 
     plot.save("dark_legend.png", 800, 600)?;
     println!("Plot saved to dark_legend.png");

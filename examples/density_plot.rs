@@ -33,7 +33,7 @@ fn example_basic_density() -> Result<(), Box<dyn Error>> {
         .aes(|a| {
             a.x("x");
         })
-        .geom_density_with(|geom| geom.size(2.0).color(color::BLUE));
+        .geom_density_with(|layer| { layer.geom.size(2.0).color(color::BLUE); });
 
     plot.save("density_basic.png", 800, 600)?;
 
@@ -58,7 +58,7 @@ fn example_bandwidth_adjustment() -> Result<(), Box<dyn Error>> {
         .aes(|a| {
             a.x("x");
         })
-        .geom_density_with(|geom| geom.size(2.0).color(color::RED).adjust(0.5));
+        .geom_density_with(|layer| { layer.geom.size(2.0).color(color::RED).adjust(0.5); });
 
     plot.save("density_bandwidth.png", 800, 600)?;
 

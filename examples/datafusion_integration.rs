@@ -40,7 +40,7 @@ mod example {
                 a.y("y");
                 a.color("category");
             })
-            .geom_point_with(|geom| geom.size(6.0))
+            .geom_point_with(|layer| { layer.geom.size(6.0); })
             .title("DataFusion Integration Example");
 
         plot.save("datafusion_example.png", 800, 600)?;

@@ -16,7 +16,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("wt");
             a.y("mpg");
         })
-        .geom_point_with(|geom| geom.size(5.0))
+        .geom_point_with(|layer| { layer.geom.size(5.0); })
         .title("Fuel Efficiency vs Weight");
 
     plot1.save("mtcars_scatter.png", 800, 600)?;
@@ -30,7 +30,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.y("mpg");
             a.color_categorical("cyl"); // Treat numeric cyl as categorical
         })
-        .geom_point_with(|geom| geom.size(6.0))
+        .geom_point_with(|layer| { layer.geom.size(6.0); })
         .title("Fuel Efficiency vs Weight by Cylinder Count");
 
     plot2.save("mtcars_colored.png", 800, 600)?;
@@ -43,7 +43,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("disp");
             a.y("hp");
         })
-        .geom_point_with(|geom| geom.size(5.0))
+        .geom_point_with(|layer| { layer.geom.size(5.0); })
         .title("Horsepower vs Engine Displacement");
 
     plot3.save("mtcars_hp_disp.png", 800, 600)?;

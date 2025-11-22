@@ -37,7 +37,7 @@ use crate::utils::dataframe::{DataFrame, FloatVec, IntVec, StrVec};
 ///
 /// ```
 /// use gogplot::utils::mtcars::mtcars;
-/// use gogplot::plot::Plot;
+/// use gogplot::prelude::*;
 ///
 /// let data = mtcars();
 /// let plot = Plot::new(Some(data))

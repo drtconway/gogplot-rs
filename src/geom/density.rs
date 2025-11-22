@@ -38,20 +38,20 @@ impl GeomDensity {
     }
 
     /// Set the default line color
-    pub fn color(mut self, color: crate::theme::Color) -> Self {
+    pub fn color(&mut self, color: crate::theme::Color) -> &mut Self {
         let rgba = color.into();
         self.color = Some(AesValue::Constant(PrimitiveValue::Int(rgba)));
         self
     }
 
     /// Set the default line width
-    pub fn size(mut self, size: f64) -> Self {
+    pub fn size(&mut self, size: f64) -> &mut Self {
         self.size = Some(AesValue::Constant(PrimitiveValue::Float(size)));
         self
     }
 
     /// Set the default alpha/opacity
-    pub fn alpha(mut self, alpha: f64) -> Self {
+    pub fn alpha(&mut self, alpha: f64) -> &mut Self {
         self.alpha = Some(AesValue::Constant(PrimitiveValue::Float(
             alpha.clamp(0.0, 1.0),
         )));
@@ -59,13 +59,13 @@ impl GeomDensity {
     }
 
     /// Set bandwidth adjustment multiplier
-    pub fn adjust(mut self, adjust: f64) -> Self {
+    pub fn adjust(&mut self, adjust: f64) -> &mut Self {
         self.adjust = adjust;
         self
     }
 
     /// Set number of evaluation points
-    pub fn n(mut self, n: usize) -> Self {
+    pub fn n(&mut self, n: usize) -> &mut Self {
         self.n = n;
         self
     }

@@ -31,7 +31,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .aes(|a| {
             a.x("value");
         })
-        .geom_histogram_with(|g| g.fill(color::STEELBLUE).bins(30))
+        .geom_histogram_with(|layer| { layer.geom.fill(color::STEELBLUE).bins(30); })
         .title("Regular Histogram")
         .save("histogram_regular.png", 800, 600)?;
     println!("Created histogram_regular.png");
@@ -45,10 +45,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .aes(|a| {
             a.x("value");
         })
-        .geom_histogram_with(|g| {
-            g.fill(color::FORESTGREEN)
+        .geom_histogram_with(|layer| {
+            layer.geom.fill(color::FORESTGREEN)
                 .bins(30)
-                .cumulative(true)  // Enable cumulative mode
+                .cumulative(true);  // Enable cumulative mode
         })
         .title("Cumulative Histogram (via geom)")
         .save("histogram_cumulative.png", 800, 600)?;
@@ -63,11 +63,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .aes(|a| {
             a.x("value");
         })
-        .geom_histogram_with(|g| {
-            g.fill(color::CORAL)
+        .geom_histogram_with(|layer| {
+            layer.geom.fill(color::CORAL)
                 .stat(Stat::Bin(
                     BinStrategy::Count(30).cumulative(true)
-                ))
+                ));
         })
         .title("Cumulative Histogram (via stat)")
         .save("histogram_cumulative_stat.png", 800, 600)?;
@@ -106,11 +106,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("value");
             a.fill("group");
         })
-        .geom_histogram_with(|g| {
-            g.bins(25)
+        .geom_histogram_with(|layer| {
+            layer.geom.bins(25)
                 .cumulative(true)
                 .alpha(0.6)
-                .position(Position::Identity)
+                .position(Position::Identity);
         })
         .title("Grouped Cumulative Histograms")
         .save("histogram_cumulative_grouped.png", 800, 600)?;

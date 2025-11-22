@@ -15,7 +15,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("x");
             a.y("y");
         })
-        .geom_point_with(|geom| geom.size(5.0).color(color::BLUE));
+        .geom_point_with(|layer| { layer.geom.size(5.0).color(color::BLUE); });
 
     // Save to a file
     plot.save("scatter_plot.png", 800, 600)?;

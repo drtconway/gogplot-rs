@@ -37,7 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("value");
             a.fill("group");  // Fill color by group
         })
-        .geom_histogram_with(|g| g.bins(20).alpha(0.5))
+        .geom_histogram_with(|layer| { layer.geom.bins(20).alpha(0.5); })
         .title("Overlapping Histograms (position = identity)")
         .save("histogram_overlapping.png", 800, 600)?;
 
@@ -48,7 +48,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     //         a.x("value");
     //         a.fill("group");
     //     })
-    //     .geom_histogram_with(|g| g.bins(20).position(Position::Stack))
+    //     .geom_histogram_with(|layer| { layer.geom.bins(20).position(Position::Stack); })
     //     .title("Stacked Histogram")
     //     .save("histogram_stacked.png", 800, 600)?;
 
@@ -59,7 +59,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     //         a.x("value");
     //         a.fill("group");
     //     })
-    //     .geom_histogram_with(|g| g.bins(20).position(Position::Dodge))
+    //     .geom_histogram_with(|layer| { layer.geom.bins(20).position(Position::Dodge); })
     //     .title("Dodged Histogram (side-by-side)")
     //     .save("histogram_dodged.png", 800, 600)?;
 

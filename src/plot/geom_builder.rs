@@ -42,19 +42,26 @@ pub trait GeomBuilder {
     where
         Self: Sized,
     {
-        self.geom_point_with(|geom| geom)
+        self.geom_point_with(|_layer| {})
     }
 
     /// Add a point geom layer with customization (builder style)
     fn geom_point_with<F>(mut self, f: F) -> Self
     where
-        F: FnOnce(crate::geom::point::GeomPoint) -> crate::geom::point::GeomPoint,
+        F: FnOnce(&mut crate::plot::LayerGeom<crate::geom::point::GeomPoint>),
         Self: Sized,
     {
         let geom = crate::geom::point::GeomPoint::default();
-        let geom = f(geom);
+        let mut layer_geom = crate::plot::LayerGeom::new(geom);
+        f(&mut layer_geom);
 
+        let (geom, layer_aes, stat) = layer_geom.into_parts();
         let mut layer = geom.into_layer();
+        layer.stat = stat;
+        // Merge layer-specific aesthetics
+        for (aesthetic, value) in layer_aes.iter() {
+            layer.mapping.set(*aesthetic, value.clone());
+        }
         self.merge_default_aesthetics(&mut layer);
         self.layers_mut().push(layer);
         self
@@ -63,13 +70,20 @@ pub trait GeomBuilder {
     /// Add a line geom layer with customization (builder style)
     fn geom_line_with<F>(mut self, f: F) -> Self
     where
-        F: FnOnce(crate::geom::line::GeomLine) -> crate::geom::line::GeomLine,
+        F: FnOnce(&mut crate::plot::LayerGeom<crate::geom::line::GeomLine>),
         Self: Sized,
     {
         let geom = crate::geom::line::GeomLine::default();
-        let geom = f(geom);
+        let mut layer_geom = crate::plot::LayerGeom::new(geom);
+        f(&mut layer_geom);
 
+        let (geom, layer_aes, stat) = layer_geom.into_parts();
         let mut layer = geom.into_layer();
+        layer.stat = stat;
+        // Merge layer-specific aesthetics
+        for (aesthetic, value) in layer_aes.iter() {
+            layer.mapping.set(*aesthetic, value.clone());
+        }
         self.merge_default_aesthetics(&mut layer);
         self.layers_mut().push(layer);
         self
@@ -80,21 +94,28 @@ pub trait GeomBuilder {
     /// # Examples
     ///
     /// ```ignore
-    /// plot.geom_density_with(|geom| {
-    ///     geom.color(color::BLUE)
+    /// plot.geom_density_with(|layer| {
+    ///     layer.geom.color(color::BLUE)
     ///         .size(2.0)
-    ///         .adjust(0.5)
+    ///         .adjust(0.5);
     /// })
     /// ```
     fn geom_density_with<F>(mut self, f: F) -> Self
     where
-        F: FnOnce(crate::geom::density::GeomDensity) -> crate::geom::density::GeomDensity,
+        F: FnOnce(&mut crate::plot::LayerGeom<crate::geom::density::GeomDensity>),
         Self: Sized,
     {
         let geom = crate::geom::density::GeomDensity::default();
-        let geom = f(geom);
+        let mut layer_geom = crate::plot::LayerGeom::new(geom);
+        f(&mut layer_geom);
 
+        let (geom, layer_aes, stat) = layer_geom.into_parts();
         let mut layer = geom.into_layer();
+        layer.stat = stat;
+        // Merge layer-specific aesthetics
+        for (aesthetic, value) in layer_aes.iter() {
+            layer.mapping.set(*aesthetic, value.clone());
+        }
         self.merge_default_aesthetics(&mut layer);
         self.layers_mut().push(layer);
         self
@@ -102,24 +123,34 @@ pub trait GeomBuilder {
 
     /// Add a horizontal line geom layer with customization (builder style)
     ///
+    /// The y-intercept should be specified via the aesthetic mapping using `.aes()`
+    ///
     /// # Examples
     ///
     /// ```ignore
-    /// plot.geom_hline_with(4.0, |geom| {
-    ///     geom.color(color::RED)
-    ///         .size(2.0)
-    ///         .linetype("-")
+    /// // With a computed column
+    /// plot.geom_hline_with(|layer| {
+    ///     layer.aes(|a| a.yintercept("mean"));
+    ///     layer.geom.color(color::RED).size(2.0);
+    ///     layer.stat(Stat::Summary(vec![Aesthetic::Y]));
     /// })
     /// ```
-    fn geom_hline_with<F>(mut self, yintercept: f64, f: F) -> Self
+    fn geom_hline_with<F>(mut self, f: F) -> Self
     where
-        F: FnOnce(crate::geom::hline::GeomHLine) -> crate::geom::hline::GeomHLine,
+        F: FnOnce(&mut crate::plot::LayerGeom<crate::geom::hline::GeomHLine>),
         Self: Sized,
     {
-        let geom = crate::geom::hline::GeomHLine::new(yintercept);
-        let geom = f(geom);
+        let geom = crate::geom::hline::GeomHLine::new();
+        let mut layer_geom = crate::plot::LayerGeom::new(geom);
+        f(&mut layer_geom);
 
+        let (geom, layer_aes, stat) = layer_geom.into_parts();
         let mut layer = geom.into_layer();
+        layer.stat = stat;
+        // Merge layer-specific aesthetics
+        for (aesthetic, value) in layer_aes.iter() {
+            layer.mapping.set(*aesthetic, value.clone());
+        }
         self.merge_default_aesthetics(&mut layer);
         self.layers_mut().push(layer);
         self
@@ -127,24 +158,34 @@ pub trait GeomBuilder {
 
     /// Add a vertical line geom layer with customization (builder style)
     ///
+    /// The x-intercept should be specified via the aesthetic mapping using `.aes()`
+    ///
     /// # Examples
     ///
     /// ```ignore
-    /// plot.geom_vline_with(5.0, |geom| {
-    ///     geom.color(color::BLUE)
-    ///         .size(2.0)
-    ///         .linetype(".")
+    /// // With a computed column
+    /// plot.geom_vline_with(|layer| {
+    ///     layer.aes(|a| a.xintercept("mean"));
+    ///     layer.geom.color(color::BLUE).size(2.0);
+    ///     layer.stat(Stat::Summary(vec![Aesthetic::X]));
     /// })
     /// ```
-    fn geom_vline_with<F>(mut self, xintercept: f64, f: F) -> Self
+    fn geom_vline_with<F>(mut self, f: F) -> Self
     where
-        F: FnOnce(crate::geom::vline::GeomVLine) -> crate::geom::vline::GeomVLine,
+        F: FnOnce(&mut crate::plot::LayerGeom<crate::geom::vline::GeomVLine>),
         Self: Sized,
     {
-        let geom = crate::geom::vline::GeomVLine::new(xintercept);
-        let geom = f(geom);
+        let geom = crate::geom::vline::GeomVLine::new();
+        let mut layer_geom = crate::plot::LayerGeom::new(geom);
+        f(&mut layer_geom);
 
+        let (geom, layer_aes, stat) = layer_geom.into_parts();
         let mut layer = geom.into_layer();
+        layer.stat = stat;
+        // Merge layer-specific aesthetics
+        for (aesthetic, value) in layer_aes.iter() {
+            layer.mapping.set(*aesthetic, value.clone());
+        }
         self.merge_default_aesthetics(&mut layer);
         self.layers_mut().push(layer);
         self
@@ -161,7 +202,7 @@ pub trait GeomBuilder {
     where
         Self: Sized,
     {
-        self.geom_rect_with(|geom| geom)
+        self.geom_rect_with(|_layer| {})
     }
 
     /// Add a rectangle geom layer with customization (builder style)
@@ -169,21 +210,28 @@ pub trait GeomBuilder {
     /// # Examples
     ///
     /// ```ignore
-    /// plot.geom_rect_with(|geom| {
-    ///     geom.fill(color::RED)
+    /// plot.geom_rect_with(|layer| {
+    ///     layer.geom.fill(color::RED)
     ///         .color(color::BLACK)
-    ///         .alpha(0.5)
+    ///         .alpha(0.5);
     /// })
     /// ```
     fn geom_rect_with<F>(mut self, f: F) -> Self
     where
-        F: FnOnce(crate::geom::rect::GeomRect) -> crate::geom::rect::GeomRect,
+        F: FnOnce(&mut crate::plot::LayerGeom<crate::geom::rect::GeomRect>),
         Self: Sized,
     {
         let geom = crate::geom::rect::GeomRect::new();
-        let geom = f(geom);
+        let mut layer_geom = crate::plot::LayerGeom::new(geom);
+        f(&mut layer_geom);
 
+        let (geom, layer_aes, stat) = layer_geom.into_parts();
         let mut layer = geom.into_layer();
+        layer.stat = stat;
+        // Merge layer-specific aesthetics
+        for (aesthetic, value) in layer_aes.iter() {
+            layer.mapping.set(*aesthetic, value.clone());
+        }
         self.merge_default_aesthetics(&mut layer);
         self.layers_mut().push(layer);
         self
@@ -202,7 +250,7 @@ pub trait GeomBuilder {
     where
         Self: Sized,
     {
-        self.geom_segment_with(|geom| geom)
+        self.geom_segment_with(|_layer| {})
     }
 
     /// Add a line segment geom layer with customization (builder style)
@@ -210,21 +258,28 @@ pub trait GeomBuilder {
     /// # Examples
     ///
     /// ```ignore
-    /// plot.geom_segment_with(|geom| {
-    ///     geom.color(color::BLUE)
+    /// plot.geom_segment_with(|layer| {
+    ///     layer.geom.color(color::BLUE)
     ///         .size(2.0)
-    ///         .alpha(0.8)
+    ///         .alpha(0.8);
     /// })
     /// ```
     fn geom_segment_with<F>(mut self, f: F) -> Self
     where
-        F: FnOnce(crate::geom::segment::GeomSegment) -> crate::geom::segment::GeomSegment,
+        F: FnOnce(&mut crate::plot::LayerGeom<crate::geom::segment::GeomSegment>),
         Self: Sized,
     {
         let geom = crate::geom::segment::GeomSegment::new();
-        let geom = f(geom);
+        let mut layer_geom = crate::plot::LayerGeom::new(geom);
+        f(&mut layer_geom);
 
+        let (geom, layer_aes, stat) = layer_geom.into_parts();
         let mut layer = geom.into_layer();
+        layer.stat = stat;
+        // Merge layer-specific aesthetics
+        for (aesthetic, value) in layer_aes.iter() {
+            layer.mapping.set(*aesthetic, value.clone());
+        }
         self.merge_default_aesthetics(&mut layer);
         self.layers_mut().push(layer);
         self
@@ -243,7 +298,7 @@ pub trait GeomBuilder {
     where
         Self: Sized,
     {
-        self.geom_bar_with(|geom| geom)
+        self.geom_bar_with(|_layer| {})
     }
 
     /// Add a bar geom layer with customization (builder style)
@@ -251,21 +306,28 @@ pub trait GeomBuilder {
     /// # Examples
     ///
     /// ```ignore
-    /// plot.geom_bar_with(|geom| {
-    ///     geom.fill(color::BLUE)
+    /// plot.geom_bar_with(|layer| {
+    ///     layer.geom.fill(color::BLUE)
     ///         .width(0.8)
-    ///         .alpha(0.9)
+    ///         .alpha(0.9);
     /// })
     /// ```
     fn geom_bar_with<F>(mut self, f: F) -> Self
     where
-        F: FnOnce(crate::geom::bar::GeomBar) -> crate::geom::bar::GeomBar,
+        F: FnOnce(&mut crate::plot::LayerGeom<crate::geom::bar::GeomBar>),
         Self: Sized,
     {
         let geom = crate::geom::bar::GeomBar::new();
-        let geom = f(geom);
+        let mut layer_geom = crate::plot::LayerGeom::new(geom);
+        f(&mut layer_geom);
 
+        let (geom, layer_aes, stat) = layer_geom.into_parts();
         let mut layer = geom.into_layer();
+        layer.stat = stat;
+        // Merge layer-specific aesthetics
+        for (aesthetic, value) in layer_aes.iter() {
+            layer.mapping.set(*aesthetic, value.clone());
+        }
         self.merge_default_aesthetics(&mut layer);
 
         // If layer needs stat transformation and doesn't have data, take plot data
@@ -291,7 +353,7 @@ pub trait GeomBuilder {
     where
         Self: Sized,
     {
-        self.geom_histogram_with(|geom| geom)
+        self.geom_histogram_with(|_layer| {})
     }
 
     /// Add a histogram geom layer with customization (builder style)
@@ -299,21 +361,28 @@ pub trait GeomBuilder {
     /// # Examples
     ///
     /// ```ignore
-    /// plot.geom_histogram_with(|geom| {
-    ///     geom.fill(color::STEELBLUE)
+    /// plot.geom_histogram_with(|layer| {
+    ///     layer.geom.fill(color::STEELBLUE)
     ///         .bins(20)
-    ///         .alpha(0.8)
+    ///         .alpha(0.8);
     /// })
     /// ```
     fn geom_histogram_with<F>(mut self, f: F) -> Self
     where
-        F: FnOnce(crate::geom::histogram::GeomHistogram) -> crate::geom::histogram::GeomHistogram,
+        F: FnOnce(&mut crate::plot::LayerGeom<crate::geom::histogram::GeomHistogram>),
         Self: Sized,
     {
         let geom = crate::geom::histogram::GeomHistogram::new();
-        let geom = f(geom);
+        let mut layer_geom = crate::plot::LayerGeom::new(geom);
+        f(&mut layer_geom);
 
+        let (geom, layer_aes, stat) = layer_geom.into_parts();
         let mut layer = geom.into_layer();
+        layer.stat = stat;
+        // Merge layer-specific aesthetics
+        for (aesthetic, value) in layer_aes.iter() {
+            layer.mapping.set(*aesthetic, value.clone());
+        }
         self.merge_default_aesthetics(&mut layer);
 
         // If layer needs stat transformation and doesn't have data, take plot data

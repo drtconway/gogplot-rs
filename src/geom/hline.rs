@@ -2,12 +2,12 @@ use super::{Geom, IntoLayer, RenderContext};
 use crate::aesthetics::{AesValue, Aesthetic};
 use crate::data::PrimitiveValue;
 use crate::error::{DataType, PlotError};
+use crate::layer::{Position, Stat};
 
 /// GeomHLine renders horizontal reference lines at specified y-intercepts
+/// 
+/// The y-intercept is specified via the YIntercept aesthetic mapping.
 pub struct GeomHLine {
-    /// Y-intercept value(s) for the horizontal line(s)
-    pub yintercept: AesValue,
-
     /// Default line color
     pub color: Option<AesValue>,
 
@@ -19,35 +19,46 @@ pub struct GeomHLine {
 
     /// Default line style pattern
     pub linetype: Option<AesValue>,
+
+    /// The stat to use (default is Identity)
+    pub stat: Stat,
+
+    /// The position adjustment (default is Identity)
+    pub position: Position,
 }
 
 impl GeomHLine {
-    /// Create a new horizontal line geom at the specified y-intercept
-    pub fn new(yintercept: f64) -> Self {
+    /// Create a new horizontal line geom
+    /// 
+    /// Y-intercept should be specified via aesthetic mapping:
+    /// - Constant: `.aes(|a| a.yintercept_const(value))`
+    /// - Column: `.aes(|a| a.yintercept("column_name"))`
+    pub fn new() -> Self {
         Self {
-            yintercept: AesValue::Constant(PrimitiveValue::Float(yintercept)),
             color: None,
             size: None,
             alpha: None,
             linetype: None,
+            stat: Stat::Identity,
+            position: Position::Identity,
         }
     }
 
     /// Set the line color
-    pub fn color(mut self, color: crate::theme::Color) -> Self {
+    pub fn color(&mut self, color: crate::theme::Color) -> &mut Self {
         let rgba = color.into();
         self.color = Some(AesValue::Constant(PrimitiveValue::Int(rgba)));
         self
     }
 
     /// Set the line width
-    pub fn size(mut self, size: f64) -> Self {
+    pub fn size(&mut self, size: f64) -> &mut Self {
         self.size = Some(AesValue::Constant(PrimitiveValue::Float(size)));
         self
     }
 
     /// Set the alpha/opacity
-    pub fn alpha(mut self, alpha: f64) -> Self {
+    pub fn alpha(&mut self, alpha: f64) -> &mut Self {
         self.alpha = Some(AesValue::Constant(PrimitiveValue::Float(
             alpha.clamp(0.0, 1.0),
         )));
@@ -55,15 +66,27 @@ impl GeomHLine {
     }
 
     /// Set the line style pattern
-    pub fn linetype(mut self, pattern: impl Into<String>) -> Self {
+    pub fn linetype(&mut self, pattern: impl Into<String>) -> &mut Self {
         self.linetype = Some(AesValue::Constant(PrimitiveValue::Str(pattern.into())));
+        self
+    }
+
+    /// Set the stat to use (default is Identity)
+    pub fn stat(&mut self, stat: Stat) -> &mut Self {
+        self.stat = stat;
+        self
+    }
+
+    /// Set the position adjustment (default is Identity)
+    pub fn position(&mut self, position: Position) -> &mut Self {
+        self.position = position;
         self
     }
 }
 
 impl IntoLayer for GeomHLine {
     fn default_aesthetics(&self) -> Vec<(Aesthetic, AesValue)> {
-        let mut defaults = vec![(Aesthetic::YBegin, self.yintercept.clone())];
+        let mut defaults = Vec::new();
 
         if let Some(color) = &self.color {
             defaults.push((Aesthetic::Color, color.clone()));
@@ -80,18 +103,48 @@ impl IntoLayer for GeomHLine {
 
         defaults
     }
+
+    fn into_layer(self) -> crate::layer::Layer
+    where
+        Self: Geom + 'static,
+    {
+        let mut mapping = crate::aesthetics::AesMap::new();
+
+        // Set default aesthetics from geom settings if provided
+        for (aesthetic, value) in self.default_aesthetics() {
+            mapping.set(aesthetic, value);
+        }
+
+        // Get stat and position before consuming self
+        let stat = self.stat.clone();
+        let position = self.position.clone();
+
+        crate::layer::Layer {
+            geom: Box::new(self),
+            data: None,
+            mapping,
+            stat,
+            position,
+            computed_data: None,
+            computed_mapping: None,
+            computed_scales: None,
+        }
+    }
 }
 
 impl Geom for GeomHLine {
     fn required_aesthetics(&self) -> &[Aesthetic] {
-        // No required aesthetics - yintercept is provided in constructor
-        &[]
+        &[Aesthetic::YIntercept]
     }
 
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
-        // Get the y-intercept value(s)
-        let y_values = match &self.yintercept {
+        // Get the y-intercept value(s) from YIntercept aesthetic
+        let y_aes = ctx.mapping.get(&Aesthetic::YIntercept)
+            .ok_or_else(|| PlotError::MissingAesthetic { aesthetic: Aesthetic::YIntercept })?;
+
+        let y_values = match y_aes {
             AesValue::Constant(PrimitiveValue::Float(y)) => vec![*y],
+            AesValue::Constant(PrimitiveValue::Int(i)) => vec![*i as f64],
             AesValue::Column(col) => {
                 let vec = ctx
                     .data
@@ -107,8 +160,8 @@ impl Geom for GeomHLine {
             }
             _ => {
                 return Err(PlotError::InvalidAestheticType {
-                    aesthetic: Aesthetic::Y,
-                    expected: DataType::Custom("numeric constant or column".to_string()),
+                    aesthetic: Aesthetic::YIntercept,
+                    expected: DataType::Numeric,
                     actual: DataType::Custom("invalid value".to_string()),
                 });
             }

@@ -17,7 +17,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("x");
             a.y("y");
         })
-        .geom_point_with(|geom| geom.size(8.0).color(color::BLUE).shape(Shape::Circle));
+        .geom_point_with(|layer| { layer.geom.size(8.0).color(color::BLUE).shape(Shape::Circle); });
     plot.save("shape_circle.png", 800, 600)?;
 
     // Square
@@ -31,7 +31,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("x");
             a.y("y");
         })
-        .geom_point_with(|geom| geom.size(8.0).color(color::RED).shape(Shape::Square));
+        .geom_point_with(|layer| { layer.geom.size(8.0).color(color::RED).shape(Shape::Square); });
     plot.save("shape_square.png", 800, 600)?;
 
     // Triangle
@@ -45,7 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("x");
             a.y("y");
         })
-        .geom_point_with(|geom| geom.size(8.0).color(color::GREEN).shape(Shape::Triangle));
+        .geom_point_with(|layer| { layer.geom.size(8.0).color(color::GREEN).shape(Shape::Triangle); });
     plot.save("shape_triangle.png", 800, 600)?;
 
     // Diamond
@@ -59,7 +59,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("x");
             a.y("y");
         })
-        .geom_point_with(|geom| geom.size(8.0).color(color::PURPLE).shape(Shape::Diamond));
+        .geom_point_with(|layer| { layer.geom.size(8.0).color(color::PURPLE).shape(Shape::Diamond); });
     plot.save("shape_diamond.png", 800, 600)?;
 
     // Cross
@@ -73,7 +73,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("x");
             a.y("y");
         })
-        .geom_point_with(|geom| geom.size(8.0).color(color::ORANGE).shape(Shape::Cross));
+        .geom_point_with(|layer| { layer.geom.size(8.0).color(color::ORANGE).shape(Shape::Cross); });
     plot.save("shape_cross.png", 800, 600)?;
 
     // Plus
@@ -87,7 +87,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("x");
             a.y("y");
         })
-        .geom_point_with(|geom| geom.size(8.0).color(color::CYAN).shape(Shape::Plus));
+        .geom_point_with(|layer| { layer.geom.size(8.0).color(color::CYAN).shape(Shape::Plus); });
     plot.save("shape_plus.png", 800, 600)?;
 
     // Mapped shapes with automatic legend
@@ -124,7 +124,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.y("y");
             a.shape("species");
         })
-        .geom_point_with(|geom| geom.size(8.0).color(color::BLUE));
+        .geom_point_with(|layer| { layer.geom.size(8.0).color(color::BLUE); });
     plot.save("shape_mapped.png", 800, 600)?;
 
     println!(

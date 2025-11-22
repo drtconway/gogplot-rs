@@ -22,11 +22,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("quarter");
             a.y("sales");
         })
-        .geom_bar_with(|geom| {
-            geom.stat(Stat::Identity) // Use values as-is, don't count
+        .geom_bar_with(|layer| {
+            layer.geom.stat(Stat::Identity) // Use values as-is, don't count
                 .fill(color::STEELBLUE)
                 .width(0.7)
-                .alpha(0.9)
+                .alpha(0.9);
         })
         .title("Quarterly Sales (Identity Stat)")
         // Bar charts should have y-axis starting at 0 for accurate visual comparison

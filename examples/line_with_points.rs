@@ -21,8 +21,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("time");
             a.y("temperature");
         })
-        .geom_line_with(|geom| geom.size(2.0).color(color::BLUE))
-        .geom_point_with(|geom| geom.size(5.0).color(color::FIREBRICK))
+        .geom_line_with(|layer| { layer.geom.size(2.0).color(color::BLUE); })
+        .geom_point_with(|layer| { layer.geom.size(5.0).color(color::FIREBRICK); })
         .title("Temperature Over Time")
         .guides(
             Guides::new()

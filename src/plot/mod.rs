@@ -2,6 +2,7 @@
 
 mod export;
 mod geom_builder;
+mod layer_geom;
 mod positions;
 mod render;
 mod scale_set;
@@ -17,6 +18,7 @@ use cairo::ImageSurface;
 use std::path::Path;
 
 pub use geom_builder::GeomBuilder;
+pub use layer_geom::LayerGeom;
 pub use scale_set::ScaleSet;
 
 /// Main plot structure

@@ -30,7 +30,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             a.x("value");
             a.fill("group");
         })
-        .geom_histogram_with(|g| g.bins(4).position(Position::Stack))
+        .geom_histogram_with(|layer| { layer.geom.bins(4).position(Position::Stack); })
         .save("test_equal_bins.png", 800, 600)?;
 
     println!("\nSaved test_equal_bins.png");
