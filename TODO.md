@@ -27,16 +27,22 @@
 
 ## Scales and Axes
 
-- [ ] **Logarithmic scales** - Already have log10, need log2, natural log
+- [x] **Scale transformations** - COMPLETED
+  - Pluggable Transform trait following ggplot2/scales design
+  - IdentityTransform (linear), SqrtTransform, Log10Transform, ReverseTransform
+  - Unified ContinuousScaleImpl replaces separate scale structs
+  - Extensible for custom transformations
+  - Domain constraints (e.g., 1e-300 for p-values)
+  - Transformation-specific break generation and formatting
+  
+- [ ] **Logarithmic scales** - Have log10, need log2, natural log (easy to add with Transform trait)
 - [ ] **Date/Time scales** - Proper handling of temporal data
 - [ ] **Custom color palettes** - Beyond the basic discrete colors
   - ColorBrewer palettes
   - Viridis-style continuous palettes
   - Custom user-defined palettes
   
-- [ ] **Scale transformations** - sqrt, inverse, etc.
 - [ ] **Secondary axes** - Dual y-axes for different scales
-- [ ] **Reversed scales** - Flip axis direction
 - [ ] **Manual scale limits** - Already partially implemented, need better API
 - [ ] **Scale breaks** - Discontinuous axes
 
