@@ -14,6 +14,45 @@ pub enum BinStrategy {
     Width(f64),
 }
 
+impl BinStrategy {
+    /// Make this binning strategy cumulative
+    pub fn cumulative(self, cumulative: bool) -> CumulativeBinStrategy {
+        CumulativeBinStrategy {
+            strategy: self,
+            cumulative,
+        }
+    }
+}
+
+/// Bin strategy with optional cumulative flag
+#[derive(Debug, Clone)]
+pub struct CumulativeBinStrategy {
+    pub strategy: BinStrategy,
+    pub cumulative: bool,
+}
+
+impl CumulativeBinStrategy {
+    /// Create a new non-cumulative bin strategy
+    pub fn new(strategy: BinStrategy) -> Self {
+        Self {
+            strategy,
+            cumulative: false,
+        }
+    }
+
+    /// Enable or disable cumulative mode
+    pub fn cumulative(mut self, cumulative: bool) -> Self {
+        self.cumulative = cumulative;
+        self
+    }
+}
+
+impl From<BinStrategy> for CumulativeBinStrategy {
+    fn from(strategy: BinStrategy) -> Self {
+        Self::new(strategy)
+    }
+}
+
 impl Default for BinStrategy {
     fn default() -> Self {
         BinStrategy::Count(30)
@@ -31,23 +70,31 @@ impl Default for BinStrategy {
 /// - Bins: [1.0-1.83), [1.83-2.67), [2.67-3.5]
 /// - Centers: [1.42, 2.25, 3.08]
 /// - Counts: [2, 2, 2]
+///
+/// For cumulative mode, counts are accumulated:
+/// - Cumulative Counts: [2, 4, 6]
 pub struct Bin {
-    pub strategy: BinStrategy,
+    pub strategy: CumulativeBinStrategy,
 }
 
 impl Bin {
     /// Create a new Bin stat with the specified number of bins
     pub fn with_count(bins: usize) -> Self {
         Self {
-            strategy: BinStrategy::Count(bins),
+            strategy: BinStrategy::Count(bins).into(),
         }
     }
 
     /// Create a new Bin stat with a specific bin width
     pub fn with_width(binwidth: f64) -> Self {
         Self {
-            strategy: BinStrategy::Width(binwidth),
+            strategy: BinStrategy::Width(binwidth).into(),
         }
+    }
+
+    /// Create a new Bin stat from a cumulative strategy
+    pub fn with_strategy(strategy: CumulativeBinStrategy) -> Self {
+        Self { strategy }
     }
 }
 
@@ -178,9 +225,9 @@ impl Bin {
         }
 
         // Determine bin width based on strategy
-        let binwidth = match self.strategy {
-            BinStrategy::Width(width) => width,
-            BinStrategy::Count(bins) => range / bins as f64,
+        let binwidth = match &self.strategy.strategy {
+            BinStrategy::Width(width) => *width,
+            BinStrategy::Count(bins) => range / *bins as f64,
         };
 
         let n_bins = ((range / binwidth).ceil() as usize).max(1);
@@ -213,6 +260,13 @@ impl Bin {
                 let bin_idx = ((value - bin_min) / binwidth).floor() as usize;
                 let bin_idx = bin_idx.min(n_bins - 1);
                 counts[bin_idx] += 1;
+            }
+
+            // If cumulative mode, accumulate counts
+            if self.strategy.cumulative {
+                for i in 1..n_bins {
+                    counts[i] += counts[i - 1];
+                }
             }
 
             // Generate output rows for this group (include all bins, even empty ones)
@@ -346,9 +400,9 @@ impl StatTransform for Bin {
         }
 
         // Determine bin width based on strategy
-        let binwidth = match self.strategy {
-            BinStrategy::Width(width) => width,
-            BinStrategy::Count(bins) => range / bins as f64,
+        let binwidth = match &self.strategy.strategy {
+            BinStrategy::Width(width) => *width,
+            BinStrategy::Count(bins) => range / *bins as f64,
         };
 
         // Determine actual number of bins needed
@@ -365,6 +419,13 @@ impl StatTransform for Bin {
             let bin_idx = ((value - bin_min) / binwidth).floor() as usize;
             let bin_idx = bin_idx.min(n_bins - 1); // Ensure last bin includes max value
             counts[bin_idx] += 1;
+        }
+
+        // If cumulative mode, accumulate counts
+        if self.strategy.cumulative {
+            for i in 1..n_bins {
+                counts[i] += counts[i - 1];
+            }
         }
 
         // Generate bin centers, min, and max

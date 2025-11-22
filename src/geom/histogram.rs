@@ -30,7 +30,7 @@ impl GeomHistogram {
             fill: None,
             color: None,
             alpha: None,
-            stat: Stat::Bin(crate::stat::bin::BinStrategy::Count(30)),
+            stat: Stat::Bin(crate::stat::bin::BinStrategy::Count(30).into()),
             position: Position::Identity,
         }
     }
@@ -57,13 +57,24 @@ impl GeomHistogram {
 
     /// Set the number of bins
     pub fn bins(mut self, bins: usize) -> Self {
-        self.stat = Stat::Bin(crate::stat::bin::BinStrategy::Count(bins));
+        self.stat = Stat::Bin(crate::stat::bin::BinStrategy::Count(bins).into());
         self
     }
 
     /// Set the bin width
     pub fn binwidth(mut self, binwidth: f64) -> Self {
-        self.stat = Stat::Bin(crate::stat::bin::BinStrategy::Width(binwidth));
+        self.stat = Stat::Bin(crate::stat::bin::BinStrategy::Width(binwidth).into());
+        self
+    }
+
+    /// Enable or disable cumulative histogram
+    pub fn cumulative(mut self, cumulative: bool) -> Self {
+        // Extract the current strategy and update it with cumulative flag
+        if let Stat::Bin(ref strategy) = self.stat {
+            let mut new_strategy = strategy.clone();
+            new_strategy.cumulative = cumulative;
+            self.stat = Stat::Bin(new_strategy);
+        }
         self
     }
 

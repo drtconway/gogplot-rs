@@ -13,11 +13,6 @@
   - Optional embedded boxplot
   - Half-violin option for compact layouts
 
-- [ ] **Histogram** (`geom_histogram`) - Already have binning, need proper histogram geom
-  - Automatic and manual bin width specification
-  - Multiple histogram overlay support
-  - Stacked and dodged options
-
 ### Additional Geoms
 - [ ] **Error Bars** (`geom_errorbar`, `geom_errorbarh`) - Confidence intervals and ranges
 - [ ] **Ribbon** (`geom_ribbon`) - Filled areas with upper/lower bounds
