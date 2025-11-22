@@ -78,6 +78,13 @@
 - [ ] **stat_qq** - Quantile-quantile plots
 - [ ] **stat_smooth** - Various smoothing methods (loess, lm, glm)
 
+## Reference Lines Enhancement
+
+- [ ] **hline/vline with statistical y aesthetics** - Allow `geom_hline` to use y aesthetic mapped to mean/median of data column
+  - Example: `.geom_hline().y(Aes::mean("column_name"))` or `.y(Aes::median("column_name"))`
+  - Similarly for `geom_vline` with x aesthetic
+  - Compute statistics from the layer's data source automatically
+
 ## Coordinate Systems
 
 - [ ] **Polar coordinates** (`coord_polar`) - Pie charts, wind roses
@@ -92,6 +99,14 @@
 - [ ] **Database connections** - Via DataFusion SQL queries
 - [ ] **Streaming data** - Incremental updates
 - [ ] **Multiple data sources per plot** - Different data for different layers
+- [ ] **DataSource to Arrow RecordBatch converter** - Utility function to convert any DataSource to Arrow RecordBatch
+  - Add trait extension for dot notation: `data_source.to_arrow_record_batch()`
+  - Similar converter for Polars: `data_source.to_polars_dataframe()`
+  - Enables easy interop between different data formats
+- [ ] **Boolean vector type** - Add boolean/logical data type support to GenericVector trait
+  - Implement `iter_bool()` method
+  - Support for Arrow BooleanArray, Polars Boolean series, and built-in Vec<bool>
+  - Enable filtering, conditional aesthetics, and logical operations
 
 ## Interactivity (Future)
 
