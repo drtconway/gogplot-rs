@@ -152,6 +152,7 @@ impl PositionAdjust for Dodge {
                     PrimitiveValue::Float(f) => scale.map_value(*f).unwrap_or(0.0),
                     PrimitiveValue::Int(i) => scale.map_value(*i as f64).unwrap_or(0.0),
                     PrimitiveValue::Str(s) => scale.map_category(s).unwrap_or(0.0),
+                    PrimitiveValue::Bool(b) => scale.map_category(&b.to_string()).unwrap_or(0.0),
                 }
             } else {
                 self.x_to_f64(x_val)
@@ -226,6 +227,11 @@ impl Dodge {
                 // For now, treat as 0 (this should be handled by scale)
                 0.0
             }
+            PrimitiveValue::Bool(_) => {
+                // For categorical x, we'd need the scale mapping
+                // For now, treat as 0 (this should be handled by scale)
+                0.0
+            }
         }
     }
 
@@ -240,6 +246,7 @@ impl Dodge {
                         PrimitiveValue::Float(f) => scale.map_value(*f),
                         PrimitiveValue::Int(i) => scale.map_value(*i as f64),
                         PrimitiveValue::Str(s) => scale.map_category(s),
+                        PrimitiveValue::Bool(b) => scale.map_category(&b.to_string()),
                     }
                 } else {
                     Some(self.x_to_f64(v))

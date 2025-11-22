@@ -50,7 +50,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ])
         .layer(
             GeomBar::new()
-                .stat(Stat::Bin(BinStrategy::Count(15)))
+                .stat(Stat::Bin(BinStrategy::Count(15).into()))
                 .position(Position::Stack)
                 .into_layer(),
         );

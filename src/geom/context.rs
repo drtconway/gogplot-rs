@@ -254,6 +254,13 @@ impl<'a> RenderContext<'a> {
                             })
                         }
                     }
+                    VectorType::Bool => {
+                        return Err(PlotError::InvalidAestheticType {
+                            aesthetic,
+                            expected: DataType::Vector(VectorType::Float),
+                            actual: DataType::Vector(VectorType::Bool),
+                        });
+                    }
                 }
             }
             Some(AesValue::CategoricalColumn(col_name)) => {
@@ -349,6 +356,32 @@ impl<'a> RenderContext<'a> {
                             })
                         }
                     }
+                    VectorType::Bool => {
+                        let bools = vec.iter_bool().ok_or_else(|| {
+                            PlotError::InvalidAestheticType {
+                                aesthetic,
+                                expected: DataType::Vector(VectorType::Bool),
+                                actual: DataType::Custom("unknown".to_string()),
+                            }
+                        })?;
+
+                        // Convert bools to strings and use categorical mapping
+                        let strings: Vec<String> = bools.map(|b| b.to_string()).collect();
+                        let mapped: Vec<f64> = strings
+                            .iter()
+                            .filter_map(|s| scale.map_category(s.as_str()))
+                            .collect();
+
+                        if mapped.len() == strings.len() {
+                            Ok(AestheticValues::Owned(mapped))
+                        } else {
+                            Err(PlotError::InvalidAestheticType {
+                                aesthetic,
+                                expected: DataType::Custom("all values mapped by scale".to_string()),
+                                actual: DataType::Custom("some values not mapped".to_string()),
+                            })
+                        }
+                    }
                 }
             }
             Some(AesValue::Constant(prim)) => {
@@ -361,6 +394,13 @@ impl<'a> RenderContext<'a> {
                             aesthetic,
                             expected: DataType::Custom("numeric constant".to_string()),
                             actual: DataType::Constant(VectorType::Str),
+                        });
+                    }
+                    PrimitiveValue::Bool(_) => {
+                        return Err(PlotError::InvalidAestheticType {
+                            aesthetic,
+                            expected: DataType::Custom("numeric constant".to_string()),
+                            actual: DataType::Constant(VectorType::Bool),
                         });
                     }
                 };
@@ -445,6 +485,13 @@ impl<'a> RenderContext<'a> {
                             .collect();
                         Ok(ColorValues::Mapped(colors))
                     }
+                    VectorType::Bool => {
+                        return Err(PlotError::InvalidAestheticType {
+                            aesthetic: Aesthetic::Color,
+                            expected: DataType::Vector(VectorType::Float),
+                            actual: DataType::Vector(VectorType::Bool),
+                        });
+                    }
                 }
             }
             // CategoricalColumn - treat numeric data as discrete categories
@@ -482,6 +529,15 @@ impl<'a> RenderContext<'a> {
                             actual: DataType::Custom("unknown".to_string()),
                         })?
                         .map(|s| s.to_string())
+                        .collect(),
+                    VectorType::Bool => vec
+                        .iter_bool()
+                        .ok_or_else(|| PlotError::InvalidAestheticType {
+                            aesthetic: Aesthetic::Color,
+                            expected: DataType::Vector(VectorType::Bool),
+                            actual: DataType::Custom("unknown".to_string()),
+                        })?
+                        .map(|b| b.to_string())
                         .collect(),
                 };
 
@@ -582,6 +638,13 @@ impl<'a> RenderContext<'a> {
                             .collect();
                         Ok(ColorValues::Mapped(colors))
                     }
+                    VectorType::Bool => {
+                        return Err(PlotError::InvalidAestheticType {
+                            aesthetic: Aesthetic::Fill,
+                            expected: DataType::Vector(VectorType::Float),
+                            actual: DataType::Vector(VectorType::Bool),
+                        });
+                    }
                 }
             }
             // CategoricalColumn - treat numeric data as discrete categories
@@ -619,6 +682,15 @@ impl<'a> RenderContext<'a> {
                             actual: DataType::Custom("unknown".to_string()),
                         })?
                         .map(|s| s.to_string())
+                        .collect(),
+                    VectorType::Bool => vec
+                        .iter_bool()
+                        .ok_or_else(|| PlotError::InvalidAestheticType {
+                            aesthetic: Aesthetic::Fill,
+                            expected: DataType::Vector(VectorType::Bool),
+                            actual: DataType::Custom("unknown".to_string()),
+                        })?
+                        .map(|b| b.to_string())
                         .collect(),
                 };
 
@@ -803,13 +875,20 @@ impl<'a> RenderContext<'a> {
                         expected: DataType::Vector(VectorType::Int),
                         actual: DataType::Custom("unknown".to_string()),
                     })?;
-                ints.map(|v| v as f64).collect()
+                ints.map(|i| i as f64).collect()
             }
             VectorType::Str => {
                 return Err(PlotError::InvalidAestheticType {
                     aesthetic,
-                    expected: DataType::Numeric,
+                    expected: DataType::Vector(VectorType::Float),
                     actual: DataType::Vector(VectorType::Str),
+                });
+            }
+            VectorType::Bool => {
+                return Err(PlotError::InvalidAestheticType {
+                    aesthetic,
+                    expected: DataType::Vector(VectorType::Float),
+                    actual: DataType::Vector(VectorType::Bool),
                 });
             }
         };

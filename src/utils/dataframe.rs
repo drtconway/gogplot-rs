@@ -1,4 +1,4 @@
-use crate::data::{DataSource, GenericVector, StrVector, VectorType};
+use crate::data::{DataSource, GenericVector, StrVector, VectorIter, VectorType};
 use std::collections::HashMap;
 
 // Concrete vector implementations
@@ -11,6 +11,10 @@ impl GenericVector for IntVec {
 
     fn vtype(&self) -> VectorType {
         VectorType::Int
+    }
+
+    fn iter(&self) -> VectorIter<'_> {
+        VectorIter::Int(Box::new(self.0.iter().copied()))
     }
 
     fn iter_int(&self) -> Option<Box<dyn Iterator<Item = i64> + '_>> {
@@ -29,6 +33,10 @@ impl GenericVector for FloatVec {
         VectorType::Float
     }
 
+    fn iter(&self) -> VectorIter<'_> {
+        VectorIter::Float(Box::new(self.0.iter().copied()))
+    }
+
     fn iter_float(&self) -> Option<Box<dyn Iterator<Item = f64> + '_>> {
         Some(Box::new(self.0.iter().copied()))
     }
@@ -43,6 +51,10 @@ impl GenericVector for StrVec {
 
     fn vtype(&self) -> VectorType {
         VectorType::Str
+    }
+
+    fn iter(&self) -> VectorIter<'_> {
+        VectorIter::Str(Box::new(self.0.iter().map(|s| s.as_str())))
     }
 
     fn iter_str(&self) -> Option<Box<dyn Iterator<Item = &str> + '_>> {
@@ -61,6 +73,26 @@ impl StrVector for StrVec {
 impl From<Vec<&str>> for StrVec {
     fn from(vec: Vec<&str>) -> Self {
         StrVec(vec.into_iter().map(|s| s.to_string()).collect())
+    }
+}
+
+pub struct BoolVec(pub Vec<bool>);
+
+impl GenericVector for BoolVec {
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    fn vtype(&self) -> VectorType {
+        VectorType::Bool
+    }
+
+    fn iter(&self) -> VectorIter<'_> {
+        VectorIter::Bool(Box::new(self.0.iter().copied()))
+    }
+
+    fn iter_bool(&self) -> Option<Box<dyn Iterator<Item = bool> + '_>> {
+        Some(Box::new(self.0.iter().copied()))
     }
 }
 
@@ -137,15 +169,12 @@ impl Clone for DataFrame {
     fn clone(&self) -> Self {
         let mut new_columns = HashMap::new();
         for (name, col) in &self.columns {
-            // Reconstruct each column vector
-            let new_col: Box<dyn GenericVector> = if let Some(int_iter) = col.iter_int() {
-                Box::new(IntVec(int_iter.collect()))
-            } else if let Some(float_iter) = col.iter_float() {
-                Box::new(FloatVec(float_iter.collect()))
-            } else if let Some(str_iter) = col.iter_str() {
-                Box::new(StrVec(str_iter.map(|s| s.to_string()).collect()))
-            } else {
-                panic!("Unknown vector type");
+            // Reconstruct each column vector using discriminated union
+            let new_col: Box<dyn GenericVector> = match col.iter() {
+                VectorIter::Int(iter) => Box::new(IntVec(iter.collect())),
+                VectorIter::Float(iter) => Box::new(FloatVec(iter.collect())),
+                VectorIter::Str(iter) => Box::new(StrVec(iter.map(|s| s.to_string()).collect())),
+                VectorIter::Bool(iter) => Box::new(BoolVec(iter.collect())),
             };
             new_columns.insert(name.clone(), new_col);
         }
@@ -229,7 +258,7 @@ mod tests {
     #[test]
     fn test_strvec_iter() {
         let vec = StrVec(vec!["hello".to_string(), "world".to_string()]);
-        let values: Vec<String> = vec.iter().map(|s| s.to_string()).collect();
+        let values: Vec<String> = StrVector::iter(&vec).map(|s| s.to_string()).collect();
         assert_eq!(values, vec!["hello".to_string(), "world".to_string()]);
     }
 
@@ -366,9 +395,61 @@ mod tests {
         let int_vec = IntVec(vec![1, 2]);
         let float_vec = FloatVec(vec![1.0, 2.0]);
         let str_vec = StrVec(vec!["a".to_string()]);
+        let bool_vec = BoolVec(vec![true, false]);
 
         matches!(int_vec.vtype(), VectorType::Int);
         matches!(float_vec.vtype(), VectorType::Float);
         matches!(str_vec.vtype(), VectorType::Str);
+        matches!(bool_vec.vtype(), VectorType::Bool);
+    }
+
+    #[test]
+    fn test_boolvec_len() {
+        let vec = BoolVec(vec![true, false, true]);
+        assert_eq!(vec.len(), 3);
+    }
+
+    #[test]
+    fn test_boolvec_iter() {
+        let vec = BoolVec(vec![true, false, true]);
+        let values: Vec<bool> = vec.iter_bool().unwrap().collect();
+        assert_eq!(values, vec![true, false, true]);
+    }
+
+    #[test]
+    fn test_boolvec_as_bool() {
+        let vec = BoolVec(vec![true, false]);
+        assert!(vec.iter_bool().is_some());
+        assert!(vec.iter_int().is_none());
+        assert!(vec.iter_float().is_none());
+        assert!(vec.iter_str().is_none());
+    }
+
+    #[test]
+    fn test_vector_iter_discriminated() {
+        let int_vec = IntVec(vec![1, 2, 3]);
+        let float_vec = FloatVec(vec![1.5, 2.5]);
+        let str_vec = StrVec(vec!["a".to_string(), "b".to_string()]);
+        let bool_vec = BoolVec(vec![true, false]);
+
+        match GenericVector::iter(&int_vec) {
+            VectorIter::Int(mut iter) => assert_eq!(iter.next(), Some(1)),
+            _ => panic!("Expected Int variant"),
+        }
+
+        match GenericVector::iter(&float_vec) {
+            VectorIter::Float(mut iter) => assert_eq!(iter.next(), Some(1.5)),
+            _ => panic!("Expected Float variant"),
+        }
+
+        match GenericVector::iter(&str_vec) {
+            VectorIter::Str(mut iter) => assert_eq!(iter.next(), Some("a")),
+            _ => panic!("Expected Str variant"),
+        }
+
+        match GenericVector::iter(&bool_vec) {
+            VectorIter::Bool(mut iter) => assert_eq!(iter.next(), Some(true)),
+            _ => panic!("Expected Bool variant"),
+        }
     }
 }

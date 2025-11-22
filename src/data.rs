@@ -3,6 +3,7 @@ pub trait PrimitiveType: PartialEq + PartialOrd + Clone + Sized + Send + Sync + 
 impl PrimitiveType for i64 {}
 impl PrimitiveType for f64 {}
 impl PrimitiveType for String {}
+impl PrimitiveType for bool {}
 
 // Primitive value types for constant aesthetics
 #[derive(Debug, Clone, PartialEq)]
@@ -10,6 +11,7 @@ pub enum PrimitiveValue {
     Int(i64),
     Float(f64),
     Str(String),
+    Bool(bool),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -17,6 +19,16 @@ pub enum VectorType {
     Int,
     Float,
     Str,
+    Bool,
+}
+
+/// Discriminated union of iterators over vector data.
+/// This makes it impossible to miss handling a data type.
+pub enum VectorIter<'a> {
+    Int(Box<dyn Iterator<Item = i64> + 'a>),
+    Float(Box<dyn Iterator<Item = f64> + 'a>),
+    Str(Box<dyn Iterator<Item = &'a str> + 'a>),
+    Bool(Box<dyn Iterator<Item = bool> + 'a>),
 }
 
 impl std::fmt::Display for VectorType {
@@ -25,6 +37,7 @@ impl std::fmt::Display for VectorType {
             VectorType::Int => write!(f, "integer"),
             VectorType::Float => write!(f, "float"),
             VectorType::Str => write!(f, "string"),
+            VectorType::Bool => write!(f, "boolean"),
         }
     }
 }
@@ -33,8 +46,13 @@ pub trait GenericVector: Send + Sync {
     fn len(&self) -> usize;
     fn vtype(&self) -> VectorType;
     
+    /// Get a discriminated union iterator over the vector's data.
+    /// This is the preferred method as it makes exhaustive pattern matching possible.
+    fn iter(&self) -> VectorIter<'_>;
+    
     // Boxed iterator methods - these replace as_int/as_float/as_str for trait objects
     // Returns None if the vector is not of the requested type
+    // These are convenience methods; prefer using iter() for exhaustive matching
     fn iter_int(&self) -> Option<Box<dyn Iterator<Item = i64> + '_>> {
         None
     }
@@ -42,6 +60,9 @@ pub trait GenericVector: Send + Sync {
         None
     }
     fn iter_str(&self) -> Option<Box<dyn Iterator<Item = &str> + '_>> {
+        None
+    }
+    fn iter_bool(&self) -> Option<Box<dyn Iterator<Item = bool> + '_>> {
         None
     }
 }
