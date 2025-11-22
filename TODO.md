@@ -71,7 +71,7 @@
 
 ## Statistics
 
-- [ ] **stat_summary** - Compute summaries (mean, median, etc.)
+- [x] **stat_summary** - Compute summaries (mean, median, etc.) - COMPLETED
 - [ ] **stat_bin2d** - 2D binning for heatmaps
 - [ ] **stat_density2d** - 2D density estimation
 - [ ] **stat_ecdf** - Empirical cumulative distribution
@@ -80,10 +80,11 @@
 
 ## Reference Lines Enhancement
 
-- [ ] **hline/vline with statistical y aesthetics** - Allow `geom_hline` to use y aesthetic mapped to mean/median of data column
-  - Example: `.geom_hline().y(Aes::mean("column_name"))` or `.y(Aes::median("column_name"))`
+- [x] **hline/vline with statistical y aesthetics** - COMPLETED
+  - `geom_hline` can use y aesthetic mapped to mean/median of data column
+  - Example: `.geom_hline_with(|layer| { layer.aes.yintercept("mean"); layer.stat = Stat::Summary(...); })`
   - Similarly for `geom_vline` with x aesthetic
-  - Compute statistics from the layer's data source automatically
+  - Computes statistics from the layer's data source automatically
 
 ## Coordinate Systems
 
