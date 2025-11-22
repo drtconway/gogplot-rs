@@ -1,4 +1,5 @@
 pub mod dataframe;
+pub mod mtcars;
 
 #[cfg(feature = "arrow")]
 pub mod datafusion;
