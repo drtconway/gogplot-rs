@@ -381,9 +381,7 @@ impl Geom for GeomBoxplot {
                 )
             };
 
-        let mut count = 0;
         for (_i, (x_norm, x_max_opt, y_norm, lower_norm, middle_norm, upper_norm, ymin_norm, ymax_norm, fill, color, alpha, size)) in iter.enumerate() {
-            count += 1;
             // Check if this is an outlier row (middle is NaN)
             if middle_norm.is_nan() {
                 // This is an outlier - draw as a point
