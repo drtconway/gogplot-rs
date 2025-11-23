@@ -6,6 +6,7 @@ use crate::data::{DataSource, PrimitiveValue};
 use crate::error::{DataType, PlotError};
 use crate::scale::ContinuousScale;
 use crate::utils::dataframe::{DataFrame, FloatVec};
+use crate::utils::grouping::{get_grouping_columns, create_composite_keys};
 use std::collections::BTreeMap;
 
 /// Dodge position adjustment
@@ -41,18 +42,8 @@ impl PositionAdjust for Dodge {
             _ => return Ok(None),
         };
 
-        // Find grouping aesthetics
-        let group_aesthetics: Vec<(Aesthetic, String)> = mapping
-            .iter()
-            .filter(|(aes, _)| aes.is_grouping())
-            .filter_map(|(aes, val)| {
-                if let AesValue::Column(col_name) = val {
-                    Some((*aes, col_name.clone()))
-                } else {
-                    None
-                }
-            })
-            .collect();
+        // Get grouping columns using utility
+        let group_aesthetics = get_grouping_columns(mapping);
 
         // If no grouping, no dodging needed
         if group_aesthetics.is_empty() {
@@ -85,31 +76,8 @@ impl PositionAdjust for Dodge {
 
         let n_rows = x_values.len();
 
-        // Create composite keys for each row (to identify groups)
-        let mut composite_keys: Vec<String> = Vec::with_capacity(n_rows);
-        
-        // Collect group column values for indexing
-        let mut group_col_values: Vec<Vec<String>> = Vec::new();
-        for (_aesthetic, col_name) in &group_aesthetics {
-            let col = data.get(col_name.as_str()).unwrap();
-            let values = if let Some(str_iter) = col.iter_str() {
-                str_iter.map(|s| s.to_string()).collect()
-            } else if let Some(int_iter) = col.iter_int() {
-                int_iter.map(|v| v.to_string()).collect()
-            } else if let Some(float_iter) = col.iter_float() {
-                float_iter.map(|v| v.to_string()).collect()
-            } else {
-                vec![String::new(); n_rows]
-            };
-            group_col_values.push(values);
-        }
-        
-        for i in 0..n_rows {
-            let key_parts: Vec<&str> = group_col_values.iter()
-                .map(|col_vals| col_vals[i].as_str())
-                .collect();
-            composite_keys.push(key_parts.join("__"));
-        }
+        // Create composite keys using utility
+        let composite_keys = create_composite_keys(data.as_ref(), &group_aesthetics);
 
         // Determine bar width
         let bar_width = if let Some(w) = self.width {

@@ -2,7 +2,8 @@ use crate::aesthetics::{AesMap, AesValue, Aesthetic};
 use crate::data::DataSource;
 use crate::error::{DataType, PlotError};
 use crate::stat::StatTransform;
-use crate::utils::dataframe::{DataFrame, FloatVec};
+use crate::utils::dataframe::{DataFrame, FloatVec, StrVec};
+use crate::utils::grouping::{get_grouping_columns, create_composite_keys, group_by_key, split_composite_key};
 
 /// Kernel density estimation stat
 ///
@@ -145,15 +146,81 @@ impl StatTransform for Density {
             .ok_or_else(|| PlotError::invalid_column_type(x_col_name.as_str(), "float"))?
             .collect();
 
-        // Compute density
-        let computed = self.compute(&x_values)?;
+        // Get grouping columns
+        let group_cols = get_grouping_columns(mapping);
 
-        // Update the mapping to use the computed density column for y
-        let mut new_mapping = mapping.clone();
-        new_mapping.set(Aesthetic::Y, AesValue::column("density"));
-        new_mapping.set(Aesthetic::X, AesValue::column("x"));
+        if group_cols.is_empty() {
+            // No grouping - compute density for all data
+            let computed = self.compute(&x_values)?;
 
-        Ok(Some((Box::new(computed), new_mapping)))
+            // Update the mapping to use the computed density column for y
+            let mut new_mapping = mapping.clone();
+            new_mapping.set(Aesthetic::Y, AesValue::column("density"));
+            new_mapping.set(Aesthetic::X, AesValue::column("x"));
+
+            Ok(Some((Box::new(computed), new_mapping)))
+        } else {
+            // Compute density for each group
+            let composite_keys = create_composite_keys(data.as_ref(), &group_cols);
+            let groups = group_by_key(&x_values, &composite_keys);
+
+            // Compute density for each group and combine results
+            let mut all_x = Vec::new();
+            let mut all_density = Vec::new();
+            let mut all_count = Vec::new();
+            let mut all_scaled = Vec::new();
+            let mut all_n = Vec::new();
+            let mut all_group_keys = Vec::new();
+
+            for (group_key, group_values) in groups {
+                let group_result = self.compute(&group_values)?;
+                
+                let x = group_result.get("x").unwrap().iter_float().unwrap().collect::<Vec<_>>();
+                let density = group_result.get("density").unwrap().iter_float().unwrap().collect::<Vec<_>>();
+                let count = group_result.get("count").unwrap().iter_float().unwrap().collect::<Vec<_>>();
+                let scaled = group_result.get("scaled").unwrap().iter_float().unwrap().collect::<Vec<_>>();
+                let n = group_result.get("n").unwrap().iter_float().unwrap().collect::<Vec<_>>();
+
+                let n_points = x.len();
+                all_x.extend(x);
+                all_density.extend(density);
+                all_count.extend(count);
+                all_scaled.extend(scaled);
+                all_n.extend(n);
+                all_group_keys.extend(vec![group_key; n_points]);
+            }
+
+            // Create combined dataframe
+            let mut computed = DataFrame::new();
+            computed.add_column("x", Box::new(FloatVec(all_x)));
+            computed.add_column("density", Box::new(FloatVec(all_density)));
+            computed.add_column("count", Box::new(FloatVec(all_count)));
+            computed.add_column("scaled", Box::new(FloatVec(all_scaled)));
+            computed.add_column("n", Box::new(FloatVec(all_n)));
+
+            // Add grouping columns by splitting composite keys
+            for (aesthetic, col_name) in &group_cols {
+                let values: Vec<String> = all_group_keys
+                    .iter()
+                    .map(|key| {
+                        let key_parts = split_composite_key(key, &group_cols);
+                        key_parts
+                            .iter()
+                            .find(|(aes, _)| aes == aesthetic)
+                            .map(|(_, val)| val.clone())
+                            .unwrap_or_default()
+                    })
+                    .collect();
+                computed.add_column(col_name, Box::new(StrVec(values)));
+            }
+
+            // Update the mapping
+            let mut new_mapping = mapping.clone();
+            new_mapping.set(Aesthetic::Y, AesValue::column("density"));
+            new_mapping.set(Aesthetic::X, AesValue::column("x"));
+
+            Ok(Some((Box::new(computed), new_mapping)))
+        }
     }
 }
 

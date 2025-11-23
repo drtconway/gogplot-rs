@@ -3,6 +3,7 @@ use crate::data::DataSource;
 use crate::error::{DataType, Result};
 use crate::stat::StatTransform;
 use crate::utils::dataframe::{DataFrame, FloatVec, IntVec, StrVec};
+use crate::utils::grouping::{get_grouping_columns, create_composite_keys, group_by_key, split_composite_key};
 use std::collections::HashMap;
 
 /// Bin configuration strategy
@@ -127,31 +128,8 @@ impl Bin {
             crate::error::PlotError::missing_column(x_col_name)
         })?;
 
-        // Get all grouping columns
-        let mut group_vectors = Vec::new();
-        for (_, col_name) in group_cols {
-            let col = data.get(col_name).ok_or_else(|| {
-                crate::error::PlotError::missing_column(col_name)
-            })?;
-            let str_iter = col.iter_str().ok_or_else(|| {
-                crate::error::PlotError::invalid_column_type(col_name, "string (categorical)")
-            })?;
-            // Collect to vec since we need indexed access
-            let str_vec: Vec<String> = str_iter.map(|s| s.to_string()).collect();
-            group_vectors.push((col_name.as_str(), str_vec));
-        }
-
-        // Create composite group keys by combining all grouping columns
-        let n_rows = data.len();
-        let composite_keys: Vec<String> = (0..n_rows)
-            .map(|i| {
-                group_vectors
-                    .iter()
-                    .map(|(_, vec)| vec[i].as_str())
-                    .collect::<Vec<_>>()
-                    .join("__") // Use __ as separator for composite keys
-            })
-            .collect();
+        // Create composite group keys using grouping utilities
+        let composite_keys = create_composite_keys(data.as_ref(), group_cols);
 
         // Convert x to float values
         let x_values: Vec<f64> = if let Some(int_iter) = x_col.iter_int() {
@@ -208,10 +186,12 @@ impl Bin {
                 let values: Vec<String> = group_keys
                     .iter()
                     .map(|key| {
-                        // Extract the value for this aesthetic from composite key
-                        let parts: Vec<&str> = key.split("__").collect();
-                        let idx = group_cols.iter().position(|(a, _)| a == aesthetic).unwrap();
-                        parts[idx].to_string()
+                        let key_parts = split_composite_key(key, group_cols);
+                        key_parts
+                            .iter()
+                            .find(|(aes, _)| aes == aesthetic)
+                            .map(|(_, val)| val.clone())
+                            .unwrap_or_default()
                     })
                     .collect();
                 computed.add_column(col_name, Box::new(StrVec(values)));
@@ -235,16 +215,8 @@ impl Bin {
         let offset = (adjusted_range - range) / 2.0;
         let bin_min = min_val - offset;
 
-        // Group data by composite key
-        let mut groups_data: HashMap<String, Vec<f64>> = HashMap::new();
-        for (i, key) in composite_keys.iter().enumerate() {
-            if i < x_values.len() {
-                groups_data
-                    .entry(key.clone())
-                    .or_default()
-                    .push(x_values[i]);
-            }
-        }
+        // Group data by composite key using utility
+        let groups_data = group_by_key(&x_values, &composite_keys);
 
         // Bin each group separately using the same boundaries
         let mut all_x_centers = Vec::new();
@@ -294,9 +266,12 @@ impl Bin {
             let values: Vec<String> = all_group_keys
                 .iter()
                 .map(|key| {
-                    let parts: Vec<&str> = key.split("__").collect();
-                    let idx = group_cols.iter().position(|(a, _)| a == aesthetic).unwrap();
-                    parts[idx].to_string()
+                    let key_parts = split_composite_key(key, group_cols);
+                    key_parts
+                        .iter()
+                        .find(|(aes, _)| aes == aesthetic)
+                        .map(|(_, val)| val.clone())
+                        .unwrap_or_default()
                 })
                 .collect();
             computed.add_column(col_name, Box::new(StrVec(values)));
@@ -334,15 +309,8 @@ impl StatTransform for Bin {
             }
         };
 
-        // Collect all grouping aesthetics mapped to columns
-        let group_col_names: Vec<(Aesthetic, String)> = mapping
-            .iter()
-            .filter(|(aes, _)| aes.is_grouping())
-            .filter_map(|(aes, aes_value)| match aes_value {
-                AesValue::Column(name) => Some((*aes, name.clone())),
-                _ => None,
-            })
-            .collect();
+        // Get grouping columns using utility
+        let group_col_names = get_grouping_columns(mapping);
 
         // If we have any grouping aesthetics, use grouped binning
         if !group_col_names.is_empty() {
