@@ -12,6 +12,7 @@ pub mod line;
 pub mod point;
 pub mod rect;
 pub mod segment;
+pub mod smooth;
 pub mod vline;
 
 pub use bar::GeomBar;
@@ -24,6 +25,7 @@ pub use line::GeomLine;
 pub use point::GeomPoint;
 pub use rect::GeomRect;
 pub use segment::GeomSegment;
+pub use smooth::GeomSmooth;
 pub use vline::GeomVLine;
 
 use crate::data::DataSource;

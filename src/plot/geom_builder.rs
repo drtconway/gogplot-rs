@@ -354,10 +354,12 @@ pub trait GeomBuilder {
         }
         self.merge_default_aesthetics(&mut layer);
 
-        // If layer needs stat transformation and doesn't have data, take plot data
+        // If layer needs stat transformation and doesn't have data, clone plot data
         // Stats need owned data to transform
         if !matches!(layer.stat, crate::layer::Stat::Identity) && layer.data.is_none() {
-            layer.data = self.data_mut().take();
+            if let Some(data) = self.data_mut() {
+                layer.data = Some(data.clone_box());
+            }
         }
 
         self.layers_mut().push(layer);
@@ -412,10 +414,12 @@ pub trait GeomBuilder {
         }
         self.merge_default_aesthetics(&mut layer);
 
-        // If layer needs stat transformation and doesn't have data, take plot data
+        // If layer needs stat transformation and doesn't have data, clone plot data
         // Stats need owned data to transform
         if !matches!(layer.stat, crate::layer::Stat::Identity) && layer.data.is_none() {
-            layer.data = self.data_mut().take();
+            if let Some(data) = self.data_mut() {
+                layer.data = Some(data.clone_box());
+            }
         }
 
         self.layers_mut().push(layer);
@@ -471,10 +475,67 @@ pub trait GeomBuilder {
         }
         self.merge_default_aesthetics(&mut layer);
 
-        // If layer needs stat transformation and doesn't have data, take plot data
+        // If layer needs stat transformation and doesn't have data, clone plot data
         // Stats need owned data to transform
         if !matches!(layer.stat, crate::layer::Stat::Identity) && layer.data.is_none() {
-            layer.data = self.data_mut().take();
+            if let Some(data) = self.data_mut() {
+                layer.data = Some(data.clone_box());
+            }
+        }
+
+        self.layers_mut().push(layer);
+        self
+    }
+
+    /// Add a smooth geom layer with trend line and confidence interval
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// plot.geom_smooth()
+    /// ```
+    fn geom_smooth(self) -> Self
+    where
+        Self: Sized,
+    {
+        self.geom_smooth_with(|_layer| {})
+    }
+
+    /// Add a smooth geom layer with customization
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// plot.geom_smooth_with(|layer| {
+    ///     layer.geom.se(false);  // Hide confidence interval
+    ///     layer.geom.color(Color::rgb(255, 0, 0));  // Red line
+    /// })
+    /// ```
+    fn geom_smooth_with<F>(mut self, f: F) -> Self
+    where
+        F: FnOnce(&mut crate::plot::LayerGeom<crate::geom::smooth::GeomSmooth>),
+        Self: Sized,
+    {
+        let geom = crate::geom::smooth::GeomSmooth::new();
+        let mut layer_geom = crate::plot::LayerGeom::new(geom);
+        f(&mut layer_geom);
+
+        let (geom, layer_aes, stat) = layer_geom.into_parts();
+        let mut layer = geom.into_layer();
+        // Only override the stat if it's not Identity (preserve geom defaults)
+        if !matches!(stat, crate::layer::Stat::Identity) {
+            layer.stat = stat;
+        }
+        // Merge layer-specific aesthetics
+        for (aesthetic, value) in layer_aes.iter() {
+            layer.mapping.set(*aesthetic, value.clone());
+        }
+        self.merge_default_aesthetics(&mut layer);
+
+        // If layer needs stat transformation and doesn't have data, clone plot data
+        // Stats need owned data to transform
+        if !matches!(layer.stat, crate::layer::Stat::Identity) && layer.data.is_none() {
+            if let Some(data) = self.data_mut() {
+                layer.data = Some(data.clone_box());
+            }
         }
 
         self.layers_mut().push(layer);

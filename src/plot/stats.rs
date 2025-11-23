@@ -6,6 +6,7 @@ use crate::stat::bin::Bin;
 use crate::stat::boxplot::Boxplot;
 use crate::stat::count::Count;
 use crate::stat::density::Density;
+use crate::stat::smooth::Smooth;
 use crate::stat::summary::Summary;
 use crate::stat::StatTransform;
 
@@ -95,12 +96,19 @@ pub fn apply_stats(
                     layers[i].computed_mapping = Some(new_mapping);
                 }
             }
+            Stat::Smooth { method, level, n } => {
+                let smooth_stat = Smooth::new()
+                    .method(*method)
+                    .level(*level)
+                    .n(*n);
+                let stat_result = smooth_stat.apply(data, &merged_mapping)?;
+                if let Some((transformed_data, new_mapping)) = stat_result {
+                    layers[i].computed_data = Some(transformed_data);
+                    layers[i].computed_mapping = Some(new_mapping);
+                }
+            }
             Stat::Identity => {
                 // Put the data back and continue
-                layers[i].data = Some(data);
-            }
-            Stat::Smooth => {
-                // Not implemented yet - put data back
                 layers[i].data = Some(data);
             }
         }

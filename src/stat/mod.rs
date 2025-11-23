@@ -2,7 +2,9 @@ pub mod bin;
 pub mod boxplot;
 pub mod count;
 pub mod density;
+pub mod smooth;
 pub mod summary;
+pub mod utils;
 
 use crate::aesthetics::AesMap;
 use crate::data::DataSource;

@@ -6,6 +6,7 @@
 use crate::aesthetics::{AesMap, AesValue, Aesthetic};
 use crate::data::DataSource;
 use crate::error::{PlotError, Result};
+use crate::stat::utils::get_numeric_values;
 use crate::stat::StatTransform;
 use crate::utils::dataframe::{DataFrame, FloatVec, IntVec, StrVec};
 use crate::utils::grouping::{get_grouping_columns, create_composite_keys, group_by_key_sorted, split_composite_key};
@@ -187,39 +188,20 @@ impl StatTransform for Boxplot {
         mapping: &AesMap,
     ) -> Result<Option<(Box<dyn DataSource>, AesMap)>> {
         // Get x and y column names from mapping
+        // Get grouping aesthetics for splitting data
+        let group_cols = get_grouping_columns(mapping);
+
+        // Get x column and y values
         let x_col_name = mapping
             .get(&Aesthetic::X)
             .and_then(|v| v.as_column_name())
             .ok_or_else(|| PlotError::missing_stat_input("boxplot", Aesthetic::X))?;
-
-        let y_col_name = mapping
-            .get(&Aesthetic::Y)
-            .and_then(|v| v.as_column_name())
-            .ok_or_else(|| PlotError::missing_stat_input("boxplot", Aesthetic::Y))?;
-
-        // Get grouping aesthetics for splitting data
-        let group_cols = get_grouping_columns(mapping);
-
-        // Get x and y columns
+        
         let x_col = data
             .get(x_col_name)
             .ok_or_else(|| PlotError::missing_column(x_col_name))?;
         
-        let y_col = data
-            .get(y_col_name)
-            .ok_or_else(|| PlotError::missing_column(y_col_name))?;
-
-        // Extract y values as floats
-        let y_values: Vec<f64> = if let Some(float_iter) = y_col.iter_float() {
-            float_iter.filter(|v| v.is_finite()).collect()
-        } else if let Some(int_iter) = y_col.iter_int() {
-            int_iter.map(|i| i as f64).collect()
-        } else {
-            return Err(PlotError::invalid_column_type(
-                y_col_name,
-                "numeric (int or float)",
-            ));
-        };
+        let y_values = get_numeric_values(data.as_ref(), mapping, Aesthetic::Y)?;
 
         // Extract x values in their native type and parallel vectors for grouping
         enum XValues {

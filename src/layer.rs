@@ -13,7 +13,11 @@ pub enum Stat {
     Boxplot { coef: f64 },
     Density { adjust: f64, n: usize },
     Summary(Vec<crate::aesthetics::Aesthetic>),
-    Smooth,
+    Smooth { 
+        method: crate::stat::smooth::Method,
+        level: f64,
+        n: usize,
+    },
     // Add more as needed
 }
 

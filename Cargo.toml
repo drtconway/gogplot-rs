@@ -14,3 +14,4 @@ cairo-rs = { version = "0.21.2", features = ["pdf", "png", "svg"] }
 arrow = { version = "57.0.0", optional = true }
 polars = { version = "0.52.0", optional = true, default-features = false, features = ["csv", "lazy"] }
 ordered-float = "5.1.0"
+splines = "5.0.0"
