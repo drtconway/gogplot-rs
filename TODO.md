@@ -90,6 +90,19 @@
   - `theme_void()`
   - `theme_bw()`
   
+- [x] **Geom defaults from theme** - PARTIALLY IMPLEMENTED
+  - [x] `geom_text` defaults (size, color, alpha, hjust, vjust) controlled via `theme.geom_text`
+  - [ ] Extend to other geoms where appropriate:
+    - [ ] `geom_point` - default size, color, alpha, shape
+    - [ ] `geom_line` - default size/width, color, alpha, linetype
+    - [ ] `geom_bar` - default fill, color, alpha, width
+    - [ ] `geom_boxplot` - default fill, color, alpha, outlier size/shape
+    - [ ] `geom_smooth` - default color, alpha, line width, confidence band styling
+    - [ ] `geom_histogram` - default fill, color, alpha, binwidth behavior
+    - [ ] `geom_density` - default color, alpha, fill, line width
+    - [ ] `geom_segment` - default color, alpha, line width, arrow styling
+  - [ ] Consider adding `GeomDefaults` or similar theme component for common properties
+  
 - [ ] **Grid customization** - Major/minor grid lines control
 - [ ] **Axis styling** - Tick marks, labels, titles
 - [ ] **Panel customization** - Background, borders, spacing
