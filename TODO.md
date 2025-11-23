@@ -3,10 +3,11 @@
 ## High Priority Geoms
 
 ### Statistical Geoms
-- [ ] **Boxplot** (`geom_boxplot`) - Essential for distribution visualization
-  - Show median, quartiles, and outliers
-  - Support for grouped boxplots by category
-  - Notched boxplots option
+- [x] **Boxplot** (`geom_boxplot`) - Essential for distribution visualization - COMPLETED
+  - [x] Show median, quartiles, and outliers
+  - [x] Support for grouped boxplots by category (via Position::Dodge and Fill aesthetic)
+  - [x] Outlier detection with configurable IQR coefficient
+  - [ ] Notched boxplots option (future enhancement)
   
 - [ ] **Violin Plot** (`geom_violin`) - Distribution density visualization
   - Kernel density estimation on both sides
