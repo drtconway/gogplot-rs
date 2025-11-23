@@ -20,7 +20,7 @@ pub struct GeomPoint {
 }
 
 impl GeomPoint {
-    /// Create a new point geom with default settings
+    /// Create a new point geom with default settings from theme
     pub fn new() -> Self {
         Self {
             size: None,
@@ -65,19 +65,33 @@ impl Default for GeomPoint {
 
 impl IntoLayer for GeomPoint {
     fn default_aesthetics(&self) -> Vec<(Aesthetic, AesValue)> {
+        use crate::theme::Theme;
+        
         let mut defaults = Vec::new();
+        let theme = Theme::default();
 
         if let Some(color) = &self.color {
             defaults.push((Aesthetic::Color, color.clone()));
+        } else {
+            defaults.push((Aesthetic::Color, AesValue::Constant(PrimitiveValue::Int(theme.geom_point.color.into()))));
         }
+        
         if let Some(alpha) = &self.alpha {
             defaults.push((Aesthetic::Alpha, alpha.clone()));
+        } else {
+            defaults.push((Aesthetic::Alpha, AesValue::Constant(PrimitiveValue::Float(theme.geom_point.alpha))));
         }
+        
         if let Some(size) = &self.size {
             defaults.push((Aesthetic::Size, size.clone()));
+        } else {
+            defaults.push((Aesthetic::Size, AesValue::Constant(PrimitiveValue::Float(theme.geom_point.size))));
         }
+        
         if let Some(shape) = &self.shape {
             defaults.push((Aesthetic::Shape, shape.clone()));
+        } else {
+            defaults.push((Aesthetic::Shape, AesValue::Constant(PrimitiveValue::Int(theme.geom_point.shape))));
         }
 
         defaults

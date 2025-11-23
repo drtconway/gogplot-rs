@@ -284,6 +284,26 @@ impl Default for PlotTitleTheme {
     }
 }
 
+/// Theme for geom_point
+#[derive(Clone, Debug, PartialEq)]
+pub struct GeomPointTheme {
+    pub color: Color,
+    pub size: f64,
+    pub alpha: f64,
+    pub shape: i64,  // Shape as i64 to match visuals::Shape
+}
+
+impl Default for GeomPointTheme {
+    fn default() -> Self {
+        GeomPointTheme {
+            color: color::BLACK,
+            size: 3.0,
+            alpha: 1.0,
+            shape: 16,  // Circle (Shape::Circle as i64)
+        }
+    }
+}
+
 /// Theme for geom_text
 #[derive(Clone, Debug, PartialEq)]
 pub struct GeomTextTheme {
@@ -323,6 +343,7 @@ pub struct Theme {
     pub legend: LegendTheme,
     pub plot_title: PlotTitleTheme,
     pub plot_margin: Spacing,
+    pub geom_point: GeomPointTheme,
     pub geom_text: GeomTextTheme,
 }
 
@@ -341,6 +362,7 @@ impl Default for Theme {
                 bottom: 60.0,
                 left: 70.0,
             },
+            geom_point: GeomPointTheme::default(),
             geom_text: GeomTextTheme::default(),
         }
     }
