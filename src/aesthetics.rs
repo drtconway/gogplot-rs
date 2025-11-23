@@ -10,6 +10,9 @@ pub enum Aesthetic {
     Xmax,
     Ymin,
     Ymax,
+    Lower,   // Q1 (first quartile) for boxplots
+    Middle,  // Median for boxplots
+    Upper,   // Q3 (third quartile) for boxplots
     Color,
     Fill,
     Alpha,

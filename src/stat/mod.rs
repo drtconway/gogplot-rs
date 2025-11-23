@@ -1,4 +1,5 @@
 pub mod bin;
+pub mod boxplot;
 pub mod count;
 pub mod density;
 pub mod summary;

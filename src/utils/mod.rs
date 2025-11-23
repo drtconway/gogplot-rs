@@ -1,4 +1,5 @@
 pub mod dataframe;
+pub mod grouping;
 pub mod mtcars;
 
 #[cfg(feature = "arrow")]
