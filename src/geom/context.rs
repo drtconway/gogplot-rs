@@ -984,6 +984,44 @@ impl<'a> RenderContext<'a> {
             Ok(values)
         }
     }
+
+    /// Get label values as strings from the Label aesthetic
+    /// Handles string, int, and float columns, converting them to strings
+    pub fn get_label_values(&self) -> Result<Vec<String>, PlotError> {
+        use crate::data::PrimitiveValue;
+        
+        let label_mapping = self.mapping().get(&Aesthetic::Label)
+            .ok_or_else(|| PlotError::MissingAesthetic { aesthetic: Aesthetic::Label })?;
+
+        match label_mapping {
+            AesValue::Column(col_name) => {
+                let col = self.data().get(col_name.as_str())
+                    .ok_or_else(|| PlotError::MissingColumn { column: col_name.clone() })?;
+
+                // Convert column to strings using iterators
+                if let Some(str_iter) = col.iter_str() {
+                    Ok(str_iter.map(|s| s.to_string()).collect())
+                } else if let Some(int_iter) = col.iter_int() {
+                    Ok(int_iter.map(|v| v.to_string()).collect())
+                } else if let Some(float_iter) = col.iter_float() {
+                    Ok(float_iter.map(|v| v.to_string()).collect())
+                } else {
+                    Err(PlotError::invalid_column_type(col_name, "string, int, or float"))
+                }
+            }
+            AesValue::Constant(prim) => {
+                let n_rows = self.data().len();
+                let label_str = match prim {
+                    PrimitiveValue::Str(s) => s.clone(),
+                    PrimitiveValue::Int(i) => i.to_string(),
+                    PrimitiveValue::Float(f) => f.to_string(),
+                    PrimitiveValue::Bool(b) => b.to_string(),
+                };
+                Ok(vec![label_str; n_rows])
+            }
+            _ => Err(PlotError::invalid_column_type("label", "column or constant")),
+        }
+    }
 }
 
 pub(crate) fn compute_min_spacing(aesthetic_values: AestheticValues<'_>, width: f64) -> f64 {

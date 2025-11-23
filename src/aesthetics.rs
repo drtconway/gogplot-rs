@@ -26,6 +26,7 @@ pub enum Aesthetic {
     YEnd,
     XIntercept,
     YIntercept,
+    Label,
 }
 
 impl Aesthetic {
@@ -173,6 +174,9 @@ impl AesMap {
     }
     pub fn xintercept(&mut self, column: impl Into<String>) {
         self.set_to_column(Aesthetic::XIntercept, column);
+    }
+    pub fn label(&mut self, column: impl Into<String>) {
+        self.set_to_column(Aesthetic::Label, column);
     }
 
     // Convenience methods for categorical column mappings

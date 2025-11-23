@@ -487,6 +487,56 @@ pub trait GeomBuilder {
         self
     }
 
+    /// Add a text geom layer using default aesthetics
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// plot.geom_text()
+    /// ```
+    fn geom_text(self) -> Self
+    where
+        Self: Sized,
+    {
+        self.geom_text_with(|_layer| {})
+    }
+
+    /// Add a text geom layer with customization (builder style)
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// plot.geom_text_with(|layer| {
+    ///     layer.geom.size(12.0)
+    ///         .color(color::BLACK)
+    ///         .hjust(0.5)
+    ///         .vjust(0.5);
+    /// })
+    /// ```
+    fn geom_text_with<F>(mut self, f: F) -> Self
+    where
+        F: FnOnce(&mut crate::plot::LayerGeom<crate::geom::text::GeomText>),
+        Self: Sized,
+    {
+        let geom = crate::geom::text::GeomText::new();
+        let mut layer_geom = crate::plot::LayerGeom::new(geom);
+        f(&mut layer_geom);
+
+        let (geom, layer_aes, stat) = layer_geom.into_parts();
+        let mut layer = geom.into_layer();
+        // Only override the stat if it's not Identity (preserve geom defaults)
+        if !matches!(stat, crate::layer::Stat::Identity) {
+            layer.stat = stat;
+        }
+        // Merge layer-specific aesthetics
+        for (aesthetic, value) in layer_aes.iter() {
+            layer.mapping.set(*aesthetic, value.clone());
+        }
+        self.merge_default_aesthetics(&mut layer);
+        self.layers_mut().push(layer);
+        self
+    }
+
     /// Add a smooth geom layer with trend line and confidence interval
     ///
     /// # Example

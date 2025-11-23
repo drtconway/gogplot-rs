@@ -284,6 +284,35 @@ impl Default for PlotTitleTheme {
     }
 }
 
+/// Theme for geom_text
+#[derive(Clone, Debug, PartialEq)]
+pub struct GeomTextTheme {
+    pub font: Font,
+    pub color: Color,
+    pub size: f64,
+    pub alpha: f64,
+    pub hjust: f64,
+    pub vjust: f64,
+}
+
+impl Default for GeomTextTheme {
+    fn default() -> Self {
+        GeomTextTheme {
+            font: Font {
+                family: "Sans".to_string(),
+                size: 11.0,
+                weight: FontWeight::Normal,
+                style: FontStyle::Normal,
+            },
+            color: color::BLACK,
+            size: 11.0,
+            alpha: 1.0,
+            hjust: 0.0,  // Left edge at point (text extends right)
+            vjust: 1.0,  // Top at point (text extends down/below point in visual space)
+        }
+    }
+}
+
 /// Main Theme struct
 #[derive(Clone, Debug, PartialEq)]
 pub struct Theme {
@@ -294,6 +323,7 @@ pub struct Theme {
     pub legend: LegendTheme,
     pub plot_title: PlotTitleTheme,
     pub plot_margin: Spacing,
+    pub geom_text: GeomTextTheme,
 }
 
 impl Default for Theme {
@@ -311,6 +341,7 @@ impl Default for Theme {
                 bottom: 60.0,
                 left: 70.0,
             },
+            geom_text: GeomTextTheme::default(),
         }
     }
 }
