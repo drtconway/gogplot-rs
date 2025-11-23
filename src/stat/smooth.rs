@@ -378,8 +378,72 @@ fn fit_cubic_spline(
         .collect();
     paired.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
     
-    // Create spline keys
-    let keys: Vec<Key<f64, f64>> = paired
+    // For smoothing, use fewer knots than data points
+    // Use approximately 12-18 evenly spaced knots across the range
+    let num_knots = (n / 17).clamp(12, 18);
+    let mut smoothed_keys: Vec<(f64, f64)> = Vec::new();
+    
+    let x_min = paired[0].0;
+    let x_max = paired[paired.len() - 1].0;
+    let x_range = x_max - x_min;
+    
+    // Add extra knot near the start for some boundary flexibility
+    smoothed_keys.push(paired[0]);
+    
+    // Add one point near the start (within first 5% of range)
+    let target_x = x_min + x_range * 0.05;
+    let idx = paired.iter()
+        .enumerate()
+        .min_by(|(_, (x1, _)), (_, (x2, _))| {
+            (x1 - target_x).abs().partial_cmp(&(x2 - target_x).abs()).unwrap()
+        })
+        .map(|(i, _)| i)
+        .unwrap();
+    if !smoothed_keys.contains(&paired[idx]) {
+        smoothed_keys.push(paired[idx]);
+    }
+    
+    // Add evenly spaced knots across the range
+    for i in 1..num_knots {
+        let frac = i as f64 / num_knots as f64;
+        let target_x = x_min + x_range * frac;
+        
+        let idx = paired.iter()
+            .enumerate()
+            .min_by(|(_, (x1, _)), (_, (x2, _))| {
+                (x1 - target_x).abs().partial_cmp(&(x2 - target_x).abs()).unwrap()
+            })
+            .map(|(i, _)| i)
+            .unwrap();
+        
+        if !smoothed_keys.contains(&paired[idx]) {
+            smoothed_keys.push(paired[idx]);
+        }
+    }
+    
+    // Add one point near the end (within last 5% of range)
+    let target_x = x_min + x_range * 0.95;
+    let idx = paired.iter()
+        .enumerate()
+        .min_by(|(_, (x1, _)), (_, (x2, _))| {
+            (x1 - target_x).abs().partial_cmp(&(x2 - target_x).abs()).unwrap()
+        })
+        .map(|(i, _)| i)
+        .unwrap();
+    if !smoothed_keys.contains(&paired[idx]) {
+        smoothed_keys.push(paired[idx]);
+    }
+    
+    // Ensure last point is included
+    if smoothed_keys.last() != Some(&paired[paired.len() - 1]) {
+        smoothed_keys.push(paired[paired.len() - 1]);
+    }
+    
+    // Sort by x value to ensure proper spline construction
+    smoothed_keys.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+    
+    // Create spline keys from smoothed points
+    let keys: Vec<Key<f64, f64>> = smoothed_keys
         .iter()
         .map(|(x, y)| Key::new(*x, *y, Interpolation::CatmullRom))
         .collect();
@@ -401,24 +465,77 @@ fn fit_cubic_spline(
         }
     }
     
-    // Compute residual-based confidence intervals
-    // For splines, we compute residuals at the original data points
-    // and use local variance estimates for confidence bands
+    // Compute confidence intervals using local residual variance
+    // Similar to LOESS approach but using spline predictions
     
-    // Calculate residuals from spline fit at original data points
-    let mut residuals = Vec::with_capacity(n);
+    let x_sorted: Vec<f64> = paired.iter().map(|(x, _)| *x).collect();
+    let y_sorted: Vec<f64> = paired.iter().map(|(_, y)| *y).collect();
+    
+    // Choose neighborhood size (similar to LOESS span concept)
+    // Use about 50% of data for local variance estimation (wider than LOESS to account for smoothing)
+    let q = ((n as f64 * 0.5).max(3.0) as usize).min(n);
+    
+    // Compute local variance at each prediction point
+    let mut residuals_at_pred = Vec::with_capacity(x_pred.len());
+    
+    for &x0 in x_pred {
+        // Find q nearest neighbors
+        let mut distances: Vec<(usize, f64)> = x_sorted.iter().enumerate()
+            .map(|(i, &x)| (i, (x - x0).abs()))
+            .collect();
+        distances.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+        
+        let neighbors = &distances[..q];
+        let max_dist = neighbors.last().unwrap().1.max(1e-10);
+        
+        // Compute tricube weights for local variance
+        let weights: Vec<f64> = neighbors.iter()
+            .map(|(_, d)| {
+                let u = d / max_dist;
+                if u < 1.0 {
+                    let t = 1.0 - u.powi(3);
+                    t.powi(3)
+                } else {
+                    0.0
+                }
+            })
+            .collect();
+        
+        // Compute weighted local variance
+        let mut sum_w = 0.0;
+        let mut local_var = 0.0;
+        
+        for (j, &(i, _)) in neighbors.iter().enumerate() {
+            let w = weights[j];
+            let x = x_sorted[i];
+            let y = y_sorted[i];
+            
+            // Get spline prediction at this data point
+            if let Some(y_fit) = spline.sample(x) {
+                let residual = y - y_fit;
+                local_var += w * residual * residual;
+                sum_w += w;
+            }
+        }
+        
+        if sum_w > 0.0 {
+            local_var /= sum_w;
+        }
+        
+        residuals_at_pred.push(local_var.sqrt());
+    }
+    
+    // Compute global residual standard error
+    let mut all_residuals = Vec::with_capacity(n);
     for (x, y) in &paired {
         if let Some(y_fit) = spline.sample(*x) {
-            residuals.push(y - y_fit);
+            all_residuals.push(y - y_fit);
         }
     }
     
-    // Compute residual standard error
-    let sse: f64 = residuals.iter().map(|r| r.powi(2)).sum();
-    let df = (n as i32 - 4).max(1) as f64;  // degrees of freedom for cubic spline
-    let rse = (sse / df).sqrt();
+    let rse = (all_residuals.iter().map(|r| r.powi(2)).sum::<f64>() / (n - 4) as f64).sqrt();
     
-    // Use approximate z-value for confidence bands
+    // Use t-value approximation for confidence bands
     let z = match level {
         l if l >= 0.99 => 2.576,
         l if l >= 0.95 => 1.96,
@@ -426,30 +543,17 @@ fn fit_cubic_spline(
         _ => 1.96,
     };
     
-    // For each prediction point, compute local standard error based on
-    // distance to nearest data points (splines have higher uncertainty between points)
-    let mut se_vec = Vec::with_capacity(x_pred.len());
-    let mut ymin = Vec::with_capacity(x_pred.len());
-    let mut ymax = Vec::with_capacity(x_pred.len());
+    // Combine global and local uncertainty (same as LOESS)
+    let se_vec: Vec<f64> = residuals_at_pred.iter()
+        .map(|&local_se| (rse.powi(2) + local_se.powi(2)).sqrt())
+        .collect();
     
-    let x_data_vec: Vec<f64> = paired.iter().map(|(x, _)| *x).collect();
-    
-    for (&x, &y) in x_pred.iter().zip(y_pred.iter()) {
-        // Find distance to nearest data point (normalized by data range)
-        let x_range = x_data_vec.last().unwrap() - x_data_vec.first().unwrap();
-        let min_dist = x_data_vec.iter()
-            .map(|&x_data| ((x - x_data) / x_range).abs())
-            .fold(f64::INFINITY, f64::min);
-        
-        // Increase uncertainty for points far from data (interpolation vs extrapolation)
-        // Use a factor that increases uncertainty smoothly with distance
-        let dist_factor = 1.0 + min_dist * 3.0;  // Increase SE by up to 3x for distant points
-        let se_local = rse * dist_factor;
-        
-        se_vec.push(se_local);
-        ymin.push(y - z * se_local);
-        ymax.push(y + z * se_local);
-    }
+    let ymin: Vec<f64> = y_pred.iter().zip(se_vec.iter())
+        .map(|(&y, &se)| y - z * se)
+        .collect();
+    let ymax: Vec<f64> = y_pred.iter().zip(se_vec.iter())
+        .map(|(&y, &se)| y + z * se)
+        .collect();
     
     Ok((y_pred, ymin, ymax, se_vec))
 }
