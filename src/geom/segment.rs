@@ -1,7 +1,7 @@
 use super::{Geom, IntoLayer, RenderContext};
 use crate::aesthetics::{AesValue, Aesthetic};
 use crate::data::PrimitiveValue;
-use crate::error::{DataType, PlotError};
+use crate::error::PlotError;
 
 /// Geometry for drawing line segments.
 ///
@@ -112,20 +112,20 @@ impl Geom for GeomSegment {
     }
 
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
-        use crate::data::VectorType;
+        use crate::visuals::LineStyle;
 
         // Get all aesthetic iterators
-        let x_normalized = ctx.get_aesthetic_values(Aesthetic::X, ctx.scales.x.as_deref())?;
-        let y_normalized = ctx.get_aesthetic_values(Aesthetic::Y, ctx.scales.y.as_deref())?;
-        let xend_normalized = ctx.get_aesthetic_values(Aesthetic::XEnd, ctx.scales.x.as_deref())?;
-        let yend_normalized = ctx.get_aesthetic_values(Aesthetic::YEnd, ctx.scales.y.as_deref())?;
+        let x_normalized = ctx.get_x_aesthetic_values(Aesthetic::X)?;
+        let y_normalized = ctx.get_y_aesthetic_values(Aesthetic::Y)?;
+        let xend_normalized = ctx.get_x_aesthetic_values(Aesthetic::XEnd)?;
+        let yend_normalized = ctx.get_y_aesthetic_values(Aesthetic::YEnd)?;
         let colors = ctx.get_color_values()?;
-        let alphas = ctx.get_aesthetic_values(Aesthetic::Alpha, None)?;
-        let sizes = ctx.get_aesthetic_values(Aesthetic::Size, None)?;
+        let alphas = ctx.get_unscaled_aesthetic_values(Aesthetic::Alpha)?;
+        let sizes = ctx.get_unscaled_aesthetic_values(Aesthetic::Size)?;
 
         // Get constant linetype if set
         let constant_linetype = if let Some(AesValue::Constant(PrimitiveValue::Str(pattern))) =
-            ctx.mapping.get(&Aesthetic::Linetype)
+            ctx.mapping().get(&Aesthetic::Linetype)
         {
             Some(pattern.clone())
         } else {
@@ -134,29 +134,17 @@ impl Geom for GeomSegment {
 
         // Collect linetype column values if mapped
         let linetype_vec =
-            if let Some(AesValue::Column(col)) = ctx.mapping.get(&Aesthetic::Linetype) {
+            if let Some(AesValue::Column(col)) = ctx.mapping().get(&Aesthetic::Linetype) {
                 let vec = ctx
-                    .data
+                    .data()
                     .get(col.as_str())
                     .ok_or_else(|| PlotError::missing_column(col))?;
-                if let VectorType::Str = vec.vtype() {
-                    Some(
-                        vec.iter_str()
-                            .ok_or_else(|| {
-                                PlotError::InvalidAestheticType {
-                                    aesthetic: Aesthetic::Linetype,
-                                    expected: DataType::Vector(VectorType::Str),
-                                    actual: DataType::Custom("unknown".to_string()),
-                                }
-                            })?
-                            .map(|s| s.to_string())
-                            .collect::<Vec<_>>(),
-                    )
-                } else {
-                    None
-                }
+                vec.iter_str()
+                    .ok_or_else(|| PlotError::invalid_column_type(col, "string"))?
+                    .map(|s| s.to_string())
+                    .collect::<Vec<_>>()
             } else {
-                None
+                Vec::new()
             };
 
         // Zip all iterators together
@@ -181,9 +169,8 @@ impl Geom for GeomSegment {
             ctx.cairo.set_line_width(size);
 
             // Apply line style
-            use crate::visuals::LineStyle;
-            let pattern = if let Some(ref vec) = linetype_vec {
-                vec.get(i).map(|s| s.as_str())
+            let pattern = if !linetype_vec.is_empty() {
+                linetype_vec.get(i).map(|s| s.as_str())
             } else {
                 constant_linetype.as_deref()
             };

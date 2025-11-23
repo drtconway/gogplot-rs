@@ -4,6 +4,7 @@ use crate::error::PlotError;
 use crate::layer::{Layer, Stat};
 use crate::stat::bin::Bin;
 use crate::stat::count::Count;
+use crate::stat::density::Density;
 use crate::stat::summary::Summary;
 use crate::stat::StatTransform;
 
@@ -62,6 +63,14 @@ pub fn apply_stats(
                     strategy: strategy.clone(),
                 };
                 let stat_result = bin_stat.apply(data, &merged_mapping)?;
+                if let Some((transformed_data, new_mapping)) = stat_result {
+                    layers[i].computed_data = Some(transformed_data);
+                    layers[i].computed_mapping = Some(new_mapping);
+                }
+            }
+            Stat::Density { adjust, n } => {
+                let density_stat = Density::new().adjust(*adjust).n(*n);
+                let stat_result = density_stat.apply(data, &merged_mapping)?;
                 if let Some((transformed_data, new_mapping)) = stat_result {
                     layers[i].computed_data = Some(transformed_data);
                     layers[i].computed_mapping = Some(new_mapping);

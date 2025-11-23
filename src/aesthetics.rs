@@ -133,6 +133,10 @@ impl AesMap {
         self.map.iter()
     }
 
+    pub fn contains(&self, aes: Aesthetic) -> bool {
+        self.map.contains_key(&aes)
+    }
+
     // Convenience methods for column mappings
     pub fn x(&mut self, column: impl Into<String>) {
         self.set_to_column(Aesthetic::X, column);

@@ -57,7 +57,10 @@ pub trait GeomBuilder {
 
         let (geom, layer_aes, stat) = layer_geom.into_parts();
         let mut layer = geom.into_layer();
-        layer.stat = stat;
+        // Only override the stat if it's not Identity (preserve geom defaults)
+        if !matches!(stat, crate::layer::Stat::Identity) {
+            layer.stat = stat;
+        }
         // Merge layer-specific aesthetics
         for (aesthetic, value) in layer_aes.iter() {
             layer.mapping.set(*aesthetic, value.clone());
@@ -79,7 +82,10 @@ pub trait GeomBuilder {
 
         let (geom, layer_aes, stat) = layer_geom.into_parts();
         let mut layer = geom.into_layer();
-        layer.stat = stat;
+        // Only override the stat if it's not Identity (preserve geom defaults)
+        if !matches!(stat, crate::layer::Stat::Identity) {
+            layer.stat = stat;
+        }
         // Merge layer-specific aesthetics
         for (aesthetic, value) in layer_aes.iter() {
             layer.mapping.set(*aesthetic, value.clone());
@@ -111,7 +117,10 @@ pub trait GeomBuilder {
 
         let (geom, layer_aes, stat) = layer_geom.into_parts();
         let mut layer = geom.into_layer();
-        layer.stat = stat;
+        // Only override the stat if it's not Identity (preserve geom defaults)
+        if !matches!(stat, crate::layer::Stat::Identity) {
+            layer.stat = stat;
+        }
         // Merge layer-specific aesthetics
         for (aesthetic, value) in layer_aes.iter() {
             layer.mapping.set(*aesthetic, value.clone());
@@ -146,7 +155,10 @@ pub trait GeomBuilder {
 
         let (geom, layer_aes, stat) = layer_geom.into_parts();
         let mut layer = geom.into_layer();
-        layer.stat = stat;
+        // Only override the stat if it's not Identity (preserve geom defaults)
+        if !matches!(stat, crate::layer::Stat::Identity) {
+            layer.stat = stat;
+        }
         // Merge layer-specific aesthetics
         for (aesthetic, value) in layer_aes.iter() {
             layer.mapping.set(*aesthetic, value.clone());
@@ -181,7 +193,10 @@ pub trait GeomBuilder {
 
         let (geom, layer_aes, stat) = layer_geom.into_parts();
         let mut layer = geom.into_layer();
-        layer.stat = stat;
+        // Only override the stat if it's not Identity (preserve geom defaults)
+        if !matches!(stat, crate::layer::Stat::Identity) {
+            layer.stat = stat;
+        }
         // Merge layer-specific aesthetics
         for (aesthetic, value) in layer_aes.iter() {
             layer.mapping.set(*aesthetic, value.clone());
@@ -227,7 +242,10 @@ pub trait GeomBuilder {
 
         let (geom, layer_aes, stat) = layer_geom.into_parts();
         let mut layer = geom.into_layer();
-        layer.stat = stat;
+        // Only override the stat if it's not Identity (preserve geom defaults)
+        if !matches!(stat, crate::layer::Stat::Identity) {
+            layer.stat = stat;
+        }
         // Merge layer-specific aesthetics
         for (aesthetic, value) in layer_aes.iter() {
             layer.mapping.set(*aesthetic, value.clone());
@@ -275,7 +293,10 @@ pub trait GeomBuilder {
 
         let (geom, layer_aes, stat) = layer_geom.into_parts();
         let mut layer = geom.into_layer();
-        layer.stat = stat;
+        // Only override the stat if it's not Identity (preserve geom defaults)
+        if !matches!(stat, crate::layer::Stat::Identity) {
+            layer.stat = stat;
+        }
         // Merge layer-specific aesthetics
         for (aesthetic, value) in layer_aes.iter() {
             layer.mapping.set(*aesthetic, value.clone());
@@ -323,7 +344,10 @@ pub trait GeomBuilder {
 
         let (geom, layer_aes, stat) = layer_geom.into_parts();
         let mut layer = geom.into_layer();
-        layer.stat = stat;
+        // Only override the stat if it's not Identity (preserve geom defaults)
+        if !matches!(stat, crate::layer::Stat::Identity) {
+            layer.stat = stat;
+        }
         // Merge layer-specific aesthetics
         for (aesthetic, value) in layer_aes.iter() {
             layer.mapping.set(*aesthetic, value.clone());
@@ -378,7 +402,10 @@ pub trait GeomBuilder {
 
         let (geom, layer_aes, stat) = layer_geom.into_parts();
         let mut layer = geom.into_layer();
-        layer.stat = stat;
+        // Only override the stat if it's not Identity (preserve geom defaults)
+        if !matches!(stat, crate::layer::Stat::Identity) {
+            layer.stat = stat;
+        }
         // Merge layer-specific aesthetics
         for (aesthetic, value) in layer_aes.iter() {
             layer.mapping.set(*aesthetic, value.clone());

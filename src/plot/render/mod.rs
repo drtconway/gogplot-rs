@@ -173,26 +173,15 @@ pub fn render_with_context(
 
     // Render each layer
     for layer in layers {
-        // Use computed data if available, otherwise use original data
-        let layer_data: &dyn DataSource = if let Some(ref computed) = layer.computed_data {
-            computed.as_ref()
-        } else {
-            match &layer.data {
-                Some(d) => d.as_ref(),
-                None => match data {
-                    Some(d) => d,
-                    None => return Err(PlotError::NoDataSource),
-                },
-            }
-        };
-
-        // Use computed mapping if available, otherwise use original mapping
-        let mapping = layer.computed_mapping.as_ref().unwrap_or(&layer.mapping);
+        // Check that layer has data (either computed or original, or use plot-level data)
+        if layer.computed_data.is_none() && layer.data.is_none() && data.is_none() {
+            return Err(PlotError::NoDataSource);
+        }
 
         let mut render_ctx = RenderContext::new(
             ctx,
-            layer_data,
-            mapping,
+            layer,
+            data,
             scales,
             (plot_x0, plot_x1),
             (plot_y1, plot_y0),

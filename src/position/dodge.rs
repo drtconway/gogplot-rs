@@ -6,7 +6,7 @@ use crate::data::{DataSource, PrimitiveValue};
 use crate::error::{DataType, PlotError};
 use crate::scale::ContinuousScale;
 use crate::utils::dataframe::{DataFrame, FloatVec};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 /// Dodge position adjustment
 ///
@@ -23,7 +23,7 @@ impl Default for Dodge {
     fn default() -> Self {
         Self {
             width: None,
-            padding: 0.1,
+            padding: 0.1,  // 10% padding between bars within a cluster
         }
     }
 }
@@ -116,12 +116,14 @@ impl PositionAdjust for Dodge {
             w
         } else {
             // Auto-detect: find minimum distance between x values, use 90% of that
-            self.auto_detect_width(&x_values, scales.x.as_ref())
+            let detected = self.auto_detect_width(&x_values, scales.x.as_ref());
+            // Clamp to reasonable range to prevent absurdly wide bars
+            detected.min(0.15)  // Max 15% of normalized space per bar cluster
         };
 
         // Group data by x position and group
-        // Map: x_key -> Vec<group_key>
-        let mut x_to_groups: HashMap<String, Vec<String>> = HashMap::new();
+        // Map: x_key -> Vec<group_key>  (BTreeMap for deterministic ordering)
+        let mut x_to_groups: BTreeMap<String, Vec<String>> = BTreeMap::new();
         
         for (i, x_val) in x_values.iter().enumerate() {
             let x_key = format!("{:?}", x_val);
@@ -138,15 +140,18 @@ impl PositionAdjust for Dodge {
             groups.sort();
         }
 
+
+
         // Calculate xmin and xmax for each row
         let mut xmin_vals = Vec::with_capacity(n_rows);
         let mut xmax_vals = Vec::with_capacity(n_rows);
+        let mut x_centers = Vec::with_capacity(n_rows);
 
-        // Get the x scale for mapping values
+        // Get the x scale for mapping values to visual/normalized space
         let x_scale = scales.x.as_ref();
         
         for (i, x_val) in x_values.iter().enumerate() {
-            // Map x value through the scale to get normalized position
+            // Map x value through the scale to get normalized position (visual space)
             let x_center = if let Some(scale) = x_scale {
                 match x_val {
                     PrimitiveValue::Float(f) => scale.map_value(*f).unwrap_or(0.0),
@@ -165,53 +170,83 @@ impl PositionAdjust for Dodge {
             let n_groups = groups.len() as f64;
             let group_index = groups.iter().position(|g| g == group_key).unwrap() as f64;
             
-            // Width of each individual bar
+            // Width of each individual bar (in visual space)
             let individual_width = bar_width / n_groups;
             let padded_width = individual_width * (1.0 - self.padding);
             
-            // Calculate position
+            // Calculate position in visual/normalized space
             // Start from left edge of the total bar width
             let left_edge = x_center - bar_width / 2.0;
             let bar_left = left_edge + group_index * individual_width;
             let bar_center = bar_left + individual_width / 2.0;
             
-            let xmin = bar_center - padded_width / 2.0;
-            let xmax = bar_center + padded_width / 2.0;
+            let xmin_norm = bar_center - padded_width / 2.0;
+            let xmax_norm = bar_center + padded_width / 2.0;
             
-            xmin_vals.push(xmin);
-            xmax_vals.push(xmax);
+            // Convert normalized positions back to data space using inverse scale
+            let xmin_data = if let Some(scale) = x_scale {
+                scale.inverse(xmin_norm)
+            } else {
+                xmin_norm
+            };
+            
+            let xmax_data = if let Some(scale) = x_scale {
+                scale.inverse(xmax_norm)
+            } else {
+                xmax_norm
+            };
+            
+            x_centers.push(x_center);
+            xmin_vals.push(xmin_data);
+            xmax_vals.push(xmax_data);
         }
 
-        // Create new dataframe with all original columns plus xmin/xmax
+        // Create sorted index: sort by x center position, then by group (for deterministic order)
+        let mut indices: Vec<usize> = (0..n_rows).collect();
+        indices.sort_by(|&a, &b| {
+            // First compare by x center positions
+            let x_cmp = x_centers[a].partial_cmp(&x_centers[b]).unwrap_or(std::cmp::Ordering::Equal);
+            if x_cmp != std::cmp::Ordering::Equal {
+                return x_cmp;
+            }
+            // Then by group key for stable ordering
+            composite_keys[a].cmp(&composite_keys[b])
+        });
+
+        // Create new dataframe with all original columns plus xmin/xmax, in sorted order
         let mut new_df = DataFrame::new();
         
-        // Copy all original columns
+        // Copy all original columns in sorted order
         use crate::utils::dataframe::{IntVec, StrVec};
         for col_name in data.column_names() {
             let col = data.get(col_name.as_str()).unwrap();
             
             let new_col: Box<dyn crate::data::GenericVector> = if let Some(int_iter) = col.iter_int() {
-                Box::new(IntVec(int_iter.collect()))
+                let vals: Vec<i64> = int_iter.collect();
+                Box::new(IntVec(indices.iter().map(|&i| vals[i]).collect()))
             } else if let Some(float_iter) = col.iter_float() {
-                Box::new(FloatVec(float_iter.collect()))
+                let vals: Vec<f64> = float_iter.collect();
+                Box::new(FloatVec(indices.iter().map(|&i| vals[i]).collect()))
             } else if let Some(str_iter) = col.iter_str() {
-                Box::new(StrVec(str_iter.map(|s| s.to_string()).collect()))
+                let vals: Vec<String> = str_iter.map(|s| s.to_string()).collect();
+                Box::new(StrVec(indices.iter().map(|&i| vals[i].clone()).collect()))
             } else {
                 continue;
             };
             new_df.add_column(&col_name, new_col);
         }
 
-        // Add xmin and xmax columns
-        new_df.add_column("xmin", Box::new(FloatVec(xmin_vals)));
-        new_df.add_column("xmax", Box::new(FloatVec(xmax_vals)));
+        // Add xmin and xmax columns in sorted order
+        new_df.add_column("xmin", Box::new(FloatVec(indices.iter().map(|&i| xmin_vals[i]).collect())));
+        new_df.add_column("xmax", Box::new(FloatVec(indices.iter().map(|&i| xmax_vals[i]).collect())));
 
         // Update mapping to use xmin and xmax
         let mut new_mapping = mapping.clone();
         new_mapping.set(Aesthetic::Xmin, AesValue::column("xmin"));
         new_mapping.set(Aesthetic::Xmax, AesValue::column("xmax"));
 
-        // TODO: Transform scales instead of outputting xmin/xmax columns
+        // xmin/xmax are now in data space, so no need for computed_scales
+        // The normal scale pipeline will handle the transformation to normalized space
         Ok(Some((Box::new(new_df), new_mapping, None)))
     }
 }
@@ -235,9 +270,9 @@ impl Dodge {
         }
     }
 
-    /// Auto-detect bar width from spacing between x values
+    /// Auto-detect bar width from spacing between x values (in visual/normalized space)
     fn auto_detect_width(&self, x_values: &[PrimitiveValue], x_scale: Option<&Box<dyn ContinuousScale>>) -> f64 {
-        // Get unique x values mapped through scale
+        // Get unique x values mapped through scale to visual space
         let mut unique_x: Vec<f64> = x_values
             .iter()
             .filter_map(|v| {
@@ -257,8 +292,8 @@ impl Dodge {
         unique_x.dedup();
 
         if unique_x.len() < 2 {
-            // Only one x value, use default width
-            return 0.9;
+            // Only one x value, use small default width (5% of normalized space)
+            return 0.05;
         }
 
         // Find minimum distance
@@ -270,7 +305,7 @@ impl Dodge {
             }
         }
 
-        // Use 90% of minimum distance as bar width
+        // Use 90% of spacing to leave 10% gap between bar clusters at different x positions
         min_dist * 0.9
     }
 }

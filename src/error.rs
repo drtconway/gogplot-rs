@@ -254,3 +254,13 @@ impl From<VectorType> for DataType {
         DataType::Vector(vtype)
     }
 }
+
+/// Helper function to convert Cairo errors to PlotError
+/// 
+/// # Example
+/// ```ignore
+/// ctx.cairo.stroke().map_err(to_plot_error)?;
+/// ```
+pub fn to_plot_error(err: cairo::Error) -> PlotError {
+    PlotError::render_error("cairo operation", format!("{}", err))
+}

@@ -10,6 +10,7 @@ pub enum Stat {
     Identity,
     Count,
     Bin(crate::stat::bin::CumulativeBinStrategy),
+    Density { adjust: f64, n: usize },
     Summary(Vec<crate::aesthetics::Aesthetic>),
     Smooth,
     // Add more as needed

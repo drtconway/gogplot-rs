@@ -1,4 +1,7 @@
-use crate::error::PlotError;
+use crate::aesthetics::{AesMap, AesValue, Aesthetic};
+use crate::data::DataSource;
+use crate::error::{DataType, PlotError};
+use crate::stat::StatTransform;
 use crate::utils::dataframe::{DataFrame, FloatVec};
 
 /// Kernel density estimation stat
@@ -105,6 +108,52 @@ impl Density {
         result.add_column("n", Box::new(FloatVec(vec![n_obs; self.n])));
 
         Ok(result)
+    }
+}
+
+impl StatTransform for Density {
+    fn apply(
+        &self,
+        data: Box<dyn DataSource>,
+        mapping: &AesMap,
+    ) -> Result<Option<(Box<dyn DataSource>, AesMap)>, PlotError> {
+        // Get the x aesthetic - this is required for density
+        let x_mapping = mapping.get(&Aesthetic::X).ok_or_else(|| {
+            PlotError::missing_stat_input("Density", Aesthetic::X)
+        })?;
+
+        // Only support column mappings for now
+        let x_col_name = match x_mapping {
+            AesValue::Column(name) => name,
+            _ => {
+                return Err(PlotError::InvalidAestheticType {
+                    aesthetic: Aesthetic::X,
+                    expected: DataType::ColumnMapping,
+                    actual: DataType::Custom("constant".to_string()),
+                });
+            }
+        };
+
+        // Get the x column from data
+        let x_col = data.get(x_col_name.as_str()).ok_or_else(|| {
+            PlotError::missing_column(x_col_name.as_str())
+        })?;
+
+        // Extract float values
+        let x_values: Vec<f64> = x_col
+            .iter_float()
+            .ok_or_else(|| PlotError::invalid_column_type(x_col_name.as_str(), "float"))?
+            .collect();
+
+        // Compute density
+        let computed = self.compute(&x_values)?;
+
+        // Update the mapping to use the computed density column for y
+        let mut new_mapping = mapping.clone();
+        new_mapping.set(Aesthetic::Y, AesValue::column("density"));
+        new_mapping.set(Aesthetic::X, AesValue::column("x"));
+
+        Ok(Some((Box::new(computed), new_mapping)))
     }
 }
 

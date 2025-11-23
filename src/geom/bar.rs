@@ -1,7 +1,10 @@
+
+
 use super::{Geom, IntoLayer, RenderContext};
 use crate::aesthetics::{AesValue, Aesthetic};
 use crate::data::PrimitiveValue;
 use crate::error::{DataType, PlotError};
+use crate::geom::context::compute_min_spacing;
 use crate::layer::{Position, Stat};
 
 /// GeomBar renders bars from y=0 to y=value
@@ -240,174 +243,150 @@ impl Geom for GeomBar {
     }
 
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
-        // Check if we have Ymin/Ymax (from position adjustment like Stack)
-        let has_ymin_ymax = ctx.data.get("ymin").is_some() && ctx.data.get("ymax").is_some();
+        let mapping = ctx.mapping();
         
-        // Check if we have Xmin/Xmax (from position adjustment like Dodge)
-        let has_xmin_xmax = ctx.data.get("xmin").is_some() && ctx.data.get("xmax").is_some();
+        // Determine if we have range aesthetics
+        let has_x_range = mapping.contains(Aesthetic::Xmin) && mapping.contains(Aesthetic::Xmax);
+        let has_y_range = mapping.contains(Aesthetic::Ymin) && mapping.contains(Aesthetic::Ymax);
         
-        // Get aesthetic values
-        let x_normalized = if !has_xmin_xmax {
-            Some(ctx.get_aesthetic_values(Aesthetic::X, ctx.scales.x.as_deref())?)
+        // Calculate bar half-width in normalized space (only if not using xmin/xmax)
+        let bar_half_width_norm = if !has_x_range {
+            // Use sorted unique x values to determine spacing
+           compute_min_spacing(ctx.get_x_aesthetic_values(Aesthetic::X)?, self.width)
         } else {
-            None
+            0.0 // Not used when xmin/xmax provided
         };
         
-        let (xmin_normalized, xmax_normalized) = if has_xmin_xmax {
-            // Xmin/Xmax are already in normalized [0,1] space from position adjustment
-            // Don't map them through the scale again (that would be double-mapping!)
-            let xmin = ctx.get_aesthetic_values(Aesthetic::Xmin, None)?;
-            let xmax = ctx.get_aesthetic_values(Aesthetic::Xmax, None)?;
-            (Some(xmin), Some(xmax))
-        } else {
-            (None, None)
-        };
-        
-        let (ymin_normalized, ymax_normalized) = if has_ymin_ymax {
-            // Use Ymin/Ymax for stacked bars
-            let ymin = ctx.get_aesthetic_values(Aesthetic::Ymin, ctx.scales.y.as_deref())?;
-            let ymax = ctx.get_aesthetic_values(Aesthetic::Ymax, ctx.scales.y.as_deref())?;
-            (Some(ymin), Some(ymax))
-        } else {
-            (None, None)
-        };
-        
-        let y_normalized = if !has_ymin_ymax {
-            Some(ctx.get_aesthetic_values(Aesthetic::Y, ctx.scales.y.as_deref())?)
-        } else {
-            None
-        };
-        
-        let fills = ctx.get_fill_color_values()?;
-        let colors = ctx.get_color_values()?;
-        let alphas = ctx.get_aesthetic_values(Aesthetic::Alpha, None)?;
-
-        // Collect x values to compute bar width
-        let (x_norm_vec, xmin_norm_vec, xmax_norm_vec) = if has_xmin_xmax {
-            let xmin_vec: Vec<f64> = xmin_normalized.unwrap().collect();
-            let xmax_vec: Vec<f64> = xmax_normalized.unwrap().collect();
-            (None, Some(xmin_vec), Some(xmax_vec))
-        } else {
-            let x_vec: Vec<f64> = x_normalized.unwrap().collect();
-            (Some(x_vec), None, None)
-        };
-        
-        let (ymin_norm_vec, ymax_norm_vec, y_norm_vec) = if has_ymin_ymax {
-            let ymin_vec: Vec<f64> = ymin_normalized.unwrap().collect();
-            let ymax_vec: Vec<f64> = ymax_normalized.unwrap().collect();
-            (Some(ymin_vec), Some(ymax_vec), None)
-        } else {
-            let y_vec: Vec<f64> = y_normalized.unwrap().collect();
-            (None, None, Some(y_vec))
-        };
-        
-        let fills_vec: Vec<crate::theme::Color> = fills.collect();
-        let colors_vec: Vec<crate::theme::Color> = colors.collect();
-        let alphas_vec: Vec<f64> = alphas.collect();
-
-        // Calculate the width of bars based on x spacing (only if not using xmin/xmax)
-        let bar_width_normalized = if !has_xmin_xmax {
-            let x_vec = x_norm_vec.as_ref().unwrap();
-            if x_vec.len() > 1 {
-                // Find minimum spacing between consecutive x values
-                let mut min_spacing = f64::INFINITY;
-                let mut sorted_x = x_vec.clone();
-                sorted_x.sort_by(|a, b| a.partial_cmp(b).unwrap());
-
-                for i in 1..sorted_x.len() {
-                    let spacing = sorted_x[i] - sorted_x[i - 1];
-                    if spacing > 0.0 && spacing < min_spacing {
-                        min_spacing = spacing;
-                    }
-                }
-
-                if min_spacing.is_finite() {
-                    min_spacing * self.width
-                } else {
-                    0.1 // Fallback width
-                }
-            } else {
-                0.1 // Single bar fallback width
-            }
-        } else {
-            0.0 // Not used when xmin/xmax are provided
-        };
-
-        // Get y=0 in normalized coordinates (for non-stacked bars)
-        let zero_normalized = if let Some(y_scale) = ctx.scales.y.as_deref() {
+        // Get y=0 baseline in normalized coordinates
+        let y_baseline = if let Some(y_scale) = ctx.scales.y.as_deref() {
             y_scale.map_value(0.0).unwrap_or(0.0)
         } else {
             0.0
         };
-
-        // Render bars
-        let mut n = if has_xmin_xmax {
-            xmin_norm_vec.as_ref().unwrap().len()
+        
+        // Get x value iterators (center or min/max)
+        let x_vals = if has_x_range {
+            ctx.get_x_aesthetic_values(Aesthetic::Xmin)?
         } else {
-            x_norm_vec.as_ref().unwrap().len()
+            ctx.get_x_aesthetic_values(Aesthetic::X)?
         };
         
-        // Ensure aesthetic vectors match data length
-        n = n.min(fills_vec.len()).min(colors_vec.len()).min(alphas_vec.len());
-        
-        if has_ymin_ymax {
-            let ymin_len = ymin_norm_vec.as_ref().unwrap().len();
-            let ymax_len = ymax_norm_vec.as_ref().unwrap().len();
-            n = n.min(ymin_len).min(ymax_len);
+        let x_max_vals = if has_x_range {
+            Some(ctx.get_x_aesthetic_values(Aesthetic::Xmax)?)
         } else {
-            let y_len = y_norm_vec.as_ref().unwrap().len();
-            n = n.min(y_len);
-        }
+            None
+        };
         
-        for i in 0..n {
-            let fill = fills_vec[i];
-            let color = colors_vec[i];
-            let alpha = alphas_vec[i];
-            
-            // Determine y_top and y_bottom based on whether we're stacking
-            let (y_top_norm, y_bottom_norm) = if has_ymin_ymax {
-                (ymax_norm_vec.as_ref().unwrap()[i], ymin_norm_vec.as_ref().unwrap()[i])
+        // Get y value iterators (top or min/max)
+        let y_vals = if has_y_range {
+            ctx.get_y_aesthetic_values(Aesthetic::Ymin)?
+        } else {
+            ctx.get_y_aesthetic_values(Aesthetic::Y)?
+        };
+        
+        let y_max_vals = if has_y_range {
+            Some(ctx.get_y_aesthetic_values(Aesthetic::Ymax)?)
+        } else {
+            None
+        };
+        
+        // Get styling aesthetic iterators
+        let fills = ctx.get_fill_color_values()?;
+        let colors = ctx.get_color_values()?;
+        let alphas = ctx.get_unscaled_aesthetic_values(Aesthetic::Alpha)?;
+        
+        // Build the combined iterator based on whether we have range aesthetics
+        let iter: Box<dyn Iterator<Item = (f64, Option<f64>, f64, Option<f64>, _, _, f64)>> = 
+            if has_x_range && has_y_range {
+                Box::new(
+                    x_vals
+                        .zip(x_max_vals.unwrap())
+                        .zip(y_vals)
+                        .zip(y_max_vals.unwrap())
+                        .zip(fills)
+                        .zip(colors)
+                        .zip(alphas)
+                        .map(|((((((x, x_max), y), y_max), fill), color), alpha)| {
+                            (x, Some(x_max), y, Some(y_max), fill, color, alpha)
+                        })
+                )
+            } else if has_x_range {
+                Box::new(
+                    x_vals
+                        .zip(x_max_vals.unwrap())
+                        .zip(y_vals)
+                        .zip(fills)
+                        .zip(colors)
+                        .zip(alphas)
+                        .map(move |(((((x, x_max), y), fill), color), alpha)| {
+                            (x, Some(x_max), y, None, fill, color, alpha)
+                        })
+                )
+            } else if has_y_range {
+                Box::new(
+                    x_vals
+                        .zip(y_vals)
+                        .zip(y_max_vals.unwrap())
+                        .zip(fills)
+                        .zip(colors)
+                        .zip(alphas)
+                        .map(move |(((((x, y), y_max), fill), color), alpha)| {
+                            (x, None, y, Some(y_max), fill, color, alpha)
+                        })
+                )
             } else {
-                (y_norm_vec.as_ref().unwrap()[i], zero_normalized)
+                Box::new(
+                    x_vals
+                        .zip(y_vals)
+                        .zip(fills)
+                        .zip(colors)
+                        .zip(alphas)
+                        .map(move |((((x, y), fill), color), alpha)| {
+                            (x, None, y, None, fill, color, alpha)
+                        })
+                )
+            };
+        
+        // Render each bar
+        for (x_val, x_max_val, y_val, y_max_val, fill, color, alpha) in iter {
+            // Compute effective xmin/xmax in normalized space
+            let (xmin_norm, xmax_norm) = if let Some(x_max) = x_max_val {
+                (x_val, x_max)
+            } else {
+                (x_val - bar_half_width_norm, x_val + bar_half_width_norm)
+            };
+            
+            // Compute effective ymin/ymax in normalized space
+            let (ymin_norm, ymax_norm) = if let Some(y_max) = y_max_val {
+                (y_val, y_max)
+            } else {
+                (y_baseline, y_val)
             };
             
             // Map to device coordinates
-            let y_top = ctx.map_y(y_top_norm);
-            let y_bottom = ctx.map_y(y_bottom_norm);
-
-            // Calculate bar position and width in device coordinates
-            let (x_left, width) = if has_xmin_xmax {
-                // Use xmin/xmax directly (from dodge position adjustment)
-                let xmin_norm = xmin_norm_vec.as_ref().unwrap()[i];
-                let xmax_norm = xmax_norm_vec.as_ref().unwrap()[i];
-                let x_left = ctx.map_x(xmin_norm);
-                let x_right = ctx.map_x(xmax_norm);
-                (x_left, (x_right - x_left).abs())
-            } else {
-                // Use x center and calculated width
-                let x_norm = x_norm_vec.as_ref().unwrap()[i];
-                let x_center = ctx.map_x(x_norm);
-                let half_width = ctx.map_x(x_norm + bar_width_normalized / 2.0)
-                    - ctx.map_x(x_norm - bar_width_normalized / 2.0);
-                let half_width = (half_width / 2.0).abs();
-                (x_center - half_width, half_width * 2.0)
-            };
-            let height = (y_bottom - y_top).abs();
+            let x_left = ctx.map_x(xmin_norm);
+            let x_right = ctx.map_x(xmax_norm);
+            let y_top = ctx.map_y(ymax_norm);
+            let y_bottom = ctx.map_y(ymin_norm);
+            
+            let x = x_left.min(x_right);
             let y = y_top.min(y_bottom);
-
+            let width = (x_right - x_left).abs();
+            let height = (y_bottom - y_top).abs();
+            
             // Fill the bar
             ctx.set_color_alpha(&fill, alpha);
-            ctx.cairo.rectangle(x_left, y, width, height);
+            ctx.cairo.rectangle(x, y, width, height);
             ctx.cairo.fill().ok();
-
+            
             // Stroke the bar if a stroke color is defined
             if self.color.is_some() {
                 ctx.set_color_alpha(&color, alpha);
-                ctx.cairo.rectangle(x_left, y, width, height);
+                ctx.cairo.rectangle(x, y, width, height);
                 ctx.cairo.stroke().ok();
             }
         }
-
+        
         Ok(())
     }
 }

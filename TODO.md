@@ -35,8 +35,29 @@
   - Domain constraints (e.g., 1e-300 for p-values)
   - Transformation-specific break generation and formatting
   
+- [ ] **Axis label formatting for small values** - Review formatting logic for scales with very small values (e.g., p-values)
+  - Current logic may not handle ranges like 1e-5 to 1e-3 optimally
+  - Check if scientific notation is consistently applied when all values are small
+  - Consider context-aware formatting based on the full range, not individual values
+  
 - [ ] **Logarithmic scales** - Have log10, need log2, natural log (easy to add with Transform trait)
 - [ ] **Date/Time scales** - Proper handling of temporal data
+- [ ] **Continuous color scales** - Implement scaling for color aesthetic
+  - Viridis, gradient, and custom continuous palettes
+  - Currently only categorical color mapping is supported
+  
+- [ ] **Continuous fill scales** - Implement scaling for fill aesthetic
+  - Same palettes as color scales
+  - Currently only categorical fill mapping is supported
+  
+- [ ] **Alpha/opacity scales** - Implement scaling for alpha aesthetic
+  - Map data values to opacity range [0,1]
+  - Currently alpha values are used directly without transformation
+  
+- [ ] **Size scales** - Implement scaling for size aesthetic
+  - Map data values to reasonable pixel sizes with min/max constraints
+  - Currently size values are used directly without transformation
+  
 - [ ] **Custom color palettes** - Beyond the basic discrete colors
   - ColorBrewer palettes
   - Viridis-style continuous palettes

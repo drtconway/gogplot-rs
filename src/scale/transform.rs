@@ -122,7 +122,9 @@ pub trait Transform: Send + Sync {
     /// A formatted string representation of the value
     fn format(&self, x: f64) -> String {
         // Default implementation: simple decimal formatting
-        if x.abs() < 0.001 || x.abs() > 9999.0 {
+        if x.abs() < 1e-10 {
+            "0".to_string()
+        } else if x.abs() < 0.001 || x.abs() > 9999.0 {
             format!("{:.2e}", x)
         } else if (x.round() - x).abs() < 1e-10 {
             format!("{:.0}", x)

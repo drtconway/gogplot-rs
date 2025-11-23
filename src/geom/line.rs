@@ -1,7 +1,7 @@
 use super::{Geom, IntoLayer, RenderContext};
 use crate::aesthetics::{AesValue, Aesthetic};
 use crate::data::PrimitiveValue;
-use crate::error::{DataType, PlotError};
+use crate::error::PlotError;
 
 /// GeomLine renders lines connecting points
 pub struct GeomLine {
@@ -97,22 +97,20 @@ impl Geom for GeomLine {
     }
 
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
-        use crate::data::VectorType;
-
         // Get x and y values
-        let x_normalized = ctx.get_aesthetic_values(Aesthetic::X, ctx.scales.x.as_deref())?;
-        let y_normalized = ctx.get_aesthetic_values(Aesthetic::Y, ctx.scales.y.as_deref())?;
+        let x_normalized = ctx.get_x_aesthetic_values(Aesthetic::X)?;
+        let y_normalized = ctx.get_y_aesthetic_values(Aesthetic::Y)?;
 
-        // Collect into vectors for sorting
+        // Collect into vectors for sorting and grouping
         let x_vals: Vec<f64> = x_normalized.collect();
         let y_vals: Vec<f64> = y_normalized.collect();
 
         // Check if we have a group aesthetic
-        let has_group = ctx.mapping.get(&Aesthetic::Group).is_some();
+        let has_group = ctx.mapping().contains(Aesthetic::Group);
 
         if has_group {
             // Get group values
-            let group_col = match ctx.mapping.get(&Aesthetic::Group) {
+            let group_col = match ctx.mapping().get(&Aesthetic::Group) {
                 Some(AesValue::Column(col)) => col,
                 _ => {
                     return Err(PlotError::MissingAesthetic {
@@ -122,27 +120,13 @@ impl Geom for GeomLine {
             };
 
             let group_vec = ctx
-                .data
+                .data()
                 .get(group_col.as_str())
                 .ok_or_else(|| PlotError::missing_column(group_col))?;
 
-            // Group strings together
-            let groups = match group_vec.vtype() {
-                VectorType::Str => group_vec.iter_str().ok_or_else(|| {
-                    PlotError::InvalidAestheticType {
-                        aesthetic: Aesthetic::Group,
-                        expected: DataType::Vector(VectorType::Str),
-                        actual: DataType::Custom("unknown".to_string()),
-                    }
-                })?,
-                _ => {
-                    return Err(PlotError::InvalidAestheticType {
-                        aesthetic: Aesthetic::Group,
-                        expected: DataType::Vector(VectorType::Str),
-                        actual: DataType::Custom("non-string".to_string()),
-                    });
-                }
-            };
+            // Get group strings
+            let groups = group_vec.iter_str()
+                .ok_or_else(|| PlotError::invalid_column_type(group_col, "string"))?;
 
             // Organize points by group
             use std::collections::HashMap;
@@ -188,14 +172,16 @@ impl GeomLine {
         ctx: &mut RenderContext,
         points: &[(f64, f64, usize)],
     ) -> Result<(), PlotError> {
+        use crate::visuals::LineStyle;
+        
         if points.is_empty() {
             return Ok(());
         }
 
-        // Get color and alpha for the line (use first point's values)
+        // Get color, alpha, and size for the line (use first point's values)
         let colors = ctx.get_color_values()?;
-        let alphas = ctx.get_aesthetic_values(Aesthetic::Alpha, None)?;
-        let sizes = ctx.get_aesthetic_values(Aesthetic::Size, None)?;
+        let alphas = ctx.get_unscaled_aesthetic_values(Aesthetic::Alpha)?;
+        let sizes = ctx.get_unscaled_aesthetic_values(Aesthetic::Size)?;
 
         let colors_vec: Vec<_> = colors.collect();
         let alphas_vec: Vec<_> = alphas.collect();
@@ -203,25 +189,20 @@ impl GeomLine {
 
         // Get linetype values if mapped
         let linetype_pattern =
-            if let Some(AesValue::Column(col)) = ctx.mapping.get(&Aesthetic::Linetype) {
+            if let Some(AesValue::Column(col)) = ctx.mapping().get(&Aesthetic::Linetype) {
                 // Get the string value from the data
                 let linetype_vec = ctx
-                    .data
+                    .data()
                     .get(col.as_str())
                     .ok_or_else(|| PlotError::missing_column(col))?;
                 if let Some(mut strs) = linetype_vec.iter_str() {
                     let idx = points[0].2;
-                    Some(
-                        strs
-                            .nth(idx)
-                            .map(|s| s.to_string())
-                            .unwrap_or_default(),
-                    )
+                    strs.nth(idx).map(|s| s.to_string())
                 } else {
                     None
                 }
             } else if let Some(AesValue::Constant(PrimitiveValue::Str(pattern))) =
-                ctx.mapping.get(&Aesthetic::Linetype)
+                ctx.mapping().get(&Aesthetic::Linetype)
             {
                 Some(pattern.clone())
             } else {
@@ -239,8 +220,7 @@ impl GeomLine {
         ctx.cairo.set_line_width(size);
 
         // Apply line style
-        use crate::visuals::LineStyle;
-        if let Some(pattern) = linetype_pattern {
+        if let Some(pattern) = &linetype_pattern {
             let style = LineStyle::from(pattern.as_str());
             style.apply(ctx.cairo);
         } else {

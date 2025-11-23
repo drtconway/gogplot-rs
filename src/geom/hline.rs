@@ -1,7 +1,7 @@
 use super::{Geom, IntoLayer, RenderContext};
 use crate::aesthetics::{AesValue, Aesthetic};
 use crate::data::PrimitiveValue;
-use crate::error::{DataType, PlotError};
+use crate::error::PlotError;
 use crate::layer::{Position, Stat};
 
 /// GeomHLine renders horizontal reference lines at specified y-intercepts
@@ -138,82 +138,51 @@ impl Geom for GeomHLine {
     }
 
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
-        // Get the y-intercept value(s) from YIntercept aesthetic
-        let y_aes = ctx.mapping.get(&Aesthetic::YIntercept)
-            .ok_or_else(|| PlotError::MissingAesthetic { aesthetic: Aesthetic::YIntercept })?;
-
-        let y_values = match y_aes {
-            AesValue::Constant(PrimitiveValue::Float(y)) => vec![*y],
-            AesValue::Constant(PrimitiveValue::Int(i)) => vec![*i as f64],
-            AesValue::Column(col) => {
-                let vec = ctx
-                    .data
-                    .get(col.as_str())
-                    .ok_or_else(|| PlotError::missing_column(col))?;
-                if let Some(floats) = vec.iter_float() {
-                    floats.collect()
-                } else if let Some(ints) = vec.iter_int() {
-                    ints.map(|i| i as f64).collect()
-                } else {
-                    return Err(PlotError::invalid_column_type(col, "numeric"));
-                }
-            }
-            _ => {
-                return Err(PlotError::InvalidAestheticType {
-                    aesthetic: Aesthetic::YIntercept,
-                    expected: DataType::Numeric,
-                    actual: DataType::Custom("invalid value".to_string()),
-                });
-            }
-        };
-
-        // Get visual properties (use first value if multiple)
+        use crate::visuals::LineStyle;
+        
+        // Get y-intercept values (scaled)
+        let y_values = ctx.get_y_aesthetic_values(Aesthetic::YIntercept)?;
+        
+        // Get visual properties
         let colors = ctx.get_color_values()?;
-        let alphas = ctx.get_aesthetic_values(Aesthetic::Alpha, None)?;
-        let sizes = ctx.get_aesthetic_values(Aesthetic::Size, None)?;
-
-        let colors_vec: Vec<_> = colors.collect();
-        let alphas_vec: Vec<_> = alphas.collect();
-        let sizes_vec: Vec<_> = sizes.collect();
-
-        let color = &colors_vec[0];
-        let alpha = alphas_vec[0];
-        let size = sizes_vec[0];
-
+        let alphas = ctx.get_unscaled_aesthetic_values(Aesthetic::Alpha)?;
+        let sizes = ctx.get_unscaled_aesthetic_values(Aesthetic::Size)?;
+        
         // Get linetype if specified
         let linetype_pattern = if let Some(AesValue::Constant(PrimitiveValue::Str(pattern))) =
-            ctx.mapping.get(&Aesthetic::Linetype)
+            ctx.mapping().get(&Aesthetic::Linetype)
         {
             Some(pattern.clone())
         } else {
             None
         };
-
-        // Set drawing properties
-        ctx.set_color_alpha(color, alpha);
-        ctx.cairo.set_line_width(size);
-
-        // Apply line style
-        use crate::visuals::LineStyle;
-        if let Some(pattern) = linetype_pattern {
+        
+        // Apply line style once
+        if let Some(pattern) = &linetype_pattern {
             let style = LineStyle::from(pattern.as_str());
             style.apply(ctx.cairo);
         } else {
             LineStyle::default().apply(ctx.cairo);
         }
-
+        
         // Draw horizontal line(s) across the full width of the plot
-        for y_data in y_values {
-            // Map y value to visual coordinates
-            if let Some(y_normalized) = ctx.scales.y.as_deref().and_then(|s| s.map_value(y_data)) {
-                let y_visual = ctx.map_y(y_normalized);
-
-                // Draw line from left to right edge of plot area
-                let (x0, x1) = ctx.x_range;
-                ctx.cairo.move_to(x0, y_visual);
-                ctx.cairo.line_to(x1, y_visual);
-                ctx.cairo.stroke().ok();
-            }
+        let (x0, x1) = ctx.x_range;
+        
+        for (((y_normalized, color), alpha), size) in y_values
+            .zip(colors)
+            .zip(alphas)
+            .zip(sizes)
+        {
+            let y_visual = ctx.map_y(y_normalized);
+            
+            // Set drawing properties for this line
+            ctx.set_color_alpha(&color, alpha);
+            ctx.cairo.set_line_width(size);
+            
+            // Draw line from left to right edge of plot area
+            ctx.cairo.move_to(x0, y_visual);
+            ctx.cairo.line_to(x1, y_visual);
+            ctx.cairo.stroke().ok();
         }
 
         Ok(())

@@ -1,8 +1,7 @@
 use super::{Geom, IntoLayer, RenderContext};
 use crate::aesthetics::{AesValue, Aesthetic};
 use crate::data::PrimitiveValue;
-use crate::error::PlotError;
-use crate::stat::density::Density as DensityStat;
+use crate::error::{PlotError, to_plot_error};
 
 /// GeomDensity renders kernel density estimates
 ///
@@ -93,6 +92,32 @@ impl IntoLayer for GeomDensity {
 
         defaults
     }
+
+    fn into_layer(self) -> crate::layer::Layer {
+        use crate::layer::{Layer, Stat, Position};
+        use crate::aesthetics::AesMap;
+
+        let adjust = self.adjust;
+        let n = self.n;
+
+        let mut mapping = AesMap::new();
+
+        // Set default aesthetics from geom settings if provided
+        for (aesthetic, value) in self.default_aesthetics() {
+            mapping.set(aesthetic, value);
+        }
+
+        Layer {
+            geom: Box::new(self),
+            data: None,
+            mapping,
+            stat: Stat::Density { adjust, n },
+            position: Position::Identity,
+            computed_data: None,
+            computed_mapping: None,
+            computed_scales: None,
+        }
+    }
 }
 
 impl Geom for GeomDensity {
@@ -101,83 +126,10 @@ impl Geom for GeomDensity {
         &[Aesthetic::X]
     }
 
-    fn compute_stat(
-        &self,
-        data: &dyn crate::data::DataSource,
-        mapping: &crate::aesthetics::AesMap,
-    ) -> Result<
-        Option<(
-            crate::utils::dataframe::DataFrame,
-            crate::aesthetics::AesMap,
-        )>,
-        PlotError,
-    > {
-        use crate::aesthetics::AesValue;
-
-        // Get x column name from mapping
-        let x_col = match mapping.get(&Aesthetic::X) {
-            Some(AesValue::Column(col)) => col,
-            _ => return Ok(None), // No column mapping, can't compute
-        };
-
-        // Get x data
-        let x_vec = data
-            .get(x_col.as_str())
-            .ok_or_else(|| PlotError::missing_column(x_col))?;
-
-        let x_float = x_vec
-            .iter_float()
-            .ok_or_else(|| PlotError::invalid_column_type(x_col, "numeric"))?;
-
-        // Collect x values
-        let x_values: Vec<f64> = x_float.collect();
-
-        // Compute density
-        let density_stat = DensityStat::new().adjust(self.adjust).n(self.n);
-
-        let density_df = density_stat.compute(&x_values)?;
-
-        // Create updated mapping with Y pointing to "density" column
-        let mut new_mapping = mapping.clone();
-        new_mapping.set(Aesthetic::Y, AesValue::column("density"));
-
-        Ok(Some((density_df, new_mapping)))
-    }
-
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
-        // At this point, ctx.data should contain the computed density with columns: x, density
-        let x_vec = ctx
-            .data
-            .get("x")
-            .ok_or_else(|| PlotError::missing_column("x"))?;
-        let y_vec = ctx
-            .data
-            .get("density")
-            .ok_or_else(|| PlotError::missing_column("density"))?;
-
-        let x_float = x_vec
-            .iter_float()
-            .ok_or_else(|| PlotError::invalid_column_type("x", "numeric"))?;
-        let y_float = y_vec
-            .iter_float()
-            .ok_or_else(|| PlotError::invalid_column_type("density", "numeric"))?;
-
-        // Normalize using scales
-        let x_vals: Vec<f64> = if let Some(x_scale) = ctx.scales.x.as_deref() {
-            x_float
-                .filter_map(|x| x_scale.map_value(x))
-                .collect()
-        } else {
-            x_float.collect()
-        };
-
-        let y_vals: Vec<f64> = if let Some(y_scale) = ctx.scales.y.as_deref() {
-            y_float
-                .filter_map(|y| y_scale.map_value(y))
-                .collect()
-        } else {
-            y_float.collect()
-        };
+        // Get x and y aesthetic values
+        let x_vals = ctx.get_x_aesthetic_values(Aesthetic::X)?;
+        let y_vals = ctx.get_y_aesthetic_values(Aesthetic::Y)?;
 
         // Get color, alpha, and size
         let colors = ctx.get_color_values()?;
@@ -198,20 +150,17 @@ impl Geom for GeomDensity {
         ctx.cairo.set_line_width(size);
 
         // Draw the density curve
-        if !x_vals.is_empty() {
-            let x0_visual = ctx.map_x(x_vals[0]);
-            let y0_visual = ctx.map_y(y_vals[0]);
-            ctx.cairo.move_to(x0_visual, y0_visual);
+        for (i, (x_norm, y_norm)) in x_vals.zip(y_vals).enumerate() {
+            let x_visual = ctx.map_x(x_norm);
+            let y_visual = ctx.map_y(y_norm);
 
-            for i in 1..x_vals.len() {
-                let x_visual = ctx.map_x(x_vals[i]);
-                let y_visual = ctx.map_y(y_vals[i]);
+            if i == 0 {
+                ctx.cairo.move_to(x_visual, y_visual);
+            } else {
                 ctx.cairo.line_to(x_visual, y_visual);
             }
-
-            ctx.cairo.stroke().ok();
         }
-
+        ctx.cairo.stroke().map_err(to_plot_error)?;
         Ok(())
     }
 }
