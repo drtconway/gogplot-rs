@@ -17,7 +17,7 @@ pub enum Method {
     Lm,
     /// Cubic spline interpolation
     Spline,
-    /// Local polynomial regression (loess) - not yet implemented
+    /// Local polynomial regression (LOESS)
     Loess,
 }
 
@@ -27,6 +27,7 @@ pub enum Method {
 /// Currently supports:
 /// - `lm`: Linear regression (y = a + bx)
 /// - `spline`: Cubic spline interpolation
+/// - `loess`: Local polynomial regression (locally weighted scatterplot smoothing)
 ///
 /// # Output columns
 /// - `x`: x values at which predictions are made (evenly spaced)
@@ -60,16 +61,21 @@ pub struct Smooth {
     
     /// Whether to compute standard errors (default true)
     pub se: bool,
+    
+    /// Span for LOESS smoothing (default 0.75)
+    /// Controls the amount of smoothing - smaller values = more local (wigglier)
+    pub span: f64,
 }
 
 impl Smooth {
     /// Create a new Smooth stat with default parameters
     pub fn new() -> Self {
         Self {
-            method: Method::Lm,
+            method: Method::Loess,
             level: 0.95,
             n: 80,
             se: true,
+            span: 0.75,
         }
     }
     
@@ -94,6 +100,13 @@ impl Smooth {
     /// Set whether to compute standard errors
     pub fn se(mut self, se: bool) -> Self {
         self.se = se;
+        self
+    }
+    
+    /// Set the span for LOESS smoothing (0.0 to 1.0)
+    /// Smaller values produce wigglier curves, larger values produce smoother curves
+    pub fn span(mut self, span: f64) -> Self {
+        self.span = span.clamp(0.0, 1.0);
         self
     }
 }
@@ -156,6 +169,191 @@ fn fit_linear_model(x: &[f64], y: &[f64]) -> Result<(f64, f64, f64)> {
     Ok((intercept, slope, rse))
 }
 
+/// Compute LOESS (Locally Estimated Scatterplot Smoothing)
+/// Returns (y_pred, ymin, ymax, se)
+fn fit_loess(
+    x_data: &[f64],
+    y_data: &[f64],
+    x_pred: &[f64],
+    span: f64,
+    level: f64,
+) -> Result<(Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>)> {
+    let n = x_data.len();
+    if n < 3 {
+        return Err(PlotError::no_valid_data(
+            "Need at least 3 points for LOESS smoothing",
+        ));
+    }
+    
+    let span = span.clamp(0.0, 1.0);
+    let q = ((n as f64 * span).max(2.0) as usize).min(n);
+    
+    // Sort data by x
+    let mut paired: Vec<(f64, f64)> = x_data.iter().zip(y_data.iter())
+        .map(|(&x, &y)| (x, y))
+        .collect();
+    paired.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+    
+    let x_sorted: Vec<f64> = paired.iter().map(|(x, _)| *x).collect();
+    let y_sorted: Vec<f64> = paired.iter().map(|(_, y)| *y).collect();
+    
+    // Compute predictions using local weighted linear regression
+    let mut y_pred = Vec::with_capacity(x_pred.len());
+    let mut residuals_at_pred = Vec::with_capacity(x_pred.len());
+    
+    for &x0 in x_pred {
+        // Find q nearest neighbors
+        let mut distances: Vec<(usize, f64)> = x_sorted.iter().enumerate()
+            .map(|(i, &x)| (i, (x - x0).abs()))
+            .collect();
+        distances.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+        
+        // Get the q nearest points
+        let neighbors = &distances[..q];
+        let max_dist = neighbors.last().unwrap().1.max(1e-10);
+        
+        // Compute tricube weights: w(u) = (1 - |u|^3)^3 for |u| < 1
+        let weights: Vec<f64> = neighbors.iter()
+            .map(|(_, d)| {
+                let u = d / max_dist;
+                if u < 1.0 {
+                    let t = 1.0 - u.powi(3);
+                    t.powi(3)
+                } else {
+                    0.0
+                }
+            })
+            .collect();
+        
+        // Fit weighted linear regression: y = a + b*x
+        let mut sum_w = 0.0;
+        let mut sum_wx = 0.0;
+        let mut sum_wy = 0.0;
+        let mut sum_wxx = 0.0;
+        let mut sum_wxy = 0.0;
+        
+        for (j, &(i, _)) in neighbors.iter().enumerate() {
+            let w = weights[j];
+            let x = x_sorted[i];
+            let y = y_sorted[i];
+            
+            sum_w += w;
+            sum_wx += w * x;
+            sum_wy += w * y;
+            sum_wxx += w * x * x;
+            sum_wxy += w * x * y;
+        }
+        
+        // Solve for slope and intercept
+        let denom = sum_w * sum_wxx - sum_wx * sum_wx;
+        let (a, b) = if denom.abs() > 1e-10 {
+            let b = (sum_w * sum_wxy - sum_wx * sum_wy) / denom;
+            let a = (sum_wy - b * sum_wx) / sum_w;
+            (a, b)
+        } else {
+            // If denominator is too small, just use weighted mean
+            (sum_wy / sum_w, 0.0)
+        };
+        
+        let y_fit = a + b * x0;
+        y_pred.push(y_fit);
+        
+        // Estimate local residual variance for this prediction
+        let mut local_var = 0.0;
+        for (j, &(i, _)) in neighbors.iter().enumerate() {
+            let w = weights[j];
+            let x = x_sorted[i];
+            let y = y_sorted[i];
+            let residual = y - (a + b * x);
+            local_var += w * residual * residual;
+        }
+        local_var /= sum_w;
+        residuals_at_pred.push(local_var.sqrt());
+    }
+    
+    // Compute global residual standard error
+    let mut all_residuals = Vec::with_capacity(n);
+    for i in 0..n {
+        let x = x_sorted[i];
+        let y = y_sorted[i];
+        
+        // Fit at this point (same as above but for data point)
+        let mut distances: Vec<(usize, f64)> = x_sorted.iter().enumerate()
+            .map(|(j, &xj)| (j, (xj - x).abs()))
+            .collect();
+        distances.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+        
+        let neighbors = &distances[..q];
+        let max_dist = neighbors.last().unwrap().1.max(1e-10);
+        
+        let weights: Vec<f64> = neighbors.iter()
+            .map(|(_, d)| {
+                let u = d / max_dist;
+                if u < 1.0 {
+                    let t = 1.0 - u.powi(3);
+                    t.powi(3)
+                } else {
+                    0.0
+                }
+            })
+            .collect();
+        
+        let mut sum_w = 0.0;
+        let mut sum_wx = 0.0;
+        let mut sum_wy = 0.0;
+        let mut sum_wxx = 0.0;
+        let mut sum_wxy = 0.0;
+        
+        for (j, &(idx, _)) in neighbors.iter().enumerate() {
+            let w = weights[j];
+            let xj = x_sorted[idx];
+            let yj = y_sorted[idx];
+            
+            sum_w += w;
+            sum_wx += w * xj;
+            sum_wy += w * yj;
+            sum_wxx += w * xj * xj;
+            sum_wxy += w * xj * yj;
+        }
+        
+        let denom = sum_w * sum_wxx - sum_wx * sum_wx;
+        let (a, b) = if denom.abs() > 1e-10 {
+            let b = (sum_w * sum_wxy - sum_wx * sum_wy) / denom;
+            let a = (sum_wy - b * sum_wx) / sum_w;
+            (a, b)
+        } else {
+            (sum_wy / sum_w, 0.0)
+        };
+        
+        let y_fit = a + b * x;
+        all_residuals.push(y - y_fit);
+    }
+    
+    let rse = (all_residuals.iter().map(|r| r.powi(2)).sum::<f64>() / (n - 2) as f64).sqrt();
+    
+    // Use t-value approximation for confidence bands
+    let z = match level {
+        l if l >= 0.99 => 2.576,
+        l if l >= 0.95 => 1.96,
+        l if l >= 0.90 => 1.645,
+        _ => 1.96,
+    };
+    
+    // Combine global and local uncertainty
+    let se_vec: Vec<f64> = residuals_at_pred.iter()
+        .map(|&local_se| (rse.powi(2) + local_se.powi(2)).sqrt())
+        .collect();
+    
+    let ymin: Vec<f64> = y_pred.iter().zip(se_vec.iter())
+        .map(|(&y, &se)| y - z * se)
+        .collect();
+    let ymax: Vec<f64> = y_pred.iter().zip(se_vec.iter())
+        .map(|(&y, &se)| y + z * se)
+        .collect();
+    
+    Ok((y_pred, ymin, ymax, se_vec))
+}
+
 /// Compute cubic spline smoothing
 /// Returns (y_pred, ymin, ymax, se) where ymin/ymax are computed using
 /// residual-based confidence bands
@@ -204,6 +402,9 @@ fn fit_cubic_spline(
     }
     
     // Compute residual-based confidence intervals
+    // For splines, we compute residuals at the original data points
+    // and use local variance estimates for confidence bands
+    
     // Calculate residuals from spline fit at original data points
     let mut residuals = Vec::with_capacity(n);
     for (x, y) in &paired {
@@ -213,11 +414,9 @@ fn fit_cubic_spline(
     }
     
     // Compute residual standard error
-    let mean_residual = residuals.iter().sum::<f64>() / residuals.len() as f64;
-    let sse: f64 = residuals.iter()
-        .map(|r| (r - mean_residual).powi(2))
-        .sum();
-    let rse = (sse / (n.saturating_sub(4)) as f64).sqrt();
+    let sse: f64 = residuals.iter().map(|r| r.powi(2)).sum();
+    let df = (n as i32 - 4).max(1) as f64;  // degrees of freedom for cubic spline
+    let rse = (sse / df).sqrt();
     
     // Use approximate z-value for confidence bands
     let z = match level {
@@ -227,9 +426,30 @@ fn fit_cubic_spline(
         _ => 1.96,
     };
     
-    let se_vec = vec![rse; x_pred.len()];
-    let ymin = y_pred.iter().map(|&y| y - z * rse).collect();
-    let ymax = y_pred.iter().map(|&y| y + z * rse).collect();
+    // For each prediction point, compute local standard error based on
+    // distance to nearest data points (splines have higher uncertainty between points)
+    let mut se_vec = Vec::with_capacity(x_pred.len());
+    let mut ymin = Vec::with_capacity(x_pred.len());
+    let mut ymax = Vec::with_capacity(x_pred.len());
+    
+    let x_data_vec: Vec<f64> = paired.iter().map(|(x, _)| *x).collect();
+    
+    for (&x, &y) in x_pred.iter().zip(y_pred.iter()) {
+        // Find distance to nearest data point (normalized by data range)
+        let x_range = x_data_vec.last().unwrap() - x_data_vec.first().unwrap();
+        let min_dist = x_data_vec.iter()
+            .map(|&x_data| ((x - x_data) / x_range).abs())
+            .fold(f64::INFINITY, f64::min);
+        
+        // Increase uncertainty for points far from data (interpolation vs extrapolation)
+        // Use a factor that increases uncertainty smoothly with distance
+        let dist_factor = 1.0 + min_dist * 3.0;  // Increase SE by up to 3x for distant points
+        let se_local = rse * dist_factor;
+        
+        se_vec.push(se_local);
+        ymin.push(y - z * se_local);
+        ymax.push(y + z * se_local);
+    }
     
     Ok((y_pred, ymin, ymax, se_vec))
 }
@@ -345,9 +565,7 @@ impl StatTransform for Smooth {
                     fit_cubic_spline(&group_x, &group_y, &x_pred, self.level)?
                 }
                 Method::Loess => {
-                    return Err(PlotError::no_valid_data(
-                        "Loess smoothing not yet implemented",
-                    ));
+                    fit_loess(&group_x, &group_y, &x_pred, self.span, self.level)?
                 }
             };
             

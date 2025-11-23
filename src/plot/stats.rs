@@ -96,11 +96,12 @@ pub fn apply_stats(
                     layers[i].computed_mapping = Some(new_mapping);
                 }
             }
-            Stat::Smooth { method, level, n } => {
+            Stat::Smooth { method, level, n, span } => {
                 let smooth_stat = Smooth::new()
                     .method(*method)
                     .level(*level)
-                    .n(*n);
+                    .n(*n)
+                    .span(*span);
                 let stat_result = smooth_stat.apply(data, &merged_mapping)?;
                 if let Some((transformed_data, new_mapping)) = stat_result {
                     layers[i].computed_data = Some(transformed_data);

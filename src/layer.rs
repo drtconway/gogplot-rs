@@ -17,6 +17,7 @@ pub enum Stat {
         method: crate::stat::smooth::Method,
         level: f64,
         n: usize,
+        span: f64,
     },
     // Add more as needed
 }

@@ -96,9 +96,10 @@ impl GeomSmooth {
             size: Some(AesValue::Constant(PrimitiveValue::Float(1.0))),
             se: true,
             stat: Stat::Smooth {
-                method: crate::stat::smooth::Method::Lm,
+                method: crate::stat::smooth::Method::Loess,
                 level: 0.95,
                 n: 80,
+                span: 0.75,
             },
             position: crate::layer::Position::Identity,
         }
@@ -140,6 +141,15 @@ impl GeomSmooth {
     pub fn method(&mut self, method: crate::stat::smooth::Method) -> &mut Self {
         if let Stat::Smooth { method: m, .. } = &mut self.stat {
             *m = method;
+        }
+        self
+    }
+
+    /// Set the span for LOESS smoothing (0.0 to 1.0)
+    /// Smaller values produce wigglier curves, larger values produce smoother curves
+    pub fn span(&mut self, span: f64) -> &mut Self {
+        if let Stat::Smooth { span: s, .. } = &mut self.stat {
+            *s = span.clamp(0.0, 1.0);
         }
         self
     }
