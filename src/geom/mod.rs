@@ -3,6 +3,7 @@ use crate::error::PlotError;
 use crate::layer::{Layer, Position, Stat};
 
 pub mod bar;
+pub mod boxplot;
 pub mod context;
 pub mod density;
 pub mod histogram;
@@ -14,6 +15,7 @@ pub mod segment;
 pub mod vline;
 
 pub use bar::GeomBar;
+pub use boxplot::GeomBoxplot;
 pub use context::RenderContext;
 pub use density::GeomDensity;
 pub use histogram::GeomHistogram;

@@ -106,6 +106,34 @@ pub fn group_by_key<T: Clone>(
     groups
 }
 
+/// Split data into groups and return them in sorted order by key
+///
+/// Like `group_by_key`, but returns a Vec sorted by composite key for
+/// deterministic ordering. This ensures consistent output regardless of
+/// HashMap iteration order.
+///
+/// # Type Parameters
+///
+/// * `T` - The type of values to group (typically f64)
+///
+/// # Arguments
+///
+/// * `values` - Vector of values to group
+/// * `composite_keys` - Composite key for each value
+///
+/// # Returns
+///
+/// A Vec of (key, values) pairs sorted by key
+pub fn group_by_key_sorted<T: Clone>(
+    values: &[T],
+    composite_keys: &[String],
+) -> Vec<(String, Vec<T>)> {
+    let groups = group_by_key(values, composite_keys);
+    let mut sorted_groups: Vec<(String, Vec<T>)> = groups.into_iter().collect();
+    sorted_groups.sort_by(|(a, _), (b, _)| a.cmp(b));
+    sorted_groups
+}
+
 /// Extract the value for a specific aesthetic from a composite key
 ///
 /// Composite keys are formed by joining values from multiple aesthetics with "__".

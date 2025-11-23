@@ -184,6 +184,7 @@ impl PositionAdjust for Dodge {
         // Create new dataframe with all original columns plus xmin/xmax, in sorted order
         let mut new_df = DataFrame::new();
         
+        
         // Copy all original columns in sorted order
         use crate::utils::dataframe::{IntVec, StrVec};
         for col_name in data.column_names() {
@@ -194,7 +195,10 @@ impl PositionAdjust for Dodge {
                 Box::new(IntVec(indices.iter().map(|&i| vals[i]).collect()))
             } else if let Some(float_iter) = col.iter_float() {
                 let vals: Vec<f64> = float_iter.collect();
-                Box::new(FloatVec(indices.iter().map(|&i| vals[i]).collect()))
+                if col_name == "y" {
+                }
+                let sorted_vals: Vec<f64> = indices.iter().map(|&i| vals[i]).collect();
+                Box::new(FloatVec(sorted_vals))
             } else if let Some(str_iter) = col.iter_str() {
                 let vals: Vec<String> = str_iter.map(|s| s.to_string()).collect();
                 Box::new(StrVec(indices.iter().map(|&i| vals[i].clone()).collect()))

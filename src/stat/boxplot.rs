@@ -7,8 +7,8 @@ use crate::aesthetics::{AesMap, AesValue, Aesthetic};
 use crate::data::DataSource;
 use crate::error::{PlotError, Result};
 use crate::stat::StatTransform;
-use crate::utils::dataframe::{DataFrame, FloatVec, StrVec};
-use crate::utils::grouping::{get_grouping_columns, create_composite_keys, group_by_key, split_composite_key};
+use crate::utils::dataframe::{DataFrame, FloatVec, IntVec, StrVec};
+use crate::utils::grouping::{get_grouping_columns, create_composite_keys, group_by_key_sorted, split_composite_key};
 
 /// Boxplot statistics computation
 ///
@@ -63,16 +63,16 @@ impl Boxplot {
     }
 
     /// Compute five-number summary from sorted data
-    fn compute_five_number_summary(&self, sorted_data: &[f64]) -> (f64, f64, f64, f64, f64) {
+    fn compute_five_number_summary(&self, sorted_data: &[f64]) -> (f64, f64, f64, f64, f64, f64, f64) {
         let n = sorted_data.len();
         
         if n == 0 {
-            return (0.0, 0.0, 0.0, 0.0, 0.0);
+            return (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
         }
         
         if n == 1 {
             let val = sorted_data[0];
-            return (val, val, val, val, val);
+            return (val, val, val, val, val, val, val);
         }
 
         // Compute quartiles using the midpoint method (R type 7)
@@ -99,7 +99,7 @@ impl Boxplot {
             .copied()
             .unwrap_or(sorted_data[n - 1]);
 
-        (ymin, q1, median, q3, ymax)
+        (ymin, q1, median, q3, ymax, lower_fence, upper_fence)
     }
 }
 
@@ -107,6 +107,77 @@ impl Default for Boxplot {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Helper function to compute boxplot statistics for a specific x value type
+fn compute_boxplot_stats<T>(
+    x_values: Vec<T>,
+    y_values: Vec<f64>,
+    composite_keys: Vec<String>,
+    _all_group_cols: &[(Aesthetic, String)],
+    coef: f64,
+) -> (Vec<T>, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>, Vec<String>)
+where
+    T: Clone + std::fmt::Debug,
+{
+
+    
+    let mut result_x = Vec::new();
+    let mut result_y = Vec::new();
+    let mut result_ymin = Vec::new();
+    let mut result_lower = Vec::new();
+    let mut result_middle = Vec::new();
+    let mut result_upper = Vec::new();
+    let mut result_ymax = Vec::new();
+    let mut result_group_keys = Vec::new();
+
+    // Group y values by composite key and sort for deterministic order
+    let sorted_groups = group_by_key_sorted(&y_values, &composite_keys);
+    let boxplot = Boxplot { coef };
+
+    for (group_key, mut group_values) in sorted_groups {
+        if group_values.is_empty() {
+            continue;
+        }
+
+        // Sort values for quantile computation
+        group_values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+
+        let (ymin, q1, median, q3, ymax, lower_fence, upper_fence) = boxplot.compute_five_number_summary(&group_values);
+
+        // Get the x value for this group by finding the first matching row
+        let group_x_idx = composite_keys.iter()
+            .position(|k| k == &group_key)
+            .expect("Composite key should exist in keys");
+        
+        let x_val = x_values[group_x_idx].clone();
+
+        // Add box statistics (one row per box)
+        result_x.push(x_val.clone());
+        result_y.push(f64::NAN);
+        result_ymin.push(ymin);
+        result_lower.push(q1);
+        result_middle.push(median);
+        result_upper.push(q3);
+        result_ymax.push(ymax);
+        result_group_keys.push(group_key.clone());
+
+        // Add outlier rows (check against fences, not whiskers)
+        for &value in &group_values {
+            if value < lower_fence || value > upper_fence {
+                result_x.push(x_val.clone());
+                result_y.push(value);
+                result_ymin.push(f64::NAN);
+                result_lower.push(f64::NAN);
+                result_middle.push(f64::NAN);
+                result_upper.push(f64::NAN);
+                result_ymax.push(f64::NAN);
+                result_group_keys.push(group_key.clone());
+            }
+        }
+    }
+
+    (result_x, result_y, result_ymin, result_lower, result_middle, result_upper, result_ymax, result_group_keys)
 }
 
 impl StatTransform for Boxplot {
@@ -129,11 +200,16 @@ impl StatTransform for Boxplot {
         // Get grouping aesthetics for splitting data
         let group_cols = get_grouping_columns(mapping);
 
-        // Get y column for statistics
+        // Get x and y columns
+        let x_col = data
+            .get(x_col_name)
+            .ok_or_else(|| PlotError::missing_column(x_col_name))?;
+        
         let y_col = data
             .get(y_col_name)
             .ok_or_else(|| PlotError::missing_column(y_col_name))?;
 
+        // Extract y values as floats
         let y_values: Vec<f64> = if let Some(float_iter) = y_col.iter_float() {
             float_iter.filter(|v| v.is_finite()).collect()
         } else if let Some(int_iter) = y_col.iter_int() {
@@ -142,6 +218,26 @@ impl StatTransform for Boxplot {
             return Err(PlotError::invalid_column_type(
                 y_col_name,
                 "numeric (int or float)",
+            ));
+        };
+
+        // Extract x values in their native type and parallel vectors for grouping
+        enum XValues {
+            Int(Vec<i64>),
+            Float(Vec<f64>),
+            Str(Vec<String>),
+        }
+        
+        let x_values = if let Some(int_iter) = x_col.iter_int() {
+            XValues::Int(int_iter.collect())
+        } else if let Some(float_iter) = x_col.iter_float() {
+            XValues::Float(float_iter.collect())
+        } else if let Some(str_iter) = x_col.iter_str() {
+            XValues::Str(str_iter.map(|s| s.to_string()).collect())
+        } else {
+            return Err(PlotError::invalid_column_type(
+                x_col_name,
+                "int, float, or string",
             ));
         };
 
@@ -156,47 +252,42 @@ impl StatTransform for Boxplot {
         // Create composite keys combining x and other grouping columns
         let composite_keys = create_composite_keys(data.as_ref(), &all_group_cols);
 
-        // Group y values by composite key
-        let groups = group_by_key(&y_values, &composite_keys);
-
-        // Compute statistics for each group
-        let mut result_x = Vec::new();
-        let mut result_ymin = Vec::new();
-        let mut result_lower = Vec::new();
-        let mut result_middle = Vec::new();
-        let mut result_upper = Vec::new();
-        let mut result_ymax = Vec::new();
-        let mut result_group_keys = Vec::new();
-
-        for (group_key, mut group_values) in groups {
-            if group_values.is_empty() {
-                continue;
+        // Compute statistics using the generic helper based on x value type
+        let (result_x, result_y, result_ymin, result_lower, result_middle, result_upper, result_ymax, result_group_keys) = match x_values {
+            XValues::Int(vals) => {
+                let (x, y, ymin, lower, middle, upper, ymax, keys) = 
+                    compute_boxplot_stats(vals, y_values, composite_keys, &all_group_cols, self.coef);
+                (XValues::Int(x), y, ymin, lower, middle, upper, ymax, keys)
             }
+            XValues::Float(vals) => {
+                let (x, y, ymin, lower, middle, upper, ymax, keys) = 
+                    compute_boxplot_stats(vals, y_values, composite_keys, &all_group_cols, self.coef);
+                (XValues::Float(x), y, ymin, lower, middle, upper, ymax, keys)
+            }
+            XValues::Str(vals) => {
+                let (x, y, ymin, lower, middle, upper, ymax, keys) = 
+                    compute_boxplot_stats(vals, y_values, composite_keys, &all_group_cols, self.coef);
+                (XValues::Str(x), y, ymin, lower, middle, upper, ymax, keys)
+            }
+        };
 
-            // Sort values for quantile computation
-            group_values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-
-            let (ymin, q1, median, q3, ymax) = self.compute_five_number_summary(&group_values);
-
-            // Extract x value from composite key (first part since X is always first in all_group_cols)
-            let key_parts = split_composite_key(&group_key, &all_group_cols);
-            let x_value = key_parts.first()
-                .map(|(_, val)| val.clone())
-                .unwrap_or_else(|| group_key.clone());
-
-            // Add box statistics (one row per box)
-            result_x.push(x_value);
-            result_ymin.push(ymin);
-            result_lower.push(q1);
-            result_middle.push(median);
-            result_upper.push(q3);
-            result_ymax.push(ymax);
-            result_group_keys.push(group_key.clone());
-        }
-
-        // Create output dataframe with box statistics
+        // Create output dataframe with box statistics and outliers
         let mut computed = DataFrame::new();
-        computed.add_column("x", Box::new(StrVec(result_x)));
+        
+        // Add x column with the same type as the input
+        match result_x {
+            XValues::Int(vals) => {
+                computed.add_column("x", Box::new(IntVec(vals)));
+            }
+            XValues::Float(vals) => {
+                computed.add_column("x", Box::new(FloatVec(vals)));
+            }
+            XValues::Str(vals) => {
+                computed.add_column("x", Box::new(StrVec(vals)));
+            }
+        }
+        
+        computed.add_column("y", Box::new(FloatVec(result_y)));
         computed.add_column("ymin", Box::new(FloatVec(result_ymin)));
         computed.add_column("lower", Box::new(FloatVec(result_lower)));
         computed.add_column("middle", Box::new(FloatVec(result_middle)));
@@ -225,11 +316,21 @@ impl StatTransform for Boxplot {
         // Update mapping
         let mut new_mapping = mapping.clone();
         new_mapping.set(Aesthetic::X, AesValue::column("x"));
+        new_mapping.set(Aesthetic::Y, AesValue::column("y"));
         new_mapping.set(Aesthetic::Ymin, AesValue::column("ymin"));
         new_mapping.set(Aesthetic::Lower, AesValue::column("lower"));
         new_mapping.set(Aesthetic::Middle, AesValue::column("middle"));
         new_mapping.set(Aesthetic::Upper, AesValue::column("upper"));
         new_mapping.set(Aesthetic::Ymax, AesValue::column("ymax"));
+
+        // If any grouping aesthetics were mapped to the same column as X,
+        // remap them to "x" in the computed data as categorical
+        // (X is categorical for boxplots, so Fill/Color should be too)
+        for (aesthetic, col_name) in &group_cols {
+            if col_name == x_col_name {
+                new_mapping.set(*aesthetic, AesValue::categorical("x"));
+            }
+        }
 
         Ok(Some((Box::new(computed), new_mapping)))
     }
@@ -282,7 +383,7 @@ mod tests {
     fn test_five_number_summary() {
         let boxplot = Boxplot::new();
         let data = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0];
-        let (ymin, q1, median, q3, ymax) = boxplot.compute_five_number_summary(&data);
+        let (ymin, q1, median, q3, ymax, _lower_fence, _upper_fence) = boxplot.compute_five_number_summary(&data);
         
         assert_eq!(median, 5.5);
         assert_eq!(q1, 3.25);
@@ -290,6 +391,186 @@ mod tests {
         // Whiskers should be at 1.0 and 10.0 (no outliers)
         assert_eq!(ymin, 1.0);
         assert_eq!(ymax, 10.0);
+    }
+
+    #[test]
+    fn test_boxplot_with_outliers() {
+        let boxplot = Boxplot::new();
+        // Data with clear outliers: [1, 10, 10, 10, 10, 10, 10, 100]
+        let data = vec![1.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 100.0];
+        let (ymin, q1, median, q3, ymax, _lower_fence, _upper_fence) = boxplot.compute_five_number_summary(&data);
+        
+        // Q1 = 10, Q3 = 10, IQR = 0, fences at 10 ± 0 = 10
+        // So 1.0 and 100.0 should be outliers, whiskers at 10
+        assert_eq!(median, 10.0);
+        assert_eq!(q1, 10.0);
+        assert_eq!(q3, 10.0);
+        assert_eq!(ymin, 10.0);
+        assert_eq!(ymax, 10.0);
+    }
+
+    #[test]
+    fn test_boxplot_stat_basic() {
+        use crate::utils::dataframe::{DataFrame, FloatVec, IntVec};
+        use crate::aesthetics::{AesMap, AesValue, Aesthetic};
+        
+        // Create simple test data: x = [1, 1, 2, 2], y = [10, 20, 30, 40]
+        let mut df = DataFrame::new();
+        df.add_column("x", Box::new(IntVec(vec![1, 1, 2, 2])));
+        df.add_column("y", Box::new(FloatVec(vec![10.0, 20.0, 30.0, 40.0])));
+        
+        let mut mapping = AesMap::new();
+        mapping.set(Aesthetic::X, AesValue::column("x"));
+        mapping.set(Aesthetic::Y, AesValue::column("y"));
+        
+        let boxplot = Boxplot::new();
+        let result = boxplot.apply(Box::new(df), &mapping).unwrap();
+        
+        assert!(result.is_some());
+        let (computed, new_mapping) = result.unwrap();
+        
+        // Should have 2 box rows (one per x group), no outliers
+        // Verify we have data by checking column exists
+        assert!(computed.get("x").is_some());
+        
+        // Check x column
+        let x_col = computed.get("x").unwrap();
+        let x_vals: Vec<i64> = x_col.iter_int().unwrap().collect();
+        assert!(x_vals.contains(&1));
+        assert!(x_vals.contains(&2));
+        
+        // Check that middle values are not NaN (these are box rows, not outliers)
+        let middle_col = computed.get("middle").unwrap();
+        let middle_vals: Vec<f64> = middle_col.iter_float().unwrap().collect();
+        assert_eq!(middle_vals.len(), 2);
+        assert!(!middle_vals[0].is_nan());
+        assert!(!middle_vals[1].is_nan());
+        
+        // Verify mapping was updated
+        assert_eq!(new_mapping.get(&Aesthetic::X), Some(&AesValue::column("x")));
+        assert_eq!(new_mapping.get(&Aesthetic::Middle), Some(&AesValue::column("middle")));
+    }
+
+    #[test]
+    fn test_boxplot_stat_with_outliers() {
+        use crate::utils::dataframe::{DataFrame, FloatVec, IntVec};
+        use crate::aesthetics::{AesMap, AesValue, Aesthetic};
+        
+        // Create data with outliers: x=[1,1,1,1,1], y=[1, 10, 11, 12, 100]
+        // Q1=10, Q3=12, IQR=2, fences at 7 and 15
+        // 1 and 100 should be outliers
+        let mut df = DataFrame::new();
+        df.add_column("x", Box::new(IntVec(vec![1, 1, 1, 1, 1])));
+        df.add_column("y", Box::new(FloatVec(vec![1.0, 10.0, 11.0, 12.0, 100.0])));
+        
+        let mut mapping = AesMap::new();
+        mapping.set(Aesthetic::X, AesValue::column("x"));
+        mapping.set(Aesthetic::Y, AesValue::column("y"));
+        
+        let boxplot = Boxplot::new();
+        let result = boxplot.apply(Box::new(df), &mapping).unwrap();
+        
+        assert!(result.is_some());
+        let (computed, _) = result.unwrap();
+        
+        // Check middle column: 1 non-NaN (box), 2 NaN (outliers)
+        let middle_col = computed.get("middle").unwrap();
+        let middle_vals: Vec<f64> = middle_col.iter_float().unwrap().collect();
+        let nan_count = middle_vals.iter().filter(|v| v.is_nan()).count();
+        assert_eq!(nan_count, 2, "Should have 2 outlier rows with NaN middle values");
+        
+        // Check y column: 1 NaN (box), 2 non-NaN (outliers)
+        let y_col = computed.get("y").unwrap();
+        let y_vals: Vec<f64> = y_col.iter_float().unwrap().collect();
+        let y_nan_count = y_vals.iter().filter(|v| v.is_nan()).count();
+        assert_eq!(y_nan_count, 1, "Should have 1 box row with NaN y value");
+        
+        // Verify outlier values
+        let outlier_y_vals: Vec<f64> = y_vals.iter().filter(|v| !v.is_nan()).copied().collect();
+        assert_eq!(outlier_y_vals.len(), 2);
+        assert!(outlier_y_vals.contains(&1.0));
+        assert!(outlier_y_vals.contains(&100.0));
+    }
+
+    #[test]
+    fn test_boxplot_preserves_x_type_int() {
+        use crate::utils::dataframe::{DataFrame, FloatVec, IntVec};
+        use crate::aesthetics::{AesMap, AesValue, Aesthetic};
+        
+        let mut df = DataFrame::new();
+        df.add_column("x", Box::new(IntVec(vec![4, 4, 6, 6])));
+        df.add_column("y", Box::new(FloatVec(vec![10.0, 20.0, 30.0, 40.0])));
+        
+        let mut mapping = AesMap::new();
+        mapping.set(Aesthetic::X, AesValue::column("x"));
+        mapping.set(Aesthetic::Y, AesValue::column("y"));
+        
+        let boxplot = Boxplot::new();
+        let result = boxplot.apply(Box::new(df), &mapping).unwrap().unwrap();
+        let (computed, _) = result;
+        
+        // X column should be IntVec
+        let x_col = computed.get("x").unwrap();
+        assert!(x_col.iter_int().is_some(), "X column should be integer type");
+        
+        let x_vals: Vec<i64> = x_col.iter_int().unwrap().collect();
+        assert_eq!(x_vals.len(), 2); // 2 boxes
+        assert!(x_vals.contains(&4));
+        assert!(x_vals.contains(&6));
+    }
+
+    #[test]
+    fn test_boxplot_preserves_x_type_float() {
+        use crate::utils::dataframe::{DataFrame, FloatVec};
+        use crate::aesthetics::{AesMap, AesValue, Aesthetic};
+        
+        let mut df = DataFrame::new();
+        df.add_column("x", Box::new(FloatVec(vec![1.5, 1.5, 2.5, 2.5])));
+        df.add_column("y", Box::new(FloatVec(vec![10.0, 20.0, 30.0, 40.0])));
+        
+        let mut mapping = AesMap::new();
+        mapping.set(Aesthetic::X, AesValue::column("x"));
+        mapping.set(Aesthetic::Y, AesValue::column("y"));
+        
+        let boxplot = Boxplot::new();
+        let result = boxplot.apply(Box::new(df), &mapping).unwrap().unwrap();
+        let (computed, _) = result;
+        
+        // X column should be FloatVec
+        let x_col = computed.get("x").unwrap();
+        assert!(x_col.iter_float().is_some(), "X column should be float type");
+        
+        let x_vals: Vec<f64> = x_col.iter_float().unwrap().collect();
+        assert_eq!(x_vals.len(), 2);
+        assert!(x_vals.contains(&1.5));
+        assert!(x_vals.contains(&2.5));
+    }
+
+    #[test]
+    fn test_boxplot_preserves_x_type_string() {
+        use crate::utils::dataframe::{DataFrame, FloatVec, StrVec};
+        use crate::aesthetics::{AesMap, AesValue, Aesthetic};
+        
+        let mut df = DataFrame::new();
+        df.add_column("x", Box::new(StrVec(vec!["A".to_string(), "A".to_string(), "B".to_string(), "B".to_string()])));
+        df.add_column("y", Box::new(FloatVec(vec![10.0, 20.0, 30.0, 40.0])));
+        
+        let mut mapping = AesMap::new();
+        mapping.set(Aesthetic::X, AesValue::column("x"));
+        mapping.set(Aesthetic::Y, AesValue::column("y"));
+        
+        let boxplot = Boxplot::new();
+        let result = boxplot.apply(Box::new(df), &mapping).unwrap().unwrap();
+        let (computed, _) = result;
+        
+        // X column should be StrVec
+        let x_col = computed.get("x").unwrap();
+        assert!(x_col.iter_str().is_some(), "X column should be string type");
+        
+        let x_vals: Vec<String> = x_col.iter_str().unwrap().map(|s| s.to_string()).collect();
+        assert_eq!(x_vals.len(), 2);
+        assert!(x_vals.contains(&"A".to_string()));
+        assert!(x_vals.contains(&"B".to_string()));
     }
 
 }

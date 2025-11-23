@@ -123,7 +123,7 @@ impl ScaleBase for Catagorical {
                 self.mapping.insert(cat.clone(), pos);
             }
 
-            // Update breaks and labels
+                // Update breaks and labels
             let mut items: Vec<_> = self.mapping.iter().collect();
             items.sort_by(|a, b| a.1.partial_cmp(b.1).unwrap());
 

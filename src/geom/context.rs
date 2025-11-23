@@ -690,7 +690,12 @@ impl<'a> RenderContext<'a> {
 
                         let colors: Vec<Color> = values
                             .iter()
-                            .filter_map(|&v| scale.map_continuous_to_color(v))
+                            .filter_map(|&v| {
+                                let result = scale.map_continuous_to_color(v);
+                                if result.is_none() {
+                                }
+                                result
+                            })
                             .collect();
                         Ok(ColorValues::Mapped(colors))
                     }
