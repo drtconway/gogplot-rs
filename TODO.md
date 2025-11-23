@@ -24,7 +24,13 @@
 - [ ] **Text Labels** (`geom_text`, `geom_label`) - Annotations on plots
 - [ ] **Path** (`geom_path`) - Connected points in data order (vs geom_line by x)
 - [ ] **Polygon** (`geom_polygon`) - Arbitrary polygons
-- [ ] **Smooth** (`geom_smooth`) - Add trend lines with confidence intervals
+- [x] **Smooth** (`geom_smooth`) - Add trend lines with confidence intervals - COMPLETED
+  - [x] LOESS smoothing (default, with configurable span)
+  - [x] Cubic spline smoothing (with automatic knot selection)
+  - [x] Linear regression (lm)
+  - [x] Confidence bands with local variance estimation
+  - [x] Configurable confidence level (default 95%)
+  - [x] Support for grouped smoothing
 
 ## Scales and Axes
 
@@ -104,7 +110,7 @@
 - [ ] **stat_density2d** - 2D density estimation
 - [ ] **stat_ecdf** - Empirical cumulative distribution
 - [ ] **stat_qq** - Quantile-quantile plots
-- [ ] **stat_smooth** - Various smoothing methods (loess, lm, glm)
+- [x] **stat_smooth** - Various smoothing methods - COMPLETED (loess, lm, spline)
 
 ## Reference Lines Enhancement
 
