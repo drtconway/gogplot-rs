@@ -183,6 +183,7 @@ pub fn render_with_context(
             layer,
             data,
             scales,
+            theme,
             (plot_x0, plot_x1),
             (plot_y1, plot_y0),
         );

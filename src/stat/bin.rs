@@ -299,7 +299,7 @@ impl StatTransform for Bin {
 
         // Only support column mappings for now
         let x_col_name = match x_mapping {
-            AesValue::Column(name) => name,
+            AesValue::Column { name, .. } => name,
             _ => {
                 return Err(crate::error::PlotError::InvalidAestheticType {
                     aesthetic: Aesthetic::X,

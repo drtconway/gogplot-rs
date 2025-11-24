@@ -32,25 +32,25 @@ impl GeomPoint {
 
     /// Set the default point size
     pub fn size(&mut self, size: f64) -> &mut Self {
-        self.size = Some(AesValue::Constant(PrimitiveValue::Float(size)));
+        self.size = Some(AesValue::constant(PrimitiveValue::Float(size)));
         self
     }
 
     /// Set the default point color
     pub fn color(&mut self, color: crate::theme::Color) -> &mut Self {
-        self.color = Some(AesValue::Constant(PrimitiveValue::Int(color.into())));
+        self.color = Some(AesValue::constant(PrimitiveValue::Int(color.into())));
         self
     }
 
     /// Set the default point shape
     pub fn shape(&mut self, shape: Shape) -> &mut Self {
-        self.shape = Some(AesValue::Constant(PrimitiveValue::Int(shape as i64)));
+        self.shape = Some(AesValue::constant(PrimitiveValue::Int(shape as i64)));
         self
     }
 
     /// Set the default alpha/opacity
     pub fn alpha(&mut self, alpha: f64) -> &mut Self {
-        self.alpha = Some(AesValue::Constant(PrimitiveValue::Float(
+        self.alpha = Some(AesValue::constant(PrimitiveValue::Float(
             alpha.clamp(0.0, 1.0),
         )));
         self
@@ -65,33 +65,22 @@ impl Default for GeomPoint {
 
 impl IntoLayer for GeomPoint {
     fn default_aesthetics(&self) -> Vec<(Aesthetic, AesValue)> {
-        use crate::theme::Theme;
-        
         let mut defaults = Vec::new();
-        let theme = Theme::default();
 
         if let Some(color) = &self.color {
             defaults.push((Aesthetic::Color, color.clone()));
-        } else {
-            defaults.push((Aesthetic::Color, AesValue::Constant(PrimitiveValue::Int(theme.geom_point.color.into()))));
         }
         
         if let Some(alpha) = &self.alpha {
             defaults.push((Aesthetic::Alpha, alpha.clone()));
-        } else {
-            defaults.push((Aesthetic::Alpha, AesValue::Constant(PrimitiveValue::Float(theme.geom_point.alpha))));
         }
         
         if let Some(size) = &self.size {
             defaults.push((Aesthetic::Size, size.clone()));
-        } else {
-            defaults.push((Aesthetic::Size, AesValue::Constant(PrimitiveValue::Float(theme.geom_point.size))));
         }
         
         if let Some(shape) = &self.shape {
             defaults.push((Aesthetic::Shape, shape.clone()));
-        } else {
-            defaults.push((Aesthetic::Shape, AesValue::Constant(PrimitiveValue::Int(theme.geom_point.shape))));
         }
 
         defaults

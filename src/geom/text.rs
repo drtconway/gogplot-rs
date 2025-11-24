@@ -42,19 +42,19 @@ impl GeomText {
 
     /// Set the default text color
     pub fn color(&mut self, color: crate::theme::Color) -> &mut Self {
-        self.color = Some(AesValue::Constant(PrimitiveValue::Int(color.into())));
+        self.color = Some(AesValue::constant(PrimitiveValue::Int(color.into())));
         self
     }
 
     /// Set the default text size
     pub fn size(&mut self, size: f64) -> &mut Self {
-        self.size = Some(AesValue::Constant(PrimitiveValue::Float(size)));
+        self.size = Some(AesValue::constant(PrimitiveValue::Float(size)));
         self
     }
 
     /// Set the default alpha/opacity
     pub fn alpha(&mut self, alpha: f64) -> &mut Self {
-        self.alpha = Some(AesValue::Constant(PrimitiveValue::Float(
+        self.alpha = Some(AesValue::constant(PrimitiveValue::Float(
             alpha.clamp(0.0, 1.0),
         )));
         self
@@ -96,19 +96,19 @@ impl IntoLayer for GeomText {
         if let Some(color) = &self.color {
             defaults.push((Aesthetic::Color, color.clone()));
         } else {
-            defaults.push((Aesthetic::Color, AesValue::Constant(PrimitiveValue::Int(theme.geom_text.color.into()))));
+            defaults.push((Aesthetic::Color, AesValue::constant(PrimitiveValue::Int(theme.geom_text.color.into()))));
         }
         
         if let Some(alpha) = &self.alpha {
             defaults.push((Aesthetic::Alpha, alpha.clone()));
         } else {
-            defaults.push((Aesthetic::Alpha, AesValue::Constant(PrimitiveValue::Float(theme.geom_text.alpha))));
+            defaults.push((Aesthetic::Alpha, AesValue::constant(PrimitiveValue::Float(theme.geom_text.alpha))));
         }
         
         if let Some(size) = &self.size {
             defaults.push((Aesthetic::Size, size.clone()));
         } else {
-            defaults.push((Aesthetic::Size, AesValue::Constant(PrimitiveValue::Float(theme.geom_text.size))));
+            defaults.push((Aesthetic::Size, AesValue::constant(PrimitiveValue::Float(theme.geom_text.size))));
         }
 
         defaults

@@ -22,6 +22,17 @@ pub enum VectorType {
     Bool,
 }
 
+/// Simplified data type classification for determining scale types.
+/// This distinguishes numeric types (which can use continuous scales)
+/// from string types (which require categorical scales).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ColumnDataType {
+    /// Numeric types (Int, Float, Bool) - can use continuous or categorical scales
+    Numeric,
+    /// String type - must use categorical scales
+    String,
+}
+
 /// Discriminated union of iterators over vector data.
 /// This makes it impossible to miss handling a data type.
 pub enum VectorIter<'a> {
@@ -29,6 +40,16 @@ pub enum VectorIter<'a> {
     Float(Box<dyn Iterator<Item = f64> + 'a>),
     Str(Box<dyn Iterator<Item = &'a str> + 'a>),
     Bool(Box<dyn Iterator<Item = bool> + 'a>),
+}
+
+impl VectorType {
+    /// Convert VectorType to simplified ColumnDataType classification
+    pub fn to_column_data_type(self) -> ColumnDataType {
+        match self {
+            VectorType::Int | VectorType::Float | VectorType::Bool => ColumnDataType::Numeric,
+            VectorType::Str => ColumnDataType::String,
+        }
+    }
 }
 
 impl std::fmt::Display for VectorType {

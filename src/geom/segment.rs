@@ -49,19 +49,19 @@ impl GeomSegment {
     /// Set a constant color for all segments
     pub fn color(&mut self, color: crate::theme::Color) -> &mut Self {
         let rgba = color.into();
-        self.color = Some(AesValue::Constant(PrimitiveValue::Int(rgba)));
+        self.color = Some(AesValue::constant(PrimitiveValue::Int(rgba)));
         self
     }
 
     /// Set a constant alpha (transparency) for all segments
     pub fn alpha(&mut self, alpha: f64) -> &mut Self {
-        self.alpha = Some(AesValue::Constant(PrimitiveValue::Float(alpha)));
+        self.alpha = Some(AesValue::constant(PrimitiveValue::Float(alpha)));
         self
     }
 
     /// Set a constant size (line width) for all segments
     pub fn size(&mut self, size: f64) -> &mut Self {
-        self.size = Some(AesValue::Constant(PrimitiveValue::Float(size)));
+        self.size = Some(AesValue::constant(PrimitiveValue::Float(size)));
         self
     }
 
@@ -74,7 +74,7 @@ impl GeomSegment {
     ///
     /// Examples: `"-"`, `"."`, `"-."`, `"- -"`, `". ."`
     pub fn linetype(&mut self, pattern: impl Into<String>) -> &mut Self {
-        self.linetype = Some(AesValue::Constant(PrimitiveValue::Str(pattern.into())));
+        self.linetype = Some(AesValue::constant(PrimitiveValue::Str(pattern.into())));
         self
     }
 }
@@ -124,7 +124,7 @@ impl Geom for GeomSegment {
         let sizes = ctx.get_unscaled_aesthetic_values(Aesthetic::Size)?;
 
         // Get constant linetype if set
-        let constant_linetype = if let Some(AesValue::Constant(PrimitiveValue::Str(pattern))) =
+        let constant_linetype = if let Some(AesValue::Constant { value: PrimitiveValue::Str(pattern), .. }) =
             ctx.mapping().get(&Aesthetic::Linetype)
         {
             Some(pattern.clone())
@@ -134,7 +134,7 @@ impl Geom for GeomSegment {
 
         // Collect linetype column values if mapped
         let linetype_vec =
-            if let Some(AesValue::Column(col)) = ctx.mapping().get(&Aesthetic::Linetype) {
+            if let Some(AesValue::Column { name: col, .. }) = ctx.mapping().get(&Aesthetic::Linetype) {
                 let vec = ctx
                     .data()
                     .get(col.as_str())

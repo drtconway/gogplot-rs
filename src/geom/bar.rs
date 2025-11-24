@@ -6,6 +6,7 @@ use crate::data::PrimitiveValue;
 use crate::error::{DataType, PlotError};
 use crate::geom::context::compute_min_spacing;
 use crate::layer::{Position, Stat};
+use crate::scale::ScaleType;
 
 /// GeomBar renders bars from y=0 to y=value
 /// By default, it uses Stat::Count to count occurrences at each x position
@@ -44,19 +45,19 @@ impl GeomBar {
 
     /// Set the default fill color
     pub fn fill(&mut self, color: crate::theme::Color) -> &mut Self {
-        self.fill = Some(AesValue::Constant(PrimitiveValue::Int(color.into())));
+        self.fill = Some(AesValue::constant(PrimitiveValue::Int(color.into())));
         self
     }
 
     /// Set the default stroke color
     pub fn color(&mut self, color: crate::theme::Color) -> &mut Self {
-        self.color = Some(AesValue::Constant(PrimitiveValue::Int(color.into())));
+        self.color = Some(AesValue::constant(PrimitiveValue::Int(color.into())));
         self
     }
 
     /// Set the default alpha/opacity
     pub fn alpha(&mut self, alpha: f64) -> &mut Self {
-        self.alpha = Some(AesValue::Constant(PrimitiveValue::Float(
+        self.alpha = Some(AesValue::constant(PrimitiveValue::Float(
             alpha.clamp(0.0, 1.0),
         )));
         self
@@ -141,6 +142,17 @@ impl Geom for GeomBar {
         }
     }
 
+    fn aesthetic_scale_type(&self, aesthetic: Aesthetic) -> ScaleType {
+        match aesthetic {
+            // Bar charts typically have categorical X axis (one bar per category)
+            Aesthetic::X => ScaleType::Categorical,
+            // Y-axis should be continuous (heights/counts)
+            Aesthetic::Y => ScaleType::Continuous,
+            // Other aesthetics can be either
+            _ => ScaleType::Either,
+        }
+    }
+
     fn compute_stat(
         &self,
         data: &dyn crate::data::DataSource,
@@ -158,7 +170,7 @@ impl Geom for GeomBar {
                 // Count stat needs data ownership, so we manually implement it here
 
                 let x_col_name = match mapping.get(&Aesthetic::X) {
-                    Some(AesValue::Column(name)) => name,
+                    Some(AesValue::Column { name, .. }) => name,
                     _ => return Ok(None),
                 };
 

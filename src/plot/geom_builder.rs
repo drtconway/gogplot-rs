@@ -2,7 +2,6 @@
 
 use crate::aesthetics::AesMap;
 use crate::data::DataSource;
-use crate::geom::IntoLayer;
 use crate::layer::Layer;
 
 /// Trait for adding geom layers to a plot
@@ -52,22 +51,19 @@ pub trait GeomBuilder {
         Self: Sized,
     {
         let geom = crate::geom::point::GeomPoint::default();
-        let mut layer_geom = crate::plot::LayerGeom::new(geom);
+        let mut layer_geom = crate::plot::LayerGeom::new(geom, self.default_aes());
         f(&mut layer_geom);
-
-        let (geom, layer_aes, stat) = layer_geom.into_parts();
-        let mut layer = geom.into_layer();
-        // Only override the stat if it's not Identity (preserve geom defaults)
-        if !matches!(stat, crate::layer::Stat::Identity) {
-            layer.stat = stat;
-        }
-        // Merge layer-specific aesthetics
-        for (aesthetic, value) in layer_aes.iter() {
-            layer.mapping.set(*aesthetic, value.clone());
-        }
-        self.merge_default_aesthetics(&mut layer);
+        let layer = Layer::from(layer_geom);
         self.layers_mut().push(layer);
         self
+    }
+
+    /// Add a line geom layer with default settings
+    fn geom_line(self) -> Self
+    where
+        Self: Sized,
+    {
+        self.geom_line_with(|_| {})
     }
 
     /// Add a line geom layer with customization (builder style)
@@ -77,20 +73,9 @@ pub trait GeomBuilder {
         Self: Sized,
     {
         let geom = crate::geom::line::GeomLine::default();
-        let mut layer_geom = crate::plot::LayerGeom::new(geom);
+        let mut layer_geom = crate::plot::LayerGeom::new(geom,self.default_aes());
         f(&mut layer_geom);
-
-        let (geom, layer_aes, stat) = layer_geom.into_parts();
-        let mut layer = geom.into_layer();
-        // Only override the stat if it's not Identity (preserve geom defaults)
-        if !matches!(stat, crate::layer::Stat::Identity) {
-            layer.stat = stat;
-        }
-        // Merge layer-specific aesthetics
-        for (aesthetic, value) in layer_aes.iter() {
-            layer.mapping.set(*aesthetic, value.clone());
-        }
-        self.merge_default_aesthetics(&mut layer);
+        let layer = Layer::from(layer_geom);
         self.layers_mut().push(layer);
         self
     }
@@ -112,20 +97,9 @@ pub trait GeomBuilder {
         Self: Sized,
     {
         let geom = crate::geom::density::GeomDensity::default();
-        let mut layer_geom = crate::plot::LayerGeom::new(geom);
+        let mut layer_geom = crate::plot::LayerGeom::new(geom,self.default_aes());
         f(&mut layer_geom);
-
-        let (geom, layer_aes, stat) = layer_geom.into_parts();
-        let mut layer = geom.into_layer();
-        // Only override the stat if it's not Identity (preserve geom defaults)
-        if !matches!(stat, crate::layer::Stat::Identity) {
-            layer.stat = stat;
-        }
-        // Merge layer-specific aesthetics
-        for (aesthetic, value) in layer_aes.iter() {
-            layer.mapping.set(*aesthetic, value.clone());
-        }
-        self.merge_default_aesthetics(&mut layer);
+        let layer = Layer::from(layer_geom);
         self.layers_mut().push(layer);
         self
     }
@@ -150,20 +124,9 @@ pub trait GeomBuilder {
         Self: Sized,
     {
         let geom = crate::geom::hline::GeomHLine::new();
-        let mut layer_geom = crate::plot::LayerGeom::new(geom);
+        let mut layer_geom = crate::plot::LayerGeom::new(geom,self.default_aes());
         f(&mut layer_geom);
-
-        let (geom, layer_aes, stat) = layer_geom.into_parts();
-        let mut layer = geom.into_layer();
-        // Only override the stat if it's not Identity (preserve geom defaults)
-        if !matches!(stat, crate::layer::Stat::Identity) {
-            layer.stat = stat;
-        }
-        // Merge layer-specific aesthetics
-        for (aesthetic, value) in layer_aes.iter() {
-            layer.mapping.set(*aesthetic, value.clone());
-        }
-        self.merge_default_aesthetics(&mut layer);
+        let layer = Layer::from(layer_geom);
         self.layers_mut().push(layer);
         self
     }
@@ -188,20 +151,9 @@ pub trait GeomBuilder {
         Self: Sized,
     {
         let geom = crate::geom::vline::GeomVLine::new();
-        let mut layer_geom = crate::plot::LayerGeom::new(geom);
+        let mut layer_geom = crate::plot::LayerGeom::new(geom,self.default_aes());
         f(&mut layer_geom);
-
-        let (geom, layer_aes, stat) = layer_geom.into_parts();
-        let mut layer = geom.into_layer();
-        // Only override the stat if it's not Identity (preserve geom defaults)
-        if !matches!(stat, crate::layer::Stat::Identity) {
-            layer.stat = stat;
-        }
-        // Merge layer-specific aesthetics
-        for (aesthetic, value) in layer_aes.iter() {
-            layer.mapping.set(*aesthetic, value.clone());
-        }
-        self.merge_default_aesthetics(&mut layer);
+        let layer = Layer::from(layer_geom);
         self.layers_mut().push(layer);
         self
     }
@@ -237,20 +189,9 @@ pub trait GeomBuilder {
         Self: Sized,
     {
         let geom = crate::geom::rect::GeomRect::new();
-        let mut layer_geom = crate::plot::LayerGeom::new(geom);
+        let mut layer_geom = crate::plot::LayerGeom::new(geom,self.default_aes());
         f(&mut layer_geom);
-
-        let (geom, layer_aes, stat) = layer_geom.into_parts();
-        let mut layer = geom.into_layer();
-        // Only override the stat if it's not Identity (preserve geom defaults)
-        if !matches!(stat, crate::layer::Stat::Identity) {
-            layer.stat = stat;
-        }
-        // Merge layer-specific aesthetics
-        for (aesthetic, value) in layer_aes.iter() {
-            layer.mapping.set(*aesthetic, value.clone());
-        }
-        self.merge_default_aesthetics(&mut layer);
+        let layer = Layer::from(layer_geom);
         self.layers_mut().push(layer);
         self
     }
@@ -288,20 +229,9 @@ pub trait GeomBuilder {
         Self: Sized,
     {
         let geom = crate::geom::segment::GeomSegment::new();
-        let mut layer_geom = crate::plot::LayerGeom::new(geom);
+        let mut layer_geom = crate::plot::LayerGeom::new(geom,self.default_aes());
         f(&mut layer_geom);
-
-        let (geom, layer_aes, stat) = layer_geom.into_parts();
-        let mut layer = geom.into_layer();
-        // Only override the stat if it's not Identity (preserve geom defaults)
-        if !matches!(stat, crate::layer::Stat::Identity) {
-            layer.stat = stat;
-        }
-        // Merge layer-specific aesthetics
-        for (aesthetic, value) in layer_aes.iter() {
-            layer.mapping.set(*aesthetic, value.clone());
-        }
-        self.merge_default_aesthetics(&mut layer);
+        let layer = Layer::from(layer_geom);
         self.layers_mut().push(layer);
         self
     }
@@ -339,29 +269,9 @@ pub trait GeomBuilder {
         Self: Sized,
     {
         let geom = crate::geom::bar::GeomBar::new();
-        let mut layer_geom = crate::plot::LayerGeom::new(geom);
+        let mut layer_geom = crate::plot::LayerGeom::new(geom,self.default_aes());
         f(&mut layer_geom);
-
-        let (geom, layer_aes, stat) = layer_geom.into_parts();
-        let mut layer = geom.into_layer();
-        // Only override the stat if it's not Identity (preserve geom defaults)
-        if !matches!(stat, crate::layer::Stat::Identity) {
-            layer.stat = stat;
-        }
-        // Merge layer-specific aesthetics
-        for (aesthetic, value) in layer_aes.iter() {
-            layer.mapping.set(*aesthetic, value.clone());
-        }
-        self.merge_default_aesthetics(&mut layer);
-
-        // If layer needs stat transformation and doesn't have data, clone plot data
-        // Stats need owned data to transform
-        if !matches!(layer.stat, crate::layer::Stat::Identity) && layer.data.is_none() {
-            if let Some(data) = self.data_mut() {
-                layer.data = Some(data.clone_box());
-            }
-        }
-
+        let layer = Layer::from(layer_geom);
         self.layers_mut().push(layer);
         self
     }
@@ -399,29 +309,9 @@ pub trait GeomBuilder {
         Self: Sized,
     {
         let geom = crate::geom::histogram::GeomHistogram::new();
-        let mut layer_geom = crate::plot::LayerGeom::new(geom);
+        let mut layer_geom = crate::plot::LayerGeom::new(geom,self.default_aes());
         f(&mut layer_geom);
-
-        let (geom, layer_aes, stat) = layer_geom.into_parts();
-        let mut layer = geom.into_layer();
-        // Only override the stat if it's not Identity (preserve geom defaults)
-        if !matches!(stat, crate::layer::Stat::Identity) {
-            layer.stat = stat;
-        }
-        // Merge layer-specific aesthetics
-        for (aesthetic, value) in layer_aes.iter() {
-            layer.mapping.set(*aesthetic, value.clone());
-        }
-        self.merge_default_aesthetics(&mut layer);
-
-        // If layer needs stat transformation and doesn't have data, clone plot data
-        // Stats need owned data to transform
-        if !matches!(layer.stat, crate::layer::Stat::Identity) && layer.data.is_none() {
-            if let Some(data) = self.data_mut() {
-                layer.data = Some(data.clone_box());
-            }
-        }
-
+        let layer = Layer::from(layer_geom);
         self.layers_mut().push(layer);
         self
     }
@@ -460,29 +350,9 @@ pub trait GeomBuilder {
         Self: Sized,
     {
         let geom = crate::geom::boxplot::GeomBoxplot::new();
-        let mut layer_geom = crate::plot::LayerGeom::new(geom);
+        let mut layer_geom = crate::plot::LayerGeom::new(geom,self.default_aes());
         f(&mut layer_geom);
-
-        let (geom, layer_aes, stat) = layer_geom.into_parts();
-        let mut layer = geom.into_layer();
-        // Only override the stat if it's not Identity (preserve geom defaults)
-        if !matches!(stat, crate::layer::Stat::Identity) {
-            layer.stat = stat;
-        }
-        // Merge layer-specific aesthetics
-        for (aesthetic, value) in layer_aes.iter() {
-            layer.mapping.set(*aesthetic, value.clone());
-        }
-        self.merge_default_aesthetics(&mut layer);
-
-        // If layer needs stat transformation and doesn't have data, clone plot data
-        // Stats need owned data to transform
-        if !matches!(layer.stat, crate::layer::Stat::Identity) && layer.data.is_none() {
-            if let Some(data) = self.data_mut() {
-                layer.data = Some(data.clone_box());
-            }
-        }
-
+        let layer = Layer::from(layer_geom);
         self.layers_mut().push(layer);
         self
     }
@@ -519,20 +389,9 @@ pub trait GeomBuilder {
         Self: Sized,
     {
         let geom = crate::geom::text::GeomText::new();
-        let mut layer_geom = crate::plot::LayerGeom::new(geom);
+        let mut layer_geom = crate::plot::LayerGeom::new(geom,self.default_aes());
         f(&mut layer_geom);
-
-        let (geom, layer_aes, stat) = layer_geom.into_parts();
-        let mut layer = geom.into_layer();
-        // Only override the stat if it's not Identity (preserve geom defaults)
-        if !matches!(stat, crate::layer::Stat::Identity) {
-            layer.stat = stat;
-        }
-        // Merge layer-specific aesthetics
-        for (aesthetic, value) in layer_aes.iter() {
-            layer.mapping.set(*aesthetic, value.clone());
-        }
-        self.merge_default_aesthetics(&mut layer);
+        let layer = Layer::from(layer_geom);
         self.layers_mut().push(layer);
         self
     }
@@ -565,29 +424,9 @@ pub trait GeomBuilder {
         Self: Sized,
     {
         let geom = crate::geom::smooth::GeomSmooth::new();
-        let mut layer_geom = crate::plot::LayerGeom::new(geom);
+        let mut layer_geom = crate::plot::LayerGeom::new(geom,self.default_aes());
         f(&mut layer_geom);
-
-        let (geom, layer_aes, stat) = layer_geom.into_parts();
-        let mut layer = geom.into_layer();
-        // Only override the stat if it's not Identity (preserve geom defaults)
-        if !matches!(stat, crate::layer::Stat::Identity) {
-            layer.stat = stat;
-        }
-        // Merge layer-specific aesthetics
-        for (aesthetic, value) in layer_aes.iter() {
-            layer.mapping.set(*aesthetic, value.clone());
-        }
-        self.merge_default_aesthetics(&mut layer);
-
-        // If layer needs stat transformation and doesn't have data, clone plot data
-        // Stats need owned data to transform
-        if !matches!(layer.stat, crate::layer::Stat::Identity) && layer.data.is_none() {
-            if let Some(data) = self.data_mut() {
-                layer.data = Some(data.clone_box());
-            }
-        }
-
+        let layer = Layer::from(layer_geom);
         self.layers_mut().push(layer);
         self
     }

@@ -3,8 +3,8 @@ use crate::data::{DataSource, VectorType};
 use crate::error::{DataType, PlotError};
 use crate::layer::Layer;
 use crate::plot::ScaleSet;
-use crate::scale::ContinuousScale;
-use crate::theme::Color;
+use crate::scale::{ContinuousScale, ScaleType};
+use crate::theme::{self, Color};
 use cairo::Context;
 use ordered_float::OrderedFloat;
 
@@ -121,6 +121,9 @@ pub struct RenderContext<'a> {
     /// Scales for transforming data to visual space
     pub scales: &'a ScaleSet,
 
+    /// Theme for styling
+    pub theme: &'a theme::Theme,
+
     /// X viewport range (min, max) in device coordinates
     pub x_range: (f64, f64),
 
@@ -134,6 +137,7 @@ impl<'a> RenderContext<'a> {
         layer: &'a Layer,
         plot_data: Option<&'a dyn DataSource>,
         scales: &'a ScaleSet,
+        theme: &'a theme::Theme,
         x_range: (f64, f64),
         y_range: (f64, f64),
     ) -> Self {
@@ -142,6 +146,7 @@ impl<'a> RenderContext<'a> {
             layer,
             plot_data,
             scales,
+            theme,
             x_range,
             y_range,
         }
@@ -190,7 +195,10 @@ impl<'a> RenderContext<'a> {
         &self,
         aesthetic: Aesthetic,
     ) -> Result<AestheticValues<'a>, PlotError> {
-        let x_scale = self.layer.computed_scales.as_ref()
+        let x_scale = self
+            .layer
+            .computed_scales
+            .as_ref()
             .and_then(|s| s.x.as_deref())
             .or_else(|| self.scales.x.as_deref());
         self.get_aesthetic_values(aesthetic, x_scale)
@@ -202,7 +210,10 @@ impl<'a> RenderContext<'a> {
         &self,
         aesthetic: Aesthetic,
     ) -> Result<AestheticValues<'a>, PlotError> {
-        let y_scale = self.layer.computed_scales.as_ref()
+        let y_scale = self
+            .layer
+            .computed_scales
+            .as_ref()
             .and_then(|s| s.y.as_deref())
             .or_else(|| self.scales.y.as_deref());
         self.get_aesthetic_values(aesthetic, y_scale)
@@ -230,7 +241,7 @@ impl<'a> RenderContext<'a> {
         let n = self.data().len();
 
         match mapping {
-            Some(AesValue::Column(col_name)) => {
+            Some(AesValue::Column{ name: col_name, hint: None | Some(ScaleType::Continuous | ScaleType::Either) }) => {
                 // Get data from column
                 let vec = self
                     .data()
@@ -326,7 +337,7 @@ impl<'a> RenderContext<'a> {
                     }
                 }
             }
-            Some(AesValue::CategoricalColumn(col_name)) => {
+            Some(AesValue::Column{ name: col_name, hint: Some(ScaleType::Categorical) }) => {
                 // Treat numeric column as categorical by converting to strings
                 let vec = self
                     .data()
@@ -457,7 +468,7 @@ impl<'a> RenderContext<'a> {
                     }
                 }
             }
-            Some(AesValue::Constant(prim)) => {
+            Some(AesValue::Constant{ value: prim, hint: _ }) => {
                 // Replicate constant value to match data length
                 let value = match prim {
                     PrimitiveValue::Float(v) => *v,
@@ -499,13 +510,22 @@ impl<'a> RenderContext<'a> {
 
         let n = self.data().len();
         let mapping = self.mapping().get(&Aesthetic::Color);
-        let color_scale = self.layer.computed_scales.as_ref()
+        let color_scale = self
+            .layer
+            .computed_scales
+            .as_ref()
             .and_then(|s| s.color.as_ref())
             .or_else(|| self.scales.color.as_ref());
 
         match (mapping, color_scale) {
-            // Column mapped with scale
-            (Some(AesValue::Column(col_name)), Some(scale)) => {
+            // Column mapped with continuous scale
+            (
+                Some(AesValue::Column {
+                    name: col_name,
+                    hint: None | Some(ScaleType::Continuous | ScaleType::Either),
+                }),
+                Some(scale),
+            ) => {
                 let vec = self
                     .data()
                     .get(col_name.as_str())
@@ -566,7 +586,13 @@ impl<'a> RenderContext<'a> {
                 }
             }
             // CategoricalColumn - treat numeric data as discrete categories
-            (Some(AesValue::CategoricalColumn(col_name)), Some(scale)) => {
+            (
+                Some(AesValue::Column {
+                    name: col_name,
+                    hint: Some(ScaleType::Categorical),
+                }),
+                Some(scale),
+            ) => {
                 let vec = self
                     .data()
                     .get(col_name.as_str())
@@ -619,20 +645,22 @@ impl<'a> RenderContext<'a> {
                 Ok(ColorValues::Mapped(colors))
             }
             // Constant color
-            (Some(AesValue::Constant(PrimitiveValue::Int(rgba))), _) => {
-                let r = ((rgba >> 24) & 0xFF) as u8;
-                let g = ((rgba >> 16) & 0xFF) as u8;
-                let b = ((rgba >> 8) & 0xFF) as u8;
-                let a = (rgba & 0xFF) as u8;
-                Ok(ColorValues::Constant(Color(r, g, b, a), n))
+            (
+                Some(AesValue::Constant {
+                    value: PrimitiveValue::Int(rgba),
+                    hint: Some(ScaleType::Categorical),
+                }),
+                _,
+            ) => Ok(ColorValues::Constant(Color::from(*rgba), n)),
+            (Some(AesValue::Constant { value: _, hint: _ }), _) => {
+                Err(PlotError::InvalidAestheticType {
+                    aesthetic: Aesthetic::Color,
+                    expected: DataType::RgbaConstant,
+                    actual: DataType::Custom("other constant".to_string()),
+                })
             }
-            (Some(AesValue::Constant(_)), _) => Err(PlotError::InvalidAestheticType {
-                aesthetic: Aesthetic::Color,
-                expected: DataType::RgbaConstant,
-                actual: DataType::Custom("other constant".to_string()),
-            }),
             // Column mapped but no scale
-            (Some(AesValue::Column(_) | AesValue::CategoricalColumn(_)), None) => {
+            (Some(AesValue::Column { name: _, hint: _ }), None) => {
                 Err(PlotError::InvalidAestheticType {
                     aesthetic: Aesthetic::Color,
                     expected: DataType::Custom("color scale for column mapping".to_string()),
@@ -652,13 +680,22 @@ impl<'a> RenderContext<'a> {
 
         let n = self.data().len();
         let mapping = self.mapping().get(&Aesthetic::Fill);
-        let color_scale = self.layer.computed_scales.as_ref()
+        let color_scale = self
+            .layer
+            .computed_scales
+            .as_ref()
             .and_then(|s| s.fill.as_ref())
             .or_else(|| self.scales.fill.as_ref());
 
         match (mapping, color_scale) {
             // Column mapped with scale (continuous)
-            (Some(AesValue::Column(col_name)), Some(scale)) => {
+            (
+                Some(AesValue::Column {
+                    name: col_name,
+                    hint: None | Some(ScaleType::Continuous | ScaleType::Either),
+                }),
+                Some(scale),
+            ) => {
                 let vec = self
                     .data()
                     .get(col_name.as_str())
@@ -692,8 +729,7 @@ impl<'a> RenderContext<'a> {
                             .iter()
                             .filter_map(|&v| {
                                 let result = scale.map_continuous_to_color(v);
-                                if result.is_none() {
-                                }
+                                if result.is_none() {}
                                 result
                             })
                             .collect();
@@ -724,7 +760,13 @@ impl<'a> RenderContext<'a> {
                 }
             }
             // CategoricalColumn - treat numeric data as discrete categories
-            (Some(AesValue::CategoricalColumn(col_name)), Some(scale)) => {
+            (
+                Some(AesValue::Column {
+                    name: col_name,
+                    hint: Some(ScaleType::Categorical),
+                }),
+                Some(scale),
+            ) => {
                 let vec = self
                     .data()
                     .get(col_name.as_str())
@@ -777,20 +819,22 @@ impl<'a> RenderContext<'a> {
                 Ok(ColorValues::Mapped(colors))
             }
             // Constant color
-            (Some(AesValue::Constant(PrimitiveValue::Int(rgba))), _) => {
-                let r = ((rgba >> 24) & 0xFF) as u8;
-                let g = ((rgba >> 16) & 0xFF) as u8;
-                let b = ((rgba >> 8) & 0xFF) as u8;
-                let a = (rgba & 0xFF) as u8;
-                Ok(ColorValues::Constant(Color(r, g, b, a), n))
+            (
+                Some(AesValue::Constant {
+                    value: PrimitiveValue::Int(rgba),
+                    hint: Some(ScaleType::Categorical),
+                }),
+                _,
+            ) => Ok(ColorValues::Constant(Color::from(*rgba), n)),
+            (Some(AesValue::Constant { value: _, hint: _ }), _) => {
+                Err(PlotError::InvalidAestheticType {
+                    aesthetic: Aesthetic::Fill,
+                    expected: DataType::RgbaConstant,
+                    actual: DataType::Custom("other constant".to_string()),
+                })
             }
-            (Some(AesValue::Constant(_)), _) => Err(PlotError::InvalidAestheticType {
-                aesthetic: Aesthetic::Fill,
-                expected: DataType::RgbaConstant,
-                actual: DataType::Custom("other constant".to_string()),
-            }),
             // Column mapped but no scale
-            (Some(AesValue::Column(_) | AesValue::CategoricalColumn(_)), None) => {
+            (Some(AesValue::Column { name: _, hint: _ }), None) => {
                 Err(PlotError::InvalidAestheticType {
                     aesthetic: Aesthetic::Fill,
                     expected: DataType::Custom("fill scale for column mapping".to_string()),
@@ -811,7 +855,10 @@ impl<'a> RenderContext<'a> {
 
         let n = self.data().len();
         let mapping = self.mapping().get(&Aesthetic::Shape);
-        let shape_scale = self.layer.computed_scales.as_ref()
+        let shape_scale = self
+            .layer
+            .computed_scales
+            .as_ref()
             .and_then(|s| s.shape.as_ref())
             .or_else(|| self.scales.shape.as_ref());
 
@@ -826,9 +873,12 @@ impl<'a> RenderContext<'a> {
         };
 
         match (mapping, shape_scale) {
-            // Column mapped with scale
+            // Column mapped with scale (categorical or unspecified)
             (
-                Some(AesValue::Column(col_name) | AesValue::CategoricalColumn(col_name)),
+                Some(AesValue::Column {
+                    name: col_name,
+                    hint: None | Some(ScaleType::Categorical | ScaleType::Either),
+                }),
                 Some(scale),
             ) => {
                 let vec = self
@@ -848,17 +898,29 @@ impl<'a> RenderContext<'a> {
                     })
                 }
             }
+            // Continuous hint for shapes is invalid
+            (
+                Some(AesValue::Column {
+                    hint: Some(ScaleType::Continuous),
+                    ..
+                }),
+                Some(_),
+            ) => Err(PlotError::InvalidAestheticType {
+                aesthetic: Aesthetic::Shape,
+                expected: DataType::Custom("categorical for shapes".to_string()),
+                actual: DataType::Custom("continuous hint provided".to_string()),
+            }),
             // Constant shape
-            (Some(AesValue::Constant(PrimitiveValue::Int(v))), _) => {
+            (Some(AesValue::Constant{ value: PrimitiveValue::Int(v), hint: _ }), _) => {
                 Ok(ShapeValues::Constant(int_to_shape(*v), n))
             }
-            (Some(AesValue::Constant(_)), _) => Err(PlotError::InvalidAestheticType {
+            (Some(AesValue::Constant{ value: _, hint: _ }), _) => Err(PlotError::InvalidAestheticType {
                 aesthetic: Aesthetic::Shape,
                 expected: DataType::Constant(VectorType::Int),
                 actual: DataType::Custom("other constant".to_string()),
             }),
             // Column mapped but no scale
-            (Some(AesValue::Column(_) | AesValue::CategoricalColumn(_)), None) => {
+            (Some(AesValue::Column { name: _, hint: _ }), None) => {
                 Err(PlotError::InvalidAestheticType {
                     aesthetic: Aesthetic::Shape,
                     expected: DataType::Custom("shape scale for column mapping".to_string()),
@@ -923,8 +985,8 @@ impl<'a> RenderContext<'a> {
 
         // Extract column name
         let col_name = match mapping {
-            AesValue::Column(name) | AesValue::CategoricalColumn(name) => name.as_str(),
-            AesValue::Constant(_) => {
+            AesValue::Column { name, hint: _ } => name.as_str(),
+            AesValue::Constant{ value: _, hint: _ } => {
                 return Err(PlotError::InvalidAestheticType {
                     aesthetic,
                     expected: DataType::ColumnMapping,
@@ -989,14 +1051,22 @@ impl<'a> RenderContext<'a> {
     /// Handles string, int, and float columns, converting them to strings
     pub fn get_label_values(&self) -> Result<Vec<String>, PlotError> {
         use crate::data::PrimitiveValue;
-        
-        let label_mapping = self.mapping().get(&Aesthetic::Label)
-            .ok_or_else(|| PlotError::MissingAesthetic { aesthetic: Aesthetic::Label })?;
+
+        let label_mapping =
+            self.mapping()
+                .get(&Aesthetic::Label)
+                .ok_or_else(|| PlotError::MissingAesthetic {
+                    aesthetic: Aesthetic::Label,
+                })?;
 
         match label_mapping {
-            AesValue::Column(col_name) => {
-                let col = self.data().get(col_name.as_str())
-                    .ok_or_else(|| PlotError::MissingColumn { column: col_name.clone() })?;
+            AesValue::Column{ name: col_name, hint: _ } => {
+                let col =
+                    self.data()
+                        .get(col_name.as_str())
+                        .ok_or_else(|| PlotError::MissingColumn {
+                            column: col_name.clone(),
+                        })?;
 
                 // Convert column to strings using iterators
                 if let Some(str_iter) = col.iter_str() {
@@ -1006,10 +1076,13 @@ impl<'a> RenderContext<'a> {
                 } else if let Some(float_iter) = col.iter_float() {
                     Ok(float_iter.map(|v| v.to_string()).collect())
                 } else {
-                    Err(PlotError::invalid_column_type(col_name, "string, int, or float"))
+                    Err(PlotError::invalid_column_type(
+                        col_name,
+                        "string, int, or float",
+                    ))
                 }
             }
-            AesValue::Constant(prim) => {
+            AesValue::Constant{ value: prim, hint: _ } => {
                 let n_rows = self.data().len();
                 let label_str = match prim {
                     PrimitiveValue::Str(s) => s.clone(),
@@ -1019,7 +1092,6 @@ impl<'a> RenderContext<'a> {
                 };
                 Ok(vec![label_str; n_rows])
             }
-            _ => Err(PlotError::invalid_column_type("label", "column or constant")),
         }
     }
 }

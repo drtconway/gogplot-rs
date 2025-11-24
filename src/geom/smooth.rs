@@ -86,14 +86,14 @@ impl GeomSmooth {
     /// Create a new smooth geom with default settings
     pub fn new() -> Self {
         Self {
-            color: Some(AesValue::Constant(PrimitiveValue::Int(
+            color: Some(AesValue::constant(PrimitiveValue::Int(
                 crate::theme::Color::rgb(0, 114, 178).into(), // Blue
             ))),
-            fill: Some(AesValue::Constant(PrimitiveValue::Int(
+            fill: Some(AesValue::constant(PrimitiveValue::Int(
                 crate::theme::Color::rgb(128, 128, 128).into(), // Gray
             ))),
-            alpha: Some(AesValue::Constant(PrimitiveValue::Float(0.4))),
-            size: Some(AesValue::Constant(PrimitiveValue::Float(1.0))),
+            alpha: Some(AesValue::constant(PrimitiveValue::Float(0.4))),
+            size: Some(AesValue::constant(PrimitiveValue::Float(1.0))),
             se: true,
             stat: Stat::Smooth {
                 method: crate::stat::smooth::Method::Loess,
@@ -107,19 +107,19 @@ impl GeomSmooth {
 
     /// Set the line color
     pub fn color(&mut self, color: crate::theme::Color) -> &mut Self {
-        self.color = Some(AesValue::Constant(PrimitiveValue::Int(color.into())));
+        self.color = Some(AesValue::constant(PrimitiveValue::Int(color.into())));
         self
     }
 
     /// Set the ribbon fill color
     pub fn fill(&mut self, color: crate::theme::Color) -> &mut Self {
-        self.fill = Some(AesValue::Constant(PrimitiveValue::Int(color.into())));
+        self.fill = Some(AesValue::constant(PrimitiveValue::Int(color.into())));
         self
     }
 
     /// Set the ribbon alpha/opacity
     pub fn alpha(&mut self, alpha: f64) -> &mut Self {
-        self.alpha = Some(AesValue::Constant(PrimitiveValue::Float(
+        self.alpha = Some(AesValue::constant(PrimitiveValue::Float(
             alpha.clamp(0.0, 1.0),
         )));
         self
@@ -127,7 +127,7 @@ impl GeomSmooth {
 
     /// Set the line width
     pub fn size(&mut self, size: f64) -> &mut Self {
-        self.size = Some(AesValue::Constant(PrimitiveValue::Float(size.max(0.0))));
+        self.size = Some(AesValue::constant(PrimitiveValue::Float(size.max(0.0))));
         self
     }
 

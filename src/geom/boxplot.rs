@@ -3,6 +3,7 @@ use crate::aesthetics::{AesValue, Aesthetic};
 use crate::data::PrimitiveValue;
 use crate::error::PlotError;
 use crate::layer::Stat;
+use crate::scale::ScaleType;
 
 /// GeomBoxplot renders box-and-whisker plots
 ///
@@ -80,19 +81,19 @@ impl GeomBoxplot {
 
     /// Set the default fill color for the box
     pub fn fill(&mut self, color: crate::theme::Color) -> &mut Self {
-        self.fill = Some(AesValue::Constant(PrimitiveValue::Int(color.into())));
+        self.fill = Some(AesValue::constant(PrimitiveValue::Int(color.into())));
         self
     }
 
     /// Set the default outline color for the box and whiskers
     pub fn color(&mut self, color: crate::theme::Color) -> &mut Self {
-        self.color = Some(AesValue::Constant(PrimitiveValue::Int(color.into())));
+        self.color = Some(AesValue::constant(PrimitiveValue::Int(color.into())));
         self
     }
 
     /// Set the default alpha/opacity
     pub fn alpha(&mut self, alpha: f64) -> &mut Self {
-        self.alpha = Some(AesValue::Constant(PrimitiveValue::Float(
+        self.alpha = Some(AesValue::constant(PrimitiveValue::Float(
             alpha.clamp(0.0, 1.0),
         )));
         self
@@ -100,7 +101,7 @@ impl GeomBoxplot {
 
     /// Set the default line width for box outline and whiskers
     pub fn size(&mut self, size: f64) -> &mut Self {
-        self.size = Some(AesValue::Constant(PrimitiveValue::Float(size)));
+        self.size = Some(AesValue::constant(PrimitiveValue::Float(size)));
         self
     }
 
@@ -188,6 +189,18 @@ impl Geom for GeomBoxplot {
         // The stat computes Lower, Middle, Upper, Ymin, Ymax from X and Y
         // So we only require X here - the layer will handle Y requirement for the stat
         &[Aesthetic::X]
+    }
+
+    fn aesthetic_scale_type(&self, aesthetic: Aesthetic) -> ScaleType {
+        match aesthetic {
+            // Boxplots typically have categorical X axis (one box per category)
+            Aesthetic::X => ScaleType::Categorical,
+            // Y-axis and related aesthetics should be continuous
+            Aesthetic::Y | Aesthetic::Ymin | Aesthetic::Ymax 
+            | Aesthetic::Lower | Aesthetic::Middle | Aesthetic::Upper => ScaleType::Continuous,
+            // Other aesthetics can be either
+            _ => ScaleType::Either,
+        }
     }
 
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {

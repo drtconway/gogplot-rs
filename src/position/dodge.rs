@@ -38,7 +38,7 @@ impl PositionAdjust for Dodge {
     ) -> Result<Option<(Box<dyn DataSource>, AesMap, Option<crate::plot::ScaleSet>)>, PlotError> {
         // Get x column name
         let x_col_name = match mapping.get(&Aesthetic::X) {
-            Some(AesValue::Column(name)) => name.clone(),
+            Some(AesValue::Column { name, .. }) => name.clone(),
             _ => return Ok(None),
         };
 

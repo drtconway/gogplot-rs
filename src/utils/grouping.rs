@@ -14,7 +14,7 @@ pub fn get_grouping_columns(mapping: &AesMap) -> Vec<(Aesthetic, String)> {
         .iter()
         .filter(|(aes, _)| aes.is_grouping())
         .filter_map(|(aes, aes_value)| match aes_value {
-            AesValue::Column(name) => Some((*aes, name.clone())),
+            AesValue::Column { name, .. } => Some((*aes, name.clone())),
             _ => None,
         })
         .collect()

@@ -23,12 +23,12 @@ impl PositionAdjust for Stack {
     ) -> Result<Option<(Box<dyn DataSource>, AesMap, Option<crate::plot::ScaleSet>)>, PlotError> {
         // Get x and y column names
         let x_col_name = match mapping.get(&Aesthetic::X) {
-            Some(AesValue::Column(name)) => name.clone(),
+            Some(AesValue::Column { name, .. }) => name.clone(),
             _ => return Ok(None),
         };
 
         let y_col_name = match mapping.get(&Aesthetic::Y) {
-            Some(AesValue::Column(name)) => name.clone(),
+            Some(AesValue::Column { name, .. }) => name.clone(),
             _ => return Ok(None),
         };
 

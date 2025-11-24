@@ -47,19 +47,19 @@ impl GeomHLine {
     /// Set the line color
     pub fn color(&mut self, color: crate::theme::Color) -> &mut Self {
         let rgba = color.into();
-        self.color = Some(AesValue::Constant(PrimitiveValue::Int(rgba)));
+        self.color = Some(AesValue::constant(PrimitiveValue::Int(rgba)));
         self
     }
 
     /// Set the line width
     pub fn size(&mut self, size: f64) -> &mut Self {
-        self.size = Some(AesValue::Constant(PrimitiveValue::Float(size)));
+        self.size = Some(AesValue::constant(PrimitiveValue::Float(size)));
         self
     }
 
     /// Set the alpha/opacity
     pub fn alpha(&mut self, alpha: f64) -> &mut Self {
-        self.alpha = Some(AesValue::Constant(PrimitiveValue::Float(
+        self.alpha = Some(AesValue::constant(PrimitiveValue::Float(
             alpha.clamp(0.0, 1.0),
         )));
         self
@@ -67,7 +67,7 @@ impl GeomHLine {
 
     /// Set the line style pattern
     pub fn linetype(&mut self, pattern: impl Into<String>) -> &mut Self {
-        self.linetype = Some(AesValue::Constant(PrimitiveValue::Str(pattern.into())));
+        self.linetype = Some(AesValue::constant(PrimitiveValue::Str(pattern.into())));
         self
     }
 
@@ -149,7 +149,7 @@ impl Geom for GeomHLine {
         let sizes = ctx.get_unscaled_aesthetic_values(Aesthetic::Size)?;
         
         // Get linetype if specified
-        let linetype_pattern = if let Some(AesValue::Constant(PrimitiveValue::Str(pattern))) =
+        let linetype_pattern = if let Some(AesValue::Constant { value: PrimitiveValue::Str(pattern), .. }) =
             ctx.mapping().get(&Aesthetic::Linetype)
         {
             Some(pattern.clone())

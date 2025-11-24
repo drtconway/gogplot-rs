@@ -20,6 +20,16 @@ impl From<Color> for i64 {
     }
 }
 
+impl From<i64> for Color {
+    fn from(rgba: i64) -> Color {
+        let r = ((rgba >> 24) & 0xFF) as u8;
+        let g = ((rgba >> 16) & 0xFF) as u8;
+        let b = ((rgba >> 8) & 0xFF) as u8;
+        let a = (rgba & 0xFF) as u8;
+        Color(r, g, b, a)
+    }
+}
+
 pub mod color;
 
 /// Font representation
@@ -284,6 +294,26 @@ impl Default for PlotTitleTheme {
     }
 }
 
+/// Theme for geom_line
+#[derive(Clone, Debug, PartialEq)]
+pub struct GeomLineTheme {
+    pub color: Color,
+    pub size: f64,      // Line width
+    pub alpha: f64,
+    pub linestyle: crate::visuals::LineStyle,
+}
+
+impl Default for GeomLineTheme {
+    fn default() -> Self {
+        GeomLineTheme {
+            color: color::BLACK,
+            size: 1.0,
+            alpha: 1.0,
+            linestyle: crate::visuals::LineStyle::Solid,
+        }
+    }
+}
+
 /// Theme for geom_point
 #[derive(Clone, Debug, PartialEq)]
 pub struct GeomPointTheme {
@@ -343,6 +373,7 @@ pub struct Theme {
     pub legend: LegendTheme,
     pub plot_title: PlotTitleTheme,
     pub plot_margin: Spacing,
+    pub geom_line: GeomLineTheme,
     pub geom_point: GeomPointTheme,
     pub geom_text: GeomTextTheme,
 }
@@ -362,6 +393,7 @@ impl Default for Theme {
                 bottom: 60.0,
                 left: 70.0,
             },
+            geom_line: GeomLineTheme::default(),
             geom_point: GeomPointTheme::default(),
             geom_text: GeomTextTheme::default(),
         }

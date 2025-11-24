@@ -32,19 +32,19 @@ impl GeomLine {
     /// Set the default line color
     pub fn color(&mut self, color: crate::theme::Color) -> &mut Self {
         let rgba = color.into();
-        self.color = Some(AesValue::Constant(PrimitiveValue::Int(rgba)));
+        self.color = Some(AesValue::constant(PrimitiveValue::Int(rgba)));
         self
     }
 
     /// Set the default line width
     pub fn size(&mut self, size: f64) -> &mut Self {
-        self.size = Some(AesValue::Constant(PrimitiveValue::Float(size)));
+        self.size = Some(AesValue::constant(PrimitiveValue::Float(size)));
         self
     }
 
     /// Set the default alpha/opacity
     pub fn alpha(&mut self, alpha: f64) -> &mut Self {
-        self.alpha = Some(AesValue::Constant(PrimitiveValue::Float(
+        self.alpha = Some(AesValue::constant(PrimitiveValue::Float(
             alpha.clamp(0.0, 1.0),
         )));
         self
@@ -59,7 +59,7 @@ impl GeomLine {
     ///
     /// Examples: `"-"`, `"."`, `"-."`, `"- -"`, `". ."`
     pub fn linetype(&mut self, pattern: impl Into<String>) -> &mut Self {
-        self.linetype = Some(AesValue::Constant(PrimitiveValue::Str(pattern.into())));
+        self.linetype = Some(AesValue::constant(PrimitiveValue::Str(pattern.into())));
         self
     }
 }
@@ -72,20 +72,33 @@ impl Default for GeomLine {
 
 impl IntoLayer for GeomLine {
     fn default_aesthetics(&self) -> Vec<(Aesthetic, AesValue)> {
+        use crate::theme::Theme;
+        
         let mut defaults = Vec::new();
+        let theme = Theme::default();
 
         if let Some(color) = &self.color {
             defaults.push((Aesthetic::Color, color.clone()));
+        } else {
+            defaults.push((Aesthetic::Color, AesValue::constant(PrimitiveValue::Int(theme.geom_line.color.into()))));
         }
+        
         if let Some(alpha) = &self.alpha {
             defaults.push((Aesthetic::Alpha, alpha.clone()));
+        } else {
+            defaults.push((Aesthetic::Alpha, AesValue::constant(PrimitiveValue::Float(theme.geom_line.alpha))));
         }
+        
         if let Some(size) = &self.size {
             defaults.push((Aesthetic::Size, size.clone()));
+        } else {
+            defaults.push((Aesthetic::Size, AesValue::constant(PrimitiveValue::Float(theme.geom_line.size))));
         }
+        
         if let Some(linetype) = &self.linetype {
             defaults.push((Aesthetic::Linetype, linetype.clone()));
         }
+        // Note: linestyle from theme is applied directly during rendering, not stored as aesthetic
 
         defaults
     }
@@ -111,7 +124,7 @@ impl Geom for GeomLine {
         if has_group {
             // Get group values
             let group_col = match ctx.mapping().get(&Aesthetic::Group) {
-                Some(AesValue::Column(col)) => col,
+                Some(AesValue::Column { name: col, .. }) => col,
                 _ => {
                     return Err(PlotError::MissingAesthetic {
                         aesthetic: Aesthetic::Group,
@@ -188,26 +201,30 @@ impl GeomLine {
         let sizes_vec: Vec<_> = sizes.collect();
 
         // Get linetype values if mapped
-        let linetype_pattern =
-            if let Some(AesValue::Column(col)) = ctx.mapping().get(&Aesthetic::Linetype) {
-                // Get the string value from the data
-                let linetype_vec = ctx
-                    .data()
-                    .get(col.as_str())
-                    .ok_or_else(|| PlotError::missing_column(col))?;
-                if let Some(mut strs) = linetype_vec.iter_str() {
-                    let idx = points[0].2;
-                    strs.nth(idx).map(|s| s.to_string())
-                } else {
-                    None
+        let linetype_style = if let Some(aes_value) = ctx.mapping().get(&Aesthetic::Linetype) {
+            match aes_value {
+                AesValue::Column { name: col, .. } => {
+                    // Get the string value from the data
+                    let linetype_vec = ctx
+                        .data()
+                        .get(col.as_str())
+                        .ok_or_else(|| PlotError::missing_column(col))?;
+                    if let Some(mut strs) = linetype_vec.iter_str() {
+                        let idx = points[0].2;
+                        strs.nth(idx).map(|s| crate::visuals::LineStyle::from(s))
+                    } else {
+                        None
+                    }
                 }
-            } else if let Some(AesValue::Constant(PrimitiveValue::Str(pattern))) =
-                ctx.mapping().get(&Aesthetic::Linetype)
-            {
-                Some(pattern.clone())
-            } else {
-                None
-            };
+                AesValue::Constant { value: PrimitiveValue::Str(pattern), .. } => {
+                    Some(crate::visuals::LineStyle::from(pattern.as_str()))
+                }
+                _ => None,
+            }
+        } else {
+            // Use theme default
+            Some(ctx.theme.geom_line.linestyle.clone())
+        };
 
         // Use the first point's color/alpha/size for the entire line
         let idx = points[0].2;
@@ -220,8 +237,7 @@ impl GeomLine {
         ctx.cairo.set_line_width(size);
 
         // Apply line style
-        if let Some(pattern) = &linetype_pattern {
-            let style = LineStyle::from(pattern.as_str());
+        if let Some(style) = linetype_style {
             style.apply(ctx.cairo);
         } else {
             LineStyle::default().apply(ctx.cairo);

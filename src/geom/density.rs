@@ -39,19 +39,19 @@ impl GeomDensity {
     /// Set the default line color
     pub fn color(&mut self, color: crate::theme::Color) -> &mut Self {
         let rgba = color.into();
-        self.color = Some(AesValue::Constant(PrimitiveValue::Int(rgba)));
+        self.color = Some(AesValue::constant(PrimitiveValue::Int(rgba)));
         self
     }
 
     /// Set the default line width
     pub fn size(&mut self, size: f64) -> &mut Self {
-        self.size = Some(AesValue::Constant(PrimitiveValue::Float(size)));
+        self.size = Some(AesValue::constant(PrimitiveValue::Float(size)));
         self
     }
 
     /// Set the default alpha/opacity
     pub fn alpha(&mut self, alpha: f64) -> &mut Self {
-        self.alpha = Some(AesValue::Constant(PrimitiveValue::Float(
+        self.alpha = Some(AesValue::constant(PrimitiveValue::Float(
             alpha.clamp(0.0, 1.0),
         )));
         self

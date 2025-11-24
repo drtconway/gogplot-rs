@@ -203,6 +203,16 @@ impl DataSource for DataFrame {
     }
 }
 
+impl DataFrame {
+    /// Get the data type classification for a column.
+    /// Returns None if the column doesn't exist.
+    pub fn column_data_type(&self, name: &str) -> Option<crate::data::ColumnDataType> {
+        self.columns
+            .get(name)
+            .map(|col| col.vtype().to_column_data_type())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

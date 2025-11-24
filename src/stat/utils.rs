@@ -68,7 +68,7 @@ pub fn get_aesthetic_values<'a>(
         .ok_or_else(|| PlotError::missing_stat_input("stat", aesthetic))?;
 
     match aes_value {
-        AesValue::Column(col_name) | AesValue::CategoricalColumn(col_name) => {
+        AesValue::Column{ name: col_name, hint: _ } => {
             let series = data
                 .get(col_name.as_str())
                 .ok_or_else(|| PlotError::missing_column(col_name.as_str()))?;
@@ -100,7 +100,7 @@ pub fn get_aesthetic_values<'a>(
                 )),
             }
         }
-        AesValue::Constant(prim_val) => {
+        AesValue::Constant{ value: prim_val, hint: _ } => {
             let n = data.len();
             match prim_val {
                 PrimitiveValue::Float(f) => Ok(AestheticValueIter::ConstantFloat(*f, n)),

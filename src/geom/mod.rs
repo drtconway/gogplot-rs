@@ -1,6 +1,7 @@
 use crate::aesthetics::{AesMap, AesValue, Aesthetic};
 use crate::error::PlotError;
 use crate::layer::{Layer, Position, Stat};
+use crate::scale::ScaleType;
 
 pub mod bar;
 pub mod boxplot;
@@ -36,6 +37,17 @@ use crate::utils::dataframe::DataFrame;
 pub trait Geom: Send + Sync {
     /// Returns the aesthetics that this geom requires
     fn required_aesthetics(&self) -> &[Aesthetic];
+
+    /// Returns the required scale type for a given aesthetic.
+    /// 
+    /// This allows geoms to specify whether they need continuous or categorical scales.
+    /// For example, boxplots typically require X to be categorical and Y to be continuous.
+    /// 
+    /// Default implementation returns `ScaleType::Either` for all aesthetics, meaning
+    /// the scale type will be determined by the data type.
+    fn aesthetic_scale_type(&self, _aesthetic: Aesthetic) -> ScaleType {
+        ScaleType::Either
+    }
 
     /// Render the geom with the provided context
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError>;

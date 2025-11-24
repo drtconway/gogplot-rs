@@ -30,11 +30,11 @@ pub struct LayerGeom<G: Geom> {
 }
 
 impl<G: Geom> LayerGeom<G> {
-    /// Create a new LayerGeom with the given geom
-    pub fn new(geom: G) -> Self {
+    /// Create a new LayerGeom with the given geom and default aesthetics
+    pub fn new(geom: G, default_aes: &AesMap) -> Self {
         Self {
             geom,
-            aes: AesMap::new(),
+            aes: default_aes.clone(),
             stat: Stat::Identity,
         }
     }
@@ -42,5 +42,24 @@ impl<G: Geom> LayerGeom<G> {
     /// Get the inner parts (consumes self)
     pub(crate) fn into_parts(self) -> (G, AesMap, Stat) {
         (self.geom, self.aes, self.stat)
+    }
+}
+
+impl<G: Geom + crate::geom::IntoLayer + 'static> From<LayerGeom<G>> for crate::layer::Layer {
+    fn from(layer_geom: LayerGeom<G>) -> crate::layer::Layer {
+        let (geom, layer_aes, stat) = layer_geom.into_parts();
+        let mut layer = geom.into_layer();
+        
+        // Only override the stat if it's not Identity (preserve geom defaults)
+        if !matches!(stat, Stat::Identity) {
+            layer.stat = stat;
+        }
+        
+        // Merge layer-specific aesthetics
+        for (aesthetic, value) in layer_aes.iter() {
+            layer.mapping.set(*aesthetic, value.clone());
+        }
+        
+        layer
     }
 }

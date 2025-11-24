@@ -4,6 +4,17 @@ use crate::visuals::Shape;
 
 pub mod transform;
 
+/// Specifies the type of scale required for an aesthetic
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScaleType {
+    /// Aesthetic must use a continuous scale (numeric data)
+    Continuous,
+    /// Aesthetic must use a categorical/discrete scale
+    Categorical,
+    /// Aesthetic can use either continuous or categorical (decide based on data type)
+    Either,
+}
+
 /// Base trait for all scales providing common functionality.
 pub trait ScaleBase: Send + Sync {
     /// Train the scale on data to automatically determine the domain.

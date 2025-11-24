@@ -1,4 +1,5 @@
 use crate::data::PrimitiveValue;
+use crate::scale::ScaleType;
 use std::collections::HashMap;
 
 // Supported aesthetics
@@ -59,45 +60,116 @@ impl Aesthetic {
         matches!(
             self,
             Aesthetic::Y | Aesthetic::YBegin | Aesthetic::YEnd | Aesthetic::Ymin | Aesthetic::Ymax | Aesthetic::YIntercept
+                | Aesthetic::Lower | Aesthetic::Middle | Aesthetic::Upper
         )
     }
 }
 
 // AesValue is a type that can be mapped to an aesthetic
 // It can be a column name, a constant value, or a computed value
+// Each can optionally carry a hint about whether it should be treated as continuous or categorical
 #[derive(Debug, Clone, PartialEq)]
 pub enum AesValue {
-    Column(String), // Column name from data
-    CategoricalColumn(String), // Column name that should be treated as categorical even if numeric
-    Constant(PrimitiveValue), // Fixed value
-                    // Computed?
+    /// Column name from data with optional scale type hint
+    Column { 
+        name: String, 
+        hint: Option<ScaleType> 
+    },
+    /// Fixed value with optional scale type hint
+    Constant { 
+        value: PrimitiveValue, 
+        hint: Option<ScaleType> 
+    },
 }
 
 impl AesValue {
-    /// Create a Column variant from a string-like value
+    /// Create a Column variant from a string-like value with no type hint
     pub fn column(name: impl Into<String>) -> Self {
-        AesValue::Column(name.into())
-    }
-
-    /// Create a CategoricalColumn variant from a string-like value.
-    /// Use this when you want to treat a numeric column as categorical.
-    pub fn categorical(name: impl Into<String>) -> Self {
-        AesValue::CategoricalColumn(name.into())
-    }
-
-    /// Extract the column name from Column or CategoricalColumn variants.
-    /// Returns None for Constant values.
-    pub fn as_column_name(&self) -> Option<&str> {
-        match self {
-            AesValue::Column(name) | AesValue::CategoricalColumn(name) => Some(name.as_str()),
-            AesValue::Constant(_) => None,
+        AesValue::Column { 
+            name: name.into(), 
+            hint: None 
         }
     }
 
-    /// Returns true if this value represents a categorical column
-    /// (either explicitly marked as categorical, or will be treated as categorical)
+    /// Create a Column variant that should be treated as continuous
+    pub fn continuous_column(name: impl Into<String>) -> Self {
+        AesValue::Column { 
+            name: name.into(), 
+            hint: Some(ScaleType::Continuous) 
+        }
+    }
+
+    /// Create a Column variant that should be treated as categorical
+    /// Use this when you want to treat a numeric column as categorical
+    pub fn categorical_column(name: impl Into<String>) -> Self {
+        AesValue::Column { 
+            name: name.into(), 
+            hint: Some(ScaleType::Categorical) 
+        }
+    }
+
+    /// Legacy alias for categorical_column
+    pub fn categorical(name: impl Into<String>) -> Self {
+        Self::categorical_column(name)
+    }
+
+    /// Create a Constant variant with no type hint
+    pub fn constant(value: impl Into<PrimitiveValue>) -> Self {
+        AesValue::Constant { 
+            value: value.into(), 
+            hint: None 
+        }
+    }
+
+    /// Create a Constant variant that should be treated as continuous
+    pub fn continuous_constant(value: impl Into<PrimitiveValue>) -> Self {
+        AesValue::Constant { 
+            value: value.into(), 
+            hint: Some(ScaleType::Continuous) 
+        }
+    }
+
+    /// Create a Constant variant that should be treated as categorical
+    pub fn categorical_constant(value: impl Into<PrimitiveValue>) -> Self {
+        AesValue::Constant { 
+            value: value.into(), 
+            hint: Some(ScaleType::Categorical) 
+        }
+    }
+
+    /// Extract the column name from Column variants
+    /// Returns None for Constant values
+    pub fn as_column_name(&self) -> Option<&str> {
+        match self {
+            AesValue::Column { name, .. } => Some(name.as_str()),
+            AesValue::Constant { .. } => None,
+        }
+    }
+
+    /// Get the user's scale type hint if one was provided
+    pub fn user_hint(&self) -> Option<ScaleType> {
+        match self {
+            AesValue::Column { hint, .. } => *hint,
+            AesValue::Constant { hint, .. } => *hint,
+        }
+    }
+
+    /// Returns true if this value has an explicit categorical hint
     pub fn is_categorical(&self) -> bool {
-        matches!(self, AesValue::CategoricalColumn(_))
+        self.user_hint() == Some(ScaleType::Categorical)
+    }
+
+    /// Returns true if this value has an explicit continuous hint
+    pub fn is_continuous(&self) -> bool {
+        self.user_hint() == Some(ScaleType::Continuous)
+    }
+
+    /// Get the constant value if this is a Constant variant
+    pub fn as_constant(&self) -> Option<&PrimitiveValue> {
+        match self {
+            AesValue::Constant { value, .. } => Some(value),
+            _ => None,
+        }
     }
 }
 
@@ -182,25 +254,46 @@ impl AesMap {
     // Convenience methods for categorical column mappings
     // Use these when you want to treat a numeric column as categorical
     pub fn x_categorical(&mut self, column: impl Into<String>) {
-        self.set(Aesthetic::X, AesValue::categorical(column));
+        self.set(Aesthetic::X, AesValue::categorical_column(column));
     }
     pub fn y_categorical(&mut self, column: impl Into<String>) {
-        self.set(Aesthetic::Y, AesValue::categorical(column));
+        self.set(Aesthetic::Y, AesValue::categorical_column(column));
     }
     pub fn color_categorical(&mut self, column: impl Into<String>) {
-        self.set(Aesthetic::Color, AesValue::categorical(column));
+        self.set(Aesthetic::Color, AesValue::categorical_column(column));
     }
     pub fn fill_categorical(&mut self, column: impl Into<String>) {
-        self.set(Aesthetic::Fill, AesValue::categorical(column));
+        self.set(Aesthetic::Fill, AesValue::categorical_column(column));
     }
     pub fn shape_categorical(&mut self, column: impl Into<String>) {
-        self.set(Aesthetic::Shape, AesValue::categorical(column));
+        self.set(Aesthetic::Shape, AesValue::categorical_column(column));
     }
     pub fn group_categorical(&mut self, column: impl Into<String>) {
-        self.set(Aesthetic::Group, AesValue::categorical(column));
+        self.set(Aesthetic::Group, AesValue::categorical_column(column));
     }
     pub fn linetype_categorical(&mut self, column: impl Into<String>) {
-        self.set(Aesthetic::Linetype, AesValue::categorical(column));
+        self.set(Aesthetic::Linetype, AesValue::categorical_column(column));
+    }
+
+    // Convenience methods for continuous column mappings
+    // Use these when you want to explicitly mark a column as continuous
+    pub fn x_continuous(&mut self, column: impl Into<String>) {
+        self.set(Aesthetic::X, AesValue::continuous_column(column));
+    }
+    pub fn y_continuous(&mut self, column: impl Into<String>) {
+        self.set(Aesthetic::Y, AesValue::continuous_column(column));
+    }
+    pub fn color_continuous(&mut self, column: impl Into<String>) {
+        self.set(Aesthetic::Color, AesValue::continuous_column(column));
+    }
+    pub fn fill_continuous(&mut self, column: impl Into<String>) {
+        self.set(Aesthetic::Fill, AesValue::continuous_column(column));
+    }
+    pub fn size_continuous(&mut self, column: impl Into<String>) {
+        self.set(Aesthetic::Size, AesValue::continuous_column(column));
+    }
+    pub fn alpha_continuous(&mut self, column: impl Into<String>) {
+        self.set(Aesthetic::Alpha, AesValue::continuous_column(column));
     }
 
     // Convenience methods for constant value mappings
@@ -209,7 +302,7 @@ impl AesMap {
         let rgba = Color(r, g, b, a).into();
         self.set(
             Aesthetic::Color,
-            AesValue::Constant(PrimitiveValue::Int(rgba)),
+            AesValue::constant(PrimitiveValue::Int(rgba)),
         );
     }
 
@@ -218,49 +311,49 @@ impl AesMap {
         let rgba = Color(r, g, b, a).into();
         self.set(
             Aesthetic::Fill,
-            AesValue::Constant(PrimitiveValue::Int(rgba)),
+            AesValue::constant(PrimitiveValue::Int(rgba)),
         );
     }
 
     pub fn const_alpha(&mut self, alpha: f64) {
         self.set(
             Aesthetic::Alpha,
-            AesValue::Constant(PrimitiveValue::Float(alpha)),
+            AesValue::constant(PrimitiveValue::Float(alpha)),
         );
     }
 
     pub fn const_size(&mut self, size: f64) {
         self.set(
             Aesthetic::Size,
-            AesValue::Constant(PrimitiveValue::Float(size)),
+            AesValue::constant(PrimitiveValue::Float(size)),
         );
     }
 
     pub fn const_shape(&mut self, shape: i64) {
         self.set(
             Aesthetic::Shape,
-            AesValue::Constant(PrimitiveValue::Int(shape)),
+            AesValue::constant(PrimitiveValue::Int(shape)),
         );
     }
 
     pub fn const_linetype(&mut self, pattern: impl Into<String>) {
         self.set(
             Aesthetic::Linetype,
-            AesValue::Constant(PrimitiveValue::Str(pattern.into())),
+            AesValue::constant(PrimitiveValue::Str(pattern.into())),
         );
     }
 
     pub fn yintercept_const(&mut self, value: f64) {
         self.set(
             Aesthetic::YIntercept,
-            AesValue::Constant(PrimitiveValue::Float(value)),
+            AesValue::constant(PrimitiveValue::Float(value)),
         );
     }
 
     pub fn xintercept_const(&mut self, value: f64) {
         self.set(
             Aesthetic::XIntercept,
-            AesValue::Constant(PrimitiveValue::Float(value)),
+            AesValue::constant(PrimitiveValue::Float(value)),
         );
     }
 }

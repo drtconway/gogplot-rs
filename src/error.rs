@@ -110,6 +110,20 @@ pub enum PlotError {
     UnsupportedFormat {
         extension: String,
     },
+    
+    /// Aesthetic has conflicting scale type requirements
+    AestheticTypeMismatch {
+        aesthetic: Aesthetic,
+        user_hint: String,
+        geom_requirement: String,
+        reason: String,
+    },
+    
+    /// String column requires categorical scale but continuous was requested
+    StringColumnRequiresCategorical {
+        aesthetic: Aesthetic,
+        column: String,
+    },
 }
 
 impl Display for PlotError {
@@ -161,6 +175,20 @@ impl Display for PlotError {
             }
             PlotError::UnsupportedFormat { extension } => {
                 write!(f, "Unsupported file format: {}", extension)
+            }
+            PlotError::AestheticTypeMismatch { aesthetic, user_hint, geom_requirement, reason } => {
+                write!(
+                    f,
+                    "Scale type conflict for {:?}: user specified {}, geom requires {}. {}",
+                    aesthetic, user_hint, geom_requirement, reason
+                )
+            }
+            PlotError::StringColumnRequiresCategorical { aesthetic, column } => {
+                write!(
+                    f,
+                    "Column '{}' is a string and must use categorical scale for {:?}, but continuous was requested",
+                    column, aesthetic
+                )
             }
         }
     }
@@ -226,6 +254,27 @@ impl PlotError {
     pub fn unsupported_format(extension: impl Into<String>) -> Self {
         PlotError::UnsupportedFormat {
             extension: extension.into(),
+        }
+    }
+
+    pub fn aesthetic_type_mismatch(
+        aesthetic: Aesthetic,
+        user_hint: impl Into<String>,
+        geom_requirement: impl Into<String>,
+        reason: impl Into<String>,
+    ) -> Self {
+        PlotError::AestheticTypeMismatch {
+            aesthetic,
+            user_hint: user_hint.into(),
+            geom_requirement: geom_requirement.into(),
+            reason: reason.into(),
+        }
+    }
+
+    pub fn string_column_requires_categorical(aesthetic: Aesthetic, column: impl Into<String>) -> Self {
+        PlotError::StringColumnRequiresCategorical {
+            aesthetic,
+            column: column.into(),
         }
     }
 }

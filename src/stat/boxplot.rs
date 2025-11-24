@@ -297,7 +297,7 @@ impl StatTransform for Boxplot {
 
         // Update mapping
         let mut new_mapping = mapping.clone();
-        new_mapping.set(Aesthetic::X, AesValue::column("x"));
+        new_mapping.set(Aesthetic::X, AesValue::categorical_column("x"));
         new_mapping.set(Aesthetic::Y, AesValue::column("y"));
         new_mapping.set(Aesthetic::Ymin, AesValue::column("ymin"));
         new_mapping.set(Aesthetic::Lower, AesValue::column("lower"));

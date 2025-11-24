@@ -20,7 +20,7 @@ pub fn generate_automatic_legends(layers: &[Layer], scales: &ScaleSet, guides: &
         let mapping = layer.computed_mapping.as_ref().unwrap_or(&layer.mapping);
         matches!(
             mapping.get(&Aesthetic::Color),
-            Some(AesValue::Column(_) | AesValue::CategoricalColumn(_))
+            Some(AesValue::Column { name: _, hint: _ })
         )
     });
 
@@ -29,7 +29,7 @@ pub fn generate_automatic_legends(layers: &[Layer], scales: &ScaleSet, guides: &
         let mapping = layer.computed_mapping.as_ref().unwrap_or(&layer.mapping);
         matches!(
             mapping.get(&Aesthetic::Fill),
-            Some(AesValue::Column(_) | AesValue::CategoricalColumn(_))
+            Some(AesValue::Column { name: _, hint: _ })
         )
     });
 
@@ -38,7 +38,7 @@ pub fn generate_automatic_legends(layers: &[Layer], scales: &ScaleSet, guides: &
         let mapping = layer.computed_mapping.as_ref().unwrap_or(&layer.mapping);
         matches!(
             mapping.get(&Aesthetic::Shape),
-            Some(AesValue::Column(_) | AesValue::CategoricalColumn(_))
+            Some(AesValue::Column { name: _, hint: _ })
         )
     });
 
