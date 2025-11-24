@@ -491,10 +491,10 @@ impl<'a> RenderContext<'a> {
                 Ok(AestheticValues::Constant(value, n))
             }
             None => {
-                // Use default value replicated to match data length
+                // Use theme default value replicated to match data length
                 let default_value = match aesthetic {
-                    Aesthetic::Size => 2.0,
-                    Aesthetic::Alpha => 1.0,
+                    Aesthetic::Size => self.theme.geom_point.size,
+                    Aesthetic::Alpha => self.theme.geom_point.alpha,
                     _ => return Err(PlotError::MissingAesthetic { aesthetic }),
                 };
                 Ok(AestheticValues::Constant(default_value, n))
@@ -644,19 +644,20 @@ impl<'a> RenderContext<'a> {
                     .collect();
                 Ok(ColorValues::Mapped(colors))
             }
-            // Constant color
+            // Constant color (with categorical hint or no hint)
             (
                 Some(AesValue::Constant {
                     value: PrimitiveValue::Int(rgba),
-                    hint: Some(ScaleType::Categorical),
+                    hint: None | Some(ScaleType::Categorical),
                 }),
                 _,
             ) => Ok(ColorValues::Constant(Color::from(*rgba), n)),
+            // Other constant types are not valid for colors
             (Some(AesValue::Constant { value: _, hint: _ }), _) => {
                 Err(PlotError::InvalidAestheticType {
                     aesthetic: Aesthetic::Color,
                     expected: DataType::RgbaConstant,
-                    actual: DataType::Custom("other constant".to_string()),
+                    actual: DataType::Custom("non-integer constant".to_string()),
                 })
             }
             // Column mapped but no scale
@@ -667,8 +668,8 @@ impl<'a> RenderContext<'a> {
                     actual: DataType::Custom("no scale provided".to_string()),
                 })
             }
-            // No mapping, use default
-            (None, _) => Ok(ColorValues::Constant(Color(0, 0, 0, 255), n)),
+            // No mapping, use theme default
+            (None, _) => Ok(ColorValues::Constant(self.theme.geom_point.color, n)),
         }
     }
 
@@ -818,19 +819,20 @@ impl<'a> RenderContext<'a> {
                     .collect();
                 Ok(ColorValues::Mapped(colors))
             }
-            // Constant color
+            // Constant color (with categorical hint or no hint)
             (
                 Some(AesValue::Constant {
                     value: PrimitiveValue::Int(rgba),
-                    hint: Some(ScaleType::Categorical),
+                    hint: None | Some(ScaleType::Categorical),
                 }),
                 _,
             ) => Ok(ColorValues::Constant(Color::from(*rgba), n)),
+            // Other constant types are not valid for fill
             (Some(AesValue::Constant { value: _, hint: _ }), _) => {
                 Err(PlotError::InvalidAestheticType {
                     aesthetic: Aesthetic::Fill,
                     expected: DataType::RgbaConstant,
-                    actual: DataType::Custom("other constant".to_string()),
+                    actual: DataType::Custom("non-integer constant".to_string()),
                 })
             }
             // Column mapped but no scale
@@ -841,8 +843,8 @@ impl<'a> RenderContext<'a> {
                     actual: DataType::Custom("no scale provided".to_string()),
                 })
             }
-            // No mapping, use default gray
-            (None, _) => Ok(ColorValues::Constant(Color(128, 128, 128, 255), n)),
+            // No mapping, use theme default
+            (None, _) => Ok(ColorValues::Constant(self.theme.geom_rect.fill, n)),
         }
     }
 
@@ -927,8 +929,11 @@ impl<'a> RenderContext<'a> {
                     actual: DataType::Custom("no scale provided".to_string()),
                 })
             }
-            // No mapping, use default
-            (None, _) => Ok(ShapeValues::Constant(Shape::Circle, n)),
+            // No mapping, use theme default
+            (None, _) => {
+                let shape = int_to_shape(self.theme.geom_point.shape);
+                Ok(ShapeValues::Constant(shape, n))
+            }
         }
     }
 

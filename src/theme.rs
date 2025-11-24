@@ -334,6 +334,24 @@ impl Default for GeomPointTheme {
     }
 }
 
+/// Theme for geom_rect (bars, histograms, boxplots)
+#[derive(Clone, Debug, PartialEq)]
+pub struct GeomRectTheme {
+    pub fill: Color,
+    pub color: Color,
+    pub alpha: f64,
+}
+
+impl Default for GeomRectTheme {
+    fn default() -> Self {
+        GeomRectTheme {
+            fill: Color(128, 128, 128, 255),  // Gray fill
+            color: color::BLACK,               // Black outline
+            alpha: 1.0,
+        }
+    }
+}
+
 /// Theme for geom_text
 #[derive(Clone, Debug, PartialEq)]
 pub struct GeomTextTheme {
@@ -375,6 +393,7 @@ pub struct Theme {
     pub plot_margin: Spacing,
     pub geom_line: GeomLineTheme,
     pub geom_point: GeomPointTheme,
+    pub geom_rect: GeomRectTheme,
     pub geom_text: GeomTextTheme,
 }
 
@@ -395,6 +414,7 @@ impl Default for Theme {
             },
             geom_line: GeomLineTheme::default(),
             geom_point: GeomPointTheme::default(),
+            geom_rect: GeomRectTheme::default(),
             geom_text: GeomTextTheme::default(),
         }
     }
