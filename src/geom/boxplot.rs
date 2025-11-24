@@ -222,14 +222,16 @@ impl Geom for GeomBoxplot {
         };
 
         // Get x value iterators (center or min/max)
+        // Note: When using xmin/xmax from position adjustments like Dodge,
+        // they're already in normalized space, so we shouldn't apply scale again
         let x_normalized = if has_x_range {
-            ctx.get_x_aesthetic_values(Aesthetic::Xmin)?
+            ctx.get_unscaled_aesthetic_values(Aesthetic::Xmin)?
         } else {
             ctx.get_x_aesthetic_values(Aesthetic::X)?
         };
         
         let x_max_normalized = if has_x_range {
-            Some(ctx.get_x_aesthetic_values(Aesthetic::Xmax)?)
+            Some(ctx.get_unscaled_aesthetic_values(Aesthetic::Xmax)?)
         } else {
             None
         };

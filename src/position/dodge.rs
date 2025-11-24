@@ -122,8 +122,18 @@ impl PositionAdjust for Dodge {
             // Map x value through the scale to get normalized position (visual space)
             let x_center = if let Some(scale) = x_scale {
                 match x_val {
-                    PrimitiveValue::Float(f) => scale.map_value(*f).unwrap_or(0.0),
-                    PrimitiveValue::Int(i) => scale.map_value(*i as f64).unwrap_or(0.0),
+                    PrimitiveValue::Float(f) => {
+                        // Try as category first (for categorical scales), then as value
+                        scale.map_category(&f.to_string())
+                            .or_else(|| scale.map_value(*f))
+                            .unwrap_or(0.0)
+                    }
+                    PrimitiveValue::Int(i) => {
+                        // Try as category first (for categorical scales), then as value
+                        scale.map_category(&i.to_string())
+                            .or_else(|| scale.map_value(*i as f64))
+                            .unwrap_or(0.0)
+                    }
                     PrimitiveValue::Str(s) => scale.map_category(s).unwrap_or(0.0),
                     PrimitiveValue::Bool(b) => scale.map_category(&b.to_string()).unwrap_or(0.0),
                 }
@@ -250,8 +260,14 @@ impl Dodge {
             .filter_map(|v| {
                 if let Some(scale) = x_scale {
                     match v {
-                        PrimitiveValue::Float(f) => scale.map_value(*f),
-                        PrimitiveValue::Int(i) => scale.map_value(*i as f64),
+                        PrimitiveValue::Float(f) => {
+                            scale.map_category(&f.to_string())
+                                .or_else(|| scale.map_value(*f))
+                        }
+                        PrimitiveValue::Int(i) => {
+                            scale.map_category(&i.to_string())
+                                .or_else(|| scale.map_value(*i as f64))
+                        }
                         PrimitiveValue::Str(s) => scale.map_category(s),
                         PrimitiveValue::Bool(b) => scale.map_category(&b.to_string()),
                     }
