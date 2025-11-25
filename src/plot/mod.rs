@@ -2,6 +2,7 @@
 
 mod export;
 mod geom_builder;
+mod group_inference;
 mod layer_geom;
 mod positions;
 mod render;

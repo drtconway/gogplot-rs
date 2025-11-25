@@ -258,9 +258,15 @@ impl Geom for GeomBar {
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
         let mapping = ctx.mapping();
         
+        eprintln!("DEBUG GeomBar::render");
+        eprintln!("  data len: {}", ctx.data().len());
+        eprintln!("  mapping: {:?}", mapping.iter().map(|(k, v)| format!("{:?}: {:?}", k, v)).collect::<Vec<_>>());
+        
         // Determine if we have range aesthetics
         let has_x_range = mapping.contains(Aesthetic::Xmin) && mapping.contains(Aesthetic::Xmax);
         let has_y_range = mapping.contains(Aesthetic::Ymin) && mapping.contains(Aesthetic::Ymax);
+        
+        eprintln!("  has_x_range: {}, has_y_range: {}", has_x_range, has_y_range);
         
         // Calculate bar half-width in normalized space (only if not using xmin/xmax)
         let bar_half_width_norm = if !has_x_range {
@@ -397,6 +403,7 @@ impl Geom for GeomBar {
             };
         
         // Render each bar
+        let mut bar_count = 0;
         for (x_val, x_max_val, y_val, y_max_val, fill, color, alpha) in iter {
             // Compute effective xmin/xmax in normalized space
             let (xmin_norm, xmax_norm) = if let Some(x_max) = x_max_val {
@@ -412,11 +419,16 @@ impl Geom for GeomBar {
                 (y_baseline, y_val)
             };
             
+            eprintln!("  Bar {}: xmin_norm={}, xmax_norm={}, ymin_norm={}, ymax_norm={}", bar_count, xmin_norm, xmax_norm, ymin_norm, ymax_norm);
+            
             // Map to device coordinates
             let x_left = ctx.map_x(xmin_norm);
             let x_right = ctx.map_x(xmax_norm);
             let y_top = ctx.map_y(ymax_norm);
             let y_bottom = ctx.map_y(ymin_norm);
+            
+            eprintln!("    Device: x={:.1}, y={:.1}, width={:.1}, height={:.1}", x_left.min(x_right), y_top.min(y_bottom), (x_right - x_left).abs(), (y_bottom - y_top).abs());
+            bar_count += 1;
             
             let x = x_left.min(x_right);
             let y = y_top.min(y_bottom);

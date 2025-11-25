@@ -25,7 +25,7 @@ pub enum Stat {
     // Add more as needed
 }
 
-/// Position adjustment for overlapping geoms
+/// Position adjustment for overlapping geoms (user-facing API)
 #[derive(Clone, Debug)]
 pub enum Position {
     Identity,
@@ -34,6 +34,44 @@ pub enum Position {
     Jitter,
     Fill,
     // Add more as needed
+}
+
+/// Position specification with parameters (internal representation)
+/// This is created from Position + geom context and used in the pipeline
+#[derive(Clone, Debug)]
+pub enum PositionSpec {
+    Identity,
+    Stack {
+        reverse: bool,
+    },
+    Dodge {
+        width: f64,
+        padding: f64,
+    },
+    Jitter {
+        width: f64,
+        height: f64,
+    },
+    Fill,
+}
+
+impl PositionSpec {
+    /// Convert user-facing Position + geom parameters into PositionSpec
+    pub fn from_position(position: &Position, geom_width: Option<f64>) -> Self {
+        match position {
+            Position::Identity => PositionSpec::Identity,
+            Position::Stack => PositionSpec::Stack { reverse: false },
+            Position::Dodge => PositionSpec::Dodge {
+                width: geom_width.unwrap_or(0.9),
+                padding: 0.1,
+            },
+            Position::Jitter => PositionSpec::Jitter {
+                width: 0.4,
+                height: 0.4,
+            },
+            Position::Fill => PositionSpec::Fill,
+        }
+    }
 }
 
 /// Layer struct - represents one layer in a plot

@@ -66,13 +66,17 @@ pub fn apply_positions(
                 }
             }
             Position::Dodge => {
+                eprintln!("DEBUG: Applying Dodge to layer {}", i);
+                eprintln!("  mapping: {:?}", mapping.iter().map(|(k, v)| format!("{:?}: {:?}", k, v)).collect::<Vec<_>>());
                 let dodge = Dodge::default();
                 let position_result = dodge.apply(data, mapping, scales)?;
                 if let Some((adjusted_data, new_mapping, new_scales)) = position_result {
+                    eprintln!("  Dodge succeeded, data has {} rows", adjusted_data.len());
                     layers[i].computed_data = Some(adjusted_data);
                     layers[i].computed_mapping = Some(new_mapping);
                     layers[i].computed_scales = new_scales;
                 } else {
+                    eprintln!("  Dodge returned None - no grouping found");
                     // Position adjustment returned None, meaning no change needed
                     // Data was consumed, layer has no computed_data now
                 }
