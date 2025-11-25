@@ -108,19 +108,45 @@ impl Geom for GeomErrorbar {
         let sizes = ctx.get_aesthetic_values(Aesthetic::Size, None)?;
 
         // Calculate cap width in normalized coordinates
-        // Convert data width to normalized coordinates
         let x_scale = ctx.scales.x.as_ref()
             .ok_or_else(|| PlotError::MissingAesthetic { aesthetic: Aesthetic::X })?;
         
-        // Get two points in data space separated by self.width
-        let x_center = 0.0;
-        let x_left = x_center - self.width / 2.0;
-        let x_right = x_center + self.width / 2.0;
-        
-        let x_left_norm = x_scale.map_value(x_left).unwrap_or(0.0);
-        let x_right_norm = x_scale.map_value(x_right).unwrap_or(0.0);
-        
-        let cap_width_norm = x_right_norm - x_left_norm;
+        use crate::scale::ScaleType;
+        let cap_width_norm = if x_scale.scale_type() == ScaleType::Categorical {
+            // For categorical scales, width is a proportion of the categorical spacing
+            // Collect unique x positions to determine the categorical spacing
+            let x_values: Vec<f64> = ctx.get_x_aesthetic_values(Aesthetic::X)?
+                .filter(|x| x.is_finite())
+                .collect();
+            
+            if x_values.len() > 1 {
+                // Get unique sorted positions
+                use ordered_float::OrderedFloat;
+                let mut unique_x: Vec<OrderedFloat<f64>> = x_values.iter()
+                    .map(|&x| OrderedFloat(x))
+                    .collect();
+                unique_x.sort();
+                unique_x.dedup();
+                
+                // The spacing between consecutive categories
+                let categorical_step = unique_x[1].0 - unique_x[0].0;
+                categorical_step * self.width
+            } else {
+                // Single category - use width as-is in normalized space
+                self.width
+            }
+        } else {
+            // For continuous scales, convert data width to normalized coordinates
+            // Get two points in data space separated by self.width
+            let x_center = 0.0;
+            let x_left = x_center - self.width / 2.0;
+            let x_right = x_center + self.width / 2.0;
+            
+            let x_left_norm = x_scale.map_value(x_left).unwrap_or(0.0);
+            let x_right_norm = x_scale.map_value(x_right).unwrap_or(0.0);
+            
+            x_right_norm - x_left_norm
+        };
 
         // Zip all iterators together
         let iter = x_normalized
