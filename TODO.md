@@ -21,7 +21,13 @@
 - [ ] **Step** (`geom_step`) - Step function plots
 - [ ] **Tile/Raster** (`geom_tile`, `geom_raster`) - Heatmaps
 - [ ] **Contour** (`geom_contour`) - 2D density contours
-- [ ] **Text Labels** (`geom_text`, `geom_label`) - Annotations on plots
+- [x] **Text Labels** (`geom_text`, `geom_label`) - COMPLETED
+  - [x] `geom_text` - Plain text labels at coordinates
+  - [x] `geom_label` - Text with background boxes
+  - [x] Customizable positioning (hjust, vjust, angle)
+  - [x] Label styling (padding, corner radius, fill color)
+  - [x] Integrated with theme system (uses theme.geom_text for defaults)
+  - [x] Proper typography (font metrics for correct vertical alignment)
 - [ ] **Path** (`geom_path`) - Connected points in data order (vs geom_line by x)
 - [ ] **Polygon** (`geom_polygon`) - Arbitrary polygons
 - [x] **Smooth** (`geom_smooth`) - Add trend lines with confidence intervals - COMPLETED

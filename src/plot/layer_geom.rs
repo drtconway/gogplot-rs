@@ -1,6 +1,7 @@
 // LayerGeom wrapper for type-safe layer configuration
 
 use crate::aesthetics::AesMap;
+use crate::data::DataSource;
 use crate::geom::Geom;
 use crate::layer::Stat;
 
@@ -27,6 +28,9 @@ pub struct LayerGeom<G: Geom> {
     
     /// Statistical transformation for this layer
     pub stat: Stat,
+    
+    /// Optional layer-specific data
+    pub data: Option<Box<dyn DataSource>>,
 }
 
 impl<G: Geom> LayerGeom<G> {
@@ -36,19 +40,40 @@ impl<G: Geom> LayerGeom<G> {
             geom,
             aes: default_aes.clone(),
             stat: Stat::Identity,
+            data: None,
         }
     }
     
+    /// Set layer-specific data (builder style)
+    pub fn data(&mut self, data: Box<dyn DataSource>) -> &mut Self {
+        self.data = Some(data);
+        self
+    }
+    
+    /// Configure aesthetics using a closure (builder style)
+    pub fn aes<F>(&mut self, f: F) -> &mut Self
+    where
+        F: FnOnce(&mut AesMap),
+    {
+        f(&mut self.aes);
+        self
+    }
+    
     /// Get the inner parts (consumes self)
-    pub(crate) fn into_parts(self) -> (G, AesMap, Stat) {
-        (self.geom, self.aes, self.stat)
+    pub(crate) fn into_parts(self) -> (G, AesMap, Stat, Option<Box<dyn DataSource>>) {
+        (self.geom, self.aes, self.stat, self.data)
     }
 }
 
 impl<G: Geom + crate::geom::IntoLayer + 'static> From<LayerGeom<G>> for crate::layer::Layer {
     fn from(layer_geom: LayerGeom<G>) -> crate::layer::Layer {
-        let (geom, layer_aes, stat) = layer_geom.into_parts();
+        let (geom, layer_aes, stat, data) = layer_geom.into_parts();
         let mut layer = geom.into_layer();
+        
+        // Set layer-specific data if provided
+        if data.is_some() {
+            layer.data = data;
+        }
         
         // Only override the stat if it's not Identity (preserve geom defaults)
         if !matches!(stat, Stat::Identity) {

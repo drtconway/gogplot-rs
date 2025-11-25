@@ -396,6 +396,50 @@ pub trait GeomBuilder {
         self
     }
 
+    /// Add a label geom layer using default aesthetics
+    ///
+    /// Labels are like text but with a background box
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// plot.geom_label()
+    /// ```
+    fn geom_label(self) -> Self
+    where
+        Self: Sized,
+    {
+        self.geom_label_with(|_layer| {})
+    }
+
+    /// Add a label geom layer with customization (builder style)
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// plot.geom_label_with(|layer| {
+    ///     layer.geom.size(12.0)
+    ///         .color(color::BLACK)
+    ///         .fill(color::WHITE)
+    ///         .hjust(0.5)
+    ///         .vjust(0.5)
+    ///         .padding(3.0)
+    ///         .radius(3.0);
+    /// })
+    /// ```
+    fn geom_label_with<F>(mut self, f: F) -> Self
+    where
+        F: FnOnce(&mut crate::plot::LayerGeom<crate::geom::label::GeomLabel>),
+        Self: Sized,
+    {
+        let geom = crate::geom::label::GeomLabel::new();
+        let mut layer_geom = crate::plot::LayerGeom::new(geom,self.default_aes());
+        f(&mut layer_geom);
+        let layer = Layer::from(layer_geom);
+        self.layers_mut().push(layer);
+        self
+    }
+
     /// Add a smooth geom layer with trend line and confidence interval
     ///
     /// # Example
