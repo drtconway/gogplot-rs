@@ -28,7 +28,7 @@ pub fn apply_stats(
     let num_layers = layers.len();
     for i in 0..num_layers {
         // Check if this layer needs transformation
-        let needs_transform = !matches!(layers[i].stat, Stat::Identity);
+        let needs_transform = !matches!(layers[i].stat, Stat::Identity | Stat::None);
 
         if !needs_transform {
             continue;
@@ -53,6 +53,10 @@ pub fn apply_stats(
 
         // Apply the stat transformation
         match &layers[i].stat {
+            Stat::None => {
+                // This should never happen - None should be resolved during layer construction
+                panic!("Stat::None should be resolved before stat application");
+            }
             Stat::Count => {
                 let stat_result = Count.apply(data, &merged_mapping)?;
                 if let Some((transformed_data, new_mapping)) = stat_result {

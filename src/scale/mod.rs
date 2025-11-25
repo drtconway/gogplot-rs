@@ -31,6 +31,13 @@ pub trait ScaleBase: Send + Sync {
     /// * `data` - A slice of data vectors to train on (e.g., for rectangles this
     ///            would include both xmin and xmax to get the full range)
     fn train(&mut self, data: &[&dyn GenericVector]);
+    
+    /// Returns the type of this scale (Continuous or Categorical).
+    ///
+    /// This allows geoms to detect whether they're working with categorical
+    /// or continuous data and adjust their rendering accordingly (e.g., bar
+    /// widths computed differently for categorical vs continuous x scales).
+    fn scale_type(&self) -> ScaleType;
 }
 
 /// Scales that map to continuous [0, 1] normalized coordinates.

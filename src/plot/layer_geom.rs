@@ -39,7 +39,7 @@ impl<G: Geom> LayerGeom<G> {
         Self {
             geom,
             aes: default_aes.clone(),
-            stat: Stat::Identity,
+            stat: Stat::None,
             data: None,
         }
     }
@@ -75,10 +75,12 @@ impl<G: Geom + crate::geom::IntoLayer + 'static> From<LayerGeom<G>> for crate::l
             layer.data = data;
         }
         
-        // Only override the stat if it's not Identity (preserve geom defaults)
-        if !matches!(stat, Stat::Identity) {
+        // Handle stat: if it's None, use the geom's default (from into_layer)
+        // Otherwise, use the explicitly set stat (which overrides the geom's default)
+        if !matches!(stat, Stat::None) {
             layer.stat = stat;
         }
+        // If stat is None, layer.stat already has the geom's default from into_layer()
         
         // Merge layer-specific aesthetics
         for (aesthetic, value) in layer_aes.iter() {

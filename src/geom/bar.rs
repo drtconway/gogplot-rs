@@ -7,6 +7,7 @@ use crate::error::{DataType, PlotError};
 use crate::geom::context::compute_min_spacing;
 use crate::layer::{Position, Stat};
 use crate::scale::ScaleType;
+use ordered_float::OrderedFloat;
 
 /// GeomBar renders bars from y=0 to y=value
 /// By default, it uses Stat::Count to count occurrences at each x position
@@ -263,8 +264,44 @@ impl Geom for GeomBar {
         
         // Calculate bar half-width in normalized space (only if not using xmin/xmax)
         let bar_half_width_norm = if !has_x_range {
-            // Use sorted unique x values to determine spacing
-           compute_min_spacing(ctx.get_x_aesthetic_values(Aesthetic::X)?, self.width)
+            // Check if the X scale is categorical
+            let is_categorical = ctx.scales.x.as_ref()
+                .map(|scale| scale.scale_type() == ScaleType::Categorical)
+                .unwrap_or(false);
+            
+            if is_categorical {
+                // For categorical x scales, bars should fill a proportion of each category bin
+                // Categorical scales space categories evenly with step = (range.max - range.min) / n_categories
+                // Each bar should occupy self.width (e.g., 0.9) of that step
+                // The normalized positions are already at the center of each bin
+                
+                // Collect unique x positions to determine the categorical spacing
+                let x_values: Vec<f64> = ctx.get_x_aesthetic_values(Aesthetic::X)?
+                    .filter(|x| x.is_finite())
+                    .collect();
+                
+                if x_values.len() > 1 {
+                    // Get unique sorted positions
+                    let mut unique_x: Vec<OrderedFloat<f64>> = x_values.iter()
+                        .map(|&x| OrderedFloat(x))
+                        .collect();
+                    unique_x.sort();
+                    unique_x.dedup();
+                    
+                    // The spacing between consecutive categories is the categorical step
+                    let categorical_step = unique_x[1].0 - unique_x[0].0;
+                    let bar_half_width = categorical_step * self.width / 2.0;
+                    
+                    bar_half_width
+                } else {
+                    // Single category - assume full normalized range [0,1] is one category
+                    // Bar half-width is (1.0 * width) / 2
+                    self.width / 2.0
+                }
+            } else {
+                // For continuous x scales, use the old behavior
+                compute_min_spacing(ctx.get_x_aesthetic_values(Aesthetic::X)?, self.width)
+            }
         } else {
             0.0 // Not used when xmin/xmax provided
         };

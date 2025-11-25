@@ -84,6 +84,10 @@ impl Catagorical {
 }
 
 impl ScaleBase for Catagorical {
+    fn scale_type(&self) -> super::ScaleType {
+        super::ScaleType::Categorical
+    }
+    
     fn train(&mut self, data: &[&dyn crate::data::GenericVector]) {
         // Extract unique categories from string data
         use std::collections::HashSet;

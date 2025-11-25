@@ -32,6 +32,10 @@ impl DiscreteShape {
 }
 
 impl ScaleBase for DiscreteShape {
+    fn scale_type(&self) -> super::ScaleType {
+        super::ScaleType::Categorical
+    }
+    
     fn train(&mut self, data: &[&dyn GenericVector]) {
         // Extract unique categories from all data vectors and assign them to shapes
         let mut categories: Vec<String> = Vec::new();

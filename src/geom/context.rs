@@ -260,10 +260,22 @@ impl<'a> RenderContext<'a> {
                                 })?;
 
                         if let Some(scale) = scale {
-                            // Need to collect for scale application
-                            let values: Vec<f64> =
-                                floats.filter_map(|v| scale.map_value(v)).collect();
-                            Ok(AestheticValues::Owned(values))
+                            // Check if scale is categorical - if so, treat floats as categories
+                            use crate::scale::ScaleType;
+                            if scale.scale_type() == ScaleType::Categorical {
+                                // Convert floats to strings and use categorical mapping
+                                let strings: Vec<String> = floats.map(|f| f.to_string()).collect();
+                                let mapped: Vec<f64> = strings
+                                    .iter()
+                                    .filter_map(|s| scale.map_category(s.as_str()))
+                                    .collect();
+                                Ok(AestheticValues::Owned(mapped))
+                            } else {
+                                // Continuous scale: apply map_value
+                                let values: Vec<f64> =
+                                    floats.filter_map(|v| scale.map_value(v)).collect();
+                                Ok(AestheticValues::Owned(values))
+                            }
                         } else {
                             // Collect to owned since FloatRef expects std::slice::Iter
                             let values: Vec<f64> = floats.collect();
@@ -279,16 +291,29 @@ impl<'a> RenderContext<'a> {
                                     actual: DataType::Custom("unknown".to_string()),
                                 })?;
 
-                        // Need to convert ints to f64, so collect
-                        let values: Vec<f64> = ints.map(|x| x as f64).collect();
-
                         if let Some(scale) = scale {
-                            let scaled: Vec<f64> = values
-                                .into_iter()
-                                .filter_map(|v| scale.map_value(v))
-                                .collect();
-                            Ok(AestheticValues::Owned(scaled))
+                            // Check if scale is categorical - if so, treat integers as categories
+                            use crate::scale::ScaleType;
+                            if scale.scale_type() == ScaleType::Categorical {
+                                // Convert integers to strings and use categorical mapping
+                                let strings: Vec<String> = ints.map(|i| i.to_string()).collect();
+                                let mapped: Vec<f64> = strings
+                                    .iter()
+                                    .filter_map(|s| scale.map_category(s.as_str()))
+                                    .collect();
+                                Ok(AestheticValues::Owned(mapped))
+                            } else {
+                                // Continuous scale: convert to f64 and map
+                                let values: Vec<f64> = ints.map(|x| x as f64).collect();
+                                let scaled: Vec<f64> = values
+                                    .into_iter()
+                                    .filter_map(|v| scale.map_value(v))
+                                    .collect();
+                                Ok(AestheticValues::Owned(scaled))
+                            }
                         } else {
+                            // No scale: just convert to f64
+                            let values: Vec<f64> = ints.map(|x| x as f64).collect();
                             Ok(AestheticValues::Owned(values))
                         }
                     }

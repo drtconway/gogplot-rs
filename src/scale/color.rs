@@ -39,6 +39,10 @@ impl DiscreteColor {
 }
 
 impl ScaleBase for DiscreteColor {
+    fn scale_type(&self) -> super::ScaleType {
+        super::ScaleType::Categorical
+    }
+    
     fn train(&mut self, data: &[&dyn GenericVector]) {
         // Extract unique categories from all data vectors and assign them to palette colors
         let mut categories: Vec<String> = Vec::new();
@@ -154,6 +158,10 @@ impl ContinuousColor {
 }
 
 impl ScaleBase for ContinuousColor {
+    fn scale_type(&self) -> super::ScaleType {
+        super::ScaleType::Continuous
+    }
+    
     fn train(&mut self, data: &[&dyn GenericVector]) {
         use crate::data::compute_min_max;
 

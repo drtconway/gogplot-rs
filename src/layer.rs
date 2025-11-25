@@ -7,6 +7,9 @@ use crate::geom::Geom;
 /// Statistical transformation
 #[derive(Clone)]
 pub enum Stat {
+    /// No stat specified - use the geom's default
+    None,
+    /// Identity stat - use data as-is (no transformation)
     Identity,
     Count,
     Bin(crate::stat::bin::CumulativeBinStrategy),
