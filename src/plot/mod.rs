@@ -6,6 +6,7 @@ mod group_inference;
 mod layer_geom;
 mod positions;
 mod render;
+mod scale_application;
 mod scale_set;
 mod stats;
 

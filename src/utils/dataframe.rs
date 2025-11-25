@@ -145,6 +145,24 @@ impl DataFrame {
         self.columns.insert(name, column);
     }
 
+    /// Add a column to the DataFrame by copying data from a VectorIter
+    ///
+    /// This is useful when you need to copy a column from another data source
+    /// without requiring GenericVector to implement Clone.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the column length doesn't match existing columns
+    pub fn add_column_from_iter(&mut self, name: impl Into<String>, iter: VectorIter<'_>) {
+        let column: Box<dyn GenericVector> = match iter {
+            VectorIter::Int(iter) => Box::new(IntVec(iter.collect())),
+            VectorIter::Float(iter) => Box::new(FloatVec(iter.collect())),
+            VectorIter::Str(iter) => Box::new(StrVec(iter.map(|s| s.to_string()).collect())),
+            VectorIter::Bool(iter) => Box::new(BoolVec(iter.collect())),
+        };
+        self.add_column(name, column);
+    }
+
     /// Create a new DataFrame with the given columns
     ///
     /// # Panics
