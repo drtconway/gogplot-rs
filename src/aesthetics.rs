@@ -250,6 +250,12 @@ impl AesMap {
     pub fn label(&mut self, column: impl Into<String>) {
         self.set_to_column(Aesthetic::Label, column);
     }
+    pub fn ymin(&mut self, column: impl Into<String>) {
+        self.set_to_column(Aesthetic::Ymin, column);
+    }
+    pub fn ymax(&mut self, column: impl Into<String>) {
+        self.set_to_column(Aesthetic::Ymax, column);
+    }
 
     // Convenience methods for categorical column mappings
     // Use these when you want to treat a numeric column as categorical

@@ -15,7 +15,13 @@
   - Half-violin option for compact layouts
 
 ### Additional Geoms
-- [ ] **Error Bars** (`geom_errorbar`, `geom_errorbarh`) - Confidence intervals and ranges
+- [x] **Error Bars** (`geom_errorbar`) - Vertical error bars from ymin to ymax - COMPLETED
+  - [x] Required aesthetics: X, Ymin, Ymax
+  - [x] Vertical line from ymin to ymax with horizontal caps at ends
+  - [x] Configurable cap width (default 0.5)
+  - [x] Integration with theme.geom_line for defaults (color, size, alpha)
+  - [x] Examples: basic error bars, styled bars, with bar charts
+  - [ ] `geom_errorbarh` - Horizontal error bars (future enhancement)
 - [ ] **Ribbon** (`geom_ribbon`) - Filled areas with upper/lower bounds
 - [ ] **Area** (`geom_area`) - Filled line plots
 - [ ] **Step** (`geom_step`) - Step function plots

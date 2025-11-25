@@ -440,6 +440,46 @@ pub trait GeomBuilder {
         self
     }
 
+    /// Add an errorbar geom layer using default aesthetics
+    ///
+    /// Displays vertical error bars from ymin to ymax at each x position
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// plot.geom_errorbar()
+    /// ```
+    fn geom_errorbar(self) -> Self
+    where
+        Self: Sized,
+    {
+        self.geom_errorbar_with(|_layer| {})
+    }
+
+    /// Add an errorbar geom layer with customization (builder style)
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// plot.geom_errorbar_with(|layer| {
+    ///     layer.geom.width(0.3)
+    ///         .color(color::BLACK)
+    ///         .size(1.0);
+    /// })
+    /// ```
+    fn geom_errorbar_with<F>(mut self, f: F) -> Self
+    where
+        F: FnOnce(&mut crate::plot::LayerGeom<crate::geom::errorbar::GeomErrorbar>),
+        Self: Sized,
+    {
+        let geom = crate::geom::errorbar::GeomErrorbar::new();
+        let mut layer_geom = crate::plot::LayerGeom::new(geom,self.default_aes());
+        f(&mut layer_geom);
+        let layer = Layer::from(layer_geom);
+        self.layers_mut().push(layer);
+        self
+    }
+
     /// Add a smooth geom layer with trend line and confidence interval
     ///
     /// # Example
