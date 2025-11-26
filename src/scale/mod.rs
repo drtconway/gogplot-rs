@@ -63,11 +63,13 @@ pub trait ContinuousScale: ScaleBase {
     ///
     /// # Arguments
     /// * `category` - A category name/value
+    /// * `aesthetic` - The aesthetic being mapped (e.g., X, Xmin, Xmax) to determine
+    ///                 whether to return the center, left edge, or right edge of the category
     ///
     /// # Returns
     /// * `Some(position)` - The numeric position for this category
     /// * `None` - If this is not a categorical scale or category is not recognized
-    fn map_category(&self, _category: &str) -> Option<f64> {
+    fn map_category(&self, _category: &str, _aesthetic: crate::aesthetics::Aesthetic) -> Option<f64> {
         None // Default: not a categorical scale
     }
 

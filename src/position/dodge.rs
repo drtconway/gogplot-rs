@@ -297,3 +297,149 @@ impl Dodge {
         min_dist * 0.9
     }
 }
+
+/// Apply dodge position to normalized data
+/// 
+/// Data comes in with x values already normalized to [0,1] via scales.
+/// Produces xmin/xmax columns in normalized [0,1] space.
+pub fn apply_dodge_normalized(
+    data: Box<dyn DataSource>,
+    mapping: &AesMap,
+    width: f64,
+    padding: f64,
+) -> Result<Option<(Box<dyn DataSource>, AesMap)>, PlotError> {
+    use crate::aesthetics::Aesthetic;
+
+    // Get x column name from mapping
+    let x_col_name = match mapping.get(&Aesthetic::X) {
+        Some(AesValue::Column { name, .. }) => name.clone(),
+        Some(AesValue::Constant { .. }) => {
+            // Can't dodge constants
+            return Ok(None);
+        }
+        None => return Ok(None),
+    };
+
+    // Check for group aesthetic
+    let group_col_name = match mapping.get(&Aesthetic::Group) {
+        Some(AesValue::Column { name, .. }) => Some(name.clone()),
+        _ => None,
+    };
+
+    // If no grouping, no dodging needed
+    if group_col_name.is_none() {
+        return Ok(None);
+    }
+
+    let group_col_name = group_col_name.unwrap();
+
+    // Get x column (already normalized to [0,1])
+    let x_col = data
+        .get(&x_col_name)
+        .ok_or_else(|| PlotError::missing_column(&x_col_name))?;
+
+    // Get x values as f64 (should already be normalized floats)
+    let x_values: Vec<f64> = if let Some(float_iter) = x_col.iter_float() {
+        float_iter.collect()
+    } else {
+        return Err(PlotError::InvalidAestheticType {
+            aesthetic: Aesthetic::X,
+            expected: DataType::Custom("float (normalized)".to_string()),
+            actual: DataType::Custom("not float".to_string()),
+        });
+    };
+
+    let n_rows = x_values.len();
+
+    // Get group column
+    let group_col = data
+        .get(&group_col_name)
+        .ok_or_else(|| PlotError::missing_column(&group_col_name))?;
+
+    // Get group keys as strings
+    let group_keys: Vec<String> = if let Some(str_iter) = group_col.iter_str() {
+        str_iter.map(|s| s.to_string()).collect()
+    } else if let Some(int_iter) = group_col.iter_int() {
+        int_iter.map(|i| i.to_string()).collect()
+    } else if let Some(float_iter) = group_col.iter_float() {
+        float_iter.map(|f| f.to_string()).collect()
+    } else {
+        return Err(PlotError::missing_column(&group_col_name));
+    };
+
+    // Group data by x position: Map x_value -> Vec<group_key>
+    let mut x_to_groups: BTreeMap<String, Vec<String>> = BTreeMap::new();
+
+    for (i, &x_val) in x_values.iter().enumerate() {
+        let x_key = format!("{:.10}", x_val); // Use fixed precision for grouping
+        let group_key = group_keys[i].clone();
+
+        let groups = x_to_groups.entry(x_key).or_default();
+        if !groups.contains(&group_key) {
+            groups.push(group_key);
+        }
+    }
+
+    // Sort groups within each x position for deterministic ordering
+    for groups in x_to_groups.values_mut() {
+        groups.sort();
+    }
+
+    // Calculate xmin and xmax for each row (in normalized [0,1] space)
+    let mut xmin_vals = Vec::with_capacity(n_rows);
+    let mut xmax_vals = Vec::with_capacity(n_rows);
+
+    for (i, &x_center) in x_values.iter().enumerate() {
+        let x_key = format!("{:.10}", x_center);
+        let group_key = &group_keys[i];
+
+        let groups = x_to_groups.get(&x_key).unwrap();
+        let n_groups = groups.len() as f64;
+        let group_index = groups.iter().position(|g| g == group_key).unwrap() as f64;
+
+        // Width of each individual bar (in normalized space)
+        let individual_width = width / n_groups;
+        let padded_width = individual_width * (1.0 - padding);
+
+        // Calculate position in normalized space
+        let left_edge = x_center - width / 2.0;
+        let bar_left = left_edge + group_index * individual_width;
+        let bar_center = bar_left + individual_width / 2.0;
+
+        let xmin = bar_center - padded_width / 2.0;
+        let xmax = bar_center + padded_width / 2.0;
+
+        xmin_vals.push(xmin);
+        xmax_vals.push(xmax);
+    }
+
+    // Create new dataframe with all original columns plus xmin/xmax
+    let mut new_df = DataFrame::new();
+
+    // Copy all original columns
+    use crate::utils::dataframe::{BoolVec, IntVec, StrVec};
+    for col_name in data.column_names() {
+        let col = data.get(&col_name).unwrap();
+
+        if let Some(iter) = col.iter_int() {
+            new_df.add_column(&col_name, Box::new(IntVec(iter.collect())));
+        } else if let Some(iter) = col.iter_float() {
+            new_df.add_column(&col_name, Box::new(FloatVec(iter.collect())));
+        } else if let Some(iter) = col.iter_str() {
+            new_df.add_column(&col_name, Box::new(StrVec(iter.map(|s| s.to_string()).collect())));
+        } else if let Some(iter) = col.iter_bool() {
+            new_df.add_column(&col_name, Box::new(BoolVec(iter.collect())));
+        }
+    }
+
+    // Add xmin and xmax columns
+    new_df.add_column("xmin", Box::new(FloatVec(xmin_vals)));
+    new_df.add_column("xmax", Box::new(FloatVec(xmax_vals)));
+
+    // Update mapping to use xmin and xmax
+    let mut new_mapping = mapping.clone();
+    new_mapping.set(Aesthetic::Xmin, AesValue::column("xmin"));
+    new_mapping.set(Aesthetic::Xmax, AesValue::column("xmax"));
+
+    Ok(Some((Box::new(new_df), new_mapping)))
+}

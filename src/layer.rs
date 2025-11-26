@@ -72,6 +72,38 @@ impl PositionSpec {
             Position::Fill => PositionSpec::Fill,
         }
     }
+
+    /// Apply position adjustment to normalized data
+    /// 
+    /// Takes data where all aesthetic values are already normalized to [0,1] via scales.
+    /// Returns modified data (typically with adjusted x/xmin/xmax or y/ymin/ymax columns)
+    /// and potentially an updated mapping.
+    /// 
+    /// Returns None if no adjustment is needed.
+    pub fn apply(
+        &self,
+        data: Box<dyn DataSource>,
+        mapping: &AesMap,
+    ) -> Result<Option<(Box<dyn DataSource>, AesMap)>, crate::error::PlotError> {
+        match self {
+            PositionSpec::Identity => Ok(None),
+            PositionSpec::Dodge { width, padding } => {
+                crate::position::dodge::apply_dodge_normalized(data, mapping, *width, *padding)
+            }
+            PositionSpec::Stack { reverse } => {
+                crate::position::stack::apply_stack_normalized(data, mapping, *reverse)
+            }
+            PositionSpec::Jitter { width, height } => {
+                // TODO: Implement jitter
+                Ok(None)
+            }
+            PositionSpec::Fill => {
+                // Fill is like stack but normalizes to [0, 1] within each x position
+                // TODO: Implement fill
+                Ok(None)
+            }
+        }
+    }
 }
 
 /// Layer struct - represents one layer in a plot

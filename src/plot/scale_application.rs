@@ -193,7 +193,7 @@ fn apply_aesthetic_scale(
                 .as_ref()
                 .ok_or_else(|| PlotError::MissingAesthetic { aesthetic })?;
 
-            let mapped_values = apply_positional_scale(col, scale.as_ref())?;
+            let mapped_values = apply_positional_scale(col, scale.as_ref(), aesthetic)?;
             result.add_column(output_name, Box::new(FloatVec(mapped_values)));
         }
 
@@ -211,7 +211,7 @@ fn apply_aesthetic_scale(
                 .as_ref()
                 .ok_or_else(|| PlotError::MissingAesthetic { aesthetic })?;
 
-            let mapped_values = apply_positional_scale(col, scale.as_ref())?;
+            let mapped_values = apply_positional_scale(col, scale.as_ref(), aesthetic)?;
             result.add_column(output_name, Box::new(FloatVec(mapped_values)));
         }
 
@@ -219,7 +219,7 @@ fn apply_aesthetic_scale(
         Aesthetic::Size => {
             // Size might not have a scale if it's a constant
             if let Some(scale) = scales.size.as_ref() {
-                let mapped_values = apply_positional_scale(col, scale.as_ref())?;
+                let mapped_values = apply_positional_scale(col, scale.as_ref(), aesthetic)?;
                 result.add_column(output_name, Box::new(FloatVec(mapped_values)));
             } else {
                 // No scale, copy as-is (might be constant from geom)
@@ -230,7 +230,7 @@ fn apply_aesthetic_scale(
         // Alpha uses continuous scale, 0.0 sentinel (transparent)
         Aesthetic::Alpha => {
             if let Some(scale) = scales.alpha.as_ref() {
-                let mapped_values = apply_positional_scale(col, scale.as_ref())?;
+                let mapped_values = apply_positional_scale(col, scale.as_ref(), aesthetic)?;
                 result.add_column(output_name, Box::new(FloatVec(mapped_values)));
             } else {
                 result.add_column_from_iter(output_name, col.iter());
@@ -277,7 +277,7 @@ fn apply_scale_to_constant(
         // Positional aesthetics use x or y scale
         Aesthetic::X | Aesthetic::Xmin | Aesthetic::Xmax | Aesthetic::XBegin | Aesthetic::XEnd | Aesthetic::XIntercept => {
             if let Some(scale) = scales.x.as_ref() {
-                scale_primitive_value(value, hint, scale.as_ref())
+                scale_primitive_value(value, hint, scale.as_ref(), aesthetic)
             } else {
                 // No scale, convert to float
                 primitive_to_float(value)
@@ -287,7 +287,7 @@ fn apply_scale_to_constant(
         Aesthetic::Y | Aesthetic::Ymin | Aesthetic::Ymax | Aesthetic::YBegin | Aesthetic::YEnd | 
         Aesthetic::YIntercept | Aesthetic::Lower | Aesthetic::Middle | Aesthetic::Upper => {
             if let Some(scale) = scales.y.as_ref() {
-                scale_primitive_value(value, hint, scale.as_ref())
+                scale_primitive_value(value, hint, scale.as_ref(), aesthetic)
             } else {
                 primitive_to_float(value)
             }
@@ -296,7 +296,7 @@ fn apply_scale_to_constant(
         // Size uses size scale
         Aesthetic::Size => {
             if let Some(scale) = scales.size.as_ref() {
-                scale_primitive_value(value, hint, scale.as_ref())
+                scale_primitive_value(value, hint, scale.as_ref(), aesthetic)
             } else {
                 primitive_to_float(value)
             }
@@ -305,7 +305,7 @@ fn apply_scale_to_constant(
         // Alpha uses alpha scale
         Aesthetic::Alpha => {
             if let Some(scale) = scales.alpha.as_ref() {
-                scale_primitive_value(value, hint, scale.as_ref())
+                scale_primitive_value(value, hint, scale.as_ref(), aesthetic)
             } else {
                 Ok(primitive_to_float(value).unwrap_or(0.0))
             }
@@ -330,6 +330,7 @@ fn scale_primitive_value(
     value: &crate::data::PrimitiveValue,
     hint: Option<ScaleType>,
     scale: &dyn crate::scale::ContinuousScale,
+    aesthetic: Aesthetic,
 ) -> Result<f64, PlotError> {
     use crate::data::PrimitiveValue;
 
@@ -346,7 +347,7 @@ fn scale_primitive_value(
             PrimitiveValue::Str(s) => s.clone(),
             PrimitiveValue::Bool(b) => b.to_string(),
         };
-        Ok(scale.map_category(&val_str).unwrap_or(f64::NAN))
+        Ok(scale.map_category(&val_str, aesthetic).unwrap_or(f64::NAN))
     } else {
         // Continuous scale - convert to number
         let num_value = primitive_to_float(value)?;
@@ -374,6 +375,7 @@ fn primitive_to_float(value: &crate::data::PrimitiveValue) -> Result<f64, PlotEr
 fn apply_positional_scale(
     col: &dyn crate::data::GenericVector,
     scale: &dyn crate::scale::ContinuousScale,
+    aesthetic: Aesthetic,
 ) -> Result<Vec<f64>, PlotError> {
     use crate::data::VectorIter;
 
@@ -388,7 +390,7 @@ fn apply_positional_scale(
                 // Convert floats to strings for categorical mapping
                 for val in iter {
                     let val_str = val.to_string();
-                    let mapped = scale.map_category(&val_str).unwrap_or(f64::NAN);
+                    let mapped = scale.map_category(&val_str, aesthetic).unwrap_or(f64::NAN);
                     result.push(mapped);
                 }
             } else {
@@ -405,7 +407,7 @@ fn apply_positional_scale(
                 // Convert integers to strings for categorical mapping
                 for val in iter {
                     let val_str = val.to_string();
-                    let mapped = scale.map_category(&val_str).unwrap_or(f64::NAN);
+                    let mapped = scale.map_category(&val_str, aesthetic).unwrap_or(f64::NAN);
                     result.push(mapped);
                 }
             } else {
@@ -420,7 +422,7 @@ fn apply_positional_scale(
         VectorIter::Str(iter) => {
             // Strings always use categorical mapping
             for val in iter {
-                let mapped = scale.map_category(val).unwrap_or(f64::NAN);
+                let mapped = scale.map_category(val, aesthetic).unwrap_or(f64::NAN);
                 result.push(mapped);
             }
         }
@@ -430,7 +432,7 @@ fn apply_positional_scale(
             if scale.scale_type() == ScaleType::Categorical {
                 for val in iter {
                     let val_str = val.to_string();
-                    let mapped = scale.map_category(&val_str).unwrap_or(f64::NAN);
+                    let mapped = scale.map_category(&val_str, aesthetic).unwrap_or(f64::NAN);
                     result.push(mapped);
                 }
             } else {

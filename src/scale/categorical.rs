@@ -61,6 +61,7 @@ pub struct Catagorical {
     pub(crate) mapping: HashMap<String, f64>,
     breaks: Vec<f64>,
     labels: Vec<String>,
+    category_width: f64, // Width of each category slice in normalized space
 }
 
 impl Catagorical {
@@ -70,16 +71,42 @@ impl Catagorical {
 
         let breaks = items.iter().map(|(_, v)| **v).collect();
         let labels = items.iter().map(|(k, _)| (*k).to_string()).collect();
+        
+        // Calculate category width based on number of categories
+        let category_width = if mapping.is_empty() {
+            0.0
+        } else {
+            1.0 / mapping.len() as f64
+        };
 
         Self {
             mapping,
             breaks,
             labels,
+            category_width,
         }
     }
 
     pub fn map_category(&self, data: &str) -> f64 {
         *self.mapping.get(data).unwrap_or(&0.0)
+    }
+    
+    /// Map a category to a position based on the aesthetic type.
+    /// Returns the center, left edge, or right edge of the category slice.
+    pub fn map_category_with_aesthetic(&self, data: &str, aesthetic: crate::aesthetics::Aesthetic) -> f64 {
+        use crate::aesthetics::Aesthetic;
+        
+        let center = self.mapping.get(data).copied().unwrap_or(0.0);
+        let half_width = self.category_width / 2.0;
+        
+        match aesthetic {
+            // Left edges
+            Aesthetic::Xmin | Aesthetic::XBegin => center - half_width,
+            // Right edges  
+            Aesthetic::Xmax | Aesthetic::XEnd => center + half_width,
+            // Centers (default for X, Y, and everything else)
+            _ => center,
+        }
     }
 }
 
@@ -144,9 +171,9 @@ impl ContinuousScale for Catagorical {
         Some(value)
     }
 
-    fn map_category(&self, category: &str) -> Option<f64> {
-        // Map category string to numeric position
-        self.mapping.get(category).copied()
+    fn map_category(&self, category: &str, aesthetic: crate::aesthetics::Aesthetic) -> Option<f64> {
+        // Map category string to numeric position based on aesthetic
+        Some(self.map_category_with_aesthetic(category, aesthetic))
     }
 
     fn inverse(&self, value: f64) -> f64 {
