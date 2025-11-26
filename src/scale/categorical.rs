@@ -246,6 +246,7 @@ mod tests {
         let categories = vec!["A".to_string(), "B".to_string(), "C".to_string()];
         let scale = Builder::new().build(categories, (0.0, 3.0));
 
+        // Test using the old helper method (returns center)
         let pos_a = scale.map_category("A");
         let pos_b = scale.map_category("B");
         let pos_c = scale.map_category("C");
@@ -261,6 +262,7 @@ mod tests {
         let categories = vec!["A".to_string(), "B".to_string()];
         let scale = Builder::new().build(categories, (0.0, 1.0));
 
+        // Test using the old helper method
         let missing = scale.map_category("Z");
         assert_eq!(missing, 0.0); // Default value
     }
@@ -287,6 +289,7 @@ mod tests {
         ];
         let scale = Builder::new().build(categories, (0.0, 4.0));
 
+        // Test using the old helper method (returns centers)
         let pos_a = scale.map_category("A");
         let pos_b = scale.map_category("B");
         let pos_c = scale.map_category("C");

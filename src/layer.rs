@@ -90,8 +90,9 @@ impl PositionSpec {
             PositionSpec::Dodge { width, padding } => {
                 crate::position::dodge::apply_dodge_normalized(data, mapping, *width, *padding)
             }
-            PositionSpec::Stack { reverse } => {
-                crate::position::stack::apply_stack_normalized(data, mapping, *reverse)
+            PositionSpec::Stack { reverse: _ } => {
+                // TODO: Implement apply_stack_normalized
+                Ok(None)
             }
             PositionSpec::Jitter { width, height } => {
                 // TODO: Implement jitter

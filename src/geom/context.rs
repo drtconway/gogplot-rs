@@ -267,7 +267,7 @@ impl<'a> RenderContext<'a> {
                                 let strings: Vec<String> = floats.map(|f| f.to_string()).collect();
                                 let mapped: Vec<f64> = strings
                                     .iter()
-                                    .filter_map(|s| scale.map_category(s.as_str()))
+                                    .filter_map(|s| scale.map_category(s.as_str(), aesthetic))
                                     .collect();
                                 Ok(AestheticValues::Owned(mapped))
                             } else {
@@ -299,7 +299,7 @@ impl<'a> RenderContext<'a> {
                                 let strings: Vec<String> = ints.map(|i| i.to_string()).collect();
                                 let mapped: Vec<f64> = strings
                                     .iter()
-                                    .filter_map(|s| scale.map_category(s.as_str()))
+                                    .filter_map(|s| scale.map_category(s.as_str(), aesthetic))
                                     .collect();
                                 Ok(AestheticValues::Owned(mapped))
                             } else {
@@ -331,7 +331,7 @@ impl<'a> RenderContext<'a> {
                             let strs_vec: Vec<&str> = strs.collect();
                             let mapped: Vec<f64> = strs_vec
                                 .iter()
-                                .filter_map(|s| scale.map_category(s))
+                                .filter_map(|s| scale.map_category(s, aesthetic))
                                 .collect();
 
                             if mapped.len() == strs_vec.len() {
@@ -392,7 +392,7 @@ impl<'a> RenderContext<'a> {
                         let strings: Vec<String> = floats.map(|f| f.to_string()).collect();
                         let mapped: Vec<f64> = strings
                             .iter()
-                            .filter_map(|s| scale.map_category(s.as_str()))
+                            .filter_map(|s| scale.map_category(s.as_str(), aesthetic))
                             .collect();
 
                         if mapped.len() == strings.len() {
@@ -420,7 +420,7 @@ impl<'a> RenderContext<'a> {
                         let strings: Vec<String> = ints.map(|i| i.to_string()).collect();
                         let mapped: Vec<f64> = strings
                             .iter()
-                            .filter_map(|s| scale.map_category(s.as_str()))
+                            .filter_map(|s| scale.map_category(s.as_str(), aesthetic))
                             .collect();
 
                         if mapped.len() == strings.len() {
@@ -448,7 +448,7 @@ impl<'a> RenderContext<'a> {
                         let strs_vec: Vec<&str> = strs.collect();
                         let mapped: Vec<f64> = strs_vec
                             .iter()
-                            .filter_map(|s| scale.map_category(s))
+                            .filter_map(|s| scale.map_category(s, aesthetic))
                             .collect();
 
                         if mapped.len() == strs_vec.len() {
@@ -476,7 +476,7 @@ impl<'a> RenderContext<'a> {
                         let strings: Vec<String> = bools.map(|b| b.to_string()).collect();
                         let mapped: Vec<f64> = strings
                             .iter()
-                            .filter_map(|s| scale.map_category(s.as_str()))
+                            .filter_map(|s| scale.map_category(s.as_str(), aesthetic))
                             .collect();
 
                         if mapped.len() == strings.len() {

@@ -124,18 +124,18 @@ impl PositionAdjust for Dodge {
                 match x_val {
                     PrimitiveValue::Float(f) => {
                         // Try as category first (for categorical scales), then as value
-                        scale.map_category(&f.to_string())
+                        scale.map_category(&f.to_string(), crate::aesthetics::Aesthetic::X)
                             .or_else(|| scale.map_value(*f))
                             .unwrap_or(0.0)
                     }
                     PrimitiveValue::Int(i) => {
                         // Try as category first (for categorical scales), then as value
-                        scale.map_category(&i.to_string())
+                        scale.map_category(&i.to_string(), crate::aesthetics::Aesthetic::X)
                             .or_else(|| scale.map_value(*i as f64))
                             .unwrap_or(0.0)
                     }
-                    PrimitiveValue::Str(s) => scale.map_category(s).unwrap_or(0.0),
-                    PrimitiveValue::Bool(b) => scale.map_category(&b.to_string()).unwrap_or(0.0),
+                    PrimitiveValue::Str(s) => scale.map_category(s, crate::aesthetics::Aesthetic::X).unwrap_or(0.0),
+                    PrimitiveValue::Bool(b) => scale.map_category(&b.to_string(), crate::aesthetics::Aesthetic::X).unwrap_or(0.0),
                 }
             } else {
                 self.x_to_f64(x_val)
@@ -261,15 +261,15 @@ impl Dodge {
                 if let Some(scale) = x_scale {
                     match v {
                         PrimitiveValue::Float(f) => {
-                            scale.map_category(&f.to_string())
+                            scale.map_category(&f.to_string(), crate::aesthetics::Aesthetic::X)
                                 .or_else(|| scale.map_value(*f))
                         }
                         PrimitiveValue::Int(i) => {
-                            scale.map_category(&i.to_string())
+                            scale.map_category(&i.to_string(), crate::aesthetics::Aesthetic::X)
                                 .or_else(|| scale.map_value(*i as f64))
                         }
-                        PrimitiveValue::Str(s) => scale.map_category(s),
-                        PrimitiveValue::Bool(b) => scale.map_category(&b.to_string()),
+                        PrimitiveValue::Str(s) => scale.map_category(s, crate::aesthetics::Aesthetic::X),
+                        PrimitiveValue::Bool(b) => scale.map_category(&b.to_string(), crate::aesthetics::Aesthetic::X),
                     }
                 } else {
                     Some(self.x_to_f64(v))
