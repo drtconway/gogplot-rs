@@ -63,6 +63,35 @@ impl Aesthetic {
                 | Aesthetic::Lower | Aesthetic::Middle | Aesthetic::Upper
         )
     }
+
+    /// A printable name for the aesthetic.
+    pub fn to_string(&self) -> &'static str {
+        match self {
+            Aesthetic::X => "x",
+            Aesthetic::Y => "y",
+            Aesthetic::Xmin => "xmin",
+            Aesthetic::Xmax => "xmax",
+            Aesthetic::Ymin => "ymin",
+            Aesthetic::Ymax => "ymax",
+            Aesthetic::Lower => "lower",
+            Aesthetic::Middle => "middle",
+            Aesthetic::Upper => "upper",
+            Aesthetic::Color => "color",
+            Aesthetic::Fill => "fill",
+            Aesthetic::Alpha => "alpha",
+            Aesthetic::Size => "size",
+            Aesthetic::Shape => "shape",
+            Aesthetic::Linetype => "linetype",
+            Aesthetic::Group => "group",
+            Aesthetic::XBegin => "xbegin",
+            Aesthetic::XEnd => "xend",
+            Aesthetic::YBegin => "ybegin",
+            Aesthetic::YEnd => "yend",
+            Aesthetic::XIntercept => "xintercept",
+            Aesthetic::YIntercept => "yintercept",
+            Aesthetic::Label => "label",
+        }
+    }
 }
 
 // AesValue is a type that can be mapped to an aesthetic
