@@ -230,209 +230,68 @@ impl Geom for GeomBoxplot {
     }
 
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
-        use crate::geom::context::compute_min_spacing;
-
         let mapping = ctx.mapping();
         
-        // Check if we have Xmin/Xmax (provided by position adjustments like Dodge)
-        let has_x_range = mapping.contains(Aesthetic::Xmin) && mapping.contains(Aesthetic::Xmax);
+        // Verify required aesthetics are present (setup_data should have created Xmin/Xmax)
+        if !mapping.contains(Aesthetic::X) {
+            return Err(PlotError::MissingAesthetic {
+                aesthetic: Aesthetic::X,
+            });
+        }
+        if !mapping.contains(Aesthetic::Xmin) {
+            return Err(PlotError::MissingAesthetic {
+                aesthetic: Aesthetic::Xmin,
+            });
+        }
+        if !mapping.contains(Aesthetic::Xmax) {
+            return Err(PlotError::MissingAesthetic {
+                aesthetic: Aesthetic::Xmax,
+            });
+        }
 
-        // Calculate box half-width in normalized space (only if not using xmin/xmax)
-        let box_half_width_norm = if !has_x_range {
-            compute_min_spacing(
-                ctx.get_x_aesthetic_values(Aesthetic::X)?,
-                self.width,
-            )
-        } else {
-            0.0 // Not used when xmin/xmax provided
-        };
-
-        // Get x value iterators (center or min/max)
-        // Note: When using xmin/xmax from position adjustments like Dodge,
-        // they're already in normalized space, so we shouldn't apply scale again
-        let x_normalized = if has_x_range {
-            ctx.get_unscaled_aesthetic_values(Aesthetic::Xmin)?
-        } else {
-            ctx.get_x_aesthetic_values(Aesthetic::X)?
-        };
+        // Get x value iterators - all pre-normalized by apply_scales
+        // After setup_data, Xmin and Xmax both map to X (same position)
+        // Position adjustments like Dodge may modify Xmin/Xmax to create actual ranges
+        let xmin_normalized = ctx.get_x_aesthetic_values(Aesthetic::Xmin)?;
+        let x_normalized = ctx.get_x_aesthetic_values(Aesthetic::X)?;
+        let xmax_normalized = ctx.get_x_aesthetic_values(Aesthetic::Xmax)?;
         
-        let x_max_normalized = if has_x_range {
-            Some(ctx.get_unscaled_aesthetic_values(Aesthetic::Xmax)?)
-        } else {
-            None
-        };
+        // Get box statistics - all pre-normalized by apply_scales
+        let lower_normalized = ctx.get_y_aesthetic_values(Aesthetic::Lower)?;
+        let middle_normalized = ctx.get_y_aesthetic_values(Aesthetic::Middle)?;
+        let upper_normalized = ctx.get_y_aesthetic_values(Aesthetic::Upper)?;
+        let ymin_normalized = ctx.get_y_aesthetic_values(Aesthetic::Ymin)?;
+        let ymax_normalized = ctx.get_y_aesthetic_values(Aesthetic::Ymax)?;
         
-        // Get box statistics - need manual scaling to preserve NaN values for outlier rows
-        let lower_col = ctx.data().get("lower").ok_or_else(|| PlotError::missing_column("lower"))?;
-        let lower_raw: Vec<f64> = lower_col.iter_float()
-            .ok_or_else(|| PlotError::invalid_column_type("lower", "float"))?
-            .collect();
-            
-        let middle_col = ctx.data().get("middle").ok_or_else(|| PlotError::missing_column("middle"))?;
-        let middle_raw: Vec<f64> = middle_col.iter_float()
-            .ok_or_else(|| PlotError::invalid_column_type("middle", "float"))?
-            .collect();
-            
-        let upper_col = ctx.data().get("upper").ok_or_else(|| PlotError::missing_column("upper"))?;
-        let upper_raw: Vec<f64> = upper_col.iter_float()
-            .ok_or_else(|| PlotError::invalid_column_type("upper", "float"))?
-            .collect();
-            
-        let ymin_col = ctx.data().get("ymin").ok_or_else(|| PlotError::missing_column("ymin"))?;
-        let ymin_raw: Vec<f64> = ymin_col.iter_float()
-            .ok_or_else(|| PlotError::invalid_column_type("ymin", "float"))?
-            .collect();
-            
-        let ymax_col = ctx.data().get("ymax").ok_or_else(|| PlotError::missing_column("ymax"))?;
-        let ymax_raw: Vec<f64> = ymax_col.iter_float()
-            .ok_or_else(|| PlotError::invalid_column_type("ymax", "float"))?
-            .collect();
-        
-        // Apply y scale to non-NaN values, preserve NaN for outlier rows
-        let y_scale = ctx.scales.y.as_ref();
-        let lower_normalized: Vec<f64> = lower_raw.iter().map(|&v| {
-            if v.is_nan() {
-                v
-            } else if let Some(scale) = y_scale {
-                scale.map_value(v).unwrap_or(v)
-            } else {
-                v
-            }
-        }).collect();
-        
-        let middle_normalized: Vec<f64> = middle_raw.iter().map(|&v| {
-            if v.is_nan() {
-                v
-            } else if let Some(scale) = y_scale {
-                scale.map_value(v).unwrap_or(v)
-            } else {
-                v
-            }
-        }).collect();
-        
-        let upper_normalized: Vec<f64> = upper_raw.iter().map(|&v| {
-            if v.is_nan() {
-                v
-            } else if let Some(scale) = y_scale {
-                scale.map_value(v).unwrap_or(v)
-            } else {
-                v
-            }
-        }).collect();
-        
-        let ymin_normalized: Vec<f64> = ymin_raw.iter().map(|&v| {
-            if v.is_nan() {
-                v
-            } else if let Some(scale) = y_scale {
-                scale.map_value(v).unwrap_or(v)
-            } else {
-                v
-            }
-        }).collect();
-        
-        let ymax_normalized: Vec<f64> = ymax_raw.iter().map(|&v| {
-            if v.is_nan() {
-                v
-            } else if let Some(scale) = y_scale {
-                scale.map_value(v).unwrap_or(v)
-            } else {
-                v
-            }
-        }).collect();
+        // Get y values (for outliers) - pre-normalized by apply_scales
+        let y_normalized = ctx.get_y_aesthetic_values(Aesthetic::Y)?;
 
         // Get styling aesthetics
         let fills = ctx.get_fill_color_values()?;
         let colors = ctx.get_color_values()?;
         let alphas = ctx.get_unscaled_aesthetic_values(Aesthetic::Alpha)?;
         let sizes = ctx.get_unscaled_aesthetic_values(Aesthetic::Size)?;
+
+        // Build the combined iterator with all aesthetics
+        // Zip in stages to avoid deeply nested tuples
+        let x_iter = xmin_normalized.zip(x_normalized).zip(xmax_normalized);
+        let y_box_iter = lower_normalized.zip(middle_normalized).zip(upper_normalized);
+        let y_whisker_iter = ymin_normalized.zip(ymax_normalized).zip(y_normalized);
+        let style_iter = fills.zip(colors).zip(alphas).zip(sizes);
         
-        // Get y values (for outliers) - need special handling to preserve NaN
-        let y_col = ctx.data().get("y").ok_or_else(|| PlotError::missing_column("y"))?;
-        let y_raw: Vec<f64> = y_col.iter_float()
-            .ok_or_else(|| PlotError::invalid_column_type("y", "float"))?
-            .collect();
-        
-        // Apply y scale to non-NaN values, preserve NaN for box rows
-        let y_normalized: Vec<f64> = if let Some(y_scale) = ctx.scales.y.as_ref() {
-            y_raw.iter().map(|&v| {
-                if v.is_nan() {
-                    v  // Preserve NaN
-                } else {
-                    y_scale.map_value(v).unwrap_or(v)  // Scale non-NaN values
-                }
-            }).collect()
-        } else {
-            y_raw
-        };
+        let iter = x_iter.zip(y_box_iter).zip(y_whisker_iter).zip(style_iter);
 
-        // Collect iterators into vectors for building the combined iterator
-        use crate::theme::Color;
-        let x_vec: Vec<f64> = x_normalized.collect();
-        let x_max_vec: Option<Vec<f64>> = x_max_normalized.map(|iter| iter.collect());
-        let y_vec: Vec<f64> = y_normalized;  // Already a Vec
-        let lower_vec: Vec<f64> = lower_normalized;  // Already a Vec
-        let middle_vec: Vec<f64> = middle_normalized;  // Already a Vec
-        let upper_vec: Vec<f64> = upper_normalized;  // Already a Vec
-        let ymin_vec: Vec<f64> = ymin_normalized;  // Already a Vec
-        let ymax_vec: Vec<f64> = ymax_normalized;  // Already a Vec
-        let fills_vec: Vec<Color> = fills.collect();
-        let colors_vec: Vec<Color> = colors.collect();
-        let alphas_vec: Vec<f64> = alphas.collect();
-        let sizes_vec: Vec<f64> = sizes.collect();
-        
-
-
-        // Build the combined iterator based on whether we have x range aesthetics
-        let iter: Box<dyn Iterator<Item = (f64, Option<f64>, f64, f64, f64, f64, f64, f64, Color, Color, f64, f64)>> = 
-            if has_x_range {
-                let x_max_vec_unwrapped = x_max_vec.unwrap();
-                Box::new(
-                    x_vec.into_iter()
-                        .zip(x_max_vec_unwrapped.into_iter())
-                        .zip(y_vec.into_iter())
-                        .zip(lower_vec.into_iter())
-                        .zip(middle_vec.into_iter())
-                        .zip(upper_vec.into_iter())
-                        .zip(ymin_vec.into_iter())
-                        .zip(ymax_vec.into_iter())
-                        .zip(fills_vec.into_iter())
-                        .zip(colors_vec.into_iter())
-                        .zip(alphas_vec.into_iter())
-                        .zip(sizes_vec.into_iter())
-                        .map(|(((((((((((xmin, xmax), y), lower), middle), upper), ymin), ymax), fill), color), alpha), size)| {
-                            (xmin, Some(xmax), y, lower, middle, upper, ymin, ymax, fill, color, alpha, size)
-                        })
-                )
-            } else {
-                Box::new(
-                    x_vec.into_iter()
-                        .zip(y_vec.into_iter())
-                        .zip(lower_vec.into_iter())
-                        .zip(middle_vec.into_iter())
-                        .zip(upper_vec.into_iter())
-                        .zip(ymin_vec.into_iter())
-                        .zip(ymax_vec.into_iter())
-                        .zip(fills_vec.into_iter())
-                        .zip(colors_vec.into_iter())
-                        .zip(alphas_vec.into_iter())
-                        .zip(sizes_vec.into_iter())
-                        .map(|((((((((((x, y), lower), middle), upper), ymin), ymax), fill), color), alpha), size)| {
-                            (x, None, y, lower, middle, upper, ymin, ymax, fill, color, alpha, size)
-                        })
-                )
-            };
-
-        for (_i, (x_norm, x_max_opt, y_norm, lower_norm, middle_norm, upper_norm, ymin_norm, ymax_norm, fill, color, alpha, size)) in iter.enumerate() {
+        for (((x_vals, y_box_vals), y_whisker_vals), style_vals) in iter {
+            let ((xmin_norm, _x_norm), xmax_norm) = x_vals;
+            let ((lower_norm, middle_norm), upper_norm) = y_box_vals;
+            let ((ymin_norm, ymax_norm), y_norm) = y_whisker_vals;
+            let (((fill, color), alpha), size) = style_vals;
             // Check if this is an outlier row (middle is NaN)
             if middle_norm.is_nan() {
                 // This is an outlier - draw as a point
                 if !y_norm.is_nan() {
-                    let (box_left_norm, box_right_norm) = if let Some(x_max) = x_max_opt {
-                        (x_norm, x_max)
-                    } else {
-                        (x_norm - box_half_width_norm, x_norm + box_half_width_norm)
-                    };
-                    let x_center_norm = (box_left_norm + box_right_norm) / 2.0;
+                    // Use xmin/xmax for box position
+                    let x_center_norm = (xmin_norm + xmax_norm) / 2.0;
                     let x_visual = ctx.map_x(x_center_norm);
                     let outlier_y_visual = ctx.map_y(y_norm);
                     
@@ -450,18 +309,10 @@ impl Geom for GeomBoxplot {
             let ymin_visual = ctx.map_y(ymin_norm);
             let ymax_visual = ctx.map_y(ymax_norm);
 
-            // Calculate box left and right edges
-            let (box_left_norm, box_right_norm) = if let Some(x_max) = x_max_opt {
-                // Use provided xmin/xmax (from position adjustments)
-                (x_norm, x_max)
-            } else {
-                // Calculate from center x and width
-                (x_norm - box_half_width_norm, x_norm + box_half_width_norm)
-            };
-            
-            let box_left = ctx.map_x(box_left_norm);
-            let box_right = ctx.map_x(box_right_norm);
-            let x_center_norm = (box_left_norm + box_right_norm) / 2.0;
+            // Use xmin/xmax for box edges
+            let box_left = ctx.map_x(xmin_norm);
+            let box_right = ctx.map_x(xmax_norm);
+            let x_center_norm = (xmin_norm + xmax_norm) / 2.0;
             let x_visual = ctx.map_x(x_center_norm);
 
             let box_width = (box_right - box_left).abs();

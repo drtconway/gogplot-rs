@@ -92,16 +92,14 @@ impl Geom for GeomRect {
     }
 
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
-        // Get all aesthetic iterators
-        let x_begin_normalized =
-            ctx.get_aesthetic_values(Aesthetic::XBegin, ctx.scales.x.as_deref())?;
-        let x_end_normalized = ctx.get_aesthetic_values(Aesthetic::XEnd, ctx.scales.x.as_deref())?;
-        let y_begin_normalized =
-            ctx.get_aesthetic_values(Aesthetic::YBegin, ctx.scales.y.as_deref())?;
-        let y_end_normalized = ctx.get_aesthetic_values(Aesthetic::YEnd, ctx.scales.y.as_deref())?;
+        // Get all aesthetic iterators - pre-normalized by apply_scales
+        let x_begin_normalized = ctx.get_x_aesthetic_values(Aesthetic::XBegin)?;
+        let x_end_normalized = ctx.get_x_aesthetic_values(Aesthetic::XEnd)?;
+        let y_begin_normalized = ctx.get_y_aesthetic_values(Aesthetic::YBegin)?;
+        let y_end_normalized = ctx.get_y_aesthetic_values(Aesthetic::YEnd)?;
         let fills = ctx.get_fill_color_values()?;
         let colors = ctx.get_color_values()?;
-        let alphas = ctx.get_aesthetic_values(Aesthetic::Alpha, None)?;
+        let alphas = ctx.get_unscaled_aesthetic_values(Aesthetic::Alpha)?;
 
         // Zip all iterators together
         let iter = x_begin_normalized
