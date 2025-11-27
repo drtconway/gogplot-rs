@@ -149,22 +149,6 @@ impl Geom for GeomHistogram {
         &[Aesthetic::X]
     }
 
-    fn compute_stat(
-        &self,
-        _data: &dyn crate::data::DataSource,
-        _mapping: &crate::aesthetics::AesMap,
-    ) -> Result<
-        Option<(
-            crate::utils::dataframe::DataFrame,
-            crate::aesthetics::AesMap,
-        )>,
-        PlotError,
-    > {
-        // Stat is applied in the plot's apply_stats phase
-        // We don't compute it here
-        Ok(None)
-    }
-
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
         let mapping = ctx.mapping();
         

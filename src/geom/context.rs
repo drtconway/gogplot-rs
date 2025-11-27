@@ -2,7 +2,7 @@ use crate::aesthetics::{AesMap, AesValue, Aesthetic};
 use crate::data::{DataSource, VectorType};
 use crate::error::{DataType, PlotError};
 use crate::layer::Layer;
-use crate::plot::{self, ScaleSet};
+use crate::plot::ScaleSet;
 use crate::scale::{ContinuousScale, ScaleType};
 use crate::theme::{self, Color};
 use cairo::Context;
