@@ -448,37 +448,6 @@ fn apply_positional_scale(
     Ok(result)
 }
 
-/// Helper to convert Aesthetic to column name for scaled output
-impl Aesthetic {
-    fn to_column_name(&self) -> &'static str {
-        match self {
-            Aesthetic::X => "x",
-            Aesthetic::Y => "y",
-            Aesthetic::Xmin => "xmin",
-            Aesthetic::Xmax => "xmax",
-            Aesthetic::Ymin => "ymin",
-            Aesthetic::Ymax => "ymax",
-            Aesthetic::Lower => "lower",
-            Aesthetic::Middle => "middle",
-            Aesthetic::Upper => "upper",
-            Aesthetic::XBegin => "xbegin",
-            Aesthetic::XEnd => "xend",
-            Aesthetic::YBegin => "ybegin",
-            Aesthetic::YEnd => "yend",
-            Aesthetic::XIntercept => "xintercept",
-            Aesthetic::YIntercept => "yintercept",
-            Aesthetic::Color => "color",
-            Aesthetic::Fill => "fill",
-            Aesthetic::Alpha => "alpha",
-            Aesthetic::Size => "size",
-            Aesthetic::Shape => "shape",
-            Aesthetic::Linetype => "linetype",
-            Aesthetic::Group => "group",
-            Aesthetic::Label => "label",
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

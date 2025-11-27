@@ -3,7 +3,7 @@ use crate::scale::ScaleType;
 use std::collections::HashMap;
 
 // Supported aesthetics
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Aesthetic {
     X,
     Y,

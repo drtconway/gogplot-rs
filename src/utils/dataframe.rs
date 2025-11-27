@@ -22,6 +22,12 @@ impl GenericVector for IntVec {
     }
 }
 
+impl From<Vec<i64>> for IntVec {
+    fn from(vec: Vec<i64>) -> Self {
+        IntVec(vec)
+    }
+}
+
 pub struct FloatVec(pub Vec<f64>);
 
 impl GenericVector for FloatVec {
@@ -39,6 +45,12 @@ impl GenericVector for FloatVec {
 
     fn iter_float(&self) -> Option<Box<dyn Iterator<Item = f64> + '_>> {
         Some(Box::new(self.0.iter().copied()))
+    }
+}
+
+impl From<Vec<f64>> for FloatVec {
+    fn from(vec: Vec<f64>) -> Self {
+        FloatVec(vec)
     }
 }
 
