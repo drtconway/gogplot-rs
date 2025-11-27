@@ -82,7 +82,13 @@ impl<G: Geom + crate::geom::IntoLayer + 'static> From<LayerGeom<G>> for crate::l
         }
         // If stat is None, layer.stat already has the geom's default from into_layer()
         
-        layer.mapping = Some(layer_aes);
+        // Merge layer_aes into the existing mapping (from into_layer)
+        // User aesthetics override geom defaults
+        if let Some(ref mut mapping) = layer.mapping {
+            mapping.merge(&layer_aes);
+        } else {
+            layer.mapping = Some(layer_aes);
+        }
 
         layer
     }

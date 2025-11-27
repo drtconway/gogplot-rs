@@ -149,14 +149,21 @@ pub fn apply_scales(
     // Now handle constants - scale them and add to result mapping as constants
     for (aesthetic, aes_value) in mapping.iter() {
         if let AesValue::Constant { value, hint } = aes_value {
-            let scaled_value = apply_scale_to_constant(*aesthetic, value, *hint, scales)?;
-            result_mapping.set(
-                *aesthetic,
-                AesValue::Constant {
-                    value: crate::data::PrimitiveValue::Float(scaled_value),
-                    hint: None, // Already scaled, no hint needed
-                },
-            );
+            // Color/Fill/Shape/Linetype constants should NOT be scaled
+            // They're handled separately in get_fill_color_values, get_color_values, etc.
+            if matches!(aesthetic, Aesthetic::Color | Aesthetic::Fill | Aesthetic::Shape | Aesthetic::Linetype) {
+                // Keep original constant as-is
+                result_mapping.set(*aesthetic, aes_value.clone());
+            } else {
+                let scaled_value = apply_scale_to_constant(*aesthetic, value, *hint, scales)?;
+                result_mapping.set(
+                    *aesthetic,
+                    AesValue::Constant {
+                        value: crate::data::PrimitiveValue::Float(scaled_value),
+                        hint: None, // Already scaled, no hint needed
+                    },
+                );
+            }
         }
     }
 
@@ -311,10 +318,10 @@ fn apply_scale_to_constant(
             }
         }
 
-        // Color/Fill/Shape/Linetype - TODO: handle these properly
+        // Color/Fill/Shape/Linetype - these should not be scaled, they're handled separately
+        // Return a sentinel value to indicate they should be skipped
         Aesthetic::Color | Aesthetic::Fill | Aesthetic::Shape | Aesthetic::Linetype => {
-            // For now, just convert to float or use -1 as sentinel
-            Ok(primitive_to_float(value).unwrap_or(-1.0))
+            Ok(f64::NAN) // Sentinel to skip scaling these
         }
 
         // Group and Label don't get scaled

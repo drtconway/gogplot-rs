@@ -242,6 +242,14 @@ impl AesMap {
         self.map.contains_key(&aes)
     }
 
+    /// Merge another AesMap into this one
+    /// Values from `other` override values in `self`
+    pub fn merge(&mut self, other: &AesMap) {
+        for (aes, value) in other.iter() {
+            self.set(*aes, value.clone());
+        }
+    }
+
     // Convenience methods for column mappings
     pub fn x(&mut self, column: impl Into<String>) {
         self.set_to_column(Aesthetic::X, column);
