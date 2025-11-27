@@ -116,24 +116,3 @@ pub fn apply_stat_to_layer(
 
     Ok(())
 }
-
-/// Apply statistical transformations to layers
-///
-/// This function transforms layers that have stats other than Identity.
-/// The transformed data is stored in computed_data, and the
-/// aesthetic mapping is updated in computed_mapping.
-///
-/// Layers without their own data will use plot_data if available.
-/// Layers without their own mappings will inherit from plot_default_aes.
-pub fn apply_stats(
-    layers: &mut [Layer],
-    plot_data: Option<&dyn crate::data::DataSource>,
-    plot_default_aes: &crate::aesthetics::AesMap,
-) -> Result<(), PlotError> {
-    // Apply stat transformation to each layer
-    for layer in layers.iter_mut() {
-        apply_stat_to_layer(layer, plot_data, plot_default_aes)?;
-    }
-
-    Ok(())
-}
