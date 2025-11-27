@@ -1,7 +1,7 @@
 use super::{Geom, IntoLayer, RenderContext};
 use crate::aesthetics::{AesValue, Aesthetic};
 use crate::data::PrimitiveValue;
-use crate::error::PlotError;
+use crate::error::{DataType, PlotError};
 
 /// GeomErrorbar renders vertical error bars with optional caps
 pub struct GeomErrorbar {
@@ -96,9 +96,130 @@ impl Geom for GeomErrorbar {
         &[Aesthetic::X, Aesthetic::Ymin, Aesthetic::Ymax]
     }
 
+    fn setup_data(
+        &self,
+        data: &dyn crate::data::DataSource,
+        mapping: &crate::aesthetics::AesMap,
+    ) -> Result<(Option<Box<dyn crate::data::DataSource>>, Option<crate::aesthetics::AesMap>), PlotError> {
+        use crate::utils::dataframe::{DataFrame, FloatVec};
+
+        // Check if X aesthetic is mapped
+        let x_aes = match mapping.get(&Aesthetic::X) {
+            Some(aes) => aes,
+            None => return Ok((None, None)), // No X mapping, nothing to set up
+        };
+
+        // Determine if X will use a categorical scale
+        use crate::scale::ScaleType;
+        let scale_preference = self.aesthetic_scale_type(Aesthetic::X);
+
+        let mut new_mapping = mapping.clone();
+
+        // Determine if X will be categorical based on the aesthetic value type and scale preference
+        let is_categorical = match x_aes {
+            AesValue::Column { name, .. } => {
+                let x_col = data.get(name.as_str())
+                    .ok_or_else(|| PlotError::missing_column(name))?;
+                match scale_preference {
+                    ScaleType::Categorical => true,
+                    ScaleType::Continuous => false,
+                    ScaleType::Either => x_col.iter_str().is_some(),
+                }
+            }
+            AesValue::Constant { value, .. } => {
+                matches!(value, PrimitiveValue::Str(_))
+            }
+        };
+
+        if is_categorical {
+            // For categorical X, map both Xmin and Xmax to the same aesthetic (column or constant)
+            // No need to modify data - just update mapping
+            new_mapping.set(Aesthetic::Xmin, x_aes.clone());
+            new_mapping.set(Aesthetic::Xmax, x_aes.clone());
+            Ok((None, Some(new_mapping)))
+        } else {
+            // For continuous X, we need to compute xmin/xmax with width offsets
+            match x_aes {
+                AesValue::Column { name: x_col_name, .. } => {
+                    // Get the X column
+                    let x_col = data.get(x_col_name.as_str())
+                        .ok_or_else(|| PlotError::missing_column(x_col_name))?;
+
+                    // Convert to floats
+                    let x_vals: Vec<f64> = if let Some(int_iter) = x_col.iter_int() {
+                        int_iter.map(|v| v as f64).collect()
+                    } else if let Some(float_iter) = x_col.iter_float() {
+                        float_iter.collect()
+                    } else {
+                        return Err(PlotError::InvalidAestheticType {
+                            aesthetic: Aesthetic::X,
+                            expected: DataType::Custom("numeric".to_string()),
+                            actual: DataType::Custom("unknown".to_string()),
+                        });
+                    };
+
+                    let half_width = self.width / 2.0;
+                    let xmin_vals: Vec<f64> = x_vals.iter().map(|x| x - half_width).collect();
+                    let xmax_vals: Vec<f64> = x_vals.iter().map(|x| x + half_width).collect();
+
+                    // Create a new dataframe with all original columns plus xmin/xmax
+                    let mut new_df = DataFrame::new();
+                    
+                    use crate::data::{VectorIter, GenericVector};
+                    use crate::utils::dataframe::{IntVec, StrVec, BoolVec};
+                    
+                    for col_name in data.column_names() {
+                        if let Some(col) = data.get(&col_name) {
+                            let new_col: Box<dyn GenericVector> = match col.iter() {
+                                VectorIter::Int(iter) => Box::new(IntVec(iter.collect())),
+                                VectorIter::Float(iter) => Box::new(FloatVec(iter.collect())),
+                                VectorIter::Str(iter) => Box::new(StrVec(iter.map(|s| s.to_string()).collect())),
+                                VectorIter::Bool(iter) => Box::new(BoolVec(iter.collect())),
+                            };
+                            new_df.add_column(&col_name, new_col);
+                        }
+                    }
+
+                    new_df.add_column("xmin", Box::new(FloatVec(xmin_vals)));
+                    new_df.add_column("xmax", Box::new(FloatVec(xmax_vals)));
+
+                    new_mapping.set(Aesthetic::Xmin, AesValue::column("xmin"));
+                    new_mapping.set(Aesthetic::Xmax, AesValue::column("xmax"));
+                    
+                    Ok((Some(Box::new(new_df)), Some(new_mapping)))
+                }
+                AesValue::Constant { value, .. } => {
+                    // For numeric constants, apply width offset
+                    let half_width = self.width / 2.0;
+                    match value {
+                        PrimitiveValue::Int(x) => {
+                            let x_f64 = *x as f64;
+                            new_mapping.set(Aesthetic::Xmin, AesValue::constant(PrimitiveValue::Float(x_f64 - half_width)));
+                            new_mapping.set(Aesthetic::Xmax, AesValue::constant(PrimitiveValue::Float(x_f64 + half_width)));
+                        }
+                        PrimitiveValue::Float(x) => {
+                            new_mapping.set(Aesthetic::Xmin, AesValue::constant(PrimitiveValue::Float(x - half_width)));
+                            new_mapping.set(Aesthetic::Xmax, AesValue::constant(PrimitiveValue::Float(x + half_width)));
+                        }
+                        _ => {
+                            return Err(PlotError::InvalidAestheticType {
+                                aesthetic: Aesthetic::X,
+                                expected: DataType::Custom("numeric".to_string()),
+                                actual: DataType::Custom("unknown".to_string()),
+                            });
+                        }
+                    }
+                    Ok((None, Some(new_mapping)))
+                }
+            }
+        }
+    }
+
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
-        // Get position aesthetics
+        // Get position aesthetics (all pre-normalized to [0,1])
         let x_normalized = ctx.get_x_aesthetic_values(Aesthetic::X)?;
+        let xmin_normalized = ctx.get_x_aesthetic_values(Aesthetic::Xmin)?;
+        let xmax_normalized = ctx.get_x_aesthetic_values(Aesthetic::Xmax)?;
         let ymin_normalized = ctx.get_y_aesthetic_values(Aesthetic::Ymin)?;
         let ymax_normalized = ctx.get_y_aesthetic_values(Aesthetic::Ymax)?;
 
@@ -107,62 +228,23 @@ impl Geom for GeomErrorbar {
         let alphas = ctx.get_aesthetic_values(Aesthetic::Alpha, None)?;
         let sizes = ctx.get_aesthetic_values(Aesthetic::Size, None)?;
 
-        // Calculate cap width in normalized coordinates
-        let x_scale = ctx.scales.x.as_ref()
-            .ok_or_else(|| PlotError::MissingAesthetic { aesthetic: Aesthetic::X })?;
-        
-        use crate::scale::ScaleType;
-        let cap_width_norm = if x_scale.scale_type() == ScaleType::Categorical {
-            // For categorical scales, width is a proportion of the categorical spacing
-            // Collect unique x positions to determine the categorical spacing
-            let x_values: Vec<f64> = ctx.get_x_aesthetic_values(Aesthetic::X)?
-                .filter(|x| x.is_finite())
-                .collect();
-            
-            if x_values.len() > 1 {
-                // Get unique sorted positions
-                use ordered_float::OrderedFloat;
-                let mut unique_x: Vec<OrderedFloat<f64>> = x_values.iter()
-                    .map(|&x| OrderedFloat(x))
-                    .collect();
-                unique_x.sort();
-                unique_x.dedup();
-                
-                // The spacing between consecutive categories
-                let categorical_step = unique_x[1].0 - unique_x[0].0;
-                categorical_step * self.width
-            } else {
-                // Single category - use width as-is in normalized space
-                self.width
-            }
-        } else {
-            // For continuous scales, convert data width to normalized coordinates
-            // Get two points in data space separated by self.width
-            let x_center = 0.0;
-            let x_left = x_center - self.width / 2.0;
-            let x_right = x_center + self.width / 2.0;
-            
-            let x_left_norm = x_scale.map_value(x_left).unwrap_or(0.0);
-            let x_right_norm = x_scale.map_value(x_right).unwrap_or(0.0);
-            
-            x_right_norm - x_left_norm
-        };
-
         // Zip all iterators together
         let iter = x_normalized
+            .zip(xmin_normalized)
+            .zip(xmax_normalized)
             .zip(ymin_normalized)
             .zip(ymax_normalized)
             .zip(colors)
             .zip(alphas)
             .zip(sizes);
 
-        for (((((x_norm, ymin_norm), ymax_norm), color), alpha), size) in iter {
+        for (((((((x_norm, xmin_norm), xmax_norm), ymin_norm), ymax_norm), color), alpha), size) in iter {
+            // Map normalized [0,1] coordinates to device coordinates
             let x_visual = ctx.map_x(x_norm);
+            let xmin_visual = ctx.map_x(xmin_norm);
+            let xmax_visual = ctx.map_x(xmax_norm);
             let ymin_visual = ctx.map_y(ymin_norm);
             let ymax_visual = ctx.map_y(ymax_norm);
-
-            // Calculate cap positions
-            let cap_half_width = ctx.map_x(x_norm + cap_width_norm / 2.0) - x_visual;
 
             // Set drawing properties
             ctx.set_color_alpha(&color, alpha);
@@ -173,15 +255,16 @@ impl Geom for GeomErrorbar {
             ctx.cairo.line_to(x_visual, ymax_visual);
             ctx.cairo.stroke().ok();
 
-            // Draw bottom cap
+            // Draw caps if width > 0
             if self.width > 0.0 {
-                ctx.cairo.move_to(x_visual - cap_half_width, ymin_visual);
-                ctx.cairo.line_to(x_visual + cap_half_width, ymin_visual);
+                // Draw bottom cap
+                ctx.cairo.move_to(xmin_visual, ymin_visual);
+                ctx.cairo.line_to(xmax_visual, ymin_visual);
                 ctx.cairo.stroke().ok();
 
                 // Draw top cap
-                ctx.cairo.move_to(x_visual - cap_half_width, ymax_visual);
-                ctx.cairo.line_to(x_visual + cap_half_width, ymax_visual);
+                ctx.cairo.move_to(xmin_visual, ymax_visual);
+                ctx.cairo.line_to(xmax_visual, ymax_visual);
                 ctx.cairo.stroke().ok();
             }
         }

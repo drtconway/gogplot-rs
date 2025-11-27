@@ -149,6 +149,103 @@ impl Geom for GeomHistogram {
         &[Aesthetic::X]
     }
 
+    fn setup_data(
+        &self,
+        data: &dyn crate::data::DataSource,
+        mapping: &crate::aesthetics::AesMap,
+    ) -> Result<(Option<Box<dyn crate::data::DataSource>>, Option<crate::aesthetics::AesMap>), PlotError> {
+        // If the stat has already created Xmin/Xmax (e.g., from Stat::Bin), we don't need to do anything
+        if mapping.contains(Aesthetic::Xmin) && mapping.contains(Aesthetic::Xmax) {
+            return Ok((None, None));
+        }
+
+        // Otherwise, we need to create xmin/xmax from X values (similar to GeomBar)
+        // This handles the case where histogram is used without Stat::Bin
+        
+        use crate::utils::dataframe::{DataFrame, FloatVec};
+        use crate::error::DataType;
+
+        // Get the X column name from the mapping
+        let x_col_name = match mapping.get(&Aesthetic::X) {
+            Some(AesValue::Column { name, .. }) => name.as_str(),
+            _ => return Ok((None, None)), // No X column mapping, nothing to set up
+        };
+
+        // Get the X column from the data
+        let x_col = data.get(x_col_name)
+            .ok_or_else(|| PlotError::missing_column(x_col_name))?;
+
+        // Convert x values to floats
+        let x_vals: Vec<f64> = if let Some(int_iter) = x_col.iter_int() {
+            int_iter.map(|v| v as f64).collect()
+        } else if let Some(float_iter) = x_col.iter_float() {
+            float_iter.collect()
+        } else {
+            return Err(PlotError::InvalidAestheticType {
+                aesthetic: Aesthetic::X,
+                expected: DataType::Custom("numeric".to_string()),
+                actual: DataType::Custom("unknown".to_string()),
+            });
+        };
+
+        // Find minimum spacing between unique values
+        let mut unique_x: Vec<ordered_float::OrderedFloat<f64>> = x_vals
+            .iter()
+            .filter(|x| x.is_finite())
+            .map(|&x| ordered_float::OrderedFloat(x))
+            .collect();
+        unique_x.sort();
+        unique_x.dedup();
+        
+        let spacing = if unique_x.len() > 1 {
+            let mut min_spacing = f64::MAX;
+            for i in 1..unique_x.len() {
+                let spacing = unique_x[i].0 - unique_x[i - 1].0;
+                if spacing < min_spacing {
+                    min_spacing = spacing;
+                }
+            }
+            min_spacing
+        } else {
+            1.0
+        };
+
+        let half_width = spacing / 2.0;
+
+        // Create xmin and xmax columns
+        let xmin_vals: Vec<f64> = x_vals.iter().map(|x| x - half_width).collect();
+        let xmax_vals: Vec<f64> = x_vals.iter().map(|x| x + half_width).collect();
+
+        // Create a new dataframe with all original columns plus xmin/xmax
+        let mut new_df = DataFrame::new();
+        
+        use crate::data::{VectorIter, GenericVector};
+        use crate::utils::dataframe::{IntVec, StrVec, BoolVec};
+        
+        for col_name in data.column_names() {
+            if let Some(col) = data.get(&col_name) {
+                let new_col: Box<dyn GenericVector> = match col.iter() {
+                    VectorIter::Int(iter) => Box::new(IntVec(iter.collect())),
+                    VectorIter::Float(iter) => Box::new(FloatVec(iter.collect())),
+                    VectorIter::Str(iter) => Box::new(StrVec(iter.map(|s| s.to_string()).collect())),
+                    VectorIter::Bool(iter) => Box::new(BoolVec(iter.collect())),
+                };
+                new_df.add_column(&col_name, new_col);
+            }
+        }
+
+        // Add xmin and xmax columns
+        new_df.add_column("xmin", Box::new(FloatVec(xmin_vals)));
+        new_df.add_column("xmax", Box::new(FloatVec(xmax_vals)));
+
+        // Update the mapping to include Xmin and Xmax aesthetics
+        let mut new_mapping = mapping.clone();
+        new_mapping.set(Aesthetic::Xmin, AesValue::column("xmin"));
+        new_mapping.set(Aesthetic::Xmax, AesValue::column("xmax"));
+
+        Ok((Some(Box::new(new_df) as Box<dyn crate::data::DataSource>), Some(new_mapping)))
+    }
+
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
         let mapping = ctx.mapping();
         

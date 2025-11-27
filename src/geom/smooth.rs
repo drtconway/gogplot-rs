@@ -178,6 +178,15 @@ impl Geom for GeomSmooth {
         &[Aesthetic::X, Aesthetic::Y]
     }
 
+    fn setup_data(
+        &self,
+        _data: &dyn crate::data::DataSource,
+        _mapping: &crate::aesthetics::AesMap,
+    ) -> std::result::Result<(Option<Box<dyn crate::data::DataSource>>, Option<crate::aesthetics::AesMap>), crate::error::PlotError> {
+        // Geom doesn't need to add any columns - Stat::Smooth creates what we need
+        Ok((None, None))
+    }
+
     fn render(&self, ctx: &mut RenderContext) -> Result<()> {
         // Get aesthetic values
         let x_values = ctx.get_x_aesthetic_values(Aesthetic::X)?;

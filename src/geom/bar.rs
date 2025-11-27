@@ -157,13 +157,13 @@ impl Geom for GeomBar {
         &self,
         data: &dyn crate::data::DataSource,
         mapping: &crate::aesthetics::AesMap,
-    ) -> Result<Option<(Box<dyn crate::data::DataSource>, crate::aesthetics::AesMap)>, PlotError> {
+    ) -> Result<(Option<Box<dyn crate::data::DataSource>>, Option<crate::aesthetics::AesMap>), PlotError> {
         use crate::utils::dataframe::{DataFrame, FloatVec};
 
         // Get the X column name from the mapping
         let x_col_name = match mapping.get(&Aesthetic::X) {
             Some(AesValue::Column { name, .. }) => name.as_str(),
-            _ => return Ok(None), // No X mapping, nothing to set up
+            _ => return Ok((None, None)), // No X mapping, nothing to set up
         };
 
         // Get the X column from the data
@@ -250,7 +250,7 @@ impl Geom for GeomBar {
         new_mapping.set(Aesthetic::Xmin, AesValue::column("xmin"));
         new_mapping.set(Aesthetic::Xmax, AesValue::column("xmax"));
 
-        Ok(Some((Box::new(new_df) as Box<dyn crate::data::DataSource>, new_mapping)))
+        Ok((Some(Box::new(new_df) as Box<dyn crate::data::DataSource>), Some(new_mapping)))
     }
 
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {

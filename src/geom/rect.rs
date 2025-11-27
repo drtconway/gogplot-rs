@@ -86,9 +86,9 @@ impl Geom for GeomRect {
         &self,
         _data: &dyn crate::data::DataSource,
         _mapping: &crate::aesthetics::AesMap,
-    ) -> Result<Option<(Box<dyn crate::data::DataSource>, crate::aesthetics::AesMap)>, PlotError> {
+    ) -> Result<(Option<Box<dyn crate::data::DataSource>>, Option<crate::aesthetics::AesMap>), PlotError> {
         // Rect geom doesn't need to add any columns - it uses XBegin, XEnd, YBegin, YEnd directly
-        Ok(None)
+        Ok((None, None))
     }
 
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {

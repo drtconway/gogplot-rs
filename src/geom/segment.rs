@@ -115,9 +115,9 @@ impl Geom for GeomSegment {
         &self,
         _data: &dyn crate::data::DataSource,
         _mapping: &crate::aesthetics::AesMap,
-    ) -> Result<Option<(Box<dyn crate::data::DataSource>, crate::aesthetics::AesMap)>, PlotError> {
+    ) -> Result<(Option<Box<dyn crate::data::DataSource>>, Option<crate::aesthetics::AesMap>), PlotError> {
         // Geom doesn't need to add any columns
-        Ok(None)
+        Ok((None, None))
     }
 
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {

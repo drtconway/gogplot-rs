@@ -69,14 +69,15 @@ pub trait Geom: Send + Sync {
     ///
     /// # Returns
     ///
-    /// * `Ok(Some((dataframe, mapping)))` - Data with added columns and updated mapping
-    /// * `Ok(None)` - No setup needed, use original data and mapping
+    /// * `Ok((Some(dataframe), Some(mapping)))` - Data with added columns and updated mapping
+    /// * `Ok((None, Some(mapping)))` - No new data, but mapping updated
+    /// * `Ok((None, None))` - No setup needed, use original data and mapping
     /// * `Err(...)` - Setup failed
     fn setup_data(
         &self,
         _data: &dyn DataSource,
         _mapping: &AesMap,
-    ) -> Result<Option<(Box<dyn DataSource>, AesMap)>, PlotError>;
+    ) -> Result<(Option<Box<dyn DataSource>>, Option<AesMap>), PlotError>;
 }
 
 /// Trait for geoms that can be converted into layers with their default aesthetics

@@ -203,6 +203,32 @@ impl Geom for GeomBoxplot {
         }
     }
 
+    fn setup_data(
+        &self,
+        _data: &dyn crate::data::DataSource,
+        mapping: &crate::aesthetics::AesMap,
+    ) -> Result<(Option<Box<dyn crate::data::DataSource>>, Option<crate::aesthetics::AesMap>), PlotError> {
+        // If Xmin/Xmax are already in the mapping (e.g., from previous setup or position adjustment),
+        // we don't need to do anything
+        if mapping.contains(Aesthetic::Xmin) && mapping.contains(Aesthetic::Xmax) {
+            return Ok((None, None));
+        }
+
+        // For boxplot, X is categorical, so we map both Xmin and Xmax to the same X aesthetic
+        // This allows the categorical scale to position them correctly, and position adjustments
+        // like Dodge can modify these mappings if needed
+        let x_aes = match mapping.get(&Aesthetic::X) {
+            Some(aes) => aes,
+            None => return Ok((None, None)), // No X mapping, nothing to set up
+        };
+
+        let mut new_mapping = mapping.clone();
+        new_mapping.set(Aesthetic::Xmin, x_aes.clone());
+        new_mapping.set(Aesthetic::Xmax, x_aes.clone());
+
+        Ok((None, Some(new_mapping)))
+    }
+
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
         use crate::geom::context::compute_min_spacing;
 

@@ -290,11 +290,13 @@ impl Plot {
 
             if let Some(data_ref) = layer_data {
                 // Call setup_data
-                if let Some((new_data, new_mapping)) =
-                    layer.geom.setup_data(data_ref, layer_mapping)?
-                {
-                    layer.computed_data = Some(new_data);
-                    layer.computed_mapping = Some(new_mapping);
+                let (new_data, new_mapping) = layer.geom.setup_data(data_ref, layer_mapping)?;
+                
+                if let Some(data) = new_data {
+                    layer.computed_data = Some(data);
+                }
+                if let Some(mapping) = new_mapping {
+                    layer.computed_mapping = Some(mapping);
                 }
             }
         }

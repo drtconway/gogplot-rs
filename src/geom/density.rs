@@ -126,6 +126,15 @@ impl Geom for GeomDensity {
         &[Aesthetic::X]
     }
 
+    fn setup_data(
+        &self,
+        _data: &dyn crate::data::DataSource,
+        _mapping: &crate::aesthetics::AesMap,
+    ) -> Result<(Option<Box<dyn crate::data::DataSource>>, Option<crate::aesthetics::AesMap>), PlotError> {
+        // Geom doesn't need to add any columns - Stat::Density creates X and Y
+        Ok((None, None))
+    }
+
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
         // Get x and y aesthetic values
         let x_vals = ctx.get_x_aesthetic_values(Aesthetic::X)?;
