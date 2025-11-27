@@ -76,9 +76,7 @@ pub trait Geom: Send + Sync {
         &self,
         _data: &dyn DataSource,
         _mapping: &AesMap,
-    ) -> Result<Option<(Box<dyn DataSource>, AesMap)>, PlotError> {
-        Ok(None)
-    }
+    ) -> Result<Option<(Box<dyn DataSource>, AesMap)>, PlotError>;
 }
 
 /// Trait for geoms that can be converted into layers with their default aesthetics

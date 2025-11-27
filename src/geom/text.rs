@@ -120,6 +120,15 @@ impl Geom for GeomText {
         &[Aesthetic::X, Aesthetic::Y, Aesthetic::Label]
     }
 
+    fn setup_data(
+        &self,
+        _data: &dyn crate::data::DataSource,
+        _mapping: &crate::aesthetics::AesMap,
+    ) -> Result<Option<(Box<dyn crate::data::DataSource>, crate::aesthetics::AesMap)>, PlotError> {
+        // Geom doesn't need to add any columns
+        Ok(None)
+    }
+
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
         // Get position aesthetics
         let x_normalized = ctx.get_x_aesthetic_values(Aesthetic::X)?;

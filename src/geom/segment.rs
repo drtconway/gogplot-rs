@@ -111,6 +111,15 @@ impl Geom for GeomSegment {
         &[Aesthetic::X, Aesthetic::Y, Aesthetic::XEnd, Aesthetic::YEnd]
     }
 
+    fn setup_data(
+        &self,
+        _data: &dyn crate::data::DataSource,
+        _mapping: &crate::aesthetics::AesMap,
+    ) -> Result<Option<(Box<dyn crate::data::DataSource>, crate::aesthetics::AesMap)>, PlotError> {
+        // Geom doesn't need to add any columns
+        Ok(None)
+    }
+
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
         use crate::visuals::LineStyle;
 

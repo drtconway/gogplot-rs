@@ -137,6 +137,15 @@ impl Geom for GeomHLine {
         &[Aesthetic::YIntercept]
     }
 
+    fn setup_data(
+        &self,
+        _data: &dyn crate::data::DataSource,
+        _mapping: &crate::aesthetics::AesMap,
+    ) -> Result<Option<(Box<dyn crate::data::DataSource>, crate::aesthetics::AesMap)>, PlotError> {
+        // HLine geom doesn't need to add any columns
+        Ok(None)
+    }
+
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
         use crate::visuals::LineStyle;
         

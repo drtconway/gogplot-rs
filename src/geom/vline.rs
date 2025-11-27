@@ -137,6 +137,15 @@ impl Geom for GeomVLine {
         &[Aesthetic::XIntercept]
     }
 
+    fn setup_data(
+        &self,
+        _data: &dyn crate::data::DataSource,
+        _mapping: &crate::aesthetics::AesMap,
+    ) -> Result<Option<(Box<dyn crate::data::DataSource>, crate::aesthetics::AesMap)>, PlotError> {
+        // VLine geom doesn't need to add any columns
+        Ok(None)
+    }
+
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
         use crate::visuals::LineStyle;
         

@@ -109,6 +109,15 @@ impl Geom for GeomLine {
         &[Aesthetic::X, Aesthetic::Y]
     }
 
+    fn setup_data(
+        &self,
+        _data: &dyn crate::data::DataSource,
+        _mapping: &crate::aesthetics::AesMap,
+    ) -> Result<Option<(Box<dyn crate::data::DataSource>, crate::aesthetics::AesMap)>, PlotError> {
+        // Line geom doesn't need to add any columns
+        Ok(None)
+    }
+
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
         // Get x and y values
         let x_normalized = ctx.get_x_aesthetic_values(Aesthetic::X)?;

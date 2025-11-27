@@ -82,6 +82,15 @@ impl Geom for GeomRect {
         ]
     }
 
+    fn setup_data(
+        &self,
+        _data: &dyn crate::data::DataSource,
+        _mapping: &crate::aesthetics::AesMap,
+    ) -> Result<Option<(Box<dyn crate::data::DataSource>, crate::aesthetics::AesMap)>, PlotError> {
+        // Rect geom doesn't need to add any columns - it uses XBegin, XEnd, YBegin, YEnd directly
+        Ok(None)
+    }
+
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
         // Get all aesthetic iterators
         let x_begin_normalized =
