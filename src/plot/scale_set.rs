@@ -4,7 +4,7 @@ use crate::aesthetics::{AesMap, AesValue, Aesthetic};
 use crate::data::{ColumnDataType, DataSource};
 use crate::error::PlotError;
 use crate::geom::Geom;
-use crate::layer::{self, Layer};
+use crate::layer::Layer;
 use crate::scale::{ColorScale, ContinuousScale, ScaleType, ShapeScale};
 
 /// Container for scales (x, y, color, size, etc.)
