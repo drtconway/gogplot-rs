@@ -1,10 +1,10 @@
 // Scale management for plots
 
-use crate::aesthetics::{AesValue, Aesthetic};
+use crate::aesthetics::{AesMap, AesValue, Aesthetic};
 use crate::data::{ColumnDataType, DataSource};
 use crate::error::PlotError;
 use crate::geom::Geom;
-use crate::layer::Layer;
+use crate::layer::{self, Layer};
 use crate::scale::{ColorScale, ContinuousScale, ScaleType, ShapeScale};
 
 /// Container for scales (x, y, color, size, etc.)
@@ -114,6 +114,7 @@ impl ScaleSet {
         &mut self,
         layers: &[Layer],
         default_data: Option<&dyn DataSource>,
+        default_mapping: &AesMap,
         x_axis_title: &mut Option<String>,
         y_axis_title: &mut Option<String>,
     ) {
@@ -124,10 +125,11 @@ impl ScaleSet {
 
         // Find the first layer that maps each aesthetic to determine default scales
         for layer in layers {
+            let layer_mapping = layer.get_mapping(default_mapping);
             // X scale
             if self.x.is_none() {
                 // Check both computed_mapping (from stats/positions) and original mapping
-                let mapping = layer.computed_mapping.as_ref().unwrap_or(&layer.mapping);
+                let mapping = layer.computed_mapping.as_ref().unwrap_or(&layer_mapping);
                 
                 // Find the first x-like aesthetic that's mapped to a column
                 let col_info = mapping.iter().find_map(|(aes, value)| {
@@ -187,7 +189,7 @@ impl ScaleSet {
             // Y scale
             if self.y.is_none() {
                 // Check both computed_mapping (from stats/positions) and original mapping
-                let mapping = layer.computed_mapping.as_ref().unwrap_or(&layer.mapping);
+                let mapping = layer.computed_mapping.as_ref().unwrap_or(&layer_mapping);
                 
                 // Find the first y-like aesthetic that's mapped to a column
                 let col_info = mapping.iter().find_map(|(aes, value)| {
@@ -246,7 +248,7 @@ impl ScaleSet {
 
             // Color scale
             if self.color.is_none() {
-                if let Some(aes_value) = layer.mapping.get(&Aesthetic::Color) {
+                if let Some(aes_value) = layer_mapping.get(&Aesthetic::Color) {
                     if aes_value.as_column_name().is_some() {
                         let data = match &layer.data {
                             Some(d) => Some(d.as_ref()),
@@ -276,7 +278,7 @@ impl ScaleSet {
 
             // Fill scale
             if self.fill.is_none() {
-                if let Some(aes_value) = layer.mapping.get(&Aesthetic::Fill) {
+                if let Some(aes_value) = layer_mapping.get(&Aesthetic::Fill) {
                     if aes_value.as_column_name().is_some() {
                         let data = match &layer.data {
                             Some(d) => Some(d.as_ref()),
@@ -306,7 +308,7 @@ impl ScaleSet {
 
             // Shape scale
             if self.shape.is_none() {
-                if matches!(layer.mapping.get(&Aesthetic::Shape), Some(AesValue::Column { name: _, hint: Some(ScaleType::Categorical) })) {
+                if matches!(layer_mapping.get(&Aesthetic::Shape), Some(AesValue::Column { name: _, hint: Some(ScaleType::Categorical) })) {
                     // Create default discrete shape scale
                     self.shape = Some(Box::new(DiscreteShape::default_shapes()));
                 }
@@ -314,7 +316,7 @@ impl ScaleSet {
 
             // Size scale
             if self.size.is_none() {
-                if matches!(layer.mapping.get(&Aesthetic::Size), Some(AesValue::Column { .. })) {
+                if matches!(layer_mapping.get(&Aesthetic::Size), Some(AesValue::Column { .. })) {
                     // Create default linear scale for size
                     if let Ok(scale) = Continuous::new().linear() {
                         self.size = Some(Box::new(scale));
@@ -324,7 +326,7 @@ impl ScaleSet {
 
             // Alpha scale
             if self.alpha.is_none() {
-                if matches!(layer.mapping.get(&Aesthetic::Alpha), Some(AesValue::Column { .. })) {
+                if matches!(layer_mapping.get(&Aesthetic::Alpha), Some(AesValue::Column { .. })) {
                     // Create default linear scale for alpha
                     if let Ok(scale) = Continuous::new().linear() {
                         self.alpha = Some(Box::new(scale));
@@ -335,7 +337,7 @@ impl ScaleSet {
     }
 
     /// Train all scales on the data from layers
-    pub fn train(&mut self, layers: &[Layer], default_data: Option<&dyn DataSource>) {
+    pub fn train(&mut self, layers: &[Layer], default_data: Option<&dyn DataSource>, default_mapping: &AesMap) {
         // Train scales on data (including computed stat data)
         for layer in layers {
             // Use computed data if available, otherwise use original data
@@ -352,7 +354,7 @@ impl ScaleSet {
             };
 
             // Use computed mapping if available, otherwise use original mapping
-            let mapping = layer.computed_mapping.as_ref().unwrap_or(&layer.mapping);
+            let mapping = layer.get_mapping(default_mapping);
 
             // Collect all x-related vectors (X, XBegin, XEnd, Xmin, Xmax, etc.)
             let mut x_vecs = Vec::new();

@@ -4,10 +4,9 @@ use super::{Geom, IntoLayer, RenderContext};
 use crate::aesthetics::{AesValue, Aesthetic};
 use crate::data::PrimitiveValue;
 use crate::error::{DataType, PlotError};
-use crate::geom::context::compute_min_spacing;
+use crate::geom::context::AestheticValues;
 use crate::layer::{Position, Stat};
 use crate::scale::ScaleType;
-use ordered_float::OrderedFloat;
 
 /// GeomBar renders bars from y=0 to y=value
 /// By default, it uses Stat::Count to count occurrences at each x position
@@ -124,7 +123,7 @@ impl IntoLayer for GeomBar {
         crate::layer::Layer {
             geom: Box::new(self),
             data: None,
-            mapping,
+            mapping: Some(mapping),
             stat,
             position,
             computed_data: None,
@@ -255,180 +254,157 @@ impl Geom for GeomBar {
         }
     }
 
+    fn setup_data(
+        &self,
+        data: &dyn crate::data::DataSource,
+        mapping: &crate::aesthetics::AesMap,
+    ) -> Result<Option<(Box<dyn crate::data::DataSource>, crate::aesthetics::AesMap)>, PlotError> {
+        use crate::utils::dataframe::{DataFrame, FloatVec};
+
+        // Get the X column name from the mapping
+        let x_col_name = match mapping.get(&Aesthetic::X) {
+            Some(AesValue::Column { name, .. }) => name.as_str(),
+            _ => return Ok(None), // No X mapping, nothing to set up
+        };
+
+        // Get the X column from the data
+        let x_col = data.get(x_col_name)
+            .ok_or_else(|| PlotError::missing_column(x_col_name))?;
+
+        // Convert x values to floats for width calculations
+        let x_vals: Vec<f64> = if let Some(int_iter) = x_col.iter_int() {
+            int_iter.map(|v| v as f64).collect()
+        } else if let Some(float_iter) = x_col.iter_float() {
+            float_iter.collect()
+        } else if x_col.iter_str().is_some() {
+            // For categorical x, we'll use indices (0, 1, 2, ...)
+            // This will be mapped by the categorical scale later
+            (0..data.len()).map(|i| i as f64).collect()
+        } else {
+            return Err(PlotError::InvalidAestheticType {
+                aesthetic: Aesthetic::X,
+                expected: DataType::Custom("numeric or string".to_string()),
+                actual: DataType::Custom("unknown".to_string()),
+            });
+        };
+
+        // Compute the spacing for width calculation
+        // For categorical data or when we can't compute spacing, use 1.0
+        // For continuous data, find minimum spacing between unique values
+        let spacing = if x_col.iter_str().is_some() {
+            1.0
+        } else {
+            let mut unique_x: Vec<ordered_float::OrderedFloat<f64>> = x_vals
+                .iter()
+                .filter(|x| x.is_finite())
+                .map(|&x| ordered_float::OrderedFloat(x))
+                .collect();
+            unique_x.sort();
+            unique_x.dedup();
+            
+            if unique_x.len() > 1 {
+                // Find minimum spacing
+                let mut min_spacing = f64::MAX;
+                for i in 1..unique_x.len() {
+                    let spacing = unique_x[i].0 - unique_x[i - 1].0;
+                    if spacing < min_spacing {
+                        min_spacing = spacing;
+                    }
+                }
+                min_spacing
+            } else {
+                1.0
+            }
+        };
+
+        let half_width = (self.width * spacing) / 2.0;
+
+        // Create xmin and xmax columns
+        let xmin_vals: Vec<f64> = x_vals.iter().map(|x| x - half_width).collect();
+        let xmax_vals: Vec<f64> = x_vals.iter().map(|x| x + half_width).collect();
+
+        // Create a new dataframe with all original columns plus xmin/xmax
+        let mut new_df = DataFrame::new();
+        
+        // Copy all original columns using iter() to reconstruct them
+        use crate::data::{VectorIter, GenericVector};
+        use crate::utils::dataframe::{IntVec, StrVec, BoolVec};
+        
+        for col_name in data.column_names() {
+            if let Some(col) = data.get(&col_name) {
+                let new_col: Box<dyn GenericVector> = match col.iter() {
+                    VectorIter::Int(iter) => Box::new(IntVec(iter.collect())),
+                    VectorIter::Float(iter) => Box::new(FloatVec(iter.collect())),
+                    VectorIter::Str(iter) => Box::new(StrVec(iter.map(|s| s.to_string()).collect())),
+                    VectorIter::Bool(iter) => Box::new(BoolVec(iter.collect())),
+                };
+                new_df.add_column(&col_name, new_col);
+            }
+        }
+
+        // Add xmin and xmax columns
+        new_df.add_column("xmin", Box::new(FloatVec(xmin_vals)));
+        new_df.add_column("xmax", Box::new(FloatVec(xmax_vals)));
+
+        // Update the mapping to include Xmin and Xmax aesthetics
+        let mut new_mapping = mapping.clone();
+        new_mapping.set(Aesthetic::Xmin, AesValue::column("xmin"));
+        new_mapping.set(Aesthetic::Xmax, AesValue::column("xmax"));
+
+        Ok(Some((Box::new(new_df) as Box<dyn crate::data::DataSource>, new_mapping)))
+    }
+
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
+        // NEW SIMPLIFIED RENDER: Data is pre-normalized to [0,1] and position-adjusted
+        // setup_data() has already created xmin/xmax columns
+        // apply_scales() has already normalized everything to [0,1]
+        // position adjustments (dodge/stack) have already been applied
+        
         let mapping = ctx.mapping();
         
-        eprintln!("DEBUG GeomBar::render");
-        eprintln!("  data len: {}", ctx.data().len());
-        eprintln!("  mapping: {:?}", mapping.iter().map(|(k, v)| format!("{:?}: {:?}", k, v)).collect::<Vec<_>>());
+        // Get normalized [0,1] coordinates - all data is already scaled
+        let xmin_vals = ctx.get_x_aesthetic_values(Aesthetic::Xmin)?;
+        let xmax_vals = ctx.get_x_aesthetic_values(Aesthetic::Xmax)?;
         
-        // Determine if we have range aesthetics
-        let has_x_range = mapping.contains(Aesthetic::Xmin) && mapping.contains(Aesthetic::Xmax);
+        // For Y, check if we have Ymin/Ymax (from stack) or just Y
         let has_y_range = mapping.contains(Aesthetic::Ymin) && mapping.contains(Aesthetic::Ymax);
         
-        eprintln!("  has_x_range: {}, has_y_range: {}", has_x_range, has_y_range);
-        
-        // Calculate bar half-width in normalized space (only if not using xmin/xmax)
-        let bar_half_width_norm = if !has_x_range {
-            // Check if the X scale is categorical
-            let is_categorical = ctx.scales.x.as_ref()
-                .map(|scale| scale.scale_type() == ScaleType::Categorical)
-                .unwrap_or(false);
-            
-            if is_categorical {
-                // For categorical x scales, bars should fill a proportion of each category bin
-                // Categorical scales space categories evenly with step = (range.max - range.min) / n_categories
-                // Each bar should occupy self.width (e.g., 0.9) of that step
-                // The normalized positions are already at the center of each bin
-                
-                // Collect unique x positions to determine the categorical spacing
-                let x_values: Vec<f64> = ctx.get_x_aesthetic_values(Aesthetic::X)?
-                    .filter(|x| x.is_finite())
-                    .collect();
-                
-                if x_values.len() > 1 {
-                    // Get unique sorted positions
-                    let mut unique_x: Vec<OrderedFloat<f64>> = x_values.iter()
-                        .map(|&x| OrderedFloat(x))
-                        .collect();
-                    unique_x.sort();
-                    unique_x.dedup();
-                    
-                    // The spacing between consecutive categories is the categorical step
-                    let categorical_step = unique_x[1].0 - unique_x[0].0;
-                    let bar_half_width = categorical_step * self.width / 2.0;
-                    
-                    bar_half_width
-                } else {
-                    // Single category - assume full normalized range [0,1] is one category
-                    // Bar half-width is (1.0 * width) / 2
-                    self.width / 2.0
-                }
-            } else {
-                // For continuous x scales, use the old behavior
-                compute_min_spacing(ctx.get_x_aesthetic_values(Aesthetic::X)?, self.width)
-            }
-        } else {
-            0.0 // Not used when xmin/xmax provided
-        };
-        
-        // Get y=0 baseline in normalized coordinates
-        let y_baseline = if let Some(y_scale) = ctx.scales.y.as_deref() {
-            y_scale.map_value(0.0).unwrap_or(0.0)
-        } else {
-            0.0
-        };
-        
-        // Get x value iterators (center or min/max)
-        let x_vals = if has_x_range {
-            ctx.get_x_aesthetic_values(Aesthetic::Xmin)?
-        } else {
-            ctx.get_x_aesthetic_values(Aesthetic::X)?
-        };
-        
-        let x_max_vals = if has_x_range {
-            Some(ctx.get_x_aesthetic_values(Aesthetic::Xmax)?)
-        } else {
-            None
-        };
-        
-        // Get y value iterators (top or min/max)
-        let y_vals = if has_y_range {
+        let ymin_vals = if has_y_range {
             ctx.get_y_aesthetic_values(Aesthetic::Ymin)?
+        } else {
+            // Y baseline is at 0, which is already normalized by apply_scales
+            // Get the normalized y=0 position
+            let y_zero_norm = if let Some(y_scale) = ctx.scales.y.as_deref() {
+                y_scale.map_value(0.0).unwrap_or(0.0)
+            } else {
+                0.0
+            };
+            // Create iterator that repeats y_zero for each bar
+            let n = ctx.data().len();
+            AestheticValues::Owned(vec![y_zero_norm; n])
+        };
+        
+        let ymax_vals = if has_y_range {
+            ctx.get_y_aesthetic_values(Aesthetic::Ymax)?
         } else {
             ctx.get_y_aesthetic_values(Aesthetic::Y)?
         };
         
-        let y_max_vals = if has_y_range {
-            Some(ctx.get_y_aesthetic_values(Aesthetic::Ymax)?)
-        } else {
-            None
-        };
-        
-        // Get styling aesthetic iterators
+        // Get styling aesthetics
         let fills = ctx.get_fill_color_values()?;
         let colors = ctx.get_color_values()?;
         let alphas = ctx.get_unscaled_aesthetic_values(Aesthetic::Alpha)?;
         
-        // Build the combined iterator based on whether we have range aesthetics
-        let iter: Box<dyn Iterator<Item = (f64, Option<f64>, f64, Option<f64>, _, _, f64)>> = 
-            if has_x_range && has_y_range {
-                Box::new(
-                    x_vals
-                        .zip(x_max_vals.unwrap())
-                        .zip(y_vals)
-                        .zip(y_max_vals.unwrap())
-                        .zip(fills)
-                        .zip(colors)
-                        .zip(alphas)
-                        .map(|((((((x, x_max), y), y_max), fill), color), alpha)| {
-                            (x, Some(x_max), y, Some(y_max), fill, color, alpha)
-                        })
-                )
-            } else if has_x_range {
-                Box::new(
-                    x_vals
-                        .zip(x_max_vals.unwrap())
-                        .zip(y_vals)
-                        .zip(fills)
-                        .zip(colors)
-                        .zip(alphas)
-                        .map(move |(((((x, x_max), y), fill), color), alpha)| {
-                            (x, Some(x_max), y, None, fill, color, alpha)
-                        })
-                )
-            } else if has_y_range {
-                Box::new(
-                    x_vals
-                        .zip(y_vals)
-                        .zip(y_max_vals.unwrap())
-                        .zip(fills)
-                        .zip(colors)
-                        .zip(alphas)
-                        .map(move |(((((x, y), y_max), fill), color), alpha)| {
-                            (x, None, y, Some(y_max), fill, color, alpha)
-                        })
-                )
-            } else {
-                Box::new(
-                    x_vals
-                        .zip(y_vals)
-                        .zip(fills)
-                        .zip(colors)
-                        .zip(alphas)
-                        .map(move |((((x, y), fill), color), alpha)| {
-                            (x, None, y, None, fill, color, alpha)
-                        })
-                )
-            };
-        
         // Render each bar
-        let mut bar_count = 0;
-        for (x_val, x_max_val, y_val, y_max_val, fill, color, alpha) in iter {
-            // Compute effective xmin/xmax in normalized space
-            let (xmin_norm, xmax_norm) = if let Some(x_max) = x_max_val {
-                (x_val, x_max)
-            } else {
-                (x_val - bar_half_width_norm, x_val + bar_half_width_norm)
-            };
-            
-            // Compute effective ymin/ymax in normalized space
-            let (ymin_norm, ymax_norm) = if let Some(y_max) = y_max_val {
-                (y_val, y_max)
-            } else {
-                (y_baseline, y_val)
-            };
-            
-            eprintln!("  Bar {}: xmin_norm={}, xmax_norm={}, ymin_norm={}, ymax_norm={}", bar_count, xmin_norm, xmax_norm, ymin_norm, ymax_norm);
-            
-            // Map to device coordinates
-            let x_left = ctx.map_x(xmin_norm);
-            let x_right = ctx.map_x(xmax_norm);
-            let y_top = ctx.map_y(ymax_norm);
-            let y_bottom = ctx.map_y(ymin_norm);
-            
-            eprintln!("    Device: x={:.1}, y={:.1}, width={:.1}, height={:.1}", x_left.min(x_right), y_top.min(y_bottom), (x_right - x_left).abs(), (y_bottom - y_top).abs());
-            bar_count += 1;
+        for (((((xmin, xmax), ymin), ymax), fill), (color, alpha)) in 
+            xmin_vals.zip(xmax_vals).zip(ymin_vals).zip(ymax_vals)
+                .zip(fills).zip(colors.zip(alphas))
+        {
+            // Map normalized [0,1] coordinates to device coordinates
+            let x_left = ctx.map_x(xmin);
+            let x_right = ctx.map_x(xmax);
+            let y_top = ctx.map_y(ymax);
+            let y_bottom = ctx.map_y(ymin);
             
             let x = x_left.min(x_right);
             let y = y_top.min(y_bottom);

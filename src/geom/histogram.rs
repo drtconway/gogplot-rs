@@ -133,7 +133,7 @@ impl IntoLayer for GeomHistogram {
         crate::layer::Layer {
             geom: Box::new(self),
             data: None,
-            mapping,
+            mapping: Some(mapping),
             stat,
             position,
             computed_data: None,

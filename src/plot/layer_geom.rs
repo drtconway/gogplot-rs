@@ -82,11 +82,8 @@ impl<G: Geom + crate::geom::IntoLayer + 'static> From<LayerGeom<G>> for crate::l
         }
         // If stat is None, layer.stat already has the geom's default from into_layer()
         
-        // Merge layer-specific aesthetics
-        for (aesthetic, value) in layer_aes.iter() {
-            layer.mapping.set(*aesthetic, value.clone());
-        }
-        
+        layer.mapping = Some(layer_aes);
+
         layer
     }
 }

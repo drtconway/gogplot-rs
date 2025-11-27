@@ -65,7 +65,7 @@ impl Aesthetic {
     }
 
     /// A printable name for the aesthetic.
-    pub fn to_string(&self) -> &'static str {
+    pub fn to_str(&self) -> &'static str {
         match self {
             Aesthetic::X => "x",
             Aesthetic::Y => "y",

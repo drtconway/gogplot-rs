@@ -13,10 +13,15 @@ pub enum Stat {
     Identity,
     Count,
     Bin(crate::stat::bin::CumulativeBinStrategy),
-    Boxplot { coef: f64 },
-    Density { adjust: f64, n: usize },
+    Boxplot {
+        coef: f64,
+    },
+    Density {
+        adjust: f64,
+        n: usize,
+    },
     Summary(Vec<crate::aesthetics::Aesthetic>),
-    Smooth { 
+    Smooth {
         method: crate::stat::smooth::Method,
         level: f64,
         n: usize,
@@ -41,17 +46,9 @@ pub enum Position {
 #[derive(Clone, Debug)]
 pub enum PositionSpec {
     Identity,
-    Stack {
-        reverse: bool,
-    },
-    Dodge {
-        width: f64,
-        padding: f64,
-    },
-    Jitter {
-        width: f64,
-        height: f64,
-    },
+    Stack { reverse: bool },
+    Dodge { width: f64, padding: f64 },
+    Jitter { width: f64, height: f64 },
     Fill,
 }
 
@@ -74,27 +71,29 @@ impl PositionSpec {
     }
 
     /// Apply position adjustment to normalized data
-    /// 
+    ///
     /// Takes data where all aesthetic values are already normalized to [0,1] via scales.
     /// Returns modified data (typically with adjusted x/xmin/xmax or y/ymin/ymax columns)
     /// and potentially an updated mapping.
-    /// 
+    ///
     /// Returns None if no adjustment is needed.
     pub fn apply(
         &self,
-        data: Box<dyn DataSource>,
-        mapping: &AesMap,
+        _data: Box<dyn DataSource>,
+        _mapping: &AesMap,
     ) -> Result<Option<(Box<dyn DataSource>, AesMap)>, crate::error::PlotError> {
         match self {
             PositionSpec::Identity => Ok(None),
             PositionSpec::Dodge { width, padding } => {
-                crate::position::dodge::apply_dodge_normalized(data, mapping, *width, *padding)
+                crate::position::dodge::apply_dodge_normalized(_data, _mapping, *width, *padding)
             }
-            PositionSpec::Stack { reverse: _ } => {
-                // TODO: Implement apply_stack_normalized
-                Ok(None)
+            PositionSpec::Stack { reverse } => {
+                crate::position::stack::apply_stack_normalized(_data, _mapping, *reverse)
             }
-            PositionSpec::Jitter { width, height } => {
+            PositionSpec::Jitter {
+                width: _,
+                height: _,
+            } => {
                 // TODO: Implement jitter
                 Ok(None)
             }
@@ -112,7 +111,7 @@ impl PositionSpec {
 pub struct Layer {
     pub geom: Box<dyn Geom>,
     pub data: Option<Box<dyn DataSource>>,
-    pub mapping: AesMap,
+    pub mapping: Option<AesMap>,
     pub stat: Stat,
     pub position: Position,
     /// Computed stat data (filled in during stat computation phase)
@@ -122,4 +121,31 @@ pub struct Layer {
     /// Transformed scales after stat/position adjustments
     /// If None, uses plot-level scales. If Some, uses these for rendering this layer.
     pub computed_scales: Option<crate::plot::ScaleSet>,
+}
+
+impl Layer {
+    /// Access the data of the layer, with the global data as fallback
+    pub fn get_data<'a>(
+        &'a self,
+        global_data: &'a Option<&'a dyn DataSource>,
+    ) -> Option<&'a dyn DataSource> {
+        if let Some(computed_data) = &self.computed_data {
+            Some(computed_data.as_ref())
+        } else if let Some(ref layer_data) = self.data {
+            Some(layer_data.as_ref())
+        } else {
+            global_data.map(|d| d)
+        }
+    }
+
+    // Access the mapping of the layer, with the global mapping as fallback
+    pub fn get_mapping<'a>(&'a self, global_mapping: &'a AesMap) -> &'a AesMap {
+        if let Some(ref computed_mapping) = self.computed_mapping {
+            computed_mapping
+        } else if let Some(ref layer_mapping) = self.mapping {
+            layer_mapping
+        } else {
+            global_mapping
+        }
+    }
 }

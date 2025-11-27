@@ -33,6 +33,7 @@ pub fn render(
     guides: &crate::guide::Guides,
     title: Option<&String>,
     data: Option<&dyn DataSource>,
+    plot_mapping: &crate::aesthetics::AesMap,
     width: i32,
     height: i32,
 ) -> Result<ImageSurface, PlotError> {
@@ -45,7 +46,7 @@ pub fn render(
 
     // Use the common rendering code
     render_with_context(
-        &mut ctx, layers, scales, theme, guides, title, data, width, height,
+        &mut ctx, layers, scales, theme, guides, title, data, plot_mapping, width, height,
     )?;
 
     Ok(surface)
@@ -60,6 +61,7 @@ pub fn render_with_context(
     guides: &crate::guide::Guides,
     title: Option<&String>,
     data: Option<&dyn DataSource>,
+    plot_mapping: &crate::aesthetics::AesMap,
     width: i32,
     height: i32,
 ) -> Result<(), PlotError> {
@@ -69,7 +71,7 @@ pub fn render_with_context(
         .map_err(|e| PlotError::render_error("paint background", format!("{}", e)))?;
 
     // Calculate required legend width and adjust right margin
-    let legend_width = calculate_legend_width(layers, scales, guides);
+    let legend_width = calculate_legend_width(layers, scales, guides, plot_mapping);
 
     // Determine axis positions
     use crate::guide::{AxisType, XAxisPosition, YAxisPosition};
@@ -182,6 +184,7 @@ pub fn render_with_context(
             ctx,
             layer,
             data,
+            plot_mapping,
             scales,
             theme,
             (plot_x0, plot_x1),
@@ -193,7 +196,7 @@ pub fn render_with_context(
 
     // Draw legends
     draw_legends(
-        ctx, theme, layers, scales, guides, plot_x0, plot_x1, plot_y0, plot_y1, width, height,
+        ctx, theme, layers, scales, guides, plot_mapping, plot_x0, plot_x1, plot_y0, plot_y1, width, height,
     )?;
 
     Ok(())

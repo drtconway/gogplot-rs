@@ -12,12 +12,12 @@ use cairo::Context;
 use super::cairo_helpers::{apply_color, apply_fill_style, apply_font, apply_line_style};
 
 /// Generate legends automatically from scales when aesthetics are mapped
-pub fn generate_automatic_legends(layers: &[Layer], scales: &ScaleSet, guides: &Guides) -> Guides {
+pub fn generate_automatic_legends(layers: &[Layer], scales: &ScaleSet, guides: &Guides, plot_mapping: &crate::aesthetics::AesMap) -> Guides {
     let mut guides = guides.clone();
 
     // Check if any layer maps Color aesthetic to a column
     let has_color_mapping = layers.iter().any(|layer| {
-        let mapping = layer.computed_mapping.as_ref().unwrap_or(&layer.mapping);
+        let mapping = layer.get_mapping(plot_mapping);
         matches!(
             mapping.get(&Aesthetic::Color),
             Some(AesValue::Column { name: _, hint: _ })
@@ -26,7 +26,7 @@ pub fn generate_automatic_legends(layers: &[Layer], scales: &ScaleSet, guides: &
 
     // Check if any layer maps Fill aesthetic to a column
     let has_fill_mapping = layers.iter().any(|layer| {
-        let mapping = layer.computed_mapping.as_ref().unwrap_or(&layer.mapping);
+        let mapping = layer.get_mapping(plot_mapping);
         matches!(
             mapping.get(&Aesthetic::Fill),
             Some(AesValue::Column { name: _, hint: _ })
@@ -35,7 +35,7 @@ pub fn generate_automatic_legends(layers: &[Layer], scales: &ScaleSet, guides: &
 
     // Check if any layer maps Shape aesthetic to a column
     let has_shape_mapping = layers.iter().any(|layer| {
-        let mapping = layer.computed_mapping.as_ref().unwrap_or(&layer.mapping);
+        let mapping = layer.get_mapping(plot_mapping);
         matches!(
             mapping.get(&Aesthetic::Shape),
             Some(AesValue::Column { name: _, hint: _ })
@@ -50,7 +50,9 @@ pub fn generate_automatic_legends(layers: &[Layer], scales: &ScaleSet, guides: &
 
             // Get the column name for the title
             for layer in layers {
-                let mapping = layer.computed_mapping.as_ref().unwrap_or(&layer.mapping);
+                let mapping = layer.computed_mapping.as_ref()
+                    .or(layer.mapping.as_ref())
+                    .unwrap_or(plot_mapping);
                 if let Some(col_name) = mapping.get(&Aesthetic::Color).and_then(|v| v.as_column_name()) {
                     legend.title = Some(col_name.to_string());
                     break;
@@ -102,7 +104,7 @@ pub fn generate_automatic_legends(layers: &[Layer], scales: &ScaleSet, guides: &
 
             // Get the column name for the title
             for layer in layers {
-                let mapping = layer.computed_mapping.as_ref().unwrap_or(&layer.mapping);
+                let mapping = layer.get_mapping(plot_mapping);
                 if let Some(col_name) = mapping.get(&Aesthetic::Fill).and_then(|v| v.as_column_name()) {
                     legend.title = Some(col_name.to_string());
                     break;
@@ -156,7 +158,7 @@ pub fn generate_automatic_legends(layers: &[Layer], scales: &ScaleSet, guides: &
 
                 // Get the column name for the title
                 for layer in layers {
-                    let mapping = layer.computed_mapping.as_ref().unwrap_or(&layer.mapping);
+                    let mapping = layer.get_mapping(plot_mapping);
                     if let Some(col_name) = mapping.get(&Aesthetic::Shape).and_then(|v| v.as_column_name()) {
                         legend.title = Some(col_name.to_string());
                         break;
@@ -184,13 +186,13 @@ pub fn generate_automatic_legends(layers: &[Layer], scales: &ScaleSet, guides: &
 }
 
 /// Calculate the required width for legends
-pub fn calculate_legend_width(layers: &[Layer], scales: &ScaleSet, guides: &Guides) -> f64 {
+pub fn calculate_legend_width(layers: &[Layer], scales: &ScaleSet, guides: &Guides, plot_mapping: &crate::aesthetics::AesMap) -> f64 {
     let mut total_width = 0.0;
     let legend_width = 120.0; // Base legend width
     let legend_spacing = 10.0;
 
     // Generate automatic legends to get accurate count
-    let guides = generate_automatic_legends(layers, scales, guides);
+    let guides = generate_automatic_legends(layers, scales, guides, plot_mapping);
 
     // Check if we have any legends to display
     let mut legend_count = 0;
@@ -234,6 +236,7 @@ pub fn draw_legends(
     layers: &[Layer],
     scales: &ScaleSet,
     guides: &Guides,
+    plot_mapping: &crate::aesthetics::AesMap,
     _plot_x0: f64,
     plot_x1: f64,
     plot_y0: f64,
@@ -242,7 +245,7 @@ pub fn draw_legends(
     _height: i32,
 ) -> Result<(), PlotError> {
     // Generate automatic legends from scales if aesthetics are mapped
-    let guides = generate_automatic_legends(layers, scales, guides);
+    let guides = generate_automatic_legends(layers, scales, guides, plot_mapping);
 
     // Collect all legends to draw
     let mut legends = Vec::new();

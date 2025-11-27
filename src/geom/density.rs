@@ -110,7 +110,7 @@ impl IntoLayer for GeomDensity {
         Layer {
             geom: Box::new(self),
             data: None,
-            mapping,
+            mapping: Some(mapping),
             stat: Stat::Density { adjust, n },
             position: Position::Identity,
             computed_data: None,

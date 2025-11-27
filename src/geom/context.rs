@@ -2,7 +2,7 @@ use crate::aesthetics::{AesMap, AesValue, Aesthetic};
 use crate::data::{DataSource, VectorType};
 use crate::error::{DataType, PlotError};
 use crate::layer::Layer;
-use crate::plot::ScaleSet;
+use crate::plot::{self, ScaleSet};
 use crate::scale::{ContinuousScale, ScaleType};
 use crate::theme::{self, Color};
 use cairo::Context;
@@ -118,6 +118,9 @@ pub struct RenderContext<'a> {
     /// Plot-level data (fallback if layer has no data)
     pub plot_data: Option<&'a dyn DataSource>,
 
+    /// Plot-level aesthetic mapping (fallback if layer has no mapping)
+    pub plot_mapping: &'a AesMap,
+
     /// Scales for transforming data to visual space
     pub scales: &'a ScaleSet,
 
@@ -136,6 +139,7 @@ impl<'a> RenderContext<'a> {
         cairo: &'a mut Context,
         layer: &'a Layer,
         plot_data: Option<&'a dyn DataSource>,
+        plot_mapping: &'a AesMap,
         scales: &'a ScaleSet,
         theme: &'a theme::Theme,
         x_range: (f64, f64),
@@ -145,6 +149,7 @@ impl<'a> RenderContext<'a> {
             cairo,
             layer,
             plot_data,
+            plot_mapping,
             scales,
             theme,
             x_range,
@@ -165,10 +170,7 @@ impl<'a> RenderContext<'a> {
 
     /// Get the active aesthetic mapping (computed if available, otherwise original)
     pub fn mapping(&self) -> &AesMap {
-        self.layer
-            .computed_mapping
-            .as_ref()
-            .unwrap_or(&self.layer.mapping)
+        self.layer.get_mapping(self.plot_mapping)
     }
 
     /// Get the original layer data (useful for drawing outliers, raw points, etc.)
@@ -189,34 +191,26 @@ impl<'a> RenderContext<'a> {
         y0 + normalized * (y1 - y0)
     }
 
-    /// Get float values for an x-like aesthetic (X, Xmin, Xmax, Xintercept) with x-scale applied
-    /// Uses computed_scales from the layer if available (e.g., from position adjustments)
+    /// Get float values for an x-like aesthetic (X, Xmin, Xmax, Xintercept)
+    /// In the new pipeline, data is pre-normalized to [0,1], so NO scaling is applied here.
+    /// The values returned are already in normalized [0,1] coordinates.
     pub fn get_x_aesthetic_values(
         &self,
         aesthetic: Aesthetic,
     ) -> Result<AestheticValues<'a>, PlotError> {
-        let x_scale = self
-            .layer
-            .computed_scales
-            .as_ref()
-            .and_then(|s| s.x.as_deref())
-            .or_else(|| self.scales.x.as_deref());
-        self.get_aesthetic_values(aesthetic, x_scale)
+        // Data is pre-normalized, don't apply scale again
+        self.get_aesthetic_values(aesthetic, None)
     }
 
-    /// Get float values for a y-like aesthetic (Y, Ymin, Ymax, Yintercept) with y-scale applied
-    /// Uses computed_scales from the layer if available (e.g., from position adjustments)
+    /// Get float values for a y-like aesthetic (Y, Ymin, Ymax, Yintercept)
+    /// In the new pipeline, data is pre-normalized to [0,1], so NO scaling is applied here.
+    /// The values returned are already in normalized [0,1] coordinates.
     pub fn get_y_aesthetic_values(
         &self,
         aesthetic: Aesthetic,
     ) -> Result<AestheticValues<'a>, PlotError> {
-        let y_scale = self
-            .layer
-            .computed_scales
-            .as_ref()
-            .and_then(|s| s.y.as_deref())
-            .or_else(|| self.scales.y.as_deref());
-        self.get_aesthetic_values(aesthetic, y_scale)
+        // Data is pre-normalized, don't apply scale again
+        self.get_aesthetic_values(aesthetic, None)
     }
 
     /// Get float values for an aesthetic without any scale transformation

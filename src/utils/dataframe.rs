@@ -76,6 +76,12 @@ impl From<Vec<&str>> for StrVec {
     }
 }
 
+impl From<Vec<String>> for StrVec {
+    fn from(vec: Vec<String>) -> Self {
+        StrVec(vec)
+    }
+}
+
 pub struct BoolVec(pub Vec<bool>);
 
 impl GenericVector for BoolVec {
@@ -228,6 +234,25 @@ impl DataFrame {
         self.columns
             .get(name)
             .map(|col| col.vtype().to_column_data_type())
+    }
+}
+
+impl From<&dyn DataSource> for DataFrame {
+    fn from(data_source: &dyn DataSource) -> Self {
+        let mut df = DataFrame::new();
+        for col_name in data_source.column_names() {
+            if let Some(col) = data_source.get(&col_name) {
+                // Reconstruct each column vector using discriminated union
+                let new_col: Box<dyn GenericVector> = match col.iter() {
+                    VectorIter::Int(iter) => Box::new(IntVec(iter.collect())),
+                    VectorIter::Float(iter) => Box::new(FloatVec(iter.collect())),
+                    VectorIter::Str(iter) => Box::new(StrVec(iter.map(|s| s.to_string()).collect())),
+                    VectorIter::Bool(iter) => Box::new(BoolVec(iter.collect())),
+                };
+                df.add_column(col_name, new_col);
+            }
+        }
+        df
     }
 }
 

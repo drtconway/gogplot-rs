@@ -36,6 +36,7 @@ pub fn save(
     guides: &Guides,
     title: Option<&String>,
     data: Option<&dyn DataSource>,
+    plot_mapping: &crate::aesthetics::AesMap,
     width: i32,
     height: i32,
 ) -> Result<(), PlotError> {
@@ -48,7 +49,7 @@ pub fn save(
     match extension.to_lowercase().as_str() {
         "png" => {
             let surface =
-                render::render(layers, scales, theme, guides, title, data, width, height)?;
+                render::render(layers, scales, theme, guides, title, data, plot_mapping, width, height)?;
             let mut file = std::fs::File::create(path)
                 .map_err(|e| PlotError::io_error("create file", e))?;
             surface
@@ -64,7 +65,7 @@ pub fn save(
             let mut ctx = Context::new(&surface)
                 .map_err(|e| PlotError::render_error("create context", format!("{}", e)))?;
             render::render_with_context(
-                &mut ctx, layers, scales, theme, guides, title, data, width, height,
+                &mut ctx, layers, scales, theme, guides, title, data, plot_mapping, width, height,
             )?;
             surface.finish();
         }
@@ -76,7 +77,7 @@ pub fn save(
             let mut ctx = Context::new(&surface)
                 .map_err(|e| PlotError::render_error("create context", format!("{}", e)))?;
             render::render_with_context(
-                &mut ctx, layers, scales, theme, guides, title, data, width, height,
+                &mut ctx, layers, scales, theme, guides, title, data, plot_mapping, width, height,
             )?;
             surface.finish();
         }

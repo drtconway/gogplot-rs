@@ -10,6 +10,113 @@ use crate::stat::smooth::Smooth;
 use crate::stat::summary::Summary;
 use crate::stat::StatTransform;
 
+/// Apply statistical transformation to a single layer
+///
+/// This function transforms a layer that has a stat other than Identity.
+/// The transformed data is stored in computed_data, and the
+/// aesthetic mapping is updated in computed_mapping.
+///
+/// If the layer has no data, plot_data will be used if available.
+/// Layer mappings are merged with plot_default_aes (layer takes precedence).
+pub fn apply_stat_to_layer(
+    layer: &mut Layer,
+    plot_data: Option<&dyn crate::data::DataSource>,
+    plot_mapping: &crate::aesthetics::AesMap,
+) -> Result<(), PlotError> {
+    // Check if this layer needs transformation
+    let needs_transform = !matches!(layer.stat, Stat::Identity | Stat::None);
+
+    if !needs_transform {
+        return Ok(());
+    }
+
+    // Get data source - either layer-specific or plot-level
+    let data = if let Some(layer_data) = layer.data.take() {
+        layer_data
+    } else if let Some(plot_data) = plot_data {
+        // Clone plot-level data for this layer
+        plot_data.clone_box()
+    } else {
+        return Ok(());
+    };
+
+    // Merge plot-level aesthetics with layer-specific mappings
+    // Layer mappings take precedence over plot defaults
+    let mut merged_mapping = plot_mapping.clone();
+    for (aes, value) in layer.get_mapping(plot_mapping).iter() {
+        merged_mapping.set(*aes, value.clone());
+    }
+
+    // Apply the stat transformation
+    match &layer.stat {
+        Stat::None => {
+            // This should never happen - None should be resolved during layer construction
+            panic!("Stat::None should be resolved before stat application");
+        }
+        Stat::Count => {
+            let stat_result = Count.apply(data, &merged_mapping)?;
+            if let Some((transformed_data, new_mapping)) = stat_result {
+                layer.computed_data = Some(transformed_data);
+                layer.computed_mapping = Some(new_mapping);
+            }
+        }
+        Stat::Bin(strategy) => {
+            let bin_stat = Bin {
+                strategy: strategy.clone(),
+            };
+            let stat_result = bin_stat.apply(data, &merged_mapping)?;
+            if let Some((transformed_data, new_mapping)) = stat_result {
+                layer.computed_data = Some(transformed_data);
+                layer.computed_mapping = Some(new_mapping);
+            }
+        }
+        Stat::Density { adjust, n } => {
+            let density_stat = Density::new().adjust(*adjust).n(*n);
+            let stat_result = density_stat.apply(data, &merged_mapping)?;
+            if let Some((transformed_data, new_mapping)) = stat_result {
+                layer.computed_data = Some(transformed_data);
+                layer.computed_mapping = Some(new_mapping);
+            }
+        }
+        Stat::Boxplot { coef } => {
+            let boxplot_stat = Boxplot::new().with_coef(*coef);
+            let stat_result = boxplot_stat.apply(data, &merged_mapping)?;
+            if let Some((transformed_data, new_mapping)) = stat_result {
+                layer.computed_data = Some(transformed_data);
+                layer.computed_mapping = Some(new_mapping);
+            }
+        }
+        Stat::Summary(aesthetics) => {
+            let summary_stat = Summary {
+                aesthetics: aesthetics.clone(),
+            };
+            let stat_result = summary_stat.apply(data, &merged_mapping)?;
+            if let Some((transformed_data, new_mapping)) = stat_result {
+                layer.computed_data = Some(transformed_data);
+                layer.computed_mapping = Some(new_mapping);
+            }
+        }
+        Stat::Smooth { method, level, n, span } => {
+            let smooth_stat = Smooth::new()
+                .method(*method)
+                .level(*level)
+                .n(*n)
+                .span(*span);
+            let stat_result = smooth_stat.apply(data, &merged_mapping)?;
+            if let Some((transformed_data, new_mapping)) = stat_result {
+                layer.computed_data = Some(transformed_data);
+                layer.computed_mapping = Some(new_mapping);
+            }
+        }
+        Stat::Identity => {
+            // Put the data back and continue
+            layer.data = Some(data);
+        }
+    }
+
+    Ok(())
+}
+
 /// Apply statistical transformations to layers
 ///
 /// This function transforms layers that have stats other than Identity.
@@ -23,100 +130,9 @@ pub fn apply_stats(
     plot_data: Option<&dyn crate::data::DataSource>,
     plot_default_aes: &crate::aesthetics::AesMap,
 ) -> Result<(), PlotError> {
-    // We need to transform each layer that has a non-Identity stat
-    // We'll process layers in reverse order so we can swap data out
-    let num_layers = layers.len();
-    for i in 0..num_layers {
-        // Check if this layer needs transformation
-        let needs_transform = !matches!(layers[i].stat, Stat::Identity | Stat::None);
-
-        if !needs_transform {
-            continue;
-        }
-
-        // Get data source - either layer-specific or plot-level
-        let data = if let Some(layer_data) = layers[i].data.take() {
-            layer_data
-        } else if let Some(plot_data) = plot_data {
-            // Clone plot-level data for this layer
-            plot_data.clone_box()
-        } else {
-            continue;
-        };
-
-        // Merge plot-level aesthetics with layer-specific mappings
-        // Layer mappings take precedence over plot defaults
-        let mut merged_mapping = plot_default_aes.clone();
-        for (aes, value) in layers[i].mapping.iter() {
-            merged_mapping.set(*aes, value.clone());
-        }
-
-        // Apply the stat transformation
-        match &layers[i].stat {
-            Stat::None => {
-                // This should never happen - None should be resolved during layer construction
-                panic!("Stat::None should be resolved before stat application");
-            }
-            Stat::Count => {
-                let stat_result = Count.apply(data, &merged_mapping)?;
-                if let Some((transformed_data, new_mapping)) = stat_result {
-                    layers[i].computed_data = Some(transformed_data);
-                    layers[i].computed_mapping = Some(new_mapping);
-                }
-            }
-            Stat::Bin(strategy) => {
-                let bin_stat = Bin {
-                    strategy: strategy.clone(),
-                };
-                let stat_result = bin_stat.apply(data, &merged_mapping)?;
-                if let Some((transformed_data, new_mapping)) = stat_result {
-                    layers[i].computed_data = Some(transformed_data);
-                    layers[i].computed_mapping = Some(new_mapping);
-                }
-            }
-            Stat::Density { adjust, n } => {
-                let density_stat = Density::new().adjust(*adjust).n(*n);
-                let stat_result = density_stat.apply(data, &merged_mapping)?;
-                if let Some((transformed_data, new_mapping)) = stat_result {
-                    layers[i].computed_data = Some(transformed_data);
-                    layers[i].computed_mapping = Some(new_mapping);
-                }
-            }
-            Stat::Boxplot { coef } => {
-                let boxplot_stat = Boxplot::new().with_coef(*coef);
-                let stat_result = boxplot_stat.apply(data, &merged_mapping)?;
-                if let Some((transformed_data, new_mapping)) = stat_result {
-                    layers[i].computed_data = Some(transformed_data);
-                    layers[i].computed_mapping = Some(new_mapping);
-                }
-            }
-            Stat::Summary(aesthetics) => {
-                let summary_stat = Summary {
-                    aesthetics: aesthetics.clone(),
-                };
-                let stat_result = summary_stat.apply(data, &merged_mapping)?;
-                if let Some((transformed_data, new_mapping)) = stat_result {
-                    layers[i].computed_data = Some(transformed_data);
-                    layers[i].computed_mapping = Some(new_mapping);
-                }
-            }
-            Stat::Smooth { method, level, n, span } => {
-                let smooth_stat = Smooth::new()
-                    .method(*method)
-                    .level(*level)
-                    .n(*n)
-                    .span(*span);
-                let stat_result = smooth_stat.apply(data, &merged_mapping)?;
-                if let Some((transformed_data, new_mapping)) = stat_result {
-                    layers[i].computed_data = Some(transformed_data);
-                    layers[i].computed_mapping = Some(new_mapping);
-                }
-            }
-            Stat::Identity => {
-                // Put the data back and continue
-                layers[i].data = Some(data);
-            }
-        }
+    // Apply stat transformation to each layer
+    for layer in layers.iter_mut() {
+        apply_stat_to_layer(layer, plot_data, plot_default_aes)?;
     }
 
     Ok(())

@@ -298,10 +298,21 @@ impl Dodge {
     }
 }
 
-/// Apply dodge position to normalized data
+/// Apply dodge position adjustment to normalized data.
 /// 
-/// Data comes in with x values already normalized to [0,1] via scales.
-/// Produces xmin/xmax columns in normalized [0,1] space.
+/// This function is designed to work with data that has already been scaled to [0, 1] space.
+/// It takes x positions and groups, then creates xmin/xmax columns with non-overlapping bars.
+///
+/// # Arguments
+/// * `data` - DataSource with normalized x positions (already scaled to [0,1])
+/// * `mapping` - Aesthetic mapping including X and Group aesthetics
+/// * `width` - Total width available for all groups at each x position (in normalized space)
+/// * `padding` - Proportion of space to leave as padding between bars (0.0 = no padding, 0.5 = 50% padding)
+///
+/// # Returns
+/// * `Ok(None)` if no grouping aesthetic is present (no dodge needed)
+/// * `Ok(Some((datasource, mapping)))` with xmin/xmax columns added and mapping updated
+/// * `Err` if required columns are missing or invalid
 pub fn apply_dodge_normalized(
     data: Box<dyn DataSource>,
     mapping: &AesMap,
@@ -442,4 +453,255 @@ pub fn apply_dodge_normalized(
     new_mapping.set(Aesthetic::Xmax, AesValue::column("xmax"));
 
     Ok(Some((Box::new(new_df), new_mapping)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::dataframe::{DataFrame, FloatVec, StrVec};
+
+    fn create_mapping_with_group() -> AesMap {
+        let mut mapping = AesMap::new();
+        mapping.set(Aesthetic::X, AesValue::column("x"));
+        mapping.set(Aesthetic::Y, AesValue::column("y"));
+        mapping.set(Aesthetic::Group, AesValue::column("group"));
+        mapping
+    }
+
+    #[test]
+    fn test_dodge_normalized_basic() {
+        // Test with pre-normalized data (already scaled to [0,1])
+        let mut df = DataFrame::new();
+        // Two groups at x=0.25 and x=0.75
+        df.add_column("x", Box::new(FloatVec(vec![0.25, 0.25, 0.75, 0.75])));
+        df.add_column("group", Box::new(StrVec(vec![
+            "A".to_string(), "B".to_string(),
+            "A".to_string(), "B".to_string(),
+        ])));
+        df.add_column("y", Box::new(FloatVec(vec![10.0, 20.0, 15.0, 25.0])));
+
+        let mapping = create_mapping_with_group();
+        let result = apply_dodge_normalized(Box::new(df), &mapping, 0.1, 0.1).unwrap();
+
+        assert!(result.is_some());
+        let (new_data, new_mapping) = result.unwrap();
+
+        // Check that xmin and xmax columns were created
+        assert!(new_data.get("xmin").is_some());
+        assert!(new_data.get("xmax").is_some());
+
+        // Check that mapping was updated
+        assert!(matches!(new_mapping.get(&Aesthetic::Xmin), Some(AesValue::Column { name, .. }) if name == "xmin"));
+        assert!(matches!(new_mapping.get(&Aesthetic::Xmax), Some(AesValue::Column { name, .. }) if name == "xmax"));
+
+        // Get the xmin/xmax values
+        let xmin_vals: Vec<f64> = new_data.get("xmin").unwrap().iter_float().unwrap().collect();
+        let xmax_vals: Vec<f64> = new_data.get("xmax").unwrap().iter_float().unwrap().collect();
+
+        // For two groups with width=0.1, each bar gets width 0.05 minus padding
+        // Group A (index 0) should be on the left, Group B (index 1) on the right
+        
+        // At x=0.25: Group A left, Group B right
+        assert!(xmin_vals[0] < 0.25); // Group A left of center
+        assert!(xmax_vals[0] <= 0.25);
+        assert!(xmin_vals[1] >= 0.25); // Group B right of center
+        assert!(xmax_vals[1] > 0.25);
+
+        // Bars should not overlap
+        assert!(xmax_vals[0] <= xmin_vals[1]);
+    }
+
+    #[test]
+    fn test_dodge_normalized_three_groups() {
+        let mut df = DataFrame::new();
+        // Three groups at x=0.5
+        df.add_column("x", Box::new(FloatVec(vec![0.5, 0.5, 0.5])));
+        df.add_column("group", Box::new(StrVec(vec![
+            "A".to_string(), "B".to_string(), "C".to_string(),
+        ])));
+        df.add_column("y", Box::new(FloatVec(vec![10.0, 20.0, 30.0])));
+
+        let mapping = create_mapping_with_group();
+        let result = apply_dodge_normalized(Box::new(df), &mapping, 0.3, 0.1).unwrap();
+
+        assert!(result.is_some());
+        let (new_data, _) = result.unwrap();
+
+        let xmin_vals: Vec<f64> = new_data.get("xmin").unwrap().iter_float().unwrap().collect();
+        let xmax_vals: Vec<f64> = new_data.get("xmax").unwrap().iter_float().unwrap().collect();
+
+        // Three groups should be arranged left to right
+        assert!(xmin_vals[0] < xmin_vals[1]);
+        assert!(xmin_vals[1] < xmin_vals[2]);
+        assert!(xmax_vals[0] < xmax_vals[1]);
+        assert!(xmax_vals[1] < xmax_vals[2]);
+
+        // No overlaps
+        assert!(xmax_vals[0] <= xmin_vals[1]);
+        assert!(xmax_vals[1] <= xmin_vals[2]);
+
+        // All bars should be within the width around x=0.5
+        let total_width = 0.3;
+        assert!(xmin_vals[0] >= 0.5 - total_width / 2.0);
+        assert!(xmax_vals[2] <= 0.5 + total_width / 2.0);
+    }
+
+    #[test]
+    fn test_dodge_normalized_no_groups() {
+        let mut df = DataFrame::new();
+        df.add_column("x", Box::new(FloatVec(vec![0.5, 0.75])));
+        df.add_column("y", Box::new(FloatVec(vec![10.0, 20.0])));
+
+        let mut mapping = AesMap::new();
+        mapping.set(Aesthetic::X, AesValue::column("x"));
+        mapping.set(Aesthetic::Y, AesValue::column("y"));
+        // No group aesthetic
+
+        let result = apply_dodge_normalized(Box::new(df), &mapping, 0.1, 0.1).unwrap();
+
+        // Should return None since there's no grouping
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_dodge_normalized_padding() {
+        let mut df1 = DataFrame::new();
+        df1.add_column("x", Box::new(FloatVec(vec![0.5, 0.5])));
+        df1.add_column("group", Box::new(StrVec(vec![
+            "A".to_string(), "B".to_string(),
+        ])));
+        df1.add_column("y", Box::new(FloatVec(vec![10.0, 20.0])));
+
+        let df2 = df1.clone();
+
+        let mapping = create_mapping_with_group();
+        
+        // Test with no padding
+        let result1 = apply_dodge_normalized(Box::new(df1), &mapping, 0.2, 0.0).unwrap();
+        let (data1, _) = result1.unwrap();
+        let xmin1: Vec<f64> = data1.get("xmin").unwrap().iter_float().unwrap().collect();
+        let xmax1: Vec<f64> = data1.get("xmax").unwrap().iter_float().unwrap().collect();
+        let width1_a = xmax1[0] - xmin1[0];
+        
+        // Test with 50% padding
+        let result2 = apply_dodge_normalized(Box::new(df2), &mapping, 0.2, 0.5).unwrap();
+        let (data2, _) = result2.unwrap();
+        let xmin2: Vec<f64> = data2.get("xmin").unwrap().iter_float().unwrap().collect();
+        let xmax2: Vec<f64> = data2.get("xmax").unwrap().iter_float().unwrap().collect();
+        let width2_a = xmax2[0] - xmin2[0];
+
+        // With more padding, bars should be narrower
+        assert!(width2_a < width1_a);
+        assert!((width2_a / width1_a - 0.5).abs() < 0.01); // Should be half the width
+    }
+
+    #[test]
+    fn test_dodge_normalized_preserves_other_columns() {
+        let mut df = DataFrame::new();
+        df.add_column("x", Box::new(FloatVec(vec![0.5, 0.5])));
+        df.add_column("group", Box::new(StrVec(vec![
+            "A".to_string(), "B".to_string(),
+        ])));
+        df.add_column("y", Box::new(FloatVec(vec![10.0, 20.0])));
+        df.add_column("color", Box::new(StrVec(vec![
+            "red".to_string(), "blue".to_string(),
+        ])));
+
+        let mapping = create_mapping_with_group();
+        let result = apply_dodge_normalized(Box::new(df), &mapping, 0.1, 0.1).unwrap();
+
+        let (new_data, _) = result.unwrap();
+
+        // All original columns should be preserved
+        assert!(new_data.get("x").is_some());
+        assert!(new_data.get("group").is_some());
+        assert!(new_data.get("y").is_some());
+        assert!(new_data.get("color").is_some());
+
+        // New columns should be added
+        assert!(new_data.get("xmin").is_some());
+        assert!(new_data.get("xmax").is_some());
+
+        // Original data should be unchanged
+        let y_vals: Vec<f64> = new_data.get("y").unwrap().iter_float().unwrap().collect();
+        assert_eq!(y_vals, vec![10.0, 20.0]);
+    }
+
+    #[test]
+    fn test_dodge_normalized_multiple_x_positions() {
+        let mut df = DataFrame::new();
+        // Two groups at three different x positions
+        df.add_column("x", Box::new(FloatVec(vec![
+            0.2, 0.2,  // Position 1
+            0.5, 0.5,  // Position 2
+            0.8, 0.8,  // Position 3
+        ])));
+        df.add_column("group", Box::new(StrVec(vec![
+            "A".to_string(), "B".to_string(),
+            "A".to_string(), "B".to_string(),
+            "A".to_string(), "B".to_string(),
+        ])));
+        df.add_column("y", Box::new(FloatVec(vec![10.0, 20.0, 15.0, 25.0, 12.0, 22.0])));
+
+        let mapping = create_mapping_with_group();
+        let result = apply_dodge_normalized(Box::new(df), &mapping, 0.1, 0.1).unwrap();
+
+        let (new_data, _) = result.unwrap();
+
+        let xmin_vals: Vec<f64> = new_data.get("xmin").unwrap().iter_float().unwrap().collect();
+        let xmax_vals: Vec<f64> = new_data.get("xmax").unwrap().iter_float().unwrap().collect();
+
+        // At each x position, group A should be left of group B
+        assert!(xmax_vals[0] <= xmin_vals[1]); // Position 1
+        assert!(xmax_vals[2] <= xmin_vals[3]); // Position 2
+        assert!(xmax_vals[4] <= xmin_vals[5]); // Position 3
+
+        // Groups should be clustered around their x centers
+        let center1 = (xmin_vals[0] + xmax_vals[1]) / 2.0;
+        let center2 = (xmin_vals[2] + xmax_vals[3]) / 2.0;
+        let center3 = (xmin_vals[4] + xmax_vals[5]) / 2.0;
+
+        assert!((center1 - 0.2).abs() < 0.05);
+        assert!((center2 - 0.5).abs() < 0.05);
+        assert!((center3 - 0.8).abs() < 0.05);
+    }
+
+    #[test]
+    fn test_dodge_normalized_group_ordering_stable() {
+        let mut df = DataFrame::new();
+        // Same groups in different order
+        df.add_column("x", Box::new(FloatVec(vec![0.5, 0.5, 0.5])));
+        df.add_column("group", Box::new(StrVec(vec![
+            "C".to_string(), "A".to_string(), "B".to_string(),
+        ])));
+        df.add_column("y", Box::new(FloatVec(vec![30.0, 10.0, 20.0])));
+
+        let mapping = create_mapping_with_group();
+        let result = apply_dodge_normalized(Box::new(df), &mapping, 0.3, 0.0).unwrap();
+
+        let (new_data, _) = result.unwrap();
+
+        let xmin_vals: Vec<f64> = new_data.get("xmin").unwrap().iter_float().unwrap().collect();
+        let group_vals: Vec<String> = new_data.get("group").unwrap()
+            .iter_str().unwrap()
+            .map(|s| s.to_string())
+            .collect();
+
+        // Groups are sorted alphabetically, so we should have A, B, C in that order
+        // But the data rows are still in original order: C, A, B
+        // So positions should reflect that:
+        // Row 0: C (index 2 in sorted list)
+        // Row 1: A (index 0 in sorted list)
+        // Row 2: B (index 1 in sorted list)
+        
+        // Build a map of group -> xmin position
+        let mut group_positions = std::collections::HashMap::new();
+        for (group, xmin) in group_vals.iter().zip(xmin_vals.iter()) {
+            group_positions.insert(group.clone(), *xmin);
+        }
+
+        // Check that A < B < C in terms of position
+        assert!(group_positions["A"] < group_positions["B"]);
+        assert!(group_positions["B"] < group_positions["C"]);
+    }
 }

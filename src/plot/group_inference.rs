@@ -1,109 +1,127 @@
 // Group inference for position adjustments
 
 use crate::aesthetics::{AesMap, AesValue, Aesthetic};
+use crate::data::DataSource;
 use crate::scale::ScaleType;
+use crate::utils::dataframe::DataFrame;
 
-/// Infer the Group aesthetic from fill or color if not explicitly set.
-/// This makes position adjustments simpler - they can always look for Group.
-/// 
-/// If Group is already mapped, does nothing.
-/// If fill or color is mapped to a categorical column, use that for Group.
-pub fn infer_group_aesthetic(mapping: &mut AesMap) {
-    // If Group is already explicitly set, nothing to do
+fn infer_grouping_aesthetics(mapping: &AesMap) -> Vec<Aesthetic> {
+    let mut grouping_aesthetics = Vec::new();
+
     if mapping.contains(Aesthetic::Group) {
-        return;
+        grouping_aesthetics.push(Aesthetic::Group);
+        return grouping_aesthetics;
     }
-    
-    // Check if fill is categorical
-    if let Some(AesValue::Column { name, hint: Some(ScaleType::Categorical) }) = 
-        mapping.get(&Aesthetic::Fill) 
-    {
-        mapping.set(Aesthetic::Group, AesValue::Column {
-            name: name.clone(),
+
+    for (aes, _value) in mapping.iter() {
+        if aes.is_grouping() {
+            grouping_aesthetics.push(*aes);
+        }
+    }
+    grouping_aesthetics
+}
+
+/// Infer the grouping, if any, and synthesize a Group aesthetic, creating a new mapping and data if needed.
+pub fn establish_grouping(
+    data: &dyn DataSource,
+    mapping: &AesMap,
+) -> (Option<Box<dyn DataSource>>, Option<AesMap>) {
+    let grouping_aesthetics = infer_grouping_aesthetics(mapping);
+    if grouping_aesthetics.is_empty() {
+        return (None, None);
+    }
+
+    if grouping_aesthetics.len() == 1 {
+        if grouping_aesthetics[0] == Aesthetic::Group {
+            // Group is already set, nothing to do
+            return (None, None);
+        } else {
+            // Single grouping aesthetic - map it to Group
+            let mut new_mapping = mapping.clone();
+            let value = mapping.get(&grouping_aesthetics[0]).unwrap();
+            new_mapping.set(Aesthetic::Group, value.clone());
+            return (Some(data.clone_box()), Some(new_mapping));
+        }
+    }
+
+    // Multiple grouping aesthetics - create composite Group
+
+    let mut new_data = DataFrame::from(data);
+
+    // Create new mapping with Group aesthetic if not already present
+    let mut new_mapping = mapping.clone();
+
+    // Create a composite group column name
+    let base_group_col_name = grouping_aesthetics
+        .iter()
+        .map(|aes| match mapping.get(aes) {
+            Some(AesValue::Column { name, .. }) => name.clone(),
+            _ => aes.to_str().to_string(),
+        })
+        .collect::<Vec<_>>()
+        .join("_");
+
+    let mut group_name = String::new();
+    let mut i = 1;
+    loop {
+        group_name = format!("{}_{}", base_group_col_name, i);
+        if new_data.get(&group_name).is_none() {
+            break;
+        }
+        i += 1;
+    }
+    let group_col_name = group_name;
+
+    let mut group_iters: Vec<Box<dyn Iterator<Item = String>>> = Vec::new();
+    for aes in &grouping_aesthetics {
+        if let Some(AesValue::Column { name, .. }) = mapping.get(aes) {
+            if let Some(col) = data.get(name) {
+                let iter = col.iter();
+                let iter = match iter {
+                    crate::data::VectorIter::Str(s_iter) => {
+                        Box::new(s_iter.map(|s| s.to_string())) as Box<dyn Iterator<Item = String>>
+                    }
+                    crate::data::VectorIter::Int(i_iter) => {
+                        Box::new(i_iter.map(|v| v.to_string())) as Box<dyn Iterator<Item = String>>
+                    }
+                    crate::data::VectorIter::Float(f_iter) => {
+                        Box::new(f_iter.map(|v| v.to_string())) as Box<dyn Iterator<Item = String>>
+                    }
+                    crate::data::VectorIter::Bool(b_iter) => {
+                        Box::new(b_iter.map(|v| v.to_string())) as Box<dyn Iterator<Item = String>>
+                    }
+                };
+                group_iters.push(iter);
+            }
+        }
+    }
+    let mut group_values: Vec<String> = Vec::new();
+    for i in 0..new_data.len() {
+        let mut group_parts: Vec<String> = Vec::new();
+        for iter in &mut group_iters {
+            if let Some(value) = iter.next() {
+                group_parts.push(value);
+            }
+        }
+        let group_value = group_parts.join("_");
+        group_values.push(group_value);
+    }
+    let group_column = crate::utils::dataframe::StrVec::from(group_values);
+    new_data.add_column(&group_col_name, Box::new(group_column));
+
+    new_mapping.set(
+        Aesthetic::Group,
+        AesValue::Column {
+            name: group_col_name,
             hint: Some(ScaleType::Categorical),
-        });
-        return;
-    }
-    
-    // Check if color is categorical
-    if let Some(AesValue::Column { name, hint: Some(ScaleType::Categorical) }) = 
-        mapping.get(&Aesthetic::Color) 
-    {
-        mapping.set(Aesthetic::Group, AesValue::Column {
-            name: name.clone(),
-            hint: Some(ScaleType::Categorical),
-        });
-    }
+        },
+    );
+
+    (Some(Box::new(new_data)), Some(new_mapping))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
-    #[test]
-    fn test_infer_from_fill() {
-        let mut mapping = AesMap::new();
-        mapping.set(Aesthetic::Fill, AesValue::Column {
-            name: "category".to_string(),
-            hint: Some(ScaleType::Categorical),
-        });
-        
-        infer_group_aesthetic(&mut mapping);
-        
-        assert!(mapping.contains(Aesthetic::Group));
-        if let Some(AesValue::Column { name, .. }) = mapping.get(&Aesthetic::Group) {
-            assert_eq!(name, "category");
-        } else {
-            panic!("Expected Group to be set to column");
-        }
-    }
-    
-    #[test]
-    fn test_infer_from_color() {
-        let mut mapping = AesMap::new();
-        mapping.set(Aesthetic::Color, AesValue::Column {
-            name: "group".to_string(),
-            hint: Some(ScaleType::Categorical),
-        });
-        
-        infer_group_aesthetic(&mut mapping);
-        
-        assert!(mapping.contains(Aesthetic::Group));
-    }
-    
-    #[test]
-    fn test_no_inference_when_explicit() {
-        let mut mapping = AesMap::new();
-        mapping.set(Aesthetic::Group, AesValue::Column {
-            name: "explicit_group".to_string(),
-            hint: None,
-        });
-        mapping.set(Aesthetic::Fill, AesValue::Column {
-            name: "category".to_string(),
-            hint: Some(ScaleType::Categorical),
-        });
-        
-        infer_group_aesthetic(&mut mapping);
-        
-        // Should keep the explicit group
-        if let Some(AesValue::Column { name, .. }) = mapping.get(&Aesthetic::Group) {
-            assert_eq!(name, "explicit_group");
-        } else {
-            panic!("Expected Group to remain as explicit_group");
-        }
-    }
-    
-    #[test]
-    fn test_no_inference_for_continuous() {
-        let mut mapping = AesMap::new();
-        mapping.set(Aesthetic::Fill, AesValue::Column {
-            name: "value".to_string(),
-            hint: Some(ScaleType::Continuous),
-        });
-        
-        infer_group_aesthetic(&mut mapping);
-        
-        // Should not infer Group from continuous aesthetic
-        assert!(!mapping.contains(Aesthetic::Group));
-    }
+
 }

@@ -14,7 +14,7 @@ use crate::position::PositionAdjust;
 pub fn apply_positions(
     layers: &mut [Layer],
     plot_data: Option<&dyn crate::data::DataSource>,
-    plot_default_aes: &crate::aesthetics::AesMap,
+    plot_mapping: &crate::aesthetics::AesMap,
     scales: &crate::plot::scale_set::ScaleSet,
 ) -> Result<(), PlotError> {
     let num_layers = layers.len();
@@ -40,8 +40,8 @@ pub fn apply_positions(
 
         // Merge plot-level aesthetics with layer-specific mappings
         // Layer mappings take precedence over plot defaults
-        let mut merged_mapping = plot_default_aes.clone();
-        for (aes, value) in layers[i].mapping.iter() {
+        let mut merged_mapping = plot_mapping.clone();
+        for (aes, value) in layers[i].get_mapping(plot_mapping).iter() {
             merged_mapping.set(*aes, value.clone());
         }
         

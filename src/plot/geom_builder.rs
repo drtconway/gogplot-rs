@@ -15,15 +15,6 @@ pub trait GeomBuilder {
     /// Get mutable access to plot data
     fn data_mut(&mut self) -> &mut Option<Box<dyn DataSource>>;
 
-    /// Merge default aesthetics into a layer
-    fn merge_default_aesthetics(&self, layer: &mut Layer) {
-        for (aesthetic, value) in self.default_aes().iter() {
-            if layer.mapping.get(aesthetic).is_none() {
-                layer.mapping.set(*aesthetic, value.clone());
-            }
-        }
-    }
-
     /// Add a point geom layer using default aesthetics (builder style)
     ///
     /// # Examples

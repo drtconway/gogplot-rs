@@ -73,7 +73,7 @@ pub fn apply_scales(
 
         // Multiple aesthetics mapped to same column - disambiguate names
         for aesthetic in aesthetics {
-            let aesthetic_name = aesthetic.to_string();
+            let aesthetic_name = aesthetic.to_str();
 
             let mut suffix = 1;
             loop {

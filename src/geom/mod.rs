@@ -78,6 +78,31 @@ pub trait Geom: Send + Sync {
     ) -> Result<Option<(DataFrame, AesMap)>, PlotError> {
         Ok(None)
     }
+
+    /// Set up any required data columns before scale training
+    ///
+    /// This is called after stat computation but before scale training, allowing geoms
+    /// to add necessary columns to the data. For example, bar charts need xmin/xmax
+    /// columns which should be created from x values with appropriate widths.
+    ///
+    /// This step happens BEFORE scales are trained so that the scales can see all
+    /// the columns that will be used for rendering (e.g., both x and xmin/xmax for bars).
+    ///
+    /// The method receives the mapping to know which aesthetics are mapped and can
+    /// return an updated mapping if it changes which columns aesthetics point to.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Some((dataframe, mapping)))` - Data with added columns and updated mapping
+    /// * `Ok(None)` - No setup needed, use original data and mapping
+    /// * `Err(...)` - Setup failed
+    fn setup_data(
+        &self,
+        _data: &dyn DataSource,
+        _mapping: &AesMap,
+    ) -> Result<Option<(Box<dyn DataSource>, AesMap)>, PlotError> {
+        Ok(None)
+    }
 }
 
 /// Trait for geoms that can be converted into layers with their default aesthetics
@@ -100,7 +125,7 @@ pub trait IntoLayer: Sized {
         Layer {
             geom: Box::new(self),
             data: None,
-            mapping,
+            mapping: Some(mapping),
             stat: Stat::Identity,
             position: Position::Identity,
             computed_data: None,
