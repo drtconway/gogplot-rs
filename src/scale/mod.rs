@@ -15,6 +15,21 @@ pub enum ScaleType {
     Either,
 }
 
+/// Information about categorical scales that is preserved when converting to continuous.
+///
+/// This allows position adjustments like Dodge to access the original categorical
+/// scale's geometric properties even after it has been converted to a continuous
+/// scale for normalization.
+#[derive(Debug, Clone, Copy)]
+pub struct CategoricalInfo {
+    /// The width of each category in normalized [0, 1] space
+    pub category_width: f64,
+    /// The padding fraction applied to each category (e.g., 0.1 = 10% padding on each side)
+    pub padding: f64,
+    /// The number of categories in the original scale
+    pub n_categories: usize,
+}
+
 /// Base trait for all scales providing common functionality.
 pub trait ScaleBase: Send + Sync {
     /// Train the scale on data to automatically determine the domain.
@@ -102,6 +117,22 @@ pub trait ContinuousScale: ScaleBase {
     /// # Returns
     /// A slice of formatted label strings
     fn labels(&self) -> &[String];
+
+    /// Get categorical scale information if this scale was derived from a categorical scale.
+    ///
+    /// When a categorical scale is converted to a continuous scale for normalization,
+    /// the resulting scale can preserve the original categorical scale's geometric
+    /// properties (category width, padding) by returning them here.
+    ///
+    /// This allows position adjustments like Dodge to subdivide the category space
+    /// correctly even when working with normalized continuous values.
+    ///
+    /// # Returns
+    /// * `Some(info)` - If this scale was derived from a categorical scale
+    /// * `None` - If this is a purely continuous scale
+    fn categorical_info(&self) -> Option<CategoricalInfo> {
+        None // Default: not derived from a categorical scale
+    }
 }
 
 /// Scales that map data values to colors.

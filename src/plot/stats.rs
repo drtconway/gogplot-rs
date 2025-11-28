@@ -82,8 +82,11 @@ pub fn apply_stat_to_layer(
             let boxplot_stat = Boxplot::new().with_coef(*coef);
             let stat_result = boxplot_stat.apply(data, &merged_mapping)?;
             if let Some((transformed_data, new_mapping)) = stat_result {
+                eprintln!("Boxplot stat produced {} rows", transformed_data.len());
                 layer.computed_data = Some(transformed_data);
                 layer.computed_mapping = Some(new_mapping);
+            } else {
+                eprintln!("Boxplot stat returned None");
             }
         }
         Stat::Summary(aesthetics) => {

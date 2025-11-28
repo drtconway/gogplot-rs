@@ -203,7 +203,7 @@ impl AesValue {
 }
 
 // The mapping structure
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct AesMap {
     map: HashMap<Aesthetic, AesValue>,
 }

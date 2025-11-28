@@ -71,7 +71,13 @@ pub fn apply_scales(
             continue;
         }
 
-        // Multiple aesthetics mapped to same column - disambiguate names
+        // Multiple aesthetics mapped to same column
+        // Each aesthetic gets its own output column with a disambiguated name.
+        // This is necessary because:
+        // 1. Positional aesthetics (X, Xmin, Xmax) may be scaled differently (center vs edges)
+        // 2. Non-positional aesthetics (Fill, Color) need the original categorical values
+        //    preserved for color mapping, not the scaled numeric positions
+        
         for aesthetic in aesthetics {
             let aesthetic_name = aesthetic.to_str();
 
@@ -127,12 +133,24 @@ pub fn apply_scales(
                     &mut result,
                 )?;
 
+                // Preserve the hint from the original mapping for non-positional aesthetics
+                // (Color/Fill/Shape need the hint to determine how to map colors)
+                // Positional aesthetics should have no hint after scaling (already normalized)
+                let hint = if matches!(*aesthetic, Aesthetic::Fill | Aesthetic::Color | Aesthetic::Shape | Aesthetic::Group) {
+                    mapping.get(aesthetic).and_then(|aes_val| match aes_val {
+                        AesValue::Column { hint, .. } => *hint,
+                        _ => None,
+                    })
+                } else {
+                    None
+                };
+
                 // Add to new mapping
                 result_mapping.set(
                     *aesthetic,
                     AesValue::Column {
                         name: output_name.clone(),
-                        hint: None,
+                        hint,
                     },
                 );
             }

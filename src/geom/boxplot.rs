@@ -214,9 +214,8 @@ impl Geom for GeomBoxplot {
             return Ok((None, None));
         }
 
-        // For boxplot, X is categorical, so we map both Xmin and Xmax to the same X aesthetic
-        // This allows the categorical scale to position them correctly, and position adjustments
-        // like Dodge can modify these mappings if needed
+        // For boxplot, map both Xmin and Xmax to the X aesthetic
+        // The scale application step will expand these to the appropriate bandwidth for categorical scales
         let x_aes = match mapping.get(&Aesthetic::X) {
             Some(aes) => aes,
             None => return Ok((None, None)), // No X mapping, nothing to set up
@@ -286,6 +285,7 @@ impl Geom for GeomBoxplot {
             let ((lower_norm, middle_norm), upper_norm) = y_box_vals;
             let ((ymin_norm, ymax_norm), y_norm) = y_whisker_vals;
             let (((fill, color), alpha), size) = style_vals;
+            
             // Check if this is an outlier row (middle is NaN)
             if middle_norm.is_nan() {
                 // This is an outlier - draw as a point

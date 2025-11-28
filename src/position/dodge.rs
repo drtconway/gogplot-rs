@@ -55,17 +55,13 @@ impl PositionAdjust for Dodge {
             .get(x_col_name.as_str())
             .ok_or_else(|| PlotError::missing_column(&x_col_name))?;
 
-        // Get x values
-        let x_values: Vec<PrimitiveValue> = if let Some(float_iter) = x_col.iter_float() {
-            float_iter
-                .map(|v| PrimitiveValue::Float(v))
-                .collect()
+        // Get x values - these are the ORIGINAL data values (before scaling)
+        let x_values: Vec<String> = if let Some(float_iter) = x_col.iter_float() {
+            float_iter.map(|v| v.to_string()).collect()
         } else if let Some(int_iter) = x_col.iter_int() {
-            int_iter.map(|v| PrimitiveValue::Int(v)).collect()
+            int_iter.map(|v| v.to_string()).collect()
         } else if let Some(str_iter) = x_col.iter_str() {
-            str_iter
-                .map(|s| PrimitiveValue::Str(s.to_string()))
-                .collect()
+            str_iter.map(|s| s.to_string()).collect()
         } else {
             return Err(PlotError::InvalidAestheticType {
                 aesthetic: Aesthetic::X,
@@ -76,114 +72,90 @@ impl PositionAdjust for Dodge {
 
         let n_rows = x_values.len();
 
-        // Create composite keys using utility
+        // Create composite keys for groups using utility
         let composite_keys = create_composite_keys(data.as_ref(), &group_aesthetics);
 
-        // Determine bar width
-        let bar_width = if let Some(w) = self.width {
-            w
+        // Get the scale to access mapping information
+        let x_scale = scales.x.as_ref()
+            .ok_or_else(|| PlotError::InvalidColumnType {
+                column: x_col_name.clone(),
+                expected: DataType::Custom("X scale required for dodge".to_string()),
+            })?;
+        
+        // Try to get categorical info from the scale
+        let (category_width, scale_padding) = if let Some(cat_info) = x_scale.categorical_info() {
+            // Use the categorical scale's actual width and padding
+            (cat_info.category_width, cat_info.padding)
         } else {
-            // Auto-detect: find minimum distance between x values, use 90% of that
-            let detected = self.auto_detect_width(&x_values, scales.x.as_ref());
-            // Clamp to reasonable range to prevent absurdly wide bars
-            detected.min(0.15)  // Max 15% of normalized space per bar cluster
+            // Fall back to auto-detection for continuous scales
+            let detected = self.auto_detect_width_continuous(&x_values, x_scale);
+            (detected, 0.1)
         };
 
-        // Group data by x position and group
-        // Map: x_key -> Vec<group_key>  (BTreeMap for deterministic ordering)
+        // Calculate the effective width after scale padding (this is the space available within each category)
+        let effective_width = category_width * (1.0 - 2.0 * scale_padding);
+
+        // Group data by x position and collect unique groups per position
+        // Map: x_value -> Vec<group_key>
         let mut x_to_groups: BTreeMap<String, Vec<String>> = BTreeMap::new();
         
         for (i, x_val) in x_values.iter().enumerate() {
-            let x_key = format!("{:?}", x_val);
             let group_key = composite_keys[i].clone();
             
-            let groups = x_to_groups.entry(x_key.clone()).or_default();
+            let groups = x_to_groups.entry(x_val.clone()).or_default();
             if !groups.contains(&group_key) {
                 groups.push(group_key);
             }
         }
 
-        // Sort groups within each x position for consistency
+        // Sort groups within each x position for deterministic ordering
         for groups in x_to_groups.values_mut() {
             groups.sort();
         }
 
-
-
-        // Calculate xmin and xmax for each row
+        // Calculate xmin, x, and xmax for each row
         let mut xmin_vals = Vec::with_capacity(n_rows);
+        let mut x_vals = Vec::with_capacity(n_rows);
         let mut xmax_vals = Vec::with_capacity(n_rows);
-        let mut x_centers = Vec::with_capacity(n_rows);
-
-        // Get the x scale for mapping values to visual/normalized space
-        let x_scale = scales.x.as_ref();
         
-        for (i, x_val) in x_values.iter().enumerate() {
-            // Map x value through the scale to get normalized position (visual space)
-            let x_center = if let Some(scale) = x_scale {
-                match x_val {
-                    PrimitiveValue::Float(f) => {
-                        // Try as category first (for categorical scales), then as value
-                        scale.map_category(&f.to_string(), crate::aesthetics::Aesthetic::X)
-                            .or_else(|| scale.map_value(*f))
-                            .unwrap_or(0.0)
-                    }
-                    PrimitiveValue::Int(i) => {
-                        // Try as category first (for categorical scales), then as value
-                        scale.map_category(&i.to_string(), crate::aesthetics::Aesthetic::X)
-                            .or_else(|| scale.map_value(*i as f64))
-                            .unwrap_or(0.0)
-                    }
-                    PrimitiveValue::Str(s) => scale.map_category(s, crate::aesthetics::Aesthetic::X).unwrap_or(0.0),
-                    PrimitiveValue::Bool(b) => scale.map_category(&b.to_string(), crate::aesthetics::Aesthetic::X).unwrap_or(0.0),
-                }
-            } else {
-                self.x_to_f64(x_val)
-            };
+        for (i, x_cat) in x_values.iter().enumerate() {
+            // X values are already in normalized space after scale application
+            // Parse them as floats (they're the category center positions)
+            let x_center = x_cat.parse::<f64>().unwrap_or(0.5);
             
-            let x_key = format!("{:?}", x_val);
+            // Get groups at this x position and find this row's group index
+            let groups = x_to_groups.get(x_cat).unwrap();
+            let n_groups = groups.len();
             let group_key = &composite_keys[i];
+            let group_index = groups.iter().position(|g| g == group_key).unwrap();
             
-            let groups = x_to_groups.get(&x_key).unwrap();
-            let n_groups = groups.len() as f64;
-            let group_index = groups.iter().position(|g| g == group_key).unwrap() as f64;
+            // Calculate the category's xmin/xmax range using the categorical scale info
+            // The category is centered at x_center with half-width on each side
+            let half_width = effective_width / 2.0;
+            let category_xmin = x_center - half_width;
+            let category_xmax = x_center + half_width;
+            let category_range = category_xmax - category_xmin;
             
-            // Width of each individual bar (in visual space)
-            let individual_width = bar_width / n_groups;
-            let padded_width = individual_width * (1.0 - self.padding);
+            // Model the category as [0, 1] interval and divide into n_groups equal parts
+            // Group i gets the interval [i/n, (i+1)/n]
+            let normalized_start = group_index as f64 / n_groups as f64;
+            let normalized_end = (group_index + 1) as f64 / n_groups as f64;
             
-            // Calculate position in visual/normalized space
-            // Start from left edge of the total bar width
-            let left_edge = x_center - bar_width / 2.0;
-            let bar_left = left_edge + group_index * individual_width;
-            let bar_center = bar_left + individual_width / 2.0;
+            // Map from [0, 1] to [category_xmin, category_xmax]
+            let xmin = category_xmin + normalized_start * category_range;
+            let xmax = category_xmin + normalized_end * category_range;
+            let group_center = (xmin + xmax) / 2.0;
             
-            let xmin_norm = bar_center - padded_width / 2.0;
-            let xmax_norm = bar_center + padded_width / 2.0;
-            
-            // Convert normalized positions back to data space using inverse scale
-            let xmin_data = if let Some(scale) = x_scale {
-                scale.inverse(xmin_norm)
-            } else {
-                xmin_norm
-            };
-            
-            let xmax_data = if let Some(scale) = x_scale {
-                scale.inverse(xmax_norm)
-            } else {
-                xmax_norm
-            };
-            
-            x_centers.push(x_center);
-            xmin_vals.push(xmin_data);
-            xmax_vals.push(xmax_data);
+            x_vals.push(group_center);
+            xmin_vals.push(xmin);
+            xmax_vals.push(xmax);
         }
 
         // Create sorted index: sort by x center position, then by group (for deterministic order)
         let mut indices: Vec<usize> = (0..n_rows).collect();
         indices.sort_by(|&a, &b| {
             // First compare by x center positions
-            let x_cmp = x_centers[a].partial_cmp(&x_centers[b]).unwrap_or(std::cmp::Ordering::Equal);
+            let x_cmp = x_vals[a].partial_cmp(&x_vals[b]).unwrap_or(std::cmp::Ordering::Equal);
             if x_cmp != std::cmp::Ordering::Equal {
                 return x_cmp;
             }
@@ -234,46 +206,16 @@ impl PositionAdjust for Dodge {
 }
 
 impl Dodge {
-    /// Convert PrimitiveValue to f64 for position calculations
-    fn x_to_f64(&self, val: &PrimitiveValue) -> f64 {
-        match val {
-            PrimitiveValue::Float(f) => *f,
-            PrimitiveValue::Int(i) => *i as f64,
-            PrimitiveValue::Str(_) => {
-                // For categorical x, we'd need the scale mapping
-                // For now, treat as 0 (this should be handled by scale)
-                0.0
-            }
-            PrimitiveValue::Bool(_) => {
-                // For categorical x, we'd need the scale mapping
-                // For now, treat as 0 (this should be handled by scale)
-                0.0
-            }
-        }
-    }
-
-    /// Auto-detect bar width from spacing between x values (in visual/normalized space)
-    fn auto_detect_width(&self, x_values: &[PrimitiveValue], x_scale: Option<&Box<dyn ContinuousScale>>) -> f64 {
+    /// Auto-detect bar width for continuous scales from spacing between x values
+    fn auto_detect_width_continuous(&self, x_values: &[String], x_scale: &Box<dyn ContinuousScale>) -> f64 {
         // Get unique x values mapped through scale to visual space
         let mut unique_x: Vec<f64> = x_values
             .iter()
             .filter_map(|v| {
-                if let Some(scale) = x_scale {
-                    match v {
-                        PrimitiveValue::Float(f) => {
-                            scale.map_category(&f.to_string(), crate::aesthetics::Aesthetic::X)
-                                .or_else(|| scale.map_value(*f))
-                        }
-                        PrimitiveValue::Int(i) => {
-                            scale.map_category(&i.to_string(), crate::aesthetics::Aesthetic::X)
-                                .or_else(|| scale.map_value(*i as f64))
-                        }
-                        PrimitiveValue::Str(s) => scale.map_category(s, crate::aesthetics::Aesthetic::X),
-                        PrimitiveValue::Bool(b) => scale.map_category(&b.to_string(), crate::aesthetics::Aesthetic::X),
-                    }
-                } else {
-                    Some(self.x_to_f64(v))
-                }
+                // Try parsing as number for continuous scales
+                v.parse::<f64>().ok()
+                    .and_then(|f| x_scale.map_value(f))
+                    .or_else(|| x_scale.map_category(v, Aesthetic::X))
             })
             .collect();
         unique_x.sort_by(|a, b| a.partial_cmp(b).unwrap());

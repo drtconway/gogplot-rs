@@ -275,7 +275,7 @@ impl Plot {
         width: i32,
         height: i32,
     ) -> Result<(), PlotError> {
-        // NEW PIPELINE: stat → geom.setup_data() → train_scales → infer_group → apply_scales → position → render
+        // NEW PIPELINE: stat → geom.setup_data() → infer_group → train_scales → apply_scales → position → render
 
         // Steps 1-2: Apply stat transformations and geom.setup_data() for each layer
         for layer in &mut self.layers {
@@ -313,20 +313,7 @@ impl Plot {
             .as_ref()
             .and_then(|axis| axis.title.clone());
 
-        // Step 3: Create default scales for unmapped aesthetics
-        self.scales.create_defaults(
-            &self.layers,
-            self.data.as_ref().map(|d| d.as_ref()),
-            &self.mapping,
-            &mut x_axis_title,
-            &mut y_axis_title,
-        );
-
-        // Step 4: Train scales (after geom.setup_data() so scales see all columns)
-        self.scales
-            .train(&self.layers, self.data.as_ref().map(|d| d.as_ref()), &self.mapping);
-
-        // Step 5: Establish grouping for layers that need it
+        // Step 3: Establish grouping for layers that need it (BEFORE scale training)
         use crate::plot::group_inference::establish_grouping;
         for layer in &mut self.layers {
             let layer_data = layer
@@ -347,6 +334,19 @@ impl Plot {
                 }
             }
         }
+
+        // Step 4: Create default scales for unmapped aesthetics
+        self.scales.create_defaults(
+            &self.layers,
+            self.data.as_ref().map(|d| d.as_ref()),
+            &self.mapping,
+            &mut x_axis_title,
+            &mut y_axis_title,
+        );
+
+        // Step 5: Train scales (after geom.setup_data() and group inference so scales see all columns and final mapping)
+        self.scales
+            .train(&self.layers, self.data.as_ref().map(|d| d.as_ref()), &self.mapping);
 
         // Step 6: Apply scales to normalize data to [0,1]
         use crate::plot::scale_application::apply_scales;

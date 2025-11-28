@@ -62,6 +62,7 @@ pub struct Catagorical {
     breaks: Vec<f64>,
     labels: Vec<String>,
     category_width: f64, // Width of each category slice in normalized space
+    padding: f64, // Padding fraction (0.0 = no padding, 0.2 = 20% padding on each side)
 }
 
 impl Catagorical {
@@ -84,6 +85,7 @@ impl Catagorical {
             breaks,
             labels,
             category_width,
+            padding: 0.1, // 10% padding on each side by default
         }
     }
 
@@ -97,7 +99,9 @@ impl Catagorical {
         use crate::aesthetics::Aesthetic;
         
         let center = self.mapping.get(data).copied().unwrap_or(0.0);
-        let half_width = self.category_width / 2.0;
+        // Apply padding: reduce effective width by padding fraction on each side
+        let effective_width = self.category_width * (1.0 - 2.0 * self.padding);
+        let half_width = effective_width / 2.0;
         
         match aesthetic {
             // Left edges
@@ -160,6 +164,9 @@ impl ScaleBase for Catagorical {
 
             self.breaks = items.iter().map(|(_, v)| **v).collect();
             self.labels = items.iter().map(|(k, _)| (*k).to_string()).collect();
+            
+            // Update category width based on number of categories
+            self.category_width = 1.0 / self.mapping.len() as f64;
         }
     }
 }
@@ -187,6 +194,14 @@ impl ContinuousScale for Catagorical {
 
     fn labels(&self) -> &[String] {
         &self.labels
+    }
+
+    fn categorical_info(&self) -> Option<super::CategoricalInfo> {
+        Some(super::CategoricalInfo {
+            category_width: self.category_width,
+            padding: self.padding,
+            n_categories: self.mapping.len(),
+        })
     }
 }
 
