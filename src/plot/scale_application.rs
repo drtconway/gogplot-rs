@@ -114,6 +114,7 @@ pub fn apply_scales(
                 AesValue::Column {
                     name: output_name.clone(),
                     hint: None,
+                    original_name: Some(col_name.clone()),
                 },
             );
         }
@@ -145,12 +146,20 @@ pub fn apply_scales(
                     None
                 };
 
+                // Preserve the original column name for legend titles
+                let original_name = if output_name != &col_name {
+                    Some(col_name.clone())
+                } else {
+                    None
+                };
+
                 // Add to new mapping
                 result_mapping.set(
                     *aesthetic,
                     AesValue::Column {
                         name: output_name.clone(),
                         hint,
+                        original_name,
                     },
                 );
             }

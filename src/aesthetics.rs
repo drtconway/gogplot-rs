@@ -102,7 +102,10 @@ pub enum AesValue {
     /// Column name from data with optional scale type hint
     Column { 
         name: String, 
-        hint: Option<ScaleType> 
+        hint: Option<ScaleType>,
+        /// Original column name before any disambiguation (e.g., "x" instead of "x_fill_1")
+        /// Used for legend titles and other user-facing labels
+        original_name: Option<String>,
     },
     /// Fixed value with optional scale type hint
     Constant { 
@@ -116,7 +119,8 @@ impl AesValue {
     pub fn column(name: impl Into<String>) -> Self {
         AesValue::Column { 
             name: name.into(), 
-            hint: None 
+            hint: None,
+            original_name: None,
         }
     }
 
@@ -124,7 +128,8 @@ impl AesValue {
     pub fn continuous_column(name: impl Into<String>) -> Self {
         AesValue::Column { 
             name: name.into(), 
-            hint: Some(ScaleType::Continuous) 
+            hint: Some(ScaleType::Continuous),
+            original_name: None,
         }
     }
 
@@ -133,7 +138,8 @@ impl AesValue {
     pub fn categorical_column(name: impl Into<String>) -> Self {
         AesValue::Column { 
             name: name.into(), 
-            hint: Some(ScaleType::Categorical) 
+            hint: Some(ScaleType::Categorical),
+            original_name: None,
         }
     }
 
@@ -171,6 +177,18 @@ impl AesValue {
     pub fn as_column_name(&self) -> Option<&str> {
         match self {
             AesValue::Column { name, .. } => Some(name.as_str()),
+            AesValue::Constant { .. } => None,
+        }
+    }
+
+    /// Extract the original column name (before disambiguation) from Column variants
+    /// Falls back to the current name if no original name was stored
+    /// Returns None for Constant values
+    pub fn as_original_column_name(&self) -> Option<&str> {
+        match self {
+            AesValue::Column { name, original_name, .. } => {
+                Some(original_name.as_ref().unwrap_or(name).as_str())
+            }
             AesValue::Constant { .. } => None,
         }
     }

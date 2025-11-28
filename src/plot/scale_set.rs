@@ -308,7 +308,7 @@ impl ScaleSet {
 
             // Shape scale
             if self.shape.is_none() {
-                if matches!(layer_mapping.get(&Aesthetic::Shape), Some(AesValue::Column { name: _, hint: Some(ScaleType::Categorical) })) {
+                if matches!(layer_mapping.get(&Aesthetic::Shape), Some(AesValue::Column { name: _, hint: Some(ScaleType::Categorical) , ..})) {
                     // Create default discrete shape scale
                     self.shape = Some(Box::new(DiscreteShape::default_shapes()));
                 }

@@ -55,7 +55,7 @@ pub fn establish_grouping(
     // Collect unique column names to avoid duplicates when multiple aesthetics map to same column
     let mut unique_columns = Vec::new();
     let mut seen_columns = std::collections::HashSet::new();
-    
+
     for aes in &grouping_aesthetics {
         if let Some(AesValue::Column { name, .. }) = mapping.get(aes) {
             if !seen_columns.contains(name) {
@@ -117,6 +117,7 @@ pub fn establish_grouping(
         AesValue::Column {
             name: group_name,
             hint: Some(ScaleType::Categorical),
+            original_name: None,
         },
     );
 
@@ -141,6 +142,7 @@ mod tests {
             AesValue::Column {
                 name: "x".to_string(),
                 hint: Some(ScaleType::Continuous),
+                original_name: None,
             },
         );
         mapping.set(
@@ -148,6 +150,7 @@ mod tests {
             AesValue::Column {
                 name: "y".to_string(),
                 hint: Some(ScaleType::Continuous),
+                original_name: None,
             },
         );
 
@@ -169,6 +172,7 @@ mod tests {
             AesValue::Column {
                 name: "x".to_string(),
                 hint: Some(ScaleType::Continuous),
+                original_name: None,
             },
         );
         mapping.set(
@@ -176,6 +180,7 @@ mod tests {
             AesValue::Column {
                 name: "g".to_string(),
                 hint: Some(ScaleType::Categorical),
+                original_name: None,
             },
         );
 
@@ -197,6 +202,7 @@ mod tests {
             AesValue::Column {
                 name: "x".to_string(),
                 hint: Some(ScaleType::Continuous),
+                original_name: None,
             },
         );
         mapping.set(
@@ -204,6 +210,7 @@ mod tests {
             AesValue::Column {
                 name: "category".to_string(),
                 hint: Some(ScaleType::Categorical),
+                original_name: None,
             },
         );
 
@@ -227,7 +234,10 @@ mod tests {
         // When there's a single grouping aesthetic (Color), it should be mapped to Group
         let mut data = DataFrame::new();
         data.add_column("x", Box::new(FloatVec::from(vec![1.0, 2.0, 3.0])));
-        data.add_column("species", Box::new(StrVec::from(vec!["cat", "dog", "bird"])));
+        data.add_column(
+            "species",
+            Box::new(StrVec::from(vec!["cat", "dog", "bird"])),
+        );
 
         let mut mapping = AesMap::new();
         mapping.set(
@@ -235,6 +245,7 @@ mod tests {
             AesValue::Column {
                 name: "x".to_string(),
                 hint: Some(ScaleType::Continuous),
+                original_name: None,
             },
         );
         mapping.set(
@@ -242,6 +253,7 @@ mod tests {
             AesValue::Column {
                 name: "species".to_string(),
                 hint: Some(ScaleType::Categorical),
+                original_name: None,
             },
         );
 
@@ -265,7 +277,10 @@ mod tests {
         let mut data = DataFrame::new();
         data.add_column("x", Box::new(FloatVec::from(vec![1.0, 2.0, 3.0, 4.0])));
         data.add_column("category", Box::new(StrVec::from(vec!["a", "b", "a", "b"])));
-        data.add_column("region", Box::new(StrVec::from(vec!["north", "south", "south", "north"])));
+        data.add_column(
+            "region",
+            Box::new(StrVec::from(vec!["north", "south", "south", "north"])),
+        );
 
         let mut mapping = AesMap::new();
         mapping.set(
@@ -273,6 +288,7 @@ mod tests {
             AesValue::Column {
                 name: "x".to_string(),
                 hint: Some(ScaleType::Continuous),
+                original_name: None,
             },
         );
         mapping.set(
@@ -280,6 +296,7 @@ mod tests {
             AesValue::Column {
                 name: "category".to_string(),
                 hint: Some(ScaleType::Categorical),
+                original_name: None,
             },
         );
         mapping.set(
@@ -287,6 +304,7 @@ mod tests {
             AesValue::Column {
                 name: "region".to_string(),
                 hint: Some(ScaleType::Categorical),
+                original_name: None,
             },
         );
 
@@ -300,7 +318,7 @@ mod tests {
         // Should have a new Group column
         let group_val = new_mapping.get(&Aesthetic::Group);
         assert!(group_val.is_some());
-        
+
         if let Some(AesValue::Column { name, .. }) = group_val {
             // The new column should exist in the data
             let group_col = new_data.get(name);
@@ -312,7 +330,7 @@ mod tests {
             if let crate::data::VectorIter::Str(iter) = group_col.iter() {
                 values = iter.map(|s| s.to_string()).collect();
             }
-            
+
             assert_eq!(values.len(), 4);
             // Aesthetics are sorted, so Color comes before Fill (region_category order)
             assert_eq!(values[0], "north_a");
@@ -338,6 +356,7 @@ mod tests {
             AesValue::Column {
                 name: "x".to_string(),
                 hint: Some(ScaleType::Continuous),
+                original_name: None,
             },
         );
         mapping.set(
@@ -345,6 +364,7 @@ mod tests {
             AesValue::Column {
                 name: "category".to_string(),
                 hint: Some(ScaleType::Categorical),
+                original_name: None,
             },
         );
         mapping.set(
@@ -352,6 +372,7 @@ mod tests {
             AesValue::Column {
                 name: "level".to_string(),
                 hint: Some(ScaleType::Categorical),
+                original_name: None,
             },
         );
 
@@ -368,7 +389,7 @@ mod tests {
             if let crate::data::VectorIter::Str(iter) = group_col.iter() {
                 values = iter.map(|s| s.to_string()).collect();
             }
-            
+
             assert_eq!(values.len(), 3);
             assert_eq!(values[0], "a_1");
             assert_eq!(values[1], "b_2");
@@ -393,6 +414,7 @@ mod tests {
             AesValue::Column {
                 name: "g".to_string(),
                 hint: Some(ScaleType::Categorical),
+                original_name: None,
             },
         );
         mapping.set(
@@ -400,6 +422,7 @@ mod tests {
             AesValue::Column {
                 name: "f".to_string(),
                 hint: Some(ScaleType::Categorical),
+                original_name: None,
             },
         );
 
@@ -417,6 +440,7 @@ mod tests {
             AesValue::Column {
                 name: "f".to_string(),
                 hint: Some(ScaleType::Categorical),
+                original_name: None,
             },
         );
         mapping.set(
@@ -424,6 +448,7 @@ mod tests {
             AesValue::Column {
                 name: "c".to_string(),
                 hint: Some(ScaleType::Categorical),
+                original_name: None,
             },
         );
         mapping.set(
@@ -431,6 +456,7 @@ mod tests {
             AesValue::Column {
                 name: "x".to_string(),
                 hint: Some(ScaleType::Continuous),
+                original_name: None,
             },
         );
 
@@ -449,7 +475,10 @@ mod tests {
         data.add_column("a", Box::new(StrVec::from(vec!["x", "y"])));
         data.add_column("b", Box::new(StrVec::from(vec!["1", "2"])));
         // Add a column with the name that would be generated (Color comes before Fill when sorted)
-        data.add_column("b_a_1", Box::new(StrVec::from(vec!["conflict", "conflict"])));
+        data.add_column(
+            "b_a_1",
+            Box::new(StrVec::from(vec!["conflict", "conflict"])),
+        );
 
         let mut mapping = AesMap::new();
         mapping.set(
@@ -457,6 +486,7 @@ mod tests {
             AesValue::Column {
                 name: "a".to_string(),
                 hint: Some(ScaleType::Categorical),
+                original_name: None,
             },
         );
         mapping.set(
@@ -464,6 +494,7 @@ mod tests {
             AesValue::Column {
                 name: "b".to_string(),
                 hint: Some(ScaleType::Categorical),
+                original_name: None,
             },
         );
 
@@ -496,6 +527,7 @@ mod tests {
             AesValue::Column {
                 name: "x".to_string(),
                 hint: Some(ScaleType::Continuous),
+                original_name: None,
             },
         );
         // Both Fill and Color map to the same column
@@ -504,6 +536,7 @@ mod tests {
             AesValue::Column {
                 name: "category".to_string(),
                 hint: Some(ScaleType::Categorical),
+                original_name: None,
             },
         );
         mapping.set(
@@ -511,6 +544,7 @@ mod tests {
             AesValue::Column {
                 name: "category".to_string(),
                 hint: Some(ScaleType::Categorical),
+                original_name: None,
             },
         );
 
@@ -527,7 +561,7 @@ mod tests {
             if let crate::data::VectorIter::Str(iter) = group_col.iter() {
                 values = iter.map(|s| s.to_string()).collect();
             }
-            
+
             assert_eq!(values.len(), 3);
             // Should just be "a", "b", "c" not "a_a", "b_b", "c_c"
             assert_eq!(values[0], "a");

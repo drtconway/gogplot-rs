@@ -68,7 +68,7 @@ pub fn get_aesthetic_values<'a>(
         .ok_or_else(|| PlotError::missing_stat_input("stat", aesthetic))?;
 
     match aes_value {
-        AesValue::Column{ name: col_name, hint: _ } => {
+        AesValue::Column{ name: col_name, ..} => {
             let series = data
                 .get(col_name.as_str())
                 .ok_or_else(|| PlotError::missing_column(col_name.as_str()))?;

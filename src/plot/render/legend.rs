@@ -20,7 +20,7 @@ pub fn generate_automatic_legends(layers: &[Layer], scales: &ScaleSet, guides: &
         let mapping = layer.get_mapping(plot_mapping);
         matches!(
             mapping.get(&Aesthetic::Color),
-            Some(AesValue::Column { name: _, hint: _ })
+            Some(AesValue::Column { name: _, hint: _ , ..})
         )
     });
 
@@ -29,7 +29,7 @@ pub fn generate_automatic_legends(layers: &[Layer], scales: &ScaleSet, guides: &
         let mapping = layer.get_mapping(plot_mapping);
         matches!(
             mapping.get(&Aesthetic::Fill),
-            Some(AesValue::Column { name: _, hint: _ })
+            Some(AesValue::Column { name: _, hint: _ , ..})
         )
     });
 
@@ -38,7 +38,7 @@ pub fn generate_automatic_legends(layers: &[Layer], scales: &ScaleSet, guides: &
         let mapping = layer.get_mapping(plot_mapping);
         matches!(
             mapping.get(&Aesthetic::Shape),
-            Some(AesValue::Column { name: _, hint: _ })
+            Some(AesValue::Column { name: _, hint: _ , ..})
         )
     });
 
@@ -48,12 +48,12 @@ pub fn generate_automatic_legends(layers: &[Layer], scales: &ScaleSet, guides: &
             let mut legend = LegendGuide::new();
             legend.position = LegendPosition::Right;
 
-            // Get the column name for the title
+            // Get the column name for the title (use original name if available)
             for layer in layers {
                 let mapping = layer.computed_mapping.as_ref()
                     .or(layer.mapping.as_ref())
                     .unwrap_or(plot_mapping);
-                if let Some(col_name) = mapping.get(&Aesthetic::Color).and_then(|v| v.as_column_name()) {
+                if let Some(col_name) = mapping.get(&Aesthetic::Color).and_then(|v| v.as_original_column_name()) {
                     legend.title = Some(col_name.to_string());
                     break;
                 }
@@ -102,10 +102,10 @@ pub fn generate_automatic_legends(layers: &[Layer], scales: &ScaleSet, guides: &
             let mut legend = LegendGuide::new();
             legend.position = LegendPosition::Right;
 
-            // Get the column name for the title
+            // Get the column name for the title (use original name if available)
             for layer in layers {
                 let mapping = layer.get_mapping(plot_mapping);
-                if let Some(col_name) = mapping.get(&Aesthetic::Fill).and_then(|v| v.as_column_name()) {
+                if let Some(col_name) = mapping.get(&Aesthetic::Fill).and_then(|v| v.as_original_column_name()) {
                     legend.title = Some(col_name.to_string());
                     break;
                 }
@@ -156,10 +156,10 @@ pub fn generate_automatic_legends(layers: &[Layer], scales: &ScaleSet, guides: &
                 let mut legend = LegendGuide::new();
                 legend.position = LegendPosition::Right;
 
-                // Get the column name for the title
+                // Get the column name for the title (use original name if available)
                 for layer in layers {
                     let mapping = layer.get_mapping(plot_mapping);
-                    if let Some(col_name) = mapping.get(&Aesthetic::Shape).and_then(|v| v.as_column_name()) {
+                    if let Some(col_name) = mapping.get(&Aesthetic::Shape).and_then(|v| v.as_original_column_name()) {
                         legend.title = Some(col_name.to_string());
                         break;
                     }

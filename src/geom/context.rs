@@ -235,7 +235,11 @@ impl<'a> RenderContext<'a> {
         let n = self.data().len();
 
         match mapping {
-            Some(AesValue::Column{ name: col_name, hint: None | Some(ScaleType::Continuous | ScaleType::Either) }) => {
+            Some(AesValue::Column {
+                name: col_name,
+                hint: None | Some(ScaleType::Continuous | ScaleType::Either),
+                ..
+            }) => {
                 // Get data from column
                 let vec = self
                     .data()
@@ -356,7 +360,11 @@ impl<'a> RenderContext<'a> {
                     }
                 }
             }
-            Some(AesValue::Column{ name: col_name, hint: Some(ScaleType::Categorical) }) => {
+            Some(AesValue::Column {
+                name: col_name,
+                hint: Some(ScaleType::Categorical),
+                ..
+            }) => {
                 // Treat numeric column as categorical by converting to strings
                 let vec = self
                     .data()
@@ -487,7 +495,10 @@ impl<'a> RenderContext<'a> {
                     }
                 }
             }
-            Some(AesValue::Constant{ value: prim, hint: _ }) => {
+            Some(AesValue::Constant {
+                value: prim,
+                hint: _,
+            }) => {
                 // Replicate constant value to match data length
                 let value = match prim {
                     PrimitiveValue::Float(v) => *v,
@@ -542,6 +553,7 @@ impl<'a> RenderContext<'a> {
                 Some(AesValue::Column {
                     name: col_name,
                     hint: None | Some(ScaleType::Continuous | ScaleType::Either),
+                    ..
                 }),
                 Some(scale),
             ) => {
@@ -609,6 +621,7 @@ impl<'a> RenderContext<'a> {
                 Some(AesValue::Column {
                     name: col_name,
                     hint: Some(ScaleType::Categorical),
+                    ..
                 }),
                 Some(scale),
             ) => {
@@ -680,13 +693,11 @@ impl<'a> RenderContext<'a> {
                 })
             }
             // Column mapped but no scale
-            (Some(AesValue::Column { name: _, hint: _ }), None) => {
-                Err(PlotError::InvalidAestheticType {
-                    aesthetic: Aesthetic::Color,
-                    expected: DataType::Custom("color scale for column mapping".to_string()),
-                    actual: DataType::Custom("no scale provided".to_string()),
-                })
-            }
+            (Some(AesValue::Column { .. }), None) => Err(PlotError::InvalidAestheticType {
+                aesthetic: Aesthetic::Color,
+                expected: DataType::Custom("color scale for column mapping".to_string()),
+                actual: DataType::Custom("no scale provided".to_string()),
+            }),
             // No mapping, use theme default
             (None, _) => Ok(ColorValues::Constant(self.theme.geom_point.color, n)),
         }
@@ -713,6 +724,7 @@ impl<'a> RenderContext<'a> {
                 Some(AesValue::Column {
                     name: col_name,
                     hint: None | Some(ScaleType::Continuous | ScaleType::Either),
+                    ..
                 }),
                 Some(scale),
             ) => {
@@ -747,9 +759,7 @@ impl<'a> RenderContext<'a> {
 
                         let colors: Vec<Color> = values
                             .iter()
-                            .filter_map(|&v| {
-                                scale.map_continuous_to_color(v)
-                            })
+                            .filter_map(|&v| scale.map_continuous_to_color(v))
                             .collect();
                         Ok(ColorValues::Mapped(colors))
                     }
@@ -782,6 +792,7 @@ impl<'a> RenderContext<'a> {
                 Some(AesValue::Column {
                     name: col_name,
                     hint: Some(ScaleType::Categorical),
+                    ..
                 }),
                 Some(scale),
             ) => {
@@ -853,13 +864,11 @@ impl<'a> RenderContext<'a> {
                 })
             }
             // Column mapped but no scale
-            (Some(AesValue::Column { name: _, hint: _ }), None) => {
-                Err(PlotError::InvalidAestheticType {
-                    aesthetic: Aesthetic::Fill,
-                    expected: DataType::Custom("fill scale for column mapping".to_string()),
-                    actual: DataType::Custom("no scale provided".to_string()),
-                })
-            }
+            (Some(AesValue::Column { .. }), None) => Err(PlotError::InvalidAestheticType {
+                aesthetic: Aesthetic::Fill,
+                expected: DataType::Custom("fill scale for column mapping".to_string()),
+                actual: DataType::Custom("no scale provided".to_string()),
+            }),
             // No mapping, use theme default
             (None, _) => Ok(ColorValues::Constant(self.theme.geom_rect.fill, n)),
         }
@@ -897,6 +906,7 @@ impl<'a> RenderContext<'a> {
                 Some(AesValue::Column {
                     name: col_name,
                     hint: None | Some(ScaleType::Categorical | ScaleType::Either),
+                    ..
                 }),
                 Some(scale),
             ) => {
@@ -930,22 +940,26 @@ impl<'a> RenderContext<'a> {
                 actual: DataType::Custom("continuous hint provided".to_string()),
             }),
             // Constant shape
-            (Some(AesValue::Constant{ value: PrimitiveValue::Int(v), hint: _ }), _) => {
-                Ok(ShapeValues::Constant(int_to_shape(*v), n))
-            }
-            (Some(AesValue::Constant{ value: _, hint: _ }), _) => Err(PlotError::InvalidAestheticType {
-                aesthetic: Aesthetic::Shape,
-                expected: DataType::Constant(VectorType::Int),
-                actual: DataType::Custom("other constant".to_string()),
-            }),
-            // Column mapped but no scale
-            (Some(AesValue::Column { name: _, hint: _ }), None) => {
+            (
+                Some(AesValue::Constant {
+                    value: PrimitiveValue::Int(v),
+                    hint: _,
+                }),
+                _,
+            ) => Ok(ShapeValues::Constant(int_to_shape(*v), n)),
+            (Some(AesValue::Constant { value: _, hint: _ }), _) => {
                 Err(PlotError::InvalidAestheticType {
                     aesthetic: Aesthetic::Shape,
-                    expected: DataType::Custom("shape scale for column mapping".to_string()),
-                    actual: DataType::Custom("no scale provided".to_string()),
+                    expected: DataType::Constant(VectorType::Int),
+                    actual: DataType::Custom("other constant".to_string()),
                 })
             }
+            // Column mapped but no scale
+            (Some(AesValue::Column { .. }), None) => Err(PlotError::InvalidAestheticType {
+                aesthetic: Aesthetic::Shape,
+                expected: DataType::Custom("shape scale for column mapping".to_string()),
+                actual: DataType::Custom("no scale provided".to_string()),
+            }),
             // No mapping, use theme default
             (None, _) => {
                 let shape = int_to_shape(self.theme.geom_point.shape);
@@ -1007,8 +1021,8 @@ impl<'a> RenderContext<'a> {
 
         // Extract column name
         let col_name = match mapping {
-            AesValue::Column { name, hint: _ } => name.as_str(),
-            AesValue::Constant{ value: _, hint: _ } => {
+            AesValue::Column { name, .. } => name.as_str(),
+            AesValue::Constant { value: _, hint: _ } => {
                 return Err(PlotError::InvalidAestheticType {
                     aesthetic,
                     expected: DataType::ColumnMapping,
@@ -1082,7 +1096,7 @@ impl<'a> RenderContext<'a> {
                 })?;
 
         match label_mapping {
-            AesValue::Column{ name: col_name, hint: _ } => {
+            AesValue::Column { name: col_name, .. } => {
                 let col =
                     self.data()
                         .get(col_name.as_str())
@@ -1104,7 +1118,10 @@ impl<'a> RenderContext<'a> {
                     ))
                 }
             }
-            AesValue::Constant{ value: prim, hint: _ } => {
+            AesValue::Constant {
+                value: prim,
+                hint: _,
+            } => {
                 let n_rows = self.data().len();
                 let label_str = match prim {
                     PrimitiveValue::Str(s) => s.clone(),
