@@ -100,7 +100,7 @@ pub fn get_aesthetic_values<'a>(
                 )),
             }
         }
-        AesValue::Constant{ value: prim_val, hint: _ } => {
+        AesValue::Constant{ value: prim_val, .. } => {
             let n = data.len();
             match prim_val {
                 PrimitiveValue::Float(f) => Ok(AestheticValueIter::ConstantFloat(*f, n)),

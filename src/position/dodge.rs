@@ -2,7 +2,7 @@
 
 use super::PositionAdjust;
 use crate::aesthetics::{AesMap, AesValue, Aesthetic};
-use crate::data::{DataSource, PrimitiveValue};
+use crate::data::DataSource;
 use crate::error::{DataType, PlotError};
 use crate::scale::ContinuousScale;
 use crate::utils::dataframe::{DataFrame, FloatVec};

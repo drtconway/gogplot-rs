@@ -12,7 +12,12 @@ use cairo::Context;
 use super::cairo_helpers::{apply_color, apply_fill_style, apply_font, apply_line_style};
 
 /// Generate legends automatically from scales when aesthetics are mapped
-pub fn generate_automatic_legends(layers: &[Layer], scales: &ScaleSet, guides: &Guides, plot_mapping: &crate::aesthetics::AesMap) -> Guides {
+pub fn generate_automatic_legends(
+    layers: &[Layer],
+    scales: &ScaleSet,
+    guides: &Guides,
+    plot_mapping: &crate::aesthetics::AesMap,
+) -> Guides {
     let mut guides = guides.clone();
 
     // Check if any layer maps Color aesthetic to a column
@@ -20,17 +25,14 @@ pub fn generate_automatic_legends(layers: &[Layer], scales: &ScaleSet, guides: &
         let mapping = layer.get_mapping(plot_mapping);
         matches!(
             mapping.get(&Aesthetic::Color),
-            Some(AesValue::Column { name: _, hint: _ , ..})
+            Some(AesValue::Column { .. })
         )
     });
 
     // Check if any layer maps Fill aesthetic to a column
     let has_fill_mapping = layers.iter().any(|layer| {
         let mapping = layer.get_mapping(plot_mapping);
-        matches!(
-            mapping.get(&Aesthetic::Fill),
-            Some(AesValue::Column { name: _, hint: _ , ..})
-        )
+        matches!(mapping.get(&Aesthetic::Fill), Some(AesValue::Column { .. }))
     });
 
     // Check if any layer maps Shape aesthetic to a column
@@ -38,7 +40,7 @@ pub fn generate_automatic_legends(layers: &[Layer], scales: &ScaleSet, guides: &
         let mapping = layer.get_mapping(plot_mapping);
         matches!(
             mapping.get(&Aesthetic::Shape),
-            Some(AesValue::Column { name: _, hint: _ , ..})
+            Some(AesValue::Column { .. })
         )
     });
 
@@ -50,10 +52,15 @@ pub fn generate_automatic_legends(layers: &[Layer], scales: &ScaleSet, guides: &
 
             // Get the column name for the title (use original name if available)
             for layer in layers {
-                let mapping = layer.computed_mapping.as_ref()
+                let mapping = layer
+                    .computed_mapping
+                    .as_ref()
                     .or(layer.mapping.as_ref())
                     .unwrap_or(plot_mapping);
-                if let Some(col_name) = mapping.get(&Aesthetic::Color).and_then(|v| v.as_original_column_name()) {
+                if let Some(col_name) = mapping
+                    .get(&Aesthetic::Color)
+                    .and_then(|v| v.as_original_column_name())
+                {
                     legend.title = Some(col_name.to_string());
                     break;
                 }
@@ -105,7 +112,10 @@ pub fn generate_automatic_legends(layers: &[Layer], scales: &ScaleSet, guides: &
             // Get the column name for the title (use original name if available)
             for layer in layers {
                 let mapping = layer.get_mapping(plot_mapping);
-                if let Some(col_name) = mapping.get(&Aesthetic::Fill).and_then(|v| v.as_original_column_name()) {
+                if let Some(col_name) = mapping
+                    .get(&Aesthetic::Fill)
+                    .and_then(|v| v.as_original_column_name())
+                {
                     legend.title = Some(col_name.to_string());
                     break;
                 }
@@ -143,7 +153,7 @@ pub fn generate_automatic_legends(layers: &[Layer], scales: &ScaleSet, guides: &
                         }
                     }
                     guides.fill = Some(legend);
-                } 
+                }
             }
         }
     }
@@ -159,7 +169,10 @@ pub fn generate_automatic_legends(layers: &[Layer], scales: &ScaleSet, guides: &
                 // Get the column name for the title (use original name if available)
                 for layer in layers {
                     let mapping = layer.get_mapping(plot_mapping);
-                    if let Some(col_name) = mapping.get(&Aesthetic::Shape).and_then(|v| v.as_original_column_name()) {
+                    if let Some(col_name) = mapping
+                        .get(&Aesthetic::Shape)
+                        .and_then(|v| v.as_original_column_name())
+                    {
                         legend.title = Some(col_name.to_string());
                         break;
                     }
@@ -186,7 +199,12 @@ pub fn generate_automatic_legends(layers: &[Layer], scales: &ScaleSet, guides: &
 }
 
 /// Calculate the required width for legends
-pub fn calculate_legend_width(layers: &[Layer], scales: &ScaleSet, guides: &Guides, plot_mapping: &crate::aesthetics::AesMap) -> f64 {
+pub fn calculate_legend_width(
+    layers: &[Layer],
+    scales: &ScaleSet,
+    guides: &Guides,
+    plot_mapping: &crate::aesthetics::AesMap,
+) -> f64 {
     let mut total_width = 0.0;
     let legend_width = 120.0; // Base legend width
     let legend_spacing = 10.0;

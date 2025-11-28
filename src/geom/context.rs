@@ -495,10 +495,7 @@ impl<'a> RenderContext<'a> {
                     }
                 }
             }
-            Some(AesValue::Constant {
-                value: prim,
-                hint: _,
-            }) => {
+            Some(AesValue::Constant { value: prim, .. }) => {
                 // Replicate constant value to match data length
                 let value = match prim {
                     PrimitiveValue::Float(v) => *v,
@@ -685,13 +682,11 @@ impl<'a> RenderContext<'a> {
                 _,
             ) => Ok(ColorValues::Constant(Color::from(*rgba), n)),
             // Other constant types are not valid for colors
-            (Some(AesValue::Constant { value: _, hint: _ }), _) => {
-                Err(PlotError::InvalidAestheticType {
-                    aesthetic: Aesthetic::Color,
-                    expected: DataType::RgbaConstant,
-                    actual: DataType::Custom("non-integer constant".to_string()),
-                })
-            }
+            (Some(AesValue::Constant { .. }), _) => Err(PlotError::InvalidAestheticType {
+                aesthetic: Aesthetic::Color,
+                expected: DataType::RgbaConstant,
+                actual: DataType::Custom("non-integer constant".to_string()),
+            }),
             // Column mapped but no scale
             (Some(AesValue::Column { .. }), None) => Err(PlotError::InvalidAestheticType {
                 aesthetic: Aesthetic::Color,
@@ -856,13 +851,11 @@ impl<'a> RenderContext<'a> {
                 _,
             ) => Ok(ColorValues::Constant(Color::from(*rgba), n)),
             // Other constant types are not valid for fill
-            (Some(AesValue::Constant { value: _, hint: _ }), _) => {
-                Err(PlotError::InvalidAestheticType {
-                    aesthetic: Aesthetic::Fill,
-                    expected: DataType::RgbaConstant,
-                    actual: DataType::Custom("non-integer constant".to_string()),
-                })
-            }
+            (Some(AesValue::Constant { .. }), _) => Err(PlotError::InvalidAestheticType {
+                aesthetic: Aesthetic::Fill,
+                expected: DataType::RgbaConstant,
+                actual: DataType::Custom("non-integer constant".to_string()),
+            }),
             // Column mapped but no scale
             (Some(AesValue::Column { .. }), None) => Err(PlotError::InvalidAestheticType {
                 aesthetic: Aesthetic::Fill,
@@ -943,17 +936,15 @@ impl<'a> RenderContext<'a> {
             (
                 Some(AesValue::Constant {
                     value: PrimitiveValue::Int(v),
-                    hint: _,
+                    ..
                 }),
                 _,
             ) => Ok(ShapeValues::Constant(int_to_shape(*v), n)),
-            (Some(AesValue::Constant { value: _, hint: _ }), _) => {
-                Err(PlotError::InvalidAestheticType {
-                    aesthetic: Aesthetic::Shape,
-                    expected: DataType::Constant(VectorType::Int),
-                    actual: DataType::Custom("other constant".to_string()),
-                })
-            }
+            (Some(AesValue::Constant { .. }), _) => Err(PlotError::InvalidAestheticType {
+                aesthetic: Aesthetic::Shape,
+                expected: DataType::Constant(VectorType::Int),
+                actual: DataType::Custom("other constant".to_string()),
+            }),
             // Column mapped but no scale
             (Some(AesValue::Column { .. }), None) => Err(PlotError::InvalidAestheticType {
                 aesthetic: Aesthetic::Shape,
@@ -1022,7 +1013,7 @@ impl<'a> RenderContext<'a> {
         // Extract column name
         let col_name = match mapping {
             AesValue::Column { name, .. } => name.as_str(),
-            AesValue::Constant { value: _, hint: _ } => {
+            AesValue::Constant { .. } => {
                 return Err(PlotError::InvalidAestheticType {
                     aesthetic,
                     expected: DataType::ColumnMapping,
@@ -1118,10 +1109,7 @@ impl<'a> RenderContext<'a> {
                     ))
                 }
             }
-            AesValue::Constant {
-                value: prim,
-                hint: _,
-            } => {
+            AesValue::Constant { value: prim, .. } => {
                 let n_rows = self.data().len();
                 let label_str = match prim {
                     PrimitiveValue::Str(s) => s.clone(),
