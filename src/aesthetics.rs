@@ -1,19 +1,25 @@
-use crate::data::PrimitiveValue;
+use crate::data::{self, DataSource, PrimitiveValue, VectorIter};
 use crate::scale::ScaleType;
 use std::collections::HashMap;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum AestheticDomain {
+    Continuous,
+    Discrete,
+}
 
 // Supported aesthetics
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Aesthetic {
-    X,
-    Y,
+    X(AestheticDomain),
+    Y(AestheticDomain),
     Xmin,
     Xmax,
     Ymin,
     Ymax,
-    Lower,   // Q1 (first quartile) for boxplots
-    Middle,  // Median for boxplots
-    Upper,   // Q3 (third quartile) for boxplots
+    Lower,  // Q1 (first quartile) for boxplots
+    Middle, // Median for boxplots
+    Upper,  // Q3 (third quartile) for boxplots
     Color,
     Fill,
     Alpha,
@@ -50,7 +56,12 @@ impl Aesthetic {
     pub fn is_x_like(&self) -> bool {
         matches!(
             self,
-            Aesthetic::X | Aesthetic::XBegin | Aesthetic::XEnd | Aesthetic::Xmin | Aesthetic::Xmax | Aesthetic::XIntercept
+            Aesthetic::X(_)
+                | Aesthetic::XBegin
+                | Aesthetic::XEnd
+                | Aesthetic::Xmin
+                | Aesthetic::Xmax
+                | Aesthetic::XIntercept
         )
     }
 
@@ -59,16 +70,23 @@ impl Aesthetic {
     pub fn is_y_like(&self) -> bool {
         matches!(
             self,
-            Aesthetic::Y | Aesthetic::YBegin | Aesthetic::YEnd | Aesthetic::Ymin | Aesthetic::Ymax | Aesthetic::YIntercept
-                | Aesthetic::Lower | Aesthetic::Middle | Aesthetic::Upper
+            Aesthetic::Y(_)
+                | Aesthetic::YBegin
+                | Aesthetic::YEnd
+                | Aesthetic::Ymin
+                | Aesthetic::Ymax
+                | Aesthetic::YIntercept
+                | Aesthetic::Lower
+                | Aesthetic::Middle
+                | Aesthetic::Upper
         )
     }
 
     /// A printable name for the aesthetic.
     pub fn to_str(&self) -> &'static str {
         match self {
-            Aesthetic::X => "x",
-            Aesthetic::Y => "y",
+            Aesthetic::X(_) => "x",
+            Aesthetic::Y(_) => "y",
             Aesthetic::Xmin => "xmin",
             Aesthetic::Xmax => "xmax",
             Aesthetic::Ymin => "ymin",
@@ -100,25 +118,25 @@ impl Aesthetic {
 #[derive(Debug, Clone, PartialEq)]
 pub enum AesValue {
     /// Column name from data with optional scale type hint
-    Column { 
-        name: String, 
+    Column {
+        name: String,
         hint: Option<ScaleType>,
         /// Original column name before any disambiguation (e.g., "x" instead of "x_fill_1")
         /// Used for legend titles and other user-facing labels
         original_name: Option<String>,
     },
     /// Fixed value with optional scale type hint
-    Constant { 
-        value: PrimitiveValue, 
-        hint: Option<ScaleType> 
+    Constant {
+        value: PrimitiveValue,
+        hint: Option<ScaleType>,
     },
 }
 
 impl AesValue {
     /// Create a Column variant from a string-like value with no type hint
     pub fn column(name: impl Into<String>) -> Self {
-        AesValue::Column { 
-            name: name.into(), 
+        AesValue::Column {
+            name: name.into(),
             hint: None,
             original_name: None,
         }
@@ -126,8 +144,8 @@ impl AesValue {
 
     /// Create a Column variant that should be treated as continuous
     pub fn continuous_column(name: impl Into<String>) -> Self {
-        AesValue::Column { 
-            name: name.into(), 
+        AesValue::Column {
+            name: name.into(),
             hint: Some(ScaleType::Continuous),
             original_name: None,
         }
@@ -136,8 +154,8 @@ impl AesValue {
     /// Create a Column variant that should be treated as categorical
     /// Use this when you want to treat a numeric column as categorical
     pub fn categorical_column(name: impl Into<String>) -> Self {
-        AesValue::Column { 
-            name: name.into(), 
+        AesValue::Column {
+            name: name.into(),
             hint: Some(ScaleType::Categorical),
             original_name: None,
         }
@@ -150,25 +168,25 @@ impl AesValue {
 
     /// Create a Constant variant with no type hint
     pub fn constant(value: impl Into<PrimitiveValue>) -> Self {
-        AesValue::Constant { 
-            value: value.into(), 
-            hint: None 
+        AesValue::Constant {
+            value: value.into(),
+            hint: None,
         }
     }
 
     /// Create a Constant variant that should be treated as continuous
     pub fn continuous_constant(value: impl Into<PrimitiveValue>) -> Self {
-        AesValue::Constant { 
-            value: value.into(), 
-            hint: Some(ScaleType::Continuous) 
+        AesValue::Constant {
+            value: value.into(),
+            hint: Some(ScaleType::Continuous),
         }
     }
 
     /// Create a Constant variant that should be treated as categorical
     pub fn categorical_constant(value: impl Into<PrimitiveValue>) -> Self {
-        AesValue::Constant { 
-            value: value.into(), 
-            hint: Some(ScaleType::Categorical) 
+        AesValue::Constant {
+            value: value.into(),
+            hint: Some(ScaleType::Categorical),
         }
     }
 
@@ -186,9 +204,11 @@ impl AesValue {
     /// Returns None for Constant values
     pub fn as_original_column_name(&self) -> Option<&str> {
         match self {
-            AesValue::Column { name, original_name, .. } => {
-                Some(original_name.as_ref().unwrap_or(name).as_str())
-            }
+            AesValue::Column {
+                name,
+                original_name,
+                ..
+            } => Some(original_name.as_ref().unwrap_or(name).as_str()),
             AesValue::Constant { .. } => None,
         }
     }
@@ -219,6 +239,8 @@ impl AesValue {
         }
     }
 }
+
+pub mod constant;
 
 // The mapping structure
 #[derive(Clone, Debug)]
@@ -269,11 +291,11 @@ impl AesMap {
     }
 
     // Convenience methods for column mappings
-    pub fn x(&mut self, column: impl Into<String>) {
-        self.set_to_column(Aesthetic::X, column);
+    pub fn x(&mut self, column: impl Into<String>, kind: AestheticDomain) {
+        self.set_to_column(Aesthetic::X(kind), column);
     }
-    pub fn y(&mut self, column: impl Into<String>) {
-        self.set_to_column(Aesthetic::Y, column);
+    pub fn y(&mut self, column: impl Into<String>, kind: AestheticDomain) {
+        self.set_to_column(Aesthetic::Y(kind), column);
     }
     pub fn color(&mut self, column: impl Into<String>) {
         self.set_to_column(Aesthetic::Color, column);
@@ -315,10 +337,16 @@ impl AesMap {
     // Convenience methods for categorical column mappings
     // Use these when you want to treat a numeric column as categorical
     pub fn x_categorical(&mut self, column: impl Into<String>) {
-        self.set(Aesthetic::X, AesValue::categorical_column(column));
+        self.set(
+            Aesthetic::X(AestheticDomain::Discrete),
+            AesValue::categorical_column(column),
+        );
     }
     pub fn y_categorical(&mut self, column: impl Into<String>) {
-        self.set(Aesthetic::Y, AesValue::categorical_column(column));
+        self.set(
+            Aesthetic::Y(AestheticDomain::Discrete),
+            AesValue::categorical_column(column),
+        );
     }
     pub fn color_categorical(&mut self, column: impl Into<String>) {
         self.set(Aesthetic::Color, AesValue::categorical_column(column));
@@ -339,10 +367,16 @@ impl AesMap {
     // Convenience methods for continuous column mappings
     // Use these when you want to explicitly mark a column as continuous
     pub fn x_continuous(&mut self, column: impl Into<String>) {
-        self.set(Aesthetic::X, AesValue::continuous_column(column));
+        self.set(
+            Aesthetic::X(AestheticDomain::Continuous),
+            AesValue::continuous_column(column),
+        );
     }
     pub fn y_continuous(&mut self, column: impl Into<String>) {
-        self.set(Aesthetic::Y, AesValue::continuous_column(column));
+        self.set(
+            Aesthetic::Y(AestheticDomain::Continuous),
+            AesValue::continuous_column(column),
+        );
     }
     pub fn color_continuous(&mut self, column: impl Into<String>) {
         self.set(Aesthetic::Color, AesValue::continuous_column(column));
@@ -417,6 +451,122 @@ impl AesMap {
             AesValue::constant(PrimitiveValue::Float(value)),
         );
     }
+
+    pub fn get_iter<'a>(
+        &self,
+        aes: &Aesthetic,
+        data: &'a dyn DataSource,
+    ) -> Option<Box<dyn Iterator<Item = PrimitiveValue> + 'a>> {
+        match self.get(aes) {
+            Some(value) => {
+                match value {
+                    AesValue::Column { name, .. } => {
+                        // Look up the column in the data source
+                        let column = data.get(name.as_str())?;
+                        // Return an iterator over the column's values as PrimitiveValue
+                        let iter: Box<dyn Iterator<Item = PrimitiveValue> + 'a> = match column
+                            .iter()
+                        {
+                            data::VectorIter::Int(iter) => Box::new(iter.map(PrimitiveValue::Int)),
+                            data::VectorIter::Float(iter) => {
+                                Box::new(iter.map(PrimitiveValue::Float))
+                            }
+                            data::VectorIter::Str(iter) => {
+                                Box::new(iter.map(|s| PrimitiveValue::Str(s.to_string())))
+                            }
+                            data::VectorIter::Bool(iter) => {
+                                Box::new(iter.map(PrimitiveValue::Bool))
+                            }
+                        };
+                        Some(iter)
+                    }
+                    AesValue::Constant { value, .. } => {
+                        let n = data.len();
+                        Some(Box::new(std::iter::repeat(value.clone()).take(n))
+                            as Box<dyn Iterator<Item = PrimitiveValue> + 'a>)
+                    }
+                }
+            }
+            _ => None,
+        }
+    }
+
+    pub fn get_vector_iter<'a>(
+        &'a self,
+        aes: &'a Aesthetic,
+        data: &'a dyn DataSource,
+    ) -> Option<VectorIter<'a>> {
+        match self.get(aes) {
+            Some(value) => match value {
+                AesValue::Column { name, .. } => {
+                    let column = data.get(name.as_str())?;
+                    Some(column.iter())
+                },
+                AesValue::Constant { value, .. } => {
+                    match value {
+                        PrimitiveValue::Int(i) => {
+                            let n = data.len();
+                            Some(VectorIter::Int(Box::new(std::iter::repeat(*i).take(n))))
+                        }
+                        PrimitiveValue::Float(f) => {
+                            let n = data.len();
+                            Some(VectorIter::Float(Box::new(std::iter::repeat(*f).take(n))))
+                        }
+                        PrimitiveValue::Str(s) => {
+                            let n = data.len();
+                            Some(VectorIter::Str(Box::new(std::iter::repeat(s.as_str()).take(n))))
+                        }
+                        PrimitiveValue::Bool(b) => {
+                            let n = data.len();
+                            Some(VectorIter::Bool(Box::new(std::iter::repeat(*b).take(n))))
+                        }
+                    }
+                },
+            },
+            None => None,
+        }
+    }
+
+    pub fn get_iter_float<'a>(
+        &self,
+        aes: &Aesthetic,
+        data: &'a dyn DataSource,
+    ) -> Option<Box<dyn Iterator<Item = f64> + 'a>> {
+        match self.get(aes) {
+            Some(value) => {
+                match value {
+                    AesValue::Column { name, .. } => {
+                        // Look up the column in the data source
+                        let column = data.get(name.as_str())?;
+                        // Return an iterator over the column's values as f64
+                        if let Some(iter) = column.iter_float() {
+                            return Some(iter);
+                        }
+                        if let Some(iter) = column.iter_int() {
+                            // Convert int to float
+                            let float_iter = iter.map(|v| v as f64);
+                            return Some(Box::new(float_iter) as Box<dyn Iterator<Item = f64> + 'a>);
+                        }
+                    }
+                    AesValue::Constant { value, .. } => {
+                        if let PrimitiveValue::Float(f) = value {
+                            let n = data.len();
+                            return Some(Box::new(std::iter::repeat(*f).take(n))
+                                as Box<dyn Iterator<Item = f64> + 'a>);
+                        }
+                        if let PrimitiveValue::Int(i) = value {
+                            let f = *i as f64;
+                            let n = data.len();
+                            return Some(Box::new(std::iter::repeat(f).take(n))
+                                as Box<dyn Iterator<Item = f64> + 'a>);
+                        }
+                    }
+                }
+            }
+            None => {}
+        }
+        None
+    }
 }
 
 #[cfg(test)]
@@ -426,12 +576,18 @@ mod tests {
     #[test]
     fn test_aes_map() {
         let mut aes = AesMap::new();
-        aes.x("col_x");
-        aes.y("col_y");
+        aes.x("col_x", AestheticDomain::Continuous);
+        aes.y("col_y", AestheticDomain::Continuous);
         aes.color("group");
 
-        assert_eq!(aes.get(&Aesthetic::X), Some(&AesValue::column("col_x")));
-        assert_eq!(aes.get(&Aesthetic::Y), Some(&AesValue::column("col_y")));
+        assert_eq!(
+            aes.get(&Aesthetic::X(AestheticDomain::Continuous)),
+            Some(&AesValue::column("col_x"))
+        );
+        assert_eq!(
+            aes.get(&Aesthetic::Y(AestheticDomain::Continuous)),
+            Some(&AesValue::column("col_y"))
+        );
         assert_eq!(aes.get(&Aesthetic::Color), Some(&AesValue::column("group")));
     }
 
@@ -445,8 +601,8 @@ mod tests {
         assert!(Aesthetic::Group.is_grouping());
 
         // Non-grouping aesthetics
-        assert!(!Aesthetic::X.is_grouping());
-        assert!(!Aesthetic::Y.is_grouping());
+        assert!(!Aesthetic::X(AestheticDomain::Continuous).is_grouping());
+        assert!(!Aesthetic::Y(AestheticDomain::Continuous).is_grouping());
         assert!(!Aesthetic::Alpha.is_grouping());
         assert!(!Aesthetic::Size.is_grouping());
         assert!(!Aesthetic::XBegin.is_grouping());
@@ -458,7 +614,7 @@ mod tests {
     #[test]
     fn test_is_x_like() {
         // X-like aesthetics
-        assert!(Aesthetic::X.is_x_like());
+        assert!(Aesthetic::X(AestheticDomain::Continuous).is_x_like());
         assert!(Aesthetic::XBegin.is_x_like());
         assert!(Aesthetic::XEnd.is_x_like());
         assert!(Aesthetic::Xmin.is_x_like());
@@ -466,7 +622,7 @@ mod tests {
         assert!(Aesthetic::XIntercept.is_x_like());
 
         // Non-X-like aesthetics
-        assert!(!Aesthetic::Y.is_x_like());
+        assert!(!Aesthetic::Y(AestheticDomain::Continuous).is_x_like());
         assert!(!Aesthetic::Color.is_x_like());
         assert!(!Aesthetic::Fill.is_x_like());
     }
@@ -474,7 +630,7 @@ mod tests {
     #[test]
     fn test_is_y_like() {
         // Y-like aesthetics
-        assert!(Aesthetic::Y.is_y_like());
+        assert!(Aesthetic::Y(AestheticDomain::Continuous).is_y_like());
         assert!(Aesthetic::YBegin.is_y_like());
         assert!(Aesthetic::YEnd.is_y_like());
         assert!(Aesthetic::Ymin.is_y_like());
@@ -482,7 +638,7 @@ mod tests {
         assert!(Aesthetic::YIntercept.is_y_like());
 
         // Non-Y-like aesthetics
-        assert!(!Aesthetic::X.is_y_like());
+        assert!(!Aesthetic::X(AestheticDomain::Continuous).is_y_like());
         assert!(!Aesthetic::Xmin.is_y_like());
         assert!(!Aesthetic::Xmax.is_y_like());
         assert!(!Aesthetic::Color.is_y_like());

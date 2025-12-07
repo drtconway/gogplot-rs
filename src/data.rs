@@ -1,9 +1,61 @@
-pub trait PrimitiveType: PartialEq + PartialOrd + Clone + Sized + Send + Sync + 'static {}
+use std::hash::Hash;
+use ordered_float::OrderedFloat;
 
-impl PrimitiveType for i64 {}
-impl PrimitiveType for f64 {}
-impl PrimitiveType for String {}
-impl PrimitiveType for bool {}
+pub trait PrimitiveType: PartialEq + PartialOrd + Clone + Sized + Send + Sync + 'static {
+    type Sortable: Eq + Ord + Hash + Clone;
+
+    fn to_sortable(&self) -> Self::Sortable;
+
+    fn from_sortable(sortable: Self::Sortable) -> Self;
+}
+
+impl PrimitiveType for i64 {
+    type Sortable = i64;
+
+    fn to_sortable(&self) -> Self::Sortable {
+        *self
+    }
+
+    fn from_sortable(sortable: Self::Sortable) -> Self {
+        sortable
+    }
+}
+
+impl PrimitiveType for f64 {
+    type Sortable = OrderedFloat<f64>;
+
+    fn to_sortable(&self) -> Self::Sortable {
+        OrderedFloat(*self)
+    }
+
+    fn from_sortable(sortable: Self::Sortable) -> Self {
+        sortable.0
+    }
+}
+
+impl PrimitiveType for String {
+    type Sortable = String;
+
+    fn to_sortable(&self) -> Self::Sortable {
+        self.clone()
+    }
+
+    fn from_sortable(sortable: Self::Sortable) -> Self {
+        sortable
+    }
+}
+
+impl PrimitiveType for bool {
+    type Sortable = bool;
+
+    fn to_sortable(&self) -> Self::Sortable {
+        *self
+    }
+
+    fn from_sortable(sortable: Self::Sortable) -> Self {
+        sortable
+    }
+}
 
 // Primitive value types for constant aesthetics
 #[derive(Debug, Clone, PartialEq)]
