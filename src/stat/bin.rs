@@ -1,9 +1,8 @@
-use crate::aesthetics::{AesMap, AesValue, Aesthetic};
-use crate::data::DataSource;
-use crate::error::{DataType, Result};
+use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain};
+use crate::data::{ContinuousType, DataSource, PrimitiveType, VectorIter};
+use crate::error::Result;
 use crate::stat::StatTransform;
-use crate::utils::dataframe::{DataFrame, FloatVec, IntVec, StrVec};
-use crate::utils::grouping::{get_grouping_columns, create_composite_keys, group_by_key, split_composite_key};
+use crate::utils::dataframe::{BoolVec, DataFrame, FloatVec, IntVec, StrVec};
 use std::collections::HashMap;
 
 /// Bin configuration strategy
@@ -13,6 +12,56 @@ pub enum BinStrategy {
     Count(usize),
     /// Fixed bin width
     Width(f64),
+}
+
+struct Binner {
+    binwidth: f64,
+    min: f64,
+    n_bins: usize,
+}
+
+impl Binner {
+    fn new(min: f64, max: f64, strategy: &BinStrategy) -> Self {
+        let (binwidth, n_bins) = match strategy {
+            BinStrategy::Width(width) => {
+                let range = max - min;
+                let n_bins = ((range / width).ceil() as usize).max(1);
+                (*width, n_bins)
+            }
+            BinStrategy::Count(bins) => {
+                let range = max - min;
+                let binwidth = range / (*bins) as f64;
+                (binwidth, *bins)
+            }
+        };
+        Self {
+            binwidth,
+            min,
+            n_bins,
+        }
+    }
+
+    fn len(&self) -> usize {
+        self.n_bins
+    }
+
+    fn bin_of_value(&self, value: f64) -> usize {
+        let idx = ((value - self.min) / self.binwidth).floor() as usize;
+        let idx = idx.min((self.n_bins as usize) - 1);
+        idx
+    }
+
+    fn center_of_bin(&self, idx: usize) -> f64 {
+        let bin_start = self.min + idx as f64 * self.binwidth;
+        let bin_end = bin_start + self.binwidth;
+        (bin_start + bin_end) / 2.0
+    }
+
+    fn bin_bounds(&self, idx: usize) -> (f64, f64) {
+        let bin_start = self.min + idx as f64 * self.binwidth;
+        let bin_end = bin_start + self.binwidth;
+        (bin_start, bin_end)
+    }
 }
 
 impl BinStrategy {
@@ -105,187 +154,6 @@ impl Default for Bin {
     }
 }
 
-impl Bin {
-    /// Apply grouped binning - bin each group separately using the same bin boundaries.
-    ///
-    /// When multiple grouping aesthetics are mapped (e.g., both Fill and Shape), this creates
-    /// groups based on the intersection of all grouping columns. For example:
-    /// - Fill="A", Shape="Circle" → Group "A__Circle"
-    /// - Fill="A", Shape="Square" → Group "A__Square"
-    /// - Fill="B", Shape="Circle" → Group "B__Circle"
-    ///
-    /// All groups use the same bin boundaries (computed from the combined data range),
-    /// but are counted separately. This matches ggplot2 behavior.
-    fn apply_grouped(
-        &self,
-        data: Box<dyn DataSource>,
-        mapping: &AesMap,
-        x_col_name: &str,
-        group_cols: &[(Aesthetic, String)],
-    ) -> Result<Option<(Box<dyn DataSource>, AesMap)>> {
-        // Get x column
-        let x_col = data.get(x_col_name).ok_or_else(|| {
-            crate::error::PlotError::missing_column(x_col_name)
-        })?;
-
-        // Create composite group keys using grouping utilities
-        let composite_keys = create_composite_keys(data.as_ref(), group_cols);
-
-        // Convert x to float values
-        let x_values: Vec<f64> = if let Some(int_iter) = x_col.iter_int() {
-            int_iter.map(|v| v as f64).collect()
-        } else if let Some(float_iter) = x_col.iter_float() {
-            float_iter.filter(|v| v.is_finite()).collect()
-        } else {
-            return Err(crate::error::PlotError::invalid_column_type(
-                x_col_name,
-                "numeric (int or float)",
-            ));
-        };
-
-        if x_values.is_empty() {
-            return Err(crate::error::PlotError::no_valid_data(
-                "no valid numeric values for binning"
-            ));
-        }
-
-        // Calculate global bin boundaries based on all data
-        let min_val = x_values.iter().copied().fold(f64::INFINITY, f64::min);
-        let max_val = x_values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-        let range = max_val - min_val;
-
-        if range == 0.0 {
-            // All values the same - single bin per group
-            let mut groups_map: HashMap<String, i64> = HashMap::new();
-            for key in &composite_keys {
-                *groups_map.entry(key.clone()).or_insert(0) += 1;
-            }
-
-            let mut x_centers = Vec::new();
-            let mut counts = Vec::new();
-            let mut xmins = Vec::new();
-            let mut xmaxs = Vec::new();
-            let mut group_keys = Vec::new();
-
-            for (group, count) in groups_map {
-                x_centers.push(min_val);
-                counts.push(count);
-                xmins.push(min_val - 0.5);
-                xmaxs.push(min_val + 0.5);
-                group_keys.push(group);
-            }
-
-            let mut computed = DataFrame::new();
-            computed.add_column("x", Box::new(FloatVec(x_centers)));
-            computed.add_column("count", Box::new(IntVec(counts)));
-            computed.add_column("xmin", Box::new(FloatVec(xmins)));
-            computed.add_column("xmax", Box::new(FloatVec(xmaxs)));
-            
-            // Add columns for each grouping aesthetic
-            for (aesthetic, col_name) in group_cols {
-                let values: Vec<String> = group_keys
-                    .iter()
-                    .map(|key| {
-                        let key_parts = split_composite_key(key, group_cols);
-                        key_parts
-                            .iter()
-                            .find(|(aes, _)| aes == aesthetic)
-                            .map(|(_, val)| val.clone())
-                            .unwrap_or_default()
-                    })
-                    .collect();
-                computed.add_column(col_name, Box::new(StrVec(values)));
-            }
-
-            let mut new_mapping = mapping.clone();
-            new_mapping.set(Aesthetic::X, AesValue::column("x"));
-            new_mapping.set(Aesthetic::Y, AesValue::column("count"));
-
-            return Ok(Some((Box::new(computed), new_mapping)));
-        }
-
-        // Determine bin width based on strategy
-        let binwidth = match &self.strategy.strategy {
-            BinStrategy::Width(width) => *width,
-            BinStrategy::Count(bins) => range / *bins as f64,
-        };
-
-        let n_bins = ((range / binwidth).ceil() as usize).max(1);
-        let adjusted_range = binwidth * n_bins as f64;
-        let offset = (adjusted_range - range) / 2.0;
-        let bin_min = min_val - offset;
-
-        // Group data by composite key using utility
-        let groups_data = group_by_key(&x_values, &composite_keys);
-
-        // Bin each group separately using the same boundaries
-        let mut all_x_centers = Vec::new();
-        let mut all_counts = Vec::new();
-        let mut all_xmins = Vec::new();
-        let mut all_xmaxs = Vec::new();
-        let mut all_group_keys = Vec::new();
-
-        for (group_key, group_x_values) in groups_data {
-            // Count values in each bin for this group
-            let mut counts = vec![0i64; n_bins];
-            for &value in &group_x_values {
-                let bin_idx = ((value - bin_min) / binwidth).floor() as usize;
-                let bin_idx = bin_idx.min(n_bins - 1);
-                counts[bin_idx] += 1;
-            }
-
-            // If cumulative mode, accumulate counts
-            if self.strategy.cumulative {
-                for i in 1..n_bins {
-                    counts[i] += counts[i - 1];
-                }
-            }
-
-            // Generate output rows for this group (include all bins, even empty ones)
-            // This is important for position adjustments like Stack/Dodge
-            for i in 0..n_bins {
-                let bin_start = bin_min + i as f64 * binwidth;
-                let bin_end = bin_start + binwidth;
-                all_x_centers.push((bin_start + bin_end) / 2.0);
-                all_counts.push(counts[i]);
-                all_xmins.push(bin_start);
-                all_xmaxs.push(bin_end);
-                all_group_keys.push(group_key.clone());
-            }
-        }
-
-        // Create computed DataFrame
-        let mut computed = DataFrame::new();
-        computed.add_column("x", Box::new(FloatVec(all_x_centers)));
-        computed.add_column("count", Box::new(IntVec(all_counts)));
-        computed.add_column("xmin", Box::new(FloatVec(all_xmins)));
-        computed.add_column("xmax", Box::new(FloatVec(all_xmaxs)));
-        
-        // Add columns for each grouping aesthetic by splitting composite keys
-        for (aesthetic, col_name) in group_cols {
-            let values: Vec<String> = all_group_keys
-                .iter()
-                .map(|key| {
-                    let key_parts = split_composite_key(key, group_cols);
-                    key_parts
-                        .iter()
-                        .find(|(aes, _)| aes == aesthetic)
-                        .map(|(_, val)| val.clone())
-                        .unwrap_or_default()
-                })
-                .collect();
-            computed.add_column(col_name, Box::new(StrVec(values)));
-        }
-
-        // Update mapping
-        let mut new_mapping = mapping.clone();
-        new_mapping.set(Aesthetic::X, AesValue::column("x"));
-        new_mapping.set(Aesthetic::Y, AesValue::column("count"));
-
-        Ok(Some((Box::new(computed), new_mapping)))
-    }
-}
-
 impl StatTransform for Bin {
     fn apply(
         &self,
@@ -293,136 +161,291 @@ impl StatTransform for Bin {
         mapping: &AesMap,
     ) -> Result<Option<(Box<dyn DataSource>, AesMap)>> {
         // Get the x aesthetic - this is required for binning
-        let x_mapping = mapping.get(&Aesthetic::X).ok_or_else(|| {
-            crate::error::PlotError::missing_stat_input("Bin", Aesthetic::X)
-        })?;
+        let x_mapping = mapping
+            .get_vector_iter(&Aesthetic::X(AestheticDomain::Continuous), data.as_ref())
+            .ok_or_else(|| {
+                crate::error::PlotError::missing_stat_input(
+                    "Bin",
+                    Aesthetic::X(AestheticDomain::Continuous),
+                )
+            })?;
 
-        // Only support column mappings for now
-        let x_col_name = match x_mapping {
-            AesValue::Column { name, .. } => name,
-            _ => {
-                return Err(crate::error::PlotError::InvalidAestheticType {
-                    aesthetic: Aesthetic::X,
-                    expected: DataType::ColumnMapping,
-                    actual: DataType::Custom("constant".to_string()),
-                });
+        let (x_min, x_max) = get_data_range(x_mapping).ok_or_else(|| {
+            crate::error::PlotError::no_valid_data("no valid numeric values for binning")
+        })?;
+        let binner = Binner::new(x_min, x_max, &self.strategy.strategy);
+
+        if let Some(group_iter) = mapping.get_vector_iter(&Aesthetic::Group, data.as_ref()) {
+            let x_values = mapping
+                .get_vector_iter(&Aesthetic::X(AestheticDomain::Continuous), data.as_ref())
+                .unwrap();
+
+            match x_values {
+                VectorIter::Int(iterator) => {
+                    let mut new_data = DataFrame::new();
+                    let mut new_mapping = AesMap::new();
+                    bin_grouped_data(
+                        iterator,
+                        group_iter,
+                        &binner,
+                        self.strategy.cumulative,
+                        &mut new_data,
+                        &mut new_mapping,
+                    );
+                    Ok(Some((Box::new(new_data), new_mapping)))
+                }
+                VectorIter::Float(iterator) => {
+                    let mut new_data = DataFrame::new();
+                    let mut new_mapping = AesMap::new();
+                    bin_grouped_data(
+                        iterator,
+                        group_iter,
+                        &binner,
+                        self.strategy.cumulative,
+                        &mut new_data,
+                        &mut new_mapping,
+                    );
+                    Ok(Some((Box::new(new_data), new_mapping)))
+                }
+                _ => Err(crate::error::PlotError::invalid_column_type(
+                    "x",
+                    "numeric (int or float)",
+                )),
             }
-        };
-
-        // Get grouping columns using utility
-        let group_col_names = get_grouping_columns(mapping);
-
-        // If we have any grouping aesthetics, use grouped binning
-        if !group_col_names.is_empty() {
-            return self.apply_grouped(data, mapping, x_col_name.as_str(), &group_col_names);
-        }
-
-        // Otherwise, use ungrouped binning (original logic)
-        // Get the x column from data
-        let x_col = data.get(x_col_name.as_str()).ok_or_else(|| {
-            crate::error::PlotError::missing_column(x_col_name.as_str())
-        })?;
-
-        // Convert to float values
-        let x_values: Vec<f64> = if let Some(int_iter) = x_col.iter_int() {
-            int_iter.map(|v| v as f64).collect()
-        } else if let Some(float_iter) = x_col.iter_float() {
-            float_iter.filter(|v| v.is_finite()).collect()
         } else {
-            return Err(crate::error::PlotError::invalid_column_type(
-                x_col_name.as_str(),
-                "numeric (int or float)",
-            ));
-        };
-
-        if x_values.is_empty() {
-            return Err(crate::error::PlotError::no_valid_data(
-                "no valid numeric values for binning"
-            ));
-        }
-
-        // Calculate bin parameters
-        let min_val = x_values
-            .iter()
-            .copied()
-            .fold(f64::INFINITY, f64::min);
-        let max_val = x_values
-            .iter()
-            .copied()
-            .fold(f64::NEG_INFINITY, f64::max);
-
-        let range = max_val - min_val;
-        if range == 0.0 {
-            // All values are the same - create a single bin
-            let mut computed = DataFrame::new();
-            computed.add_column("x", Box::new(FloatVec(vec![min_val])));
-            computed.add_column("count", Box::new(IntVec(vec![x_values.len() as i64])));
-            computed.add_column("xmin", Box::new(FloatVec(vec![min_val - 0.5])));
-            computed.add_column("xmax", Box::new(FloatVec(vec![min_val + 0.5])));
-
-            let mut new_mapping = mapping.clone();
-            new_mapping.set(Aesthetic::X, AesValue::column("x"));
-            new_mapping.set(Aesthetic::Y, AesValue::column("count"));
-
-            return Ok(Some((Box::new(computed), new_mapping)));
-        }
-
-        // Determine bin width based on strategy
-        let binwidth = match &self.strategy.strategy {
-            BinStrategy::Width(width) => *width,
-            BinStrategy::Count(bins) => range / *bins as f64,
-        };
-
-        // Determine actual number of bins needed
-        let n_bins = ((range / binwidth).ceil() as usize).max(1);
-
-        // Expand range slightly to ensure max value is included
-        let adjusted_range = binwidth * n_bins as f64;
-        let offset = (adjusted_range - range) / 2.0;
-        let bin_min = min_val - offset;
-
-        // Count values in each bin
-        let mut counts = vec![0i64; n_bins];
-        for &value in &x_values {
-            let bin_idx = ((value - bin_min) / binwidth).floor() as usize;
-            let bin_idx = bin_idx.min(n_bins - 1); // Ensure last bin includes max value
-            counts[bin_idx] += 1;
-        }
-
-        // If cumulative mode, accumulate counts
-        if self.strategy.cumulative {
-            for i in 1..n_bins {
-                counts[i] += counts[i - 1];
+            let x_values = mapping
+                .get_vector_iter(&Aesthetic::X(AestheticDomain::Continuous), data.as_ref())
+                .unwrap();
+            match x_values {
+                VectorIter::Int(iterator) => {
+                    let (mins, centers, maxs, counts) =
+                        bin_ungrouped_data(iterator, &binner, self.strategy.cumulative);
+                    let new_data = {
+                        let mut df = DataFrame::new();
+                        df.add_column("xmin", Box::new(FloatVec(mins)));
+                        df.add_column("x", Box::new(FloatVec(centers)));
+                        df.add_column("xmax", Box::new(FloatVec(maxs)));
+                        df.add_column("count", Box::new(IntVec(counts)));
+                        df
+                    };
+                    let mut new_mapping = AesMap::new();
+                    new_mapping.set(
+                        Aesthetic::X(AestheticDomain::Continuous),
+                        AesValue::column("x"),
+                    );
+                    new_mapping.set(
+                        Aesthetic::Xmin(AestheticDomain::Continuous),
+                        AesValue::column("xmin"),
+                    );
+                    new_mapping.set(
+                        Aesthetic::Xmax(AestheticDomain::Continuous),
+                        AesValue::column("xmax"),
+                    );
+                    new_mapping.set(
+                        Aesthetic::Y(AestheticDomain::Continuous),
+                        AesValue::column("count"),
+                    );
+                    Ok(Some((Box::new(new_data), new_mapping)))
+                }
+                VectorIter::Float(iterator) => {
+                    let (mins, centers, maxs, counts) =
+                        bin_ungrouped_data(iterator, &binner, self.strategy.cumulative);
+                    let new_data = {
+                        let mut df = DataFrame::new();
+                        df.add_column("xmin", Box::new(FloatVec(mins)));
+                        df.add_column("x", Box::new(FloatVec(centers)));
+                        df.add_column("xmax", Box::new(FloatVec(maxs)));
+                        df.add_column("count", Box::new(IntVec(counts)));
+                        df
+                    };
+                    let mut new_mapping = AesMap::new();
+                    new_mapping.set(
+                        Aesthetic::X(AestheticDomain::Continuous),
+                        AesValue::column("x"),
+                    );
+                    new_mapping.set(
+                        Aesthetic::Xmin(AestheticDomain::Continuous),
+                        AesValue::column("xmin"),
+                    );
+                    new_mapping.set(
+                        Aesthetic::Xmax(AestheticDomain::Continuous),
+                        AesValue::column("xmax"),
+                    );
+                    new_mapping.set(
+                        Aesthetic::Y(AestheticDomain::Continuous),
+                        AesValue::column("count"),
+                    );
+                    Ok(Some((Box::new(new_data), new_mapping)))
+                }
+                _ => Err(crate::error::PlotError::invalid_column_type(
+                    "x",
+                    "numeric (int or float)",
+                )),
             }
         }
-
-        // Generate bin centers, min, and max
-        let mut centers = Vec::with_capacity(n_bins);
-        let mut xmins = Vec::with_capacity(n_bins);
-        let mut xmaxs = Vec::with_capacity(n_bins);
-
-        for i in 0..n_bins {
-            let bin_start = bin_min + i as f64 * binwidth;
-            let bin_end = bin_start + binwidth;
-            centers.push((bin_start + bin_end) / 2.0);
-            xmins.push(bin_start);
-            xmaxs.push(bin_end);
-        }
-
-        // Create computed DataFrame
-        let mut computed = DataFrame::new();
-        computed.add_column("x", Box::new(FloatVec(centers)));
-        computed.add_column("count", Box::new(IntVec(counts)));
-        computed.add_column("xmin", Box::new(FloatVec(xmins)));
-        computed.add_column("xmax", Box::new(FloatVec(xmaxs)));
-
-        // Update mapping
-        let mut new_mapping = mapping.clone();
-        new_mapping.set(Aesthetic::X, AesValue::column("x"));
-        new_mapping.set(Aesthetic::Y, AesValue::column("count"));
-
-        Ok(Some((Box::new(computed), new_mapping)))
     }
+}
+
+fn get_data_range<'a>(iter: VectorIter<'a>) -> Option<(f64, f64)> {
+    match iter {
+        VectorIter::Int(int_iter) => get_data_range_inner(int_iter),
+        VectorIter::Float(float_iter) => get_data_range_inner(float_iter),
+        _ => None,
+    }
+}
+
+fn get_data_range_inner<T: ContinuousType>(
+    mut iter: impl Iterator<Item = T>,
+) -> Option<(f64, f64)> {
+    let first = iter.next()?;
+    let mut min = first.clone();
+    let mut max = first;
+    for value in iter {
+        if value < min {
+            min = value;
+        } else if value > max {
+            max = value;
+        }
+    }
+    Some((min.to_f64(), max.to_f64()))
+}
+
+fn bin_ungrouped_data<T: ContinuousType>(
+    iterator: impl Iterator<Item = T>,
+    binner: &Binner,
+    cumulative: bool,
+) -> (Vec<f64>, Vec<f64>, Vec<f64>, Vec<i64>) {
+    let mut counts = vec![0i64; binner.len()];
+
+    for value in iterator {
+        let value_f64 = value.to_f64();
+        let bin_idx = binner.bin_of_value(value_f64);
+        counts[bin_idx] += 1;
+    }
+
+    // If cumulative, accumulate counts
+    if cumulative {
+        for i in 1..binner.len() {
+            counts[i] += counts[i - 1];
+        }
+    }
+
+    // Generate bin centers
+    let mut mins = Vec::with_capacity(binner.len());
+    let mut centers = Vec::with_capacity(binner.len());
+    let mut maxs = Vec::with_capacity(binner.len());
+    for i in 0..binner.len() {
+        let (min, max) = binner.bin_bounds(i);
+        mins.push(min);
+        centers.push(binner.center_of_bin(i));
+        maxs.push(max);
+    }
+
+    (mins, centers, maxs, counts)
+}
+
+fn bin_grouped_data<'a, T: ContinuousType>(
+    x_values: impl Iterator<Item = T>,
+    group_values: VectorIter<'a>,
+    binner: &Binner,
+    cumulative: bool,
+    data: &mut DataFrame,
+    mapping: &mut AesMap,
+) {
+    match group_values {
+        VectorIter::Int(iterator) => {
+            let group_values =
+                bin_grouped_data_inner(x_values, iterator, binner, cumulative, data, mapping);
+            data.add_column("group", Box::new(IntVec(group_values)));
+            mapping.set(Aesthetic::Group, AesValue::column("group"));
+        }
+        VectorIter::Float(iterator) => {
+            let group_values =
+                bin_grouped_data_inner(x_values, iterator, binner, cumulative, data, mapping);
+            data.add_column("group", Box::new(FloatVec(group_values)));
+            mapping.set(Aesthetic::Group, AesValue::column("group"));
+        }
+        VectorIter::Str(iterator) => {
+            let group_values =
+                bin_grouped_data_inner(x_values, iterator.map(|s| s.to_string()), binner, cumulative, data, mapping);
+            data.add_column("group", Box::new(StrVec(group_values)));
+            mapping.set(Aesthetic::Group, AesValue::column("group"));
+        }
+        VectorIter::Bool(iterator) => {
+            let group_values =
+                bin_grouped_data_inner(x_values, iterator, binner, cumulative, data, mapping);
+            data.add_column("group", Box::new(BoolVec(group_values)));
+            mapping.set(Aesthetic::Group, AesValue::column("group"));
+        }
+    }
+}
+
+fn bin_grouped_data_inner<T: ContinuousType, G: PrimitiveType>(
+    x_values: impl Iterator<Item = T>,
+    group_values: impl Iterator<Item = G>,
+    binner: &Binner,
+    cumulative: bool,
+    data: &mut DataFrame,
+    mapping: &mut AesMap,
+) -> Vec<G> {
+    let mut groups: HashMap<G::Sortable, Vec<i64>> = HashMap::new();
+    for (x, group) in x_values.zip(group_values) {
+        let value_f64 = x.to_f64();
+        let bin_idx = binner.bin_of_value(value_f64);
+        let entry = groups
+            .entry(group.to_sortable())
+            .or_insert_with(|| vec![0i64; binner.len()]);
+        entry[bin_idx] += 1;
+    }
+
+    let mut pairs = groups.into_iter().collect::<Vec<_>>();
+    pairs.sort_by_key(|(group, _)| group.clone());
+
+    let n = pairs.len() * binner.len();
+    let mut mins = Vec::with_capacity(n);
+    let mut centers = Vec::with_capacity(n);
+    let mut maxs = Vec::with_capacity(n);
+    let mut counts = Vec::with_capacity(n);
+    let mut group_values = Vec::with_capacity(n);
+
+    for (group, group_counts) in pairs.into_iter() {
+        let group = G::from_sortable(group);
+        let mut group_counts = group_counts;
+        for i in 0..binner.len() {
+            if cumulative && i > 0 {
+                group_counts[i] += group_counts[i - 1];
+            }
+            let count = group_counts[i];
+            counts.push(count);
+            let (min, max) = binner.bin_bounds(i);
+            mins.push(min);
+            centers.push(binner.center_of_bin(i));
+            maxs.push(max);
+            group_values.push(group.clone());
+        }
+    }
+
+    data.add_column("xmin", Box::new(FloatVec(mins)));
+    data.add_column("x", Box::new(FloatVec(centers)));
+    data.add_column("xmax", Box::new(FloatVec(maxs)));
+    data.add_column("count", Box::new(IntVec(counts)));
+    mapping.set(
+        Aesthetic::X(AestheticDomain::Continuous),
+        AesValue::column("x"),
+    );
+    mapping.set(
+        Aesthetic::Xmin(AestheticDomain::Continuous),
+        AesValue::column("xmin"),
+    );
+    mapping.set(
+        Aesthetic::Xmax(AestheticDomain::Continuous),
+        AesValue::column("xmax"),
+    );
+    mapping.set(
+        Aesthetic::Y(AestheticDomain::Continuous),
+        AesValue::column("count"),
+    );
+    group_values
 }
 
 #[cfg(test)]
@@ -433,13 +456,10 @@ mod tests {
     #[test]
     fn test_bin_basic() {
         let mut df = DataFrame::new();
-        df.add_column(
-            "x",
-            Box::new(FloatVec(vec![1.0, 1.5, 2.0, 2.5, 3.0, 3.5])),
-        );
+        df.add_column("x", Box::new(FloatVec(vec![1.0, 1.5, 2.0, 2.5, 3.0, 3.5])));
 
         let mut mapping = AesMap::new();
-        mapping.x("x");
+        mapping.x("x", AestheticDomain::Continuous);
 
         let bin = Bin::with_count(3);
         let result = bin.apply(Box::new(df), &mapping);
@@ -449,7 +469,7 @@ mod tests {
 
         // Check that y is now mapped to count
         assert_eq!(
-            new_mapping.get(&Aesthetic::Y),
+            new_mapping.get(&Aesthetic::Y(AestheticDomain::Continuous)),
             Some(&AesValue::column("count"))
         );
 
@@ -466,7 +486,7 @@ mod tests {
         df.add_column("x", Box::new(IntVec(vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10])));
 
         let mut mapping = AesMap::new();
-        mapping.x("x");
+        mapping.x("x", AestheticDomain::Continuous);
 
         let bin = Bin::with_count(5);
         let (data, _) = bin.apply(Box::new(df), &mapping).unwrap().unwrap();
@@ -486,7 +506,7 @@ mod tests {
         );
 
         let mut mapping = AesMap::new();
-        mapping.x("x");
+        mapping.x("x", AestheticDomain::Continuous);
 
         let bin = Bin::with_width(1.0);
         let (data, _) = bin.apply(Box::new(df), &mapping).unwrap().unwrap();
@@ -495,7 +515,7 @@ mod tests {
         // [0-1), [1-2), [2-3), [3-4]
         let xmin_col = data.get("xmin").unwrap();
         let xmins: Vec<f64> = xmin_col.iter_float().unwrap().collect();
-        
+
         let xmax_col = data.get("xmax").unwrap();
         let xmaxs: Vec<f64> = xmax_col.iter_float().unwrap().collect();
 
@@ -511,7 +531,7 @@ mod tests {
         df.add_column("x", Box::new(FloatVec(vec![5.0, 5.0, 5.0, 5.0])));
 
         let mut mapping = AesMap::new();
-        mapping.x("x");
+        mapping.x("x", AestheticDomain::Continuous);
 
         let bin = Bin::with_count(3);
         let (data, _) = bin.apply(Box::new(df), &mapping).unwrap().unwrap();
@@ -543,19 +563,11 @@ mod tests {
         let mut df = DataFrame::new();
         df.add_column(
             "x",
-            Box::new(FloatVec(vec![
-                1.0,
-                f64::NAN,
-                2.0,
-                3.0,
-                f64::NAN,
-                4.0,
-                5.0,
-            ])),
+            Box::new(FloatVec(vec![1.0, f64::NAN, 2.0, 3.0, f64::NAN, 4.0, 5.0])),
         );
 
         let mut mapping = AesMap::new();
-        mapping.x("x");
+        mapping.x("x", AestheticDomain::Continuous);
 
         let bin = Bin::with_count(2);
         let (data, _) = bin.apply(Box::new(df), &mapping).unwrap().unwrap();
@@ -570,10 +582,15 @@ mod tests {
     fn test_binwidth_explicit() {
         // Test that binwidth parameter actually controls bin width
         let mut df = DataFrame::new();
-        df.add_column("x", Box::new(FloatVec(vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0])));
+        df.add_column(
+            "x",
+            Box::new(FloatVec(vec![
+                0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0,
+            ])),
+        );
 
         let mut mapping = AesMap::new();
-        mapping.x("x");
+        mapping.x("x", AestheticDomain::Continuous);
 
         // With range 0-10 and binwidth 2.0, we should get 5 bins
         let bin = Bin::with_width(2.0);
@@ -581,39 +598,65 @@ mod tests {
 
         let xmin_col = data.get("xmin").unwrap();
         let xmins: Vec<f64> = xmin_col.iter_float().unwrap().collect();
-        
+
         let xmax_col = data.get("xmax").unwrap();
         let xmaxs: Vec<f64> = xmax_col.iter_float().unwrap().collect();
 
         println!("Binwidth 2.0 test - Number of bins: {}", xmins.len());
         for i in 0..xmins.len() {
             let width = xmaxs[i] - xmins[i];
-            println!("  Bin {}: [{:.2}, {:.2}) width={:.2}", i, xmins[i], xmaxs[i], width);
+            println!(
+                "  Bin {}: [{:.2}, {:.2}) width={:.2}",
+                i, xmins[i], xmaxs[i], width
+            );
             // Each bin should be exactly 2.0 wide
-            assert!((width - 2.0).abs() < 0.01, "Bin {} width is {}, expected 2.0", i, width);
+            assert!(
+                (width - 2.0).abs() < 0.01,
+                "Bin {} width is {}, expected 2.0",
+                i,
+                width
+            );
         }
-        
+
         // Should have 5 bins (range 10 / binwidth 2 = 5)
-        assert_eq!(xmins.len(), 5, "Expected 5 bins with binwidth 2.0 over range 10");
+        assert_eq!(
+            xmins.len(),
+            5,
+            "Expected 5 bins with binwidth 2.0 over range 10"
+        );
     }
 
     #[test]
     fn test_grouped_binning() {
         use crate::utils::dataframe::StrVec;
-        
+
         // Create data with two groups
         let mut df = DataFrame::new();
-        df.add_column("x", Box::new(FloatVec(vec![
-            1.0, 1.5, 2.0, 2.5, 3.0,  // Group A
-            2.0, 2.5, 3.0, 3.5, 4.0,  // Group B
-        ])));
-        df.add_column("group", Box::new(StrVec(vec![
-            "A".to_string(), "A".to_string(), "A".to_string(), "A".to_string(), "A".to_string(),
-            "B".to_string(), "B".to_string(), "B".to_string(), "B".to_string(), "B".to_string(),
-        ])));
+        df.add_column(
+            "x",
+            Box::new(FloatVec(vec![
+                1.0, 1.5, 2.0, 2.5, 3.0, // Group A
+                2.0, 2.5, 3.0, 3.5, 4.0, // Group B
+            ])),
+        );
+        df.add_column(
+            "group",
+            Box::new(StrVec(vec![
+                "A".to_string(),
+                "A".to_string(),
+                "A".to_string(),
+                "A".to_string(),
+                "A".to_string(),
+                "B".to_string(),
+                "B".to_string(),
+                "B".to_string(),
+                "B".to_string(),
+                "B".to_string(),
+            ])),
+        );
 
         let mut mapping = AesMap::new();
-        mapping.x("x");
+        mapping.x("x", AestheticDomain::Continuous);
         mapping.set(Aesthetic::Fill, AesValue::column("group"));
 
         let bin = Bin::with_count(3);
@@ -621,7 +664,7 @@ mod tests {
 
         // Check that y is mapped to count
         assert_eq!(
-            new_mapping.get(&Aesthetic::Y),
+            new_mapping.get(&Aesthetic::Y(AestheticDomain::Continuous)),
             Some(&AesValue::column("count"))
         );
 
@@ -630,7 +673,11 @@ mod tests {
         assert!(group_col.iter_str().is_some());
 
         // Check that we have data for both groups
-        let groups: Vec<String> = group_col.iter_str().unwrap().map(|s| s.to_string()).collect();
+        let groups: Vec<String> = group_col
+            .iter_str()
+            .unwrap()
+            .map(|s| s.to_string())
+            .collect();
         assert!(groups.contains(&"A".to_string()));
         assert!(groups.contains(&"B".to_string()));
 
@@ -649,37 +696,57 @@ mod tests {
         let bin_width = xmaxs[0] - xmins[0];
         for i in 0..xmins.len() {
             let width = xmaxs[i] - xmins[i];
-            assert!((width - bin_width).abs() < 0.01, "Bin widths should be consistent");
+            assert!(
+                (width - bin_width).abs() < 0.01,
+                "Bin widths should be consistent"
+            );
         }
     }
 
     #[test]
     fn test_multiple_grouping_aesthetics() {
         use crate::utils::dataframe::StrVec;
-        
+
         // Create data with two grouping dimensions
         let mut df = DataFrame::new();
-        df.add_column("x", Box::new(FloatVec(vec![
-            1.0, 2.0,  // Color A, Shape X
-            3.0, 4.0,  // Color A, Shape Y
-            1.5, 2.5,  // Color B, Shape X
-            3.5, 4.5,  // Color B, Shape Y
-        ])));
-        df.add_column("color", Box::new(StrVec(vec![
-            "A".to_string(), "A".to_string(),
-            "A".to_string(), "A".to_string(),
-            "B".to_string(), "B".to_string(),
-            "B".to_string(), "B".to_string(),
-        ])));
-        df.add_column("shape", Box::new(StrVec(vec![
-            "X".to_string(), "X".to_string(),
-            "Y".to_string(), "Y".to_string(),
-            "X".to_string(), "X".to_string(),
-            "Y".to_string(), "Y".to_string(),
-        ])));
+        df.add_column(
+            "x",
+            Box::new(FloatVec(vec![
+                1.0, 2.0, // Color A, Shape X
+                3.0, 4.0, // Color A, Shape Y
+                1.5, 2.5, // Color B, Shape X
+                3.5, 4.5, // Color B, Shape Y
+            ])),
+        );
+        df.add_column(
+            "color",
+            Box::new(StrVec(vec![
+                "A".to_string(),
+                "A".to_string(),
+                "A".to_string(),
+                "A".to_string(),
+                "B".to_string(),
+                "B".to_string(),
+                "B".to_string(),
+                "B".to_string(),
+            ])),
+        );
+        df.add_column(
+            "shape",
+            Box::new(StrVec(vec![
+                "X".to_string(),
+                "X".to_string(),
+                "Y".to_string(),
+                "Y".to_string(),
+                "X".to_string(),
+                "X".to_string(),
+                "Y".to_string(),
+                "Y".to_string(),
+            ])),
+        );
 
         let mut mapping = AesMap::new();
-        mapping.x("x");
+        mapping.x("x", AestheticDomain::Continuous);
         mapping.set(Aesthetic::Fill, AesValue::column("color"));
         mapping.set(Aesthetic::Shape, AesValue::column("shape"));
 
@@ -693,14 +760,22 @@ mod tests {
         assert!(shape_col.iter_str().is_some());
 
         // Should have 4 distinct groups: A-X, A-Y, B-X, B-Y
-        let colors: Vec<String> = color_col.iter_str().unwrap().map(|s| s.to_string()).collect();
-        let shapes: Vec<String> = shape_col.iter_str().unwrap().map(|s| s.to_string()).collect();
-        
+        let colors: Vec<String> = color_col
+            .iter_str()
+            .unwrap()
+            .map(|s| s.to_string())
+            .collect();
+        let shapes: Vec<String> = shape_col
+            .iter_str()
+            .unwrap()
+            .map(|s| s.to_string())
+            .collect();
+
         let mut groups = std::collections::HashSet::new();
         for i in 0..colors.len() {
             groups.insert(format!("{}-{}", colors[i], shapes[i]));
         }
-        
+
         // We expect up to 4 groups (some bins may be empty for some groups)
         assert!(groups.len() <= 4);
         assert!(groups.len() >= 2); // At least some groups should be present

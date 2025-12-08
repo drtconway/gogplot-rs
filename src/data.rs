@@ -57,6 +57,28 @@ impl PrimitiveType for bool {
     }
 }
 
+pub trait DiscreteType: PrimitiveType {}
+
+impl DiscreteType for i64 {}
+impl DiscreteType for String {}
+impl DiscreteType for bool {}
+
+pub trait ContinuousType: PrimitiveType {
+    fn to_f64(&self) -> f64;
+}
+
+impl ContinuousType for f64 {
+    fn to_f64(&self) -> f64 {
+        *self
+    }
+}
+
+impl ContinuousType for i64 {
+    fn to_f64(&self) -> f64 {
+        *self as f64
+    }
+}
+
 // Primitive value types for constant aesthetics
 #[derive(Debug, Clone, PartialEq)]
 pub enum PrimitiveValue {
