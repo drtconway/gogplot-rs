@@ -79,7 +79,7 @@ impl Boxplot {
                 y_values,
                 |vals| Box::new(StrVec(vals)),
             ),
-            _ => Err(PlotError::Other{
+            _ => Err(PlotError::Other {
                 details: "X aesthetic for boxplot must be discrete (Int or Str)".to_string(),
             }),
         }
@@ -98,7 +98,7 @@ impl Boxplot {
             VectorIter::Int(iterator) => {
                 self.compute_ungrouped_boxplot_data_inner(x_values, iterator, x_maker)
             }
-            _ => Err(PlotError::Other{
+            _ => Err(PlotError::Other {
                 details: "Y aesthetic for boxplot must be continuous (Float or Int)".to_string(),
             }),
         }
@@ -192,7 +192,7 @@ impl Boxplot {
                 iterator.map(|s| s.to_string()),
                 |vals| Box::new(StrVec(vals)),
             ),
-            _ => Err(PlotError::Other{
+            _ => Err(PlotError::Other {
                 details: "Group aesthetic for boxplot must be discrete (Int or Str)".to_string(),
             }),
         }
@@ -220,7 +220,7 @@ impl Boxplot {
                 |vals| Box::new(StrVec(vals)),
                 group_maker,
             ),
-            _ => Err(PlotError::Other{
+            _ => Err(PlotError::Other {
                 details: "X aesthetic for boxplot must be discrete (Int or Str)".to_string(),
             }),
         }
@@ -249,7 +249,7 @@ impl Boxplot {
                 x_maker,
                 group_maker,
             ),
-            _ => Err(PlotError::Other{
+            _ => Err(PlotError::Other {
                 details: "Y aesthetic for boxplot must be continuous (Float or Int)".to_string(),
             }),
         }
@@ -408,6 +408,14 @@ impl StatTransform for Boxplot {
                 AesValue::column("x"),
             );
             new_mapping.set(
+                Aesthetic::Xmin(AestheticDomain::Discrete),
+                AesValue::column("x"),
+            );
+            new_mapping.set(
+                Aesthetic::Xmax(AestheticDomain::Discrete),
+                AesValue::column("x"),
+            );
+            new_mapping.set(
                 Aesthetic::Y(AestheticDomain::Continuous),
                 AesValue::column("y"),
             );
@@ -432,6 +440,14 @@ impl StatTransform for Boxplot {
             let mut new_mapping = AesMap::new();
             new_mapping.set(
                 Aesthetic::X(AestheticDomain::Discrete),
+                AesValue::column("x"),
+            );
+            new_mapping.set(
+                Aesthetic::Xmin(AestheticDomain::Discrete),
+                AesValue::column("x"),
+            );
+            new_mapping.set(
+                Aesthetic::Xmax(AestheticDomain::Discrete),
                 AesValue::column("x"),
             );
             new_mapping.set(
@@ -541,8 +557,14 @@ mod tests {
         df.add_column("y", Box::new(FloatVec(vec![10.0, 20.0, 30.0, 40.0])));
 
         let mut mapping = AesMap::new();
-        mapping.set(Aesthetic::X(AestheticDomain::Discrete), AesValue::column("x"));
-        mapping.set(Aesthetic::Y(AestheticDomain::Continuous), AesValue::column("y"));
+        mapping.set(
+            Aesthetic::X(AestheticDomain::Discrete),
+            AesValue::column("x"),
+        );
+        mapping.set(
+            Aesthetic::Y(AestheticDomain::Continuous),
+            AesValue::column("y"),
+        );
 
         let boxplot = Boxplot::new();
         let result = boxplot.apply(Box::new(df), &mapping).unwrap();
@@ -568,7 +590,10 @@ mod tests {
         assert!(!middle_vals[1].is_nan());
 
         // Verify mapping was updated
-        assert_eq!(new_mapping.get(&Aesthetic::X(AestheticDomain::Discrete)), Some(&AesValue::column("x")));
+        assert_eq!(
+            new_mapping.get(&Aesthetic::X(AestheticDomain::Discrete)),
+            Some(&AesValue::column("x"))
+        );
         assert_eq!(
             new_mapping.get(&Aesthetic::Middle),
             Some(&AesValue::column("middle"))
@@ -588,8 +613,14 @@ mod tests {
         df.add_column("y", Box::new(FloatVec(vec![1.0, 10.0, 11.0, 12.0, 100.0])));
 
         let mut mapping = AesMap::new();
-        mapping.set(Aesthetic::X(AestheticDomain::Discrete), AesValue::column("x"));
-        mapping.set(Aesthetic::Y(AestheticDomain::Continuous), AesValue::column("y"));
+        mapping.set(
+            Aesthetic::X(AestheticDomain::Discrete),
+            AesValue::column("x"),
+        );
+        mapping.set(
+            Aesthetic::Y(AestheticDomain::Continuous),
+            AesValue::column("y"),
+        );
 
         let boxplot = Boxplot::new();
         let result = boxplot.apply(Box::new(df), &mapping).unwrap();
@@ -629,8 +660,14 @@ mod tests {
         df.add_column("y", Box::new(FloatVec(vec![10.0, 20.0, 30.0, 40.0])));
 
         let mut mapping = AesMap::new();
-        mapping.set(Aesthetic::X(AestheticDomain::Discrete), AesValue::column("x"));
-        mapping.set(Aesthetic::Y(AestheticDomain::Continuous), AesValue::column("y"));
+        mapping.set(
+            Aesthetic::X(AestheticDomain::Discrete),
+            AesValue::column("x"),
+        );
+        mapping.set(
+            Aesthetic::Y(AestheticDomain::Continuous),
+            AesValue::column("y"),
+        );
 
         let boxplot = Boxplot::new();
         let result = boxplot.apply(Box::new(df), &mapping).unwrap().unwrap();
@@ -659,8 +696,14 @@ mod tests {
         df.add_column("y", Box::new(FloatVec(vec![10.0, 20.0, 30.0, 40.0])));
 
         let mut mapping = AesMap::new();
-        mapping.set(Aesthetic::X(AestheticDomain::Discrete), AesValue::column("x"));
-        mapping.set(Aesthetic::Y(AestheticDomain::Continuous), AesValue::column("y"));
+        mapping.set(
+            Aesthetic::X(AestheticDomain::Discrete),
+            AesValue::column("x"),
+        );
+        mapping.set(
+            Aesthetic::Y(AestheticDomain::Continuous),
+            AesValue::column("y"),
+        );
 
         let boxplot = Boxplot::new();
         let result = boxplot.apply(Box::new(df), &mapping).unwrap().unwrap();
@@ -697,8 +740,14 @@ mod tests {
         df.add_column("y", Box::new(FloatVec(vec![10.0, 20.0, 30.0, 40.0])));
 
         let mut mapping = AesMap::new();
-        mapping.set(Aesthetic::X(AestheticDomain::Discrete), AesValue::column("x"));
-        mapping.set(Aesthetic::Y(AestheticDomain::Continuous), AesValue::column("y"));
+        mapping.set(
+            Aesthetic::X(AestheticDomain::Discrete),
+            AesValue::column("x"),
+        );
+        mapping.set(
+            Aesthetic::Y(AestheticDomain::Continuous),
+            AesValue::column("y"),
+        );
 
         let boxplot = Boxplot::new();
         let result = boxplot.apply(Box::new(df), &mapping).unwrap().unwrap();
