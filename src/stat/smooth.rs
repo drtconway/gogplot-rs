@@ -2,7 +2,7 @@
 //!
 //! Computes fitted values and confidence intervals using various smoothing methods.
 
-use crate::aesthetics::{AesMap, AesValue, Aesthetic};
+use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain};
 use crate::data::DataSource;
 use crate::error::{PlotError, Result};
 use crate::stat::utils::get_numeric_values;
@@ -614,8 +614,8 @@ impl StatTransform for Smooth {
         mapping: &AesMap,
     ) -> Result<Option<(Box<dyn DataSource>, AesMap)>> {
         // Get x and y values from aesthetic mappings
-        let x_values = get_numeric_values(data.as_ref(), mapping, Aesthetic::X)?;
-        let y_values = get_numeric_values(data.as_ref(), mapping, Aesthetic::Y)?;
+        let x_values = get_numeric_values(data.as_ref(), mapping, Aesthetic::X(AestheticDomain::Continuous))?;
+        let y_values = get_numeric_values(data.as_ref(), mapping, Aesthetic::Y(AestheticDomain::Continuous))?;
 
         // Get grouping aesthetics
         let group_cols = get_grouping_columns(mapping);
@@ -713,10 +713,10 @@ impl StatTransform for Smooth {
 
         // Update mapping
         let mut new_mapping = mapping.clone();
-        new_mapping.set(Aesthetic::X, AesValue::column("x"));
-        new_mapping.set(Aesthetic::Y, AesValue::column("y"));
-        new_mapping.set(Aesthetic::Ymin, AesValue::column("ymin"));
-        new_mapping.set(Aesthetic::Ymax, AesValue::column("ymax"));
+        new_mapping.set(Aesthetic::X(AestheticDomain::Continuous), AesValue::column("x"));
+        new_mapping.set(Aesthetic::Y(AestheticDomain::Continuous), AesValue::column("y"));
+        new_mapping.set(Aesthetic::Ymin(AestheticDomain::Continuous), AesValue::column("ymin"));
+        new_mapping.set(Aesthetic::Ymax(AestheticDomain::Continuous), AesValue::column("ymax"));
 
         Ok(Some((Box::new(computed), new_mapping)))
     }

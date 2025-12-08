@@ -127,7 +127,7 @@ pub fn establish_grouping(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::dataframe::{FloatVec, IntVec, StrVec};
+    use crate::{aesthetics::AestheticDomain, utils::dataframe::{FloatVec, IntVec, StrVec}};
 
     #[test]
     fn test_no_grouping_aesthetics() {
@@ -138,7 +138,7 @@ mod tests {
 
         let mut mapping = AesMap::new();
         mapping.set(
-            Aesthetic::X,
+            Aesthetic::X(AestheticDomain::Continuous),
             AesValue::Column {
                 name: "x".to_string(),
                 hint: Some(ScaleType::Continuous),
@@ -146,7 +146,7 @@ mod tests {
             },
         );
         mapping.set(
-            Aesthetic::Y,
+            Aesthetic::Y(AestheticDomain::Continuous),
             AesValue::Column {
                 name: "y".to_string(),
                 hint: Some(ScaleType::Continuous),
@@ -168,7 +168,7 @@ mod tests {
 
         let mut mapping = AesMap::new();
         mapping.set(
-            Aesthetic::X,
+            Aesthetic::X(AestheticDomain::Continuous),
             AesValue::Column {
                 name: "x".to_string(),
                 hint: Some(ScaleType::Continuous),
@@ -198,7 +198,7 @@ mod tests {
 
         let mut mapping = AesMap::new();
         mapping.set(
-            Aesthetic::X,
+            Aesthetic::X(AestheticDomain::Continuous),
             AesValue::Column {
                 name: "x".to_string(),
                 hint: Some(ScaleType::Continuous),
@@ -241,7 +241,7 @@ mod tests {
 
         let mut mapping = AesMap::new();
         mapping.set(
-            Aesthetic::X,
+            Aesthetic::X(AestheticDomain::Continuous),
             AesValue::Column {
                 name: "x".to_string(),
                 hint: Some(ScaleType::Continuous),
@@ -284,7 +284,7 @@ mod tests {
 
         let mut mapping = AesMap::new();
         mapping.set(
-            Aesthetic::X,
+            Aesthetic::X(AestheticDomain::Continuous),
             AesValue::Column {
                 name: "x".to_string(),
                 hint: Some(ScaleType::Continuous),
@@ -352,7 +352,7 @@ mod tests {
 
         let mut mapping = AesMap::new();
         mapping.set(
-            Aesthetic::X,
+            Aesthetic::X(AestheticDomain::Continuous),
             AesValue::Column {
                 name: "x".to_string(),
                 hint: Some(ScaleType::Continuous),
@@ -452,7 +452,7 @@ mod tests {
             },
         );
         mapping.set(
-            Aesthetic::X,
+            Aesthetic::X(AestheticDomain::Continuous),
             AesValue::Column {
                 name: "x".to_string(),
                 hint: Some(ScaleType::Continuous),
@@ -464,7 +464,7 @@ mod tests {
         // Should return grouping aesthetics (Fill, Color) but not X
         assert!(aesthetics.contains(&Aesthetic::Fill));
         assert!(aesthetics.contains(&Aesthetic::Color));
-        assert!(!aesthetics.contains(&Aesthetic::X));
+        assert!(!aesthetics.contains(&Aesthetic::X(AestheticDomain::Continuous)));
     }
 
     #[test]
@@ -523,7 +523,7 @@ mod tests {
 
         let mut mapping = AesMap::new();
         mapping.set(
-            Aesthetic::X,
+            Aesthetic::X(AestheticDomain::Continuous),
             AesValue::Column {
                 name: "x".to_string(),
                 hint: Some(ScaleType::Continuous),

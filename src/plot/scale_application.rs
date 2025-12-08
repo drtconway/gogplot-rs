@@ -49,17 +49,18 @@ pub fn apply_scales(
                     .entry(name.clone())
                     .or_insert_with(Vec::new)
                     .push(*aesthetic);
-            },
+            }
             AesValue::Constant { .. } => {
                 // Constants will be handled separately after we know row count
                 continue;
-            },
+            }
         }
     }
 
     let mut used_names: HashSet<String> = data.column_names().into_iter().collect();
 
-    let mut column_to_aesthetic_and_name: HashMap<String, Vec<(Aesthetic, String)>> = HashMap::new();
+    let mut column_to_aesthetic_and_name: HashMap<String, Vec<(Aesthetic, String)>> =
+        HashMap::new();
     for (col_name, aesthetics) in column_to_aesthetic.iter() {
         if aesthetics.len() == 1 {
             // Single aesthetic - use standard name
@@ -77,7 +78,7 @@ pub fn apply_scales(
         // 1. Positional aesthetics (X, Xmin, Xmax) may be scaled differently (center vs edges)
         // 2. Non-positional aesthetics (Fill, Color) need the original categorical values
         //    preserved for color mapping, not the scaled numeric positions
-        
+
         for aesthetic in aesthetics {
             let aesthetic_name = aesthetic.to_str();
 
@@ -99,14 +100,7 @@ pub fn apply_scales(
 
     for (col_name, aesthetic_outputs) in column_to_aesthetic_and_name.iter() {
         for (aesthetic, output_name) in aesthetic_outputs {
-            apply_aesthetic_scale(
-                data,
-                col_name,
-                output_name,
-                *aesthetic,
-                scales,
-                &mut result,
-            )?;
+            apply_aesthetic_scale(data, col_name, output_name, *aesthetic, scales, &mut result)?;
 
             // Add to new mapping
             result_mapping.set(
@@ -137,7 +131,10 @@ pub fn apply_scales(
                 // Preserve the hint from the original mapping for non-positional aesthetics
                 // (Color/Fill/Shape need the hint to determine how to map colors)
                 // Positional aesthetics should have no hint after scaling (already normalized)
-                let hint = if matches!(*aesthetic, Aesthetic::Fill | Aesthetic::Color | Aesthetic::Shape | Aesthetic::Group) {
+                let hint = if matches!(
+                    *aesthetic,
+                    Aesthetic::Fill | Aesthetic::Color | Aesthetic::Shape | Aesthetic::Group
+                ) {
                     mapping.get(aesthetic).and_then(|aes_val| match aes_val {
                         AesValue::Column { hint, .. } => *hint,
                         _ => None,
@@ -178,7 +175,10 @@ pub fn apply_scales(
         if let AesValue::Constant { value, hint } = aes_value {
             // Color/Fill/Shape/Linetype constants should NOT be scaled
             // They're handled separately in get_fill_color_values, get_color_values, etc.
-            if matches!(aesthetic, Aesthetic::Color | Aesthetic::Fill | Aesthetic::Shape | Aesthetic::Linetype) {
+            if matches!(
+                aesthetic,
+                Aesthetic::Color | Aesthetic::Fill | Aesthetic::Shape | Aesthetic::Linetype
+            ) {
                 // Keep original constant as-is
                 result_mapping.set(*aesthetic, aes_value.clone());
             } else {
@@ -216,7 +216,7 @@ fn apply_aesthetic_scale(
     // Determine which scale to use based on aesthetic type
     match aesthetic {
         // Positional aesthetics use x or y scale, output normalized [0,1] with NaN sentinel
-        Aesthetic::X
+        Aesthetic::X(_)
         | Aesthetic::Xmin
         | Aesthetic::Xmax
         | Aesthetic::XBegin
@@ -231,7 +231,7 @@ fn apply_aesthetic_scale(
             result.add_column(output_name, Box::new(FloatVec(mapped_values)));
         }
 
-        Aesthetic::Y
+        Aesthetic::Y(_)
         | Aesthetic::Ymin
         | Aesthetic::Ymax
         | Aesthetic::YBegin
@@ -309,7 +309,12 @@ fn apply_scale_to_constant(
     // Determine which scale to use and apply it
     match aesthetic {
         // Positional aesthetics use x or y scale
-        Aesthetic::X | Aesthetic::Xmin | Aesthetic::Xmax | Aesthetic::XBegin | Aesthetic::XEnd | Aesthetic::XIntercept => {
+        Aesthetic::X(_)
+        | Aesthetic::Xmin
+        | Aesthetic::Xmax
+        | Aesthetic::XBegin
+        | Aesthetic::XEnd
+        | Aesthetic::XIntercept => {
             if let Some(scale) = scales.x.as_ref() {
                 scale_primitive_value(value, hint, scale.as_ref(), aesthetic)
             } else {
@@ -318,8 +323,15 @@ fn apply_scale_to_constant(
             }
         }
 
-        Aesthetic::Y | Aesthetic::Ymin | Aesthetic::Ymax | Aesthetic::YBegin | Aesthetic::YEnd | 
-        Aesthetic::YIntercept | Aesthetic::Lower | Aesthetic::Middle | Aesthetic::Upper => {
+        Aesthetic::Y(_)
+        | Aesthetic::Ymin
+        | Aesthetic::Ymax
+        | Aesthetic::YBegin
+        | Aesthetic::YEnd
+        | Aesthetic::YIntercept
+        | Aesthetic::Lower
+        | Aesthetic::Middle
+        | Aesthetic::Upper => {
             if let Some(scale) = scales.y.as_ref() {
                 scale_primitive_value(value, hint, scale.as_ref(), aesthetic)
             } else {
@@ -369,7 +381,7 @@ fn scale_primitive_value(
     use crate::data::PrimitiveValue;
 
     // Check if we should use categorical mapping (based on hint or value type)
-    let use_categorical = hint == Some(ScaleType::Categorical) 
+    let use_categorical = hint == Some(ScaleType::Categorical)
         || matches!(value, PrimitiveValue::Str(_))
         || scale.scale_type() == ScaleType::Categorical;
 
@@ -392,11 +404,17 @@ fn scale_primitive_value(
 /// Convert PrimitiveValue to f64
 fn primitive_to_float(value: &crate::data::PrimitiveValue) -> Result<f64, PlotError> {
     use crate::data::PrimitiveValue;
-    
+
     Ok(match value {
         PrimitiveValue::Int(v) => *v as f64,
         PrimitiveValue::Float(v) => *v,
-        PrimitiveValue::Bool(b) => if *b { 1.0 } else { 0.0 },
+        PrimitiveValue::Bool(b) => {
+            if *b {
+                1.0
+            } else {
+                0.0
+            }
+        }
         PrimitiveValue::Str(s) => {
             // Parse as number, or NaN if not parseable
             s.parse::<f64>().unwrap_or(f64::NAN)
