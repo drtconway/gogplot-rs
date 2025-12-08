@@ -57,7 +57,7 @@ impl PrimitiveType for bool {
     }
 }
 
-pub trait DiscreteType: PrimitiveType {}
+pub trait DiscreteType: PrimitiveType + Eq + Ord + Hash {}
 
 impl DiscreteType for i64 {}
 impl DiscreteType for String {}

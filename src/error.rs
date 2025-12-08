@@ -124,6 +124,10 @@ pub enum PlotError {
         aesthetic: Aesthetic,
         column: String,
     },
+
+    Other {
+        details: String,
+    },
 }
 
 impl Display for PlotError {
@@ -189,6 +193,9 @@ impl Display for PlotError {
                     "Column '{}' is a string and must use categorical scale for {:?}, but continuous was requested",
                     column, aesthetic
                 )
+            }
+            PlotError::Other { details } => {
+                write!(f, "Plot error: {}", details)
             }
         }
     }
