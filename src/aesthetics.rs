@@ -13,10 +13,10 @@ pub enum AestheticDomain {
 pub enum Aesthetic {
     X(AestheticDomain),
     Y(AestheticDomain),
-    Xmin,
-    Xmax,
-    Ymin,
-    Ymax,
+    Xmin(AestheticDomain),
+    Xmax(AestheticDomain),
+    Ymin(AestheticDomain),
+    Ymax(AestheticDomain),
     Lower,  // Q1 (first quartile) for boxplots
     Middle, // Median for boxplots
     Upper,  // Q3 (third quartile) for boxplots
@@ -59,8 +59,8 @@ impl Aesthetic {
             Aesthetic::X(_)
                 | Aesthetic::XBegin
                 | Aesthetic::XEnd
-                | Aesthetic::Xmin
-                | Aesthetic::Xmax
+                | Aesthetic::Xmin(_)
+                | Aesthetic::Xmax(_)
                 | Aesthetic::XIntercept
         )
     }
@@ -73,8 +73,8 @@ impl Aesthetic {
             Aesthetic::Y(_)
                 | Aesthetic::YBegin
                 | Aesthetic::YEnd
-                | Aesthetic::Ymin
-                | Aesthetic::Ymax
+                | Aesthetic::Ymin(_)
+                | Aesthetic::Ymax(_)
                 | Aesthetic::YIntercept
                 | Aesthetic::Lower
                 | Aesthetic::Middle
@@ -87,10 +87,10 @@ impl Aesthetic {
         match self {
             Aesthetic::X(_) => "x",
             Aesthetic::Y(_) => "y",
-            Aesthetic::Xmin => "xmin",
-            Aesthetic::Xmax => "xmax",
-            Aesthetic::Ymin => "ymin",
-            Aesthetic::Ymax => "ymax",
+            Aesthetic::Xmin(_) => "xmin",
+            Aesthetic::Xmax(_) => "xmax",
+            Aesthetic::Ymin(_) => "ymin",
+            Aesthetic::Ymax(_) => "ymax",
             Aesthetic::Lower => "lower",
             Aesthetic::Middle => "middle",
             Aesthetic::Upper => "upper",
@@ -327,11 +327,11 @@ impl AesMap {
     pub fn label(&mut self, column: impl Into<String>) {
         self.set_to_column(Aesthetic::Label, column);
     }
-    pub fn ymin(&mut self, column: impl Into<String>) {
-        self.set_to_column(Aesthetic::Ymin, column);
+    pub fn ymin(&mut self, column: impl Into<String>, kind: AestheticDomain) {
+        self.set_to_column(Aesthetic::Ymin(kind), column);
     }
-    pub fn ymax(&mut self, column: impl Into<String>) {
-        self.set_to_column(Aesthetic::Ymax, column);
+    pub fn ymax(&mut self, column: impl Into<String>, kind: AestheticDomain) {
+        self.set_to_column(Aesthetic::Ymax(kind), column);
     }
 
     // Convenience methods for categorical column mappings
@@ -617,8 +617,8 @@ mod tests {
         assert!(Aesthetic::X(AestheticDomain::Continuous).is_x_like());
         assert!(Aesthetic::XBegin.is_x_like());
         assert!(Aesthetic::XEnd.is_x_like());
-        assert!(Aesthetic::Xmin.is_x_like());
-        assert!(Aesthetic::Xmax.is_x_like());
+        assert!(Aesthetic::Xmin(AestheticDomain::Continuous).is_x_like());
+        assert!(Aesthetic::Xmax(AestheticDomain::Continuous).is_x_like());
         assert!(Aesthetic::XIntercept.is_x_like());
 
         // Non-X-like aesthetics
@@ -633,14 +633,14 @@ mod tests {
         assert!(Aesthetic::Y(AestheticDomain::Continuous).is_y_like());
         assert!(Aesthetic::YBegin.is_y_like());
         assert!(Aesthetic::YEnd.is_y_like());
-        assert!(Aesthetic::Ymin.is_y_like());
-        assert!(Aesthetic::Ymax.is_y_like());
+        assert!(Aesthetic::Ymin(AestheticDomain::Continuous).is_y_like());
+        assert!(Aesthetic::Ymax(AestheticDomain::Continuous).is_y_like());
         assert!(Aesthetic::YIntercept.is_y_like());
 
         // Non-Y-like aesthetics
         assert!(!Aesthetic::X(AestheticDomain::Continuous).is_y_like());
-        assert!(!Aesthetic::Xmin.is_y_like());
-        assert!(!Aesthetic::Xmax.is_y_like());
+        assert!(!Aesthetic::Xmin(AestheticDomain::Continuous).is_y_like());
+        assert!(!Aesthetic::Xmax(AestheticDomain::Continuous).is_y_like());
         assert!(!Aesthetic::Color.is_y_like());
         assert!(!Aesthetic::Fill.is_y_like());
     }
