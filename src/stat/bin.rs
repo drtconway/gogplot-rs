@@ -1,9 +1,9 @@
 use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain};
-use crate::data::{ContinuousType, DataSource, DiscreteType, PrimitiveType, VectorIter};
+use crate::data::{ContinuousType, DataSource, DiscreteType, VectorIter};
 use crate::error::Result;
 use crate::stat::StatTransform;
 use crate::utils::data::{ContinuousVectorVisitor, DiscreteContinuousVisitor2, Vectorable, visit_c, visit2_dc};
-use crate::utils::dataframe::{BoolVec, DataFrame, FloatVec, IntVec, StrVec};
+use crate::utils::dataframe::{DataFrame, FloatVec, IntVec};
 use std::collections::HashMap;
 
 /// Bin configuration strategy
@@ -223,40 +223,6 @@ fn get_data_range_inner<T: ContinuousType>(
     Some((min.to_f64(), max.to_f64()))
 }
 
-fn bin_ungrouped_data<T: ContinuousType>(
-    iterator: impl Iterator<Item = T>,
-    binner: &Binner,
-    cumulative: bool,
-) -> (Vec<f64>, Vec<f64>, Vec<f64>, Vec<i64>) {
-    let mut counts = vec![0i64; binner.len()];
-
-    for value in iterator {
-        let value_f64 = value.to_f64();
-        let bin_idx = binner.bin_of_value(value_f64);
-        counts[bin_idx] += 1;
-    }
-
-    // If cumulative, accumulate counts
-    if cumulative {
-        for i in 1..binner.len() {
-            counts[i] += counts[i - 1];
-        }
-    }
-
-    // Generate bin centers
-    let mut mins = Vec::with_capacity(binner.len());
-    let mut centers = Vec::with_capacity(binner.len());
-    let mut maxs = Vec::with_capacity(binner.len());
-    for i in 0..binner.len() {
-        let (min, max) = binner.bin_bounds(i);
-        mins.push(min);
-        centers.push(binner.center_of_bin(i));
-        maxs.push(max);
-    }
-
-    (mins, centers, maxs, counts)
-}
-
 struct UngroupedValueBinner {
     binner: Binner,
     cumulative: bool,
@@ -325,7 +291,6 @@ impl ContinuousVectorVisitor for UngroupedValueBinner {
         );
     }
 }
-
 
 struct GroupedValueBinner {
     binner: Binner,
@@ -414,110 +379,6 @@ impl DiscreteContinuousVisitor2 for GroupedValueBinner {
             AesValue::column("group"),
         );
     }
-}
-
-fn bin_grouped_data<'a, T: ContinuousType>(
-    x_values: impl Iterator<Item = T>,
-    group_values: VectorIter<'a>,
-    binner: &Binner,
-    cumulative: bool,
-    data: &mut DataFrame,
-    mapping: &mut AesMap,
-) {
-    match group_values {
-        VectorIter::Int(iterator) => {
-            let group_values =
-                bin_grouped_data_inner(x_values, iterator, binner, cumulative, data, mapping);
-            data.add_column("group", Box::new(IntVec(group_values)));
-            mapping.set(Aesthetic::Group, AesValue::column("group"));
-        }
-        VectorIter::Float(iterator) => {
-            let group_values =
-                bin_grouped_data_inner(x_values, iterator, binner, cumulative, data, mapping);
-            data.add_column("group", Box::new(FloatVec(group_values)));
-            mapping.set(Aesthetic::Group, AesValue::column("group"));
-        }
-        VectorIter::Str(iterator) => {
-            let group_values =
-                bin_grouped_data_inner(x_values, iterator.map(|s| s.to_string()), binner, cumulative, data, mapping);
-            data.add_column("group", Box::new(StrVec(group_values)));
-            mapping.set(Aesthetic::Group, AesValue::column("group"));
-        }
-        VectorIter::Bool(iterator) => {
-            let group_values =
-                bin_grouped_data_inner(x_values, iterator, binner, cumulative, data, mapping);
-            data.add_column("group", Box::new(BoolVec(group_values)));
-            mapping.set(Aesthetic::Group, AesValue::column("group"));
-        }
-    }
-}
-
-fn bin_grouped_data_inner<T: ContinuousType, G: PrimitiveType>(
-    x_values: impl Iterator<Item = T>,
-    group_values: impl Iterator<Item = G>,
-    binner: &Binner,
-    cumulative: bool,
-    data: &mut DataFrame,
-    mapping: &mut AesMap,
-) -> Vec<G> {
-    let mut groups: HashMap<G::Sortable, Vec<i64>> = HashMap::new();
-    for (x, group) in x_values.zip(group_values) {
-        let value_f64 = x.to_f64();
-        let bin_idx = binner.bin_of_value(value_f64);
-        let entry = groups
-            .entry(group.to_sortable())
-            .or_insert_with(|| vec![0i64; binner.len()]);
-        entry[bin_idx] += 1;
-    }
-
-    let mut pairs = groups.into_iter().collect::<Vec<_>>();
-    pairs.sort_by_key(|(group, _)| group.clone());
-
-    let n = pairs.len() * binner.len();
-    let mut mins = Vec::with_capacity(n);
-    let mut centers = Vec::with_capacity(n);
-    let mut maxs = Vec::with_capacity(n);
-    let mut counts = Vec::with_capacity(n);
-    let mut group_values = Vec::with_capacity(n);
-
-    for (group, group_counts) in pairs.into_iter() {
-        let group = G::from_sortable(group);
-        let mut group_counts = group_counts;
-        for i in 0..binner.len() {
-            if cumulative && i > 0 {
-                group_counts[i] += group_counts[i - 1];
-            }
-            let count = group_counts[i];
-            counts.push(count);
-            let (min, max) = binner.bin_bounds(i);
-            mins.push(min);
-            centers.push(binner.center_of_bin(i));
-            maxs.push(max);
-            group_values.push(group.clone());
-        }
-    }
-
-    data.add_column("xmin", Box::new(FloatVec(mins)));
-    data.add_column("x", Box::new(FloatVec(centers)));
-    data.add_column("xmax", Box::new(FloatVec(maxs)));
-    data.add_column("count", Box::new(IntVec(counts)));
-    mapping.set(
-        Aesthetic::X(AestheticDomain::Continuous),
-        AesValue::column("x"),
-    );
-    mapping.set(
-        Aesthetic::Xmin(AestheticDomain::Continuous),
-        AesValue::column("xmin"),
-    );
-    mapping.set(
-        Aesthetic::Xmax(AestheticDomain::Continuous),
-        AesValue::column("xmax"),
-    );
-    mapping.set(
-        Aesthetic::Y(AestheticDomain::Continuous),
-        AesValue::column("count"),
-    );
-    group_values
 }
 
 #[cfg(test)]
