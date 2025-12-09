@@ -420,12 +420,14 @@ fn visit3_inner2<T: Vectorable, U: Vectorable, V: VectorVisitor3>(
 }
 
 pub trait DiscreteContinuousContinuousVisitor3 {
+    type Output;
+
     fn visit<T: Vectorable + DiscreteType, U: Vectorable + ContinuousType, V: Vectorable + ContinuousType>(
         &mut self,
         value1: impl Iterator<Item = T>,
         value2: impl Iterator<Item = U>,
         value3: impl Iterator<Item = V>,
-    );
+    ) -> std::result::Result<Self::Output, PlotError>;
 }
 
 pub fn visit3_dcc<'a, V: DiscreteContinuousContinuousVisitor3>(
@@ -433,7 +435,7 @@ pub fn visit3_dcc<'a, V: DiscreteContinuousContinuousVisitor3>(
     iter2: VectorIter<'a>,
     iter3: VectorIter<'a>,
     visitor: &mut V,
-) -> Result<(), PlotError> {
+) -> Result<V::Output, PlotError> {
     match iter1 {
         VectorIter::Int(it1) => visit3_dcc_inner1(it1, iter2, iter3, visitor),
         VectorIter::Str(it1) => visit3_dcc_inner1(it1.map(|s| s.to_string()), iter2, iter3, visitor),
@@ -450,7 +452,7 @@ fn visit3_dcc_inner1<T: Vectorable + DiscreteType, V: DiscreteContinuousContinuo
     iter2: VectorIter,
     iter3: VectorIter,
     visitor: &mut V,
-) -> Result<(), PlotError> {
+) -> Result<V::Output, PlotError> {
     match iter2 {
         VectorIter::Int(it2) => visit3_dcc_inner2(it1, it2, iter3, visitor),
         VectorIter::Float(it2) => visit3_dcc_inner2(it1, it2, iter3, visitor),
@@ -470,15 +472,13 @@ fn visit3_dcc_inner2<T: Vectorable + DiscreteType, U: Vectorable + ContinuousTyp
     it2: impl Iterator<Item = U>,
     iter3: VectorIter,
     visitor: &mut V,
-) -> Result<(), PlotError> {
+) -> Result<V::Output, PlotError> {
     match iter3 {
         VectorIter::Int(it3) => {
-            visitor.visit(it1, it2, it3);
-            Ok(())
+            visitor.visit(it1, it2, it3)
         }
         VectorIter::Float(it3) => {
-            visitor.visit(it1, it2, it3);
-            Ok(())
+            visitor.visit(it1, it2, it3)
         }
         VectorIter::Str(_) => Err(PlotError::AestheticDomainMismatch {
             expected: crate::aesthetics::AestheticDomain::Continuous,
