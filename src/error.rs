@@ -4,7 +4,7 @@ use std::{
     io,
 };
 
-use crate::aesthetics::Aesthetic;
+use crate::aesthetics::{Aesthetic, AestheticDomain};
 use crate::data::VectorType;
 
 pub type Result<T> = std::result::Result<T, PlotError>;
@@ -118,6 +118,13 @@ pub enum PlotError {
         geom_requirement: String,
         reason: String,
     },
+
+    /// Aesthetic requires discrete data but continuous was provided
+    /// or vice versa.
+    AestheticDomainMismatch {
+        expected: AestheticDomain,
+        actual: DataType,
+    },
     
     /// String column requires categorical scale but continuous was requested
     StringColumnRequiresCategorical {
@@ -185,6 +192,13 @@ impl Display for PlotError {
                     f,
                     "Scale type conflict for {:?}: user specified {}, geom requires {}. {}",
                     aesthetic, user_hint, geom_requirement, reason
+                )
+            }
+            PlotError::AestheticDomainMismatch { expected, actual } => {
+                write!(
+                    f,
+                    "Aesthetic domain mismatch: expected {:?}, got type {}",
+                    expected, actual
                 )
             }
             PlotError::StringColumnRequiresCategorical { aesthetic, column } => {

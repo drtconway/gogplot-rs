@@ -1,8 +1,8 @@
 use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain};
-use crate::data::{DataSource, PrimitiveType};
+use crate::data::{DataSource, DiscreteType};
 use crate::error::Result;
 use crate::stat::StatTransform;
-use crate::utils::data::{VectorVisitor, VectorVisitor2, Vectorable, visit, visit2};
+use crate::utils::data::{DiscreteDiscreteVisitor2, DiscreteVectorVisitor, Vectorable, visit_d, visit2_dd};
 use crate::utils::dataframe::{DataFrame, IntVec};
 use std::collections::HashMap;
 
@@ -45,7 +45,7 @@ impl StatTransform for Count {
             };
 
             let mut counter = GroupedValueCounter::new();
-            visit2(group_iter, x_iter, &mut counter);
+            visit2_dd(group_iter, x_iter, &mut counter)?;
             let GroupedValueCounter { data, mapping } = counter;
 
             Ok(Some((Box::new(data), mapping)))
@@ -63,7 +63,7 @@ impl StatTransform for Count {
             };
 
             let mut counter = UngroupedValueCounter::new();
-            visit(x_iter, &mut counter);
+            visit_d(x_iter, &mut counter)?;
             let UngroupedValueCounter { data, mapping } = counter;
             Ok(Some((Box::new(data), mapping)))
         }
@@ -84,9 +84,9 @@ impl UngroupedValueCounter {
     }
 }
 
-impl VectorVisitor for UngroupedValueCounter {
-    fn visit<T: Vectorable>(&mut self, values: impl Iterator<Item = T>) {
-        let mut counts: HashMap<T::Sortable, i64> = {
+impl DiscreteVectorVisitor for UngroupedValueCounter {
+    fn visit<T: Vectorable + DiscreteType>(&mut self, values: impl Iterator<Item = T>) {
+        let counts: HashMap<T::Sortable, i64> = {
             let mut map = HashMap::new();
             for val in values {
                 let key = val.to_sortable();
@@ -131,8 +131,8 @@ impl GroupedValueCounter {
     }
 }
 
-impl VectorVisitor2 for GroupedValueCounter {
-    fn visit<G: Vectorable, T: Vectorable>(
+impl DiscreteDiscreteVisitor2 for GroupedValueCounter {
+    fn visit<G: Vectorable + DiscreteType, T: Vectorable + DiscreteType>(
         &mut self,
         groups: impl Iterator<Item = G>,
         values: impl Iterator<Item = T>,
