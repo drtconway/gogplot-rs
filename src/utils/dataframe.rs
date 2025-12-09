@@ -96,6 +96,12 @@ impl From<Vec<String>> for StrVec {
 
 pub struct BoolVec(pub Vec<bool>);
 
+impl From<Vec<bool>> for BoolVec {
+    fn from(vec: Vec<bool>) -> Self {
+        BoolVec(vec)
+    }
+}
+
 impl GenericVector for BoolVec {
     fn len(&self) -> usize {
         self.0.len()

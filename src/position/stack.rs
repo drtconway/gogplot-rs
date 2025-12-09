@@ -1,11 +1,11 @@
 // Stack position adjustment for bars
 
 use super::PositionAdjust;
-use crate::aesthetics::{AesMap, AesValue, Aesthetic};
+use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain};
 use crate::data::{DataSource, PrimitiveValue};
 use crate::error::{DataType, PlotError};
 use crate::utils::dataframe::{DataFrame, FloatVec};
-use crate::utils::grouping::{get_grouping_columns, create_composite_keys};
+use crate::utils::grouping::{create_composite_keys, get_grouping_columns};
 use std::collections::HashMap;
 
 /// Stack position adjustment
@@ -20,7 +20,14 @@ impl PositionAdjust for Stack {
         data: Box<dyn DataSource>,
         mapping: &AesMap,
         _scales: &crate::plot::ScaleSet,
-    ) -> Result<Option<(Box<dyn DataSource>, AesMap, Option<crate::plot::ScaleSet>)>, PlotError> {
+    ) -> Result<Option<(Box<dyn DataSource>, AesMap, Option<crate::plot::ScaleSet>)>, PlotError>
+    {
+        let x_values = mapping
+            .get_vector_iter(&Aesthetic::X(AestheticDomain::Discrete), data.as_ref())
+            .ok_or_else(|| PlotError::MissingAesthetic {
+                aesthetic: Aesthetic::X(AestheticDomain::Discrete),
+            })?;
+
         // Get x and y column names
         let x_col_name = match mapping.get(&Aesthetic::X) {
             Some(AesValue::Column { name, .. }) => name.clone(),
@@ -67,9 +74,7 @@ impl PositionAdjust for Stack {
 
         // Get x values
         let x_values: Vec<PrimitiveValue> = if let Some(float_iter) = x_col.iter_float() {
-            float_iter
-                .map(|v| PrimitiveValue::Float(v))
-                .collect()
+            float_iter.map(|v| PrimitiveValue::Float(v)).collect()
         } else if let Some(int_iter) = x_col.iter_int() {
             int_iter.map(|v| PrimitiveValue::Int(v)).collect()
         } else if let Some(str_iter) = x_col.iter_str() {
@@ -87,12 +92,12 @@ impl PositionAdjust for Stack {
         // Group by x value and composite key, computing cumulative sums
         // For each x position, we need to stack bars
         let mut stacked_data: HashMap<String, Vec<(String, f64, f64)>> = HashMap::new();
-        
+
         for (i, x_val) in x_values.iter().enumerate() {
             let x_key = format!("{:?}", x_val);
             let group_key = &composite_keys[i];
             let y_val = y_values[i];
-            
+
             stacked_data
                 .entry(x_key)
                 .or_default()
@@ -102,7 +107,7 @@ impl PositionAdjust for Stack {
         // Compute stack positions (y0, y1) for each group at each x
         let mut y_bottom: HashMap<(String, String), f64> = HashMap::new(); // (x_key, group) -> y_bottom
         let mut y_top: HashMap<(String, String), f64> = HashMap::new(); // (x_key, group) -> y_top
-        
+
         for (x_key, groups) in &mut stacked_data {
             let mut cumsum = 0.0;
             for (group_key, y_val, _) in groups.iter_mut() {
@@ -115,36 +120,37 @@ impl PositionAdjust for Stack {
 
         // Create new data with ymin and ymax columns
         let mut new_df = DataFrame::new();
-        
+
         // Copy all original columns by reconstructing them
         use crate::utils::dataframe::{IntVec, StrVec};
         for col_name in data.column_names() {
             let col = data.get(col_name.as_str()).unwrap();
-            
-            let new_col: Box<dyn crate::data::GenericVector> = if let Some(int_iter) = col.iter_int() {
-                Box::new(IntVec(int_iter.collect()))
-            } else if let Some(float_iter) = col.iter_float() {
-                Box::new(FloatVec(float_iter.collect()))
-            } else if let Some(str_iter) = col.iter_str() {
-                Box::new(StrVec(str_iter.map(|s| s.to_string()).collect()))
-            } else {
-                continue;
-            };
+
+            let new_col: Box<dyn crate::data::GenericVector> =
+                if let Some(int_iter) = col.iter_int() {
+                    Box::new(IntVec(int_iter.collect()))
+                } else if let Some(float_iter) = col.iter_float() {
+                    Box::new(FloatVec(float_iter.collect()))
+                } else if let Some(str_iter) = col.iter_str() {
+                    Box::new(StrVec(str_iter.map(|s| s.to_string()).collect()))
+                } else {
+                    continue;
+                };
             new_df.add_column(&col_name, new_col);
         }
 
         // Add ymin and ymax columns
         let mut ymin_vals = Vec::with_capacity(n_rows);
         let mut ymax_vals = Vec::with_capacity(n_rows);
-        
+
         for (i, x_val) in x_values.iter().enumerate() {
             let x_key = format!("{:?}", x_val);
             let group_key = &composite_keys[i];
             let key = (x_key, group_key.clone());
-            
+
             let bottom = *y_bottom.get(&key).unwrap_or(&0.0);
             let top = *y_top.get(&key).unwrap_or(&y_values[i]);
-            
+
             ymin_vals.push(bottom);
             ymax_vals.push(top);
         }
@@ -163,7 +169,7 @@ impl PositionAdjust for Stack {
 }
 
 /// Apply stack position adjustment to normalized data.
-/// 
+///
 /// This function is designed to work with data that has already been scaled to [0, 1] space.
 /// It stacks groups vertically by offsetting all y-like aesthetics (ymin, y, ymax) by a cumulative amount.
 ///
@@ -203,12 +209,12 @@ pub fn apply_stack_normalized(
         Some(AesValue::Column { name, .. }) => Some(name.clone()),
         _ => None,
     };
-    
+
     let ymin_col_name = match mapping.get(&Aesthetic::Ymin) {
         Some(AesValue::Column { name, .. }) => Some(name.clone()),
         _ => None,
     };
-    
+
     let ymax_col_name = match mapping.get(&Aesthetic::Ymax) {
         Some(AesValue::Column { name, .. }) => Some(name.clone()),
         _ => None,
@@ -252,34 +258,52 @@ pub fn apply_stack_normalized(
 
     // Get y-like values
     let y_values: Option<Vec<f64>> = if let Some(ref name) = y_col_name {
-        let col = data.get(name).ok_or_else(|| PlotError::missing_column(name))?;
-        Some(col.iter_float().ok_or_else(|| PlotError::InvalidAestheticType {
-            aesthetic: Aesthetic::Y,
-            expected: DataType::Custom("float (normalized)".to_string()),
-            actual: DataType::Custom("not float".to_string()),
-        })?.collect())
+        let col = data
+            .get(name)
+            .ok_or_else(|| PlotError::missing_column(name))?;
+        Some(
+            col.iter_float()
+                .ok_or_else(|| PlotError::InvalidAestheticType {
+                    aesthetic: Aesthetic::Y,
+                    expected: DataType::Custom("float (normalized)".to_string()),
+                    actual: DataType::Custom("not float".to_string()),
+                })?
+                .collect(),
+        )
     } else {
         None
     };
 
     let ymin_values: Option<Vec<f64>> = if let Some(ref name) = ymin_col_name {
-        let col = data.get(name).ok_or_else(|| PlotError::missing_column(name))?;
-        Some(col.iter_float().ok_or_else(|| PlotError::InvalidAestheticType {
-            aesthetic: Aesthetic::Ymin,
-            expected: DataType::Custom("float (normalized)".to_string()),
-            actual: DataType::Custom("not float".to_string()),
-        })?.collect())
+        let col = data
+            .get(name)
+            .ok_or_else(|| PlotError::missing_column(name))?;
+        Some(
+            col.iter_float()
+                .ok_or_else(|| PlotError::InvalidAestheticType {
+                    aesthetic: Aesthetic::Ymin,
+                    expected: DataType::Custom("float (normalized)".to_string()),
+                    actual: DataType::Custom("not float".to_string()),
+                })?
+                .collect(),
+        )
     } else {
         None
     };
 
     let ymax_values: Option<Vec<f64>> = if let Some(ref name) = ymax_col_name {
-        let col = data.get(name).ok_or_else(|| PlotError::missing_column(name))?;
-        Some(col.iter_float().ok_or_else(|| PlotError::InvalidAestheticType {
-            aesthetic: Aesthetic::Ymax,
-            expected: DataType::Custom("float (normalized)".to_string()),
-            actual: DataType::Custom("not float".to_string()),
-        })?.collect())
+        let col = data
+            .get(name)
+            .ok_or_else(|| PlotError::missing_column(name))?;
+        Some(
+            col.iter_float()
+                .ok_or_else(|| PlotError::InvalidAestheticType {
+                    aesthetic: Aesthetic::Ymax,
+                    expected: DataType::Custom("float (normalized)".to_string()),
+                    actual: DataType::Custom("not float".to_string()),
+                })?
+                .collect(),
+        )
     } else {
         None
     };
@@ -372,7 +396,9 @@ pub fn apply_stack_normalized(
         if is_y || is_ymin || is_ymax {
             // Offset the y-like values
             let vals: Vec<f64> = col.iter_float().unwrap().collect();
-            let offset_vals: Vec<f64> = vals.iter().zip(offsets.iter())
+            let offset_vals: Vec<f64> = vals
+                .iter()
+                .zip(offsets.iter())
                 .map(|(v, offset)| v + offset)
                 .collect();
             new_df.add_column(&col_name, Box::new(FloatVec(offset_vals)));
@@ -383,7 +409,10 @@ pub fn apply_stack_normalized(
             } else if let Some(iter) = col.iter_float() {
                 new_df.add_column(&col_name, Box::new(FloatVec(iter.collect())));
             } else if let Some(iter) = col.iter_str() {
-                new_df.add_column(&col_name, Box::new(StrVec(iter.map(|s| s.to_string()).collect())));
+                new_df.add_column(
+                    &col_name,
+                    Box::new(StrVec(iter.map(|s| s.to_string()).collect())),
+                );
             } else if let Some(iter) = col.iter_bool() {
                 new_df.add_column(&col_name, Box::new(BoolVec(iter.collect())));
             }
@@ -414,9 +443,10 @@ mod tests {
         // Two groups at x=0.25 with y values 0.3 and 0.4
         df.add_column("x", Box::new(FloatVec(vec![0.25, 0.25])));
         df.add_column("y", Box::new(FloatVec(vec![0.3, 0.4])));
-        df.add_column("group", Box::new(StrVec(vec![
-            "A".to_string(), "B".to_string(),
-        ])));
+        df.add_column(
+            "group",
+            Box::new(StrVec(vec!["A".to_string(), "B".to_string()])),
+        );
 
         let mapping = create_mapping_with_group();
         let result = apply_stack_normalized(Box::new(df), &mapping, false).unwrap();
@@ -440,9 +470,14 @@ mod tests {
         // Three groups at x=0.5
         df.add_column("x", Box::new(FloatVec(vec![0.5, 0.5, 0.5])));
         df.add_column("y", Box::new(FloatVec(vec![0.2, 0.3, 0.1])));
-        df.add_column("group", Box::new(StrVec(vec![
-            "A".to_string(), "B".to_string(), "C".to_string(),
-        ])));
+        df.add_column(
+            "group",
+            Box::new(StrVec(vec![
+                "A".to_string(),
+                "B".to_string(),
+                "C".to_string(),
+            ])),
+        );
 
         let mapping = create_mapping_with_group();
         let result = apply_stack_normalized(Box::new(df), &mapping, false).unwrap();
@@ -468,9 +503,10 @@ mod tests {
         // Two groups with reverse stacking (from top down)
         df.add_column("x", Box::new(FloatVec(vec![0.5, 0.5])));
         df.add_column("y", Box::new(FloatVec(vec![0.3, 0.4])));
-        df.add_column("group", Box::new(StrVec(vec![
-            "A".to_string(), "B".to_string(),
-        ])));
+        df.add_column(
+            "group",
+            Box::new(StrVec(vec!["A".to_string(), "B".to_string()])),
+        );
 
         let mapping = create_mapping_with_group();
         let result = apply_stack_normalized(Box::new(df), &mapping, true).unwrap();
@@ -508,15 +544,23 @@ mod tests {
     fn test_stack_normalized_multiple_x_positions() {
         let mut df = DataFrame::new();
         // Two groups at two different x positions
-        df.add_column("x", Box::new(FloatVec(vec![
-            0.2, 0.2,  // Position 1
-            0.8, 0.8,  // Position 2
-        ])));
+        df.add_column(
+            "x",
+            Box::new(FloatVec(vec![
+                0.2, 0.2, // Position 1
+                0.8, 0.8, // Position 2
+            ])),
+        );
         df.add_column("y", Box::new(FloatVec(vec![0.3, 0.2, 0.4, 0.1])));
-        df.add_column("group", Box::new(StrVec(vec![
-            "A".to_string(), "B".to_string(),
-            "A".to_string(), "B".to_string(),
-        ])));
+        df.add_column(
+            "group",
+            Box::new(StrVec(vec![
+                "A".to_string(),
+                "B".to_string(),
+                "A".to_string(),
+                "B".to_string(),
+            ])),
+        );
 
         let mapping = create_mapping_with_group();
         let result = apply_stack_normalized(Box::new(df), &mapping, false).unwrap();
@@ -539,12 +583,14 @@ mod tests {
         let mut df = DataFrame::new();
         df.add_column("x", Box::new(FloatVec(vec![0.5, 0.5])));
         df.add_column("y", Box::new(FloatVec(vec![0.3, 0.4])));
-        df.add_column("group", Box::new(StrVec(vec![
-            "A".to_string(), "B".to_string(),
-        ])));
-        df.add_column("color", Box::new(StrVec(vec![
-            "red".to_string(), "blue".to_string(),
-        ])));
+        df.add_column(
+            "group",
+            Box::new(StrVec(vec!["A".to_string(), "B".to_string()])),
+        );
+        df.add_column(
+            "color",
+            Box::new(StrVec(vec!["red".to_string(), "blue".to_string()])),
+        );
 
         let mapping = create_mapping_with_group();
         let result = apply_stack_normalized(Box::new(df), &mapping, false).unwrap();
@@ -558,8 +604,11 @@ mod tests {
         assert!(new_data.get("color").is_some());
 
         // y column should be modified (offset), color should be unchanged
-        let color_vals: Vec<String> = new_data.get("color").unwrap()
-            .iter_str().unwrap()
+        let color_vals: Vec<String> = new_data
+            .get("color")
+            .unwrap()
+            .iter_str()
+            .unwrap()
             .map(|s| s.to_string())
             .collect();
         assert_eq!(color_vals, vec!["red".to_string(), "blue".to_string()]);
@@ -571,9 +620,14 @@ mod tests {
         // Groups in non-alphabetical order
         df.add_column("x", Box::new(FloatVec(vec![0.5, 0.5, 0.5])));
         df.add_column("y", Box::new(FloatVec(vec![0.2, 0.3, 0.1])));
-        df.add_column("group", Box::new(StrVec(vec![
-            "C".to_string(), "A".to_string(), "B".to_string(),
-        ])));
+        df.add_column(
+            "group",
+            Box::new(StrVec(vec![
+                "C".to_string(),
+                "A".to_string(),
+                "B".to_string(),
+            ])),
+        );
 
         let mapping = create_mapping_with_group();
         let result = apply_stack_normalized(Box::new(df), &mapping, false).unwrap();
@@ -581,8 +635,11 @@ mod tests {
         let (new_data, _) = result.unwrap();
 
         let y_vals: Vec<f64> = new_data.get("y").unwrap().iter_float().unwrap().collect();
-        let group_vals: Vec<String> = new_data.get("group").unwrap()
-            .iter_str().unwrap()
+        let group_vals: Vec<String> = new_data
+            .get("group")
+            .unwrap()
+            .iter_str()
+            .unwrap()
             .map(|s| s.to_string())
             .collect();
 

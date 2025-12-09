@@ -1,5 +1,5 @@
-use std::hash::Hash;
 use ordered_float::OrderedFloat;
+use std::hash::Hash;
 
 pub trait PrimitiveType: PartialEq + PartialOrd + Clone + Sized + Send + Sync + 'static {
     type Sortable: Eq + Ord + Hash + Clone;
@@ -88,14 +88,6 @@ pub enum PrimitiveValue {
     Bool(bool),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum VectorType {
-    Int,
-    Float,
-    Str,
-    Bool,
-}
-
 /// Simplified data type classification for determining scale types.
 /// This distinguishes numeric types (which can use continuous scales)
 /// from string types (which require categorical scales).
@@ -114,6 +106,14 @@ pub enum VectorIter<'a> {
     Float(Box<dyn Iterator<Item = f64> + 'a>),
     Str(Box<dyn Iterator<Item = &'a str> + 'a>),
     Bool(Box<dyn Iterator<Item = bool> + 'a>),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VectorType {
+    Int,
+    Float,
+    Str,
+    Bool,
 }
 
 impl VectorType {
@@ -140,11 +140,11 @@ impl std::fmt::Display for VectorType {
 pub trait GenericVector: Send + Sync {
     fn len(&self) -> usize;
     fn vtype(&self) -> VectorType;
-    
+
     /// Get a discriminated union iterator over the vector's data.
     /// This is the preferred method as it makes exhaustive pattern matching possible.
     fn iter(&self) -> VectorIter<'_>;
-    
+
     // Boxed iterator methods - these replace as_int/as_float/as_str for trait objects
     // Returns None if the vector is not of the requested type
     // These are convenience methods; prefer using iter() for exhaustive matching
@@ -204,7 +204,7 @@ pub trait DataSource: Send + Sync {
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
-    
+
     /// Clone into a new Box - required for cloning trait objects
     fn clone_box(&self) -> Box<dyn DataSource>;
 }
