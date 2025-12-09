@@ -5,11 +5,16 @@
 
 use std::collections::HashMap;
 
+use ordered_float::OrderedFloat;
+
 use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain};
-use crate::data::{ContinuousType, DataSource, DiscreteType, GenericVector, VectorIter};
+use crate::data::{ContinuousType, DataSource, DiscreteType, PrimitiveType};
 use crate::error::{PlotError, Result};
 use crate::stat::StatTransform;
-use crate::utils::dataframe::{DataFrame, FloatVec, IntVec, StrVec};
+use crate::utils::data::{
+    DiscreteContinuousVisitor2, DiscreteDiscreteContinuousVisitor3, visit2_dc, visit3_ddc,
+};
+use crate::utils::dataframe::{DataFrame, FloatVec};
 
 /// Boxplot statistics computation
 ///
@@ -62,317 +67,6 @@ impl Boxplot {
         self.coef = coef;
         self
     }
-
-    fn compute_ungrouped_boxplot_data<'a>(
-        &self,
-        x_values: VectorIter<'a>,
-        y_values: VectorIter<'a>,
-    ) -> Result<DataFrame> {
-        match x_values {
-            VectorIter::Int(iterator) => {
-                self.compute_ungrouped_boxplot_data_middle(iterator, y_values, |vals| {
-                    Box::new(IntVec(vals))
-                })
-            }
-            VectorIter::Str(iterator) => self.compute_ungrouped_boxplot_data_middle(
-                iterator.map(|s| s.to_string()),
-                y_values,
-                |vals| Box::new(StrVec(vals)),
-            ),
-            _ => Err(PlotError::Other {
-                details: "X aesthetic for boxplot must be discrete (Int or Str)".to_string(),
-            }),
-        }
-    }
-
-    fn compute_ungrouped_boxplot_data_middle<T: DiscreteType>(
-        &self,
-        x_values: impl Iterator<Item = T>,
-        y_values: VectorIter<'_>,
-        x_maker: impl Fn(Vec<T>) -> Box<dyn GenericVector>,
-    ) -> Result<DataFrame> {
-        match y_values {
-            VectorIter::Float(iterator) => {
-                self.compute_ungrouped_boxplot_data_inner(x_values, iterator, x_maker)
-            }
-            VectorIter::Int(iterator) => {
-                self.compute_ungrouped_boxplot_data_inner(x_values, iterator, x_maker)
-            }
-            _ => Err(PlotError::Other {
-                details: "Y aesthetic for boxplot must be continuous (Float or Int)".to_string(),
-            }),
-        }
-    }
-
-    fn compute_ungrouped_boxplot_data_inner<T: DiscreteType, U: ContinuousType>(
-        &self,
-        x_values: impl Iterator<Item = T>,
-        y_values: impl Iterator<Item = U>,
-        x_maker: impl Fn(Vec<T>) -> Box<dyn GenericVector>,
-    ) -> Result<DataFrame> {
-        let mut grouped_data: HashMap<T, Vec<f64>> = HashMap::new();
-        for (x, y) in x_values.zip(y_values) {
-            let y = y.to_f64();
-            if y.is_finite() {
-                grouped_data.entry(x).or_default().push(y);
-            }
-        }
-
-        let mut pairs = grouped_data.into_iter().collect::<Vec<_>>();
-        pairs.sort_by(|a, b| a.0.cmp(&b.0));
-
-        let mut result_x: Vec<T> = Vec::new();
-        let mut result_y = Vec::new();
-        let mut result_ymin = Vec::new();
-        let mut result_lower = Vec::new();
-        let mut result_middle = Vec::new();
-        let mut result_upper = Vec::new();
-        let mut result_ymax = Vec::new();
-
-        for (group, mut values) in pairs.into_iter() {
-            if values.is_empty() {
-                continue;
-            }
-
-            values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-
-            let (ymin, q1, median, q3, ymax, lower_fence, upper_fence) =
-                self.compute_five_number_summary(&values);
-
-            // Add box statistics
-            result_x.push(group.clone());
-            result_y.push(f64::NAN);
-            result_ymin.push(ymin);
-            result_lower.push(q1);
-            result_middle.push(median);
-            result_upper.push(q3);
-            result_ymax.push(ymax);
-
-            // Add outliers
-            for &value in &values {
-                if value < lower_fence || value > upper_fence {
-                    result_x.push(group.clone());
-                    result_y.push(value);
-                    result_ymin.push(f64::NAN);
-                    result_lower.push(f64::NAN);
-                    result_middle.push(f64::NAN);
-                    result_upper.push(f64::NAN);
-                    result_ymax.push(f64::NAN);
-                }
-            }
-        }
-
-        let mut new_data = DataFrame::new();
-        new_data.add_column("x", x_maker(result_x));
-        new_data.add_column("y", Box::new(FloatVec(result_y)));
-        new_data.add_column("ymin", Box::new(FloatVec(result_ymin)));
-        new_data.add_column("lower", Box::new(FloatVec(result_lower)));
-        new_data.add_column("middle", Box::new(FloatVec(result_middle)));
-        new_data.add_column("upper", Box::new(FloatVec(result_upper)));
-        new_data.add_column("ymax", Box::new(FloatVec(result_ymax)));
-
-        Ok(new_data)
-    }
-
-    fn compute_grouped_boxplot_data<'a>(
-        &self,
-        x_values: VectorIter<'a>,
-        y_values: VectorIter<'a>,
-        group_values: VectorIter<'a>,
-    ) -> Result<DataFrame> {
-        match group_values {
-            VectorIter::Int(iterator) => {
-                self.compute_grouped_boxplot_data_outer(x_values, y_values, iterator, |vals| {
-                    Box::new(IntVec(vals))
-                })
-            }
-            VectorIter::Str(iterator) => self.compute_grouped_boxplot_data_outer(
-                x_values,
-                y_values,
-                iterator.map(|s| s.to_string()),
-                |vals| Box::new(StrVec(vals)),
-            ),
-            _ => Err(PlotError::Other {
-                details: "Group aesthetic for boxplot must be discrete (Int or Str)".to_string(),
-            }),
-        }
-    }
-
-    fn compute_grouped_boxplot_data_outer<'a, G: DiscreteType>(
-        &self,
-        x_values: VectorIter<'a>,
-        y_values: VectorIter<'a>,
-        group_values: impl Iterator<Item = G>,
-        group_maker: impl Fn(Vec<G>) -> Box<dyn GenericVector>,
-    ) -> Result<DataFrame> {
-        match x_values {
-            VectorIter::Int(iterator) => self.compute_grouped_boxplot_data_middle(
-                iterator,
-                y_values,
-                group_values,
-                |vals| Box::new(IntVec(vals)),
-                group_maker,
-            ),
-            VectorIter::Str(iterator) => self.compute_grouped_boxplot_data_middle(
-                iterator.map(|s| s.to_string()),
-                y_values,
-                group_values,
-                |vals| Box::new(StrVec(vals)),
-                group_maker,
-            ),
-            _ => Err(PlotError::Other {
-                details: "X aesthetic for boxplot must be discrete (Int or Str)".to_string(),
-            }),
-        }
-    }
-
-    fn compute_grouped_boxplot_data_middle<T: DiscreteType, G: DiscreteType>(
-        &self,
-        x_values: impl Iterator<Item = T>,
-        y_values: VectorIter<'_>,
-        group_values: impl Iterator<Item = G>,
-        x_maker: impl Fn(Vec<T>) -> Box<dyn GenericVector>,
-        group_maker: impl Fn(Vec<G>) -> Box<dyn GenericVector>,
-    ) -> Result<DataFrame> {
-        match y_values {
-            VectorIter::Float(iterator) => self.compute_grouped_boxplot_data_inner(
-                x_values,
-                iterator,
-                group_values,
-                x_maker,
-                group_maker,
-            ),
-            VectorIter::Int(iterator) => self.compute_grouped_boxplot_data_inner(
-                x_values,
-                iterator,
-                group_values,
-                x_maker,
-                group_maker,
-            ),
-            _ => Err(PlotError::Other {
-                details: "Y aesthetic for boxplot must be continuous (Float or Int)".to_string(),
-            }),
-        }
-    }
-
-    fn compute_grouped_boxplot_data_inner<T: DiscreteType, U: ContinuousType, G: DiscreteType>(
-        &self,
-        x_values: impl Iterator<Item = T>,
-        y_values: impl Iterator<Item = U>,
-        group_values: impl Iterator<Item = G>,
-        x_maker: impl Fn(Vec<T>) -> Box<dyn GenericVector>,
-        group_maker: impl Fn(Vec<G>) -> Box<dyn GenericVector>,
-    ) -> Result<DataFrame> {
-        let mut grouped_data: HashMap<(G, T), Vec<f64>> = HashMap::new();
-        for ((group, x), y) in group_values.zip(x_values).zip(y_values) {
-            let y = y.to_f64();
-            if y.is_finite() {
-                grouped_data.entry((group, x)).or_default().push(y);
-            }
-        }
-
-        let mut pairs = grouped_data.into_iter().collect::<Vec<_>>();
-        pairs.sort_by(|a, b| a.0.cmp(&b.0));
-
-        let mut result_group: Vec<G> = Vec::new();
-        let mut result_x: Vec<T> = Vec::new();
-        let mut result_y = Vec::new();
-        let mut result_ymin = Vec::new();
-        let mut result_lower = Vec::new();
-        let mut result_middle = Vec::new();
-        let mut result_upper = Vec::new();
-        let mut result_ymax = Vec::new();
-
-        for ((group, x), mut values) in pairs.into_iter() {
-            if values.is_empty() {
-                continue;
-            }
-
-            values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-
-            let (ymin, q1, median, q3, ymax, lower_fence, upper_fence) =
-                self.compute_five_number_summary(&values);
-
-            // Add box statistics
-            result_group.push(group.clone());
-            result_x.push(x.clone());
-            result_y.push(f64::NAN);
-            result_ymin.push(ymin);
-            result_lower.push(q1);
-            result_middle.push(median);
-            result_upper.push(q3);
-            result_ymax.push(ymax);
-
-            // Add outliers
-            for &value in &values {
-                if value < lower_fence || value > upper_fence {
-                    result_group.push(group.clone());
-                    result_x.push(x.clone());
-                    result_y.push(value);
-                    result_ymin.push(f64::NAN);
-                    result_lower.push(f64::NAN);
-                    result_middle.push(f64::NAN);
-                    result_upper.push(f64::NAN);
-                    result_ymax.push(f64::NAN);
-                }
-            }
-        }
-
-        let mut new_data = DataFrame::new();
-        new_data.add_column("group", group_maker(result_group));
-        new_data.add_column("x", x_maker(result_x));
-        new_data.add_column("y", Box::new(FloatVec(result_y)));
-        new_data.add_column("ymin", Box::new(FloatVec(result_ymin)));
-        new_data.add_column("lower", Box::new(FloatVec(result_lower)));
-        new_data.add_column("middle", Box::new(FloatVec(result_middle)));
-        new_data.add_column("upper", Box::new(FloatVec(result_upper)));
-        new_data.add_column("ymax", Box::new(FloatVec(result_ymax)));
-
-        Ok(new_data)
-    }
-
-    /// Compute five-number summary from sorted data
-    fn compute_five_number_summary(
-        &self,
-        sorted_data: &[f64],
-    ) -> (f64, f64, f64, f64, f64, f64, f64) {
-        let n = sorted_data.len();
-
-        if n == 0 {
-            return (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
-        }
-
-        if n == 1 {
-            let val = sorted_data[0];
-            return (val, val, val, val, val, val, val);
-        }
-
-        // Compute quartiles using the midpoint method (R type 7)
-        let q1 = percentile(sorted_data, 0.25);
-        let median = percentile(sorted_data, 0.5);
-        let q3 = percentile(sorted_data, 0.75);
-
-        // Compute whiskers and outliers
-        let iqr = q3 - q1;
-        let lower_fence = q1 - self.coef * iqr;
-        let upper_fence = q3 + self.coef * iqr;
-
-        // Find whisker endpoints (min/max values within fences)
-        let ymin = sorted_data
-            .iter()
-            .find(|&&v| v >= lower_fence)
-            .copied()
-            .unwrap_or(sorted_data[0]);
-
-        let ymax = sorted_data
-            .iter()
-            .rev()
-            .find(|&&v| v <= upper_fence)
-            .copied()
-            .unwrap_or(sorted_data[n - 1]);
-
-        (ymin, q1, median, q3, ymax, lower_fence, upper_fence)
-    }
 }
 
 impl Default for Boxplot {
@@ -399,80 +93,20 @@ impl StatTransform for Boxplot {
             })?;
 
         if let Some(group_values) = mapping.get_vector_iter(&Aesthetic::Group, data.as_ref()) {
-            let new_data = self.compute_grouped_boxplot_data(x_values, y_values, group_values)?;
-            // Update mapping
-            let mut new_mapping = AesMap::new();
-            new_mapping.set(Aesthetic::Group, AesValue::column("group"));
-            new_mapping.set(
-                Aesthetic::X(AestheticDomain::Discrete),
-                AesValue::column("x"),
-            );
-            new_mapping.set(
-                Aesthetic::Xmin(AestheticDomain::Discrete),
-                AesValue::column("x"),
-            );
-            new_mapping.set(
-                Aesthetic::Xmax(AestheticDomain::Discrete),
-                AesValue::column("x"),
-            );
-            new_mapping.set(
-                Aesthetic::Y(AestheticDomain::Continuous),
-                AesValue::column("y"),
-            );
-            new_mapping.set(
-                Aesthetic::Ymin(AestheticDomain::Continuous),
-                AesValue::column("ymin"),
-            );
-            new_mapping.set(
-                Aesthetic::Ymax(AestheticDomain::Continuous),
-                AesValue::column("ymax"),
-            );
-            new_mapping.set(Aesthetic::Lower, AesValue::column("lower"));
-            new_mapping.set(Aesthetic::Middle, AesValue::column("middle"));
-            new_mapping.set(Aesthetic::Upper, AesValue::column("upper"));
-
-            Ok(Some((Box::new(new_data), new_mapping)))
+            let mut counter = GroupedBoxplotCounter::new(self.coef);
+            visit3_ddc(group_values, x_values, y_values, &mut counter)?;
+            Ok(Some((Box::new(counter.data), counter.mapping)))
         } else {
-            // No grouping aesthetic; compute boxplot directly
-            let new_data = self.compute_ungrouped_boxplot_data(x_values, y_values)?;
+            let mut counter = UngroupedBoxplotCounter::new(self.coef);
+            visit2_dc(x_values, y_values, &mut counter)?;
 
-            // Update mapping
-            let mut new_mapping = AesMap::new();
-            new_mapping.set(
-                Aesthetic::X(AestheticDomain::Discrete),
-                AesValue::column("x"),
-            );
-            new_mapping.set(
-                Aesthetic::Xmin(AestheticDomain::Discrete),
-                AesValue::column("x"),
-            );
-            new_mapping.set(
-                Aesthetic::Xmax(AestheticDomain::Discrete),
-                AesValue::column("x"),
-            );
-            new_mapping.set(
-                Aesthetic::Y(AestheticDomain::Continuous),
-                AesValue::column("y"),
-            );
-            new_mapping.set(
-                Aesthetic::Ymin(AestheticDomain::Continuous),
-                AesValue::column("ymin"),
-            );
-            new_mapping.set(
-                Aesthetic::Ymax(AestheticDomain::Continuous),
-                AesValue::column("ymax"),
-            );
-            new_mapping.set(Aesthetic::Lower, AesValue::column("lower"));
-            new_mapping.set(Aesthetic::Middle, AesValue::column("middle"));
-            new_mapping.set(Aesthetic::Upper, AesValue::column("upper"));
-
-            Ok(Some((Box::new(new_data), new_mapping)))
+            Ok(Some((Box::new(counter.data), counter.mapping)))
         }
     }
 }
 
 /// Compute a percentile using linear interpolation (R type 7)
-fn percentile(sorted_data: &[f64], p: f64) -> f64 {
+fn percentile(sorted_data: &[OrderedFloat<f64>], p: f64) -> f64 {
     let n = sorted_data.len();
 
     if n == 0 {
@@ -480,7 +114,7 @@ fn percentile(sorted_data: &[f64], p: f64) -> f64 {
     }
 
     if n == 1 {
-        return sorted_data[0];
+        return sorted_data[0].0;
     }
 
     // Use R's type 7 quantile method (linear interpolation)
@@ -492,12 +126,320 @@ fn percentile(sorted_data: &[f64], p: f64) -> f64 {
     let upper_idx = h_ceil as usize;
 
     if lower_idx == upper_idx {
-        sorted_data[lower_idx]
+        sorted_data[lower_idx].0
     } else {
-        let lower_val = sorted_data[lower_idx];
-        let upper_val = sorted_data[upper_idx];
+        let lower_val = sorted_data[lower_idx].0;
+        let upper_val = sorted_data[upper_idx].0;
         lower_val + (h - h_floor) * (upper_val - lower_val)
     }
+}
+
+struct UngroupedBoxplotCounter {
+    coef: f64,
+    data: DataFrame,
+    mapping: AesMap,
+}
+
+impl UngroupedBoxplotCounter {
+    fn new(coef: f64) -> Self {
+        Self {
+            coef,
+            data: DataFrame::new(),
+            mapping: AesMap::new(),
+        }
+    }
+}
+
+impl DiscreteContinuousVisitor2 for UngroupedBoxplotCounter {
+    fn visit<
+        T: crate::utils::data::Vectorable + DiscreteType,
+        U: crate::utils::data::Vectorable + ContinuousType,
+    >(
+        &mut self,
+        x_iter: impl Iterator<Item = T>,
+        y_iter: impl Iterator<Item = U>,
+    ) {
+        let mut grouped_data: HashMap<T::Sortable, Vec<OrderedFloat<f64>>> = HashMap::new();
+        for (x, y) in x_iter.zip(y_iter) {
+            let y = y.to_f64();
+            if y.is_finite() {
+                grouped_data
+                    .entry(x.to_sortable())
+                    .or_default()
+                    .push(y.to_sortable());
+            }
+        }
+
+        let mut pairs = grouped_data.into_iter().collect::<Vec<_>>();
+        pairs.sort_by(|a, b| a.0.cmp(&b.0));
+
+        let mut result_x: Vec<T> = Vec::new();
+        let mut result_y = Vec::new();
+        let mut result_ymin = Vec::new();
+        let mut result_lower = Vec::new();
+        let mut result_middle = Vec::new();
+        let mut result_upper = Vec::new();
+        let mut result_ymax = Vec::new();
+
+        for (x, mut values) in pairs.into_iter() {
+            if values.is_empty() {
+                continue;
+            }
+
+            values.sort();
+
+            let (ymin, q1, median, q3, ymax, lower_fence, upper_fence) =
+                compute_five_number_summary(self.coef, &values);
+
+            // Add box statistics
+            result_x.push(T::from_sortable(x.clone()));
+            result_y.push(f64::NAN);
+            result_ymin.push(ymin);
+            result_lower.push(q1);
+            result_middle.push(median);
+            result_upper.push(q3);
+            result_ymax.push(ymax);
+
+            // Add outliers
+            for &value in &values {
+                if value.0 < lower_fence || value.0 > upper_fence {
+                    result_x.push(T::from_sortable(x.clone()));
+                    result_y.push(value.0);
+                    result_ymin.push(f64::NAN);
+                    result_lower.push(f64::NAN);
+                    result_middle.push(f64::NAN);
+                    result_upper.push(f64::NAN);
+                    result_ymax.push(f64::NAN);
+                }
+            }
+        }
+
+        self.data.add_column("x", T::make_vector(result_x));
+        self.data.add_column("y", Box::new(FloatVec(result_y)));
+        self.data
+            .add_column("ymin", Box::new(FloatVec(result_ymin)));
+        self.data
+            .add_column("lower", Box::new(FloatVec(result_lower)));
+        self.data
+            .add_column("middle", Box::new(FloatVec(result_middle)));
+        self.data
+            .add_column("upper", Box::new(FloatVec(result_upper)));
+        self.data
+            .add_column("ymax", Box::new(FloatVec(result_ymax)));
+
+        // Update mapping
+        self.mapping.set(
+            Aesthetic::X(AestheticDomain::Discrete),
+            AesValue::column("x"),
+        );
+        self.mapping.set(
+            Aesthetic::Xmin(AestheticDomain::Discrete),
+            AesValue::column("x"),
+        );
+        self.mapping.set(
+            Aesthetic::Xmax(AestheticDomain::Discrete),
+            AesValue::column("x"),
+        );
+        self.mapping.set(
+            Aesthetic::Y(AestheticDomain::Continuous),
+            AesValue::column("y"),
+        );
+        self.mapping.set(
+            Aesthetic::Ymin(AestheticDomain::Continuous),
+            AesValue::column("ymin"),
+        );
+        self.mapping.set(
+            Aesthetic::Ymax(AestheticDomain::Continuous),
+            AesValue::column("ymax"),
+        );
+        self.mapping
+            .set(Aesthetic::Lower, AesValue::column("lower"));
+        self.mapping
+            .set(Aesthetic::Middle, AesValue::column("middle"));
+        self.mapping
+            .set(Aesthetic::Upper, AesValue::column("upper"));
+    }
+}
+
+struct GroupedBoxplotCounter {
+    coef: f64,
+    data: DataFrame,
+    mapping: AesMap,
+}
+
+impl GroupedBoxplotCounter {
+    fn new(coef: f64) -> Self {
+        Self {
+            coef,
+            data: DataFrame::new(),
+            mapping: AesMap::new(),
+        }
+    }
+}
+
+impl DiscreteDiscreteContinuousVisitor3 for GroupedBoxplotCounter {
+    fn visit<
+        G: crate::utils::data::Vectorable + DiscreteType,
+        T: crate::utils::data::Vectorable + DiscreteType,
+        U: crate::utils::data::Vectorable + ContinuousType,
+    >(
+        &mut self,
+        group_iter: impl Iterator<Item = G>,
+        x_iter: impl Iterator<Item = T>,
+        y_iter: impl Iterator<Item = U>,
+    ) {
+        let mut grouped_data: HashMap<(G::Sortable, T::Sortable), Vec<OrderedFloat<f64>>> =
+            HashMap::new();
+        for ((group, x), y) in group_iter.zip(x_iter).zip(y_iter) {
+            let y = y.to_f64();
+            if y.is_finite() {
+                grouped_data
+                    .entry((group.to_sortable(), x.to_sortable()))
+                    .or_default()
+                    .push(y.to_sortable());
+            }
+        }
+
+        let mut pairs = grouped_data.into_iter().collect::<Vec<_>>();
+        pairs.sort_by(|a, b| a.0.cmp(&b.0));
+
+        let mut result_group: Vec<G> = Vec::new();
+        let mut result_x: Vec<T> = Vec::new();
+        let mut result_y = Vec::new();
+        let mut result_ymin = Vec::new();
+        let mut result_lower = Vec::new();
+        let mut result_middle = Vec::new();
+        let mut result_upper = Vec::new();
+        let mut result_ymax = Vec::new();
+
+        for ((group, x), mut values) in pairs.into_iter() {
+            if values.is_empty() {
+                continue;
+            }
+
+            values.sort();
+
+            let (ymin, q1, median, q3, ymax, lower_fence, upper_fence) =
+                compute_five_number_summary(self.coef, &values);
+
+            // Add box statistics
+            result_group.push(G::from_sortable(group.clone()));
+            result_x.push(T::from_sortable(x.clone()));
+            result_y.push(f64::NAN);
+            result_ymin.push(ymin);
+            result_lower.push(q1);
+            result_middle.push(median);
+            result_upper.push(q3);
+            result_ymax.push(ymax);
+
+            // Add outliers
+            for &value in &values {
+                if value.0 < lower_fence || value.0 > upper_fence {
+                    result_group.push(G::from_sortable(group.clone()));
+                    result_x.push(T::from_sortable(x.clone()));
+                    result_y.push(value.0);
+                    result_ymin.push(f64::NAN);
+                    result_lower.push(f64::NAN);
+                    result_middle.push(f64::NAN);
+                    result_upper.push(f64::NAN);
+                    result_ymax.push(f64::NAN);
+                }
+            }
+        }
+
+        self.data.add_column("group", G::make_vector(result_group));
+        self.data.add_column("x", T::make_vector(result_x));
+        self.data.add_column("y", Box::new(FloatVec(result_y)));
+        self.data
+            .add_column("ymin", Box::new(FloatVec(result_ymin)));
+        self.data
+            .add_column("lower", Box::new(FloatVec(result_lower)));
+        self.data
+            .add_column("middle", Box::new(FloatVec(result_middle)));
+        self.data
+            .add_column("upper", Box::new(FloatVec(result_upper)));
+        self.data
+            .add_column("ymax", Box::new(FloatVec(result_ymax)));
+
+        // Update mapping
+        self.mapping
+            .set(Aesthetic::Group, AesValue::column("group"));
+        self.mapping.set(
+            Aesthetic::X(AestheticDomain::Discrete),
+            AesValue::column("x"),
+        );
+        self.mapping.set(
+            Aesthetic::Xmin(AestheticDomain::Discrete),
+            AesValue::column("x"),
+        );
+        self.mapping.set(
+            Aesthetic::Xmax(AestheticDomain::Discrete),
+            AesValue::column("x"),
+        );
+        self.mapping.set(
+            Aesthetic::Y(AestheticDomain::Continuous),
+            AesValue::column("y"),
+        );
+        self.mapping.set(
+            Aesthetic::Ymin(AestheticDomain::Continuous),
+            AesValue::column("ymin"),
+        );
+        self.mapping.set(
+            Aesthetic::Ymax(AestheticDomain::Continuous),
+            AesValue::column("ymax"),
+        );
+        self.mapping
+            .set(Aesthetic::Lower, AesValue::column("lower"));
+        self.mapping
+            .set(Aesthetic::Middle, AesValue::column("middle"));
+        self.mapping
+            .set(Aesthetic::Upper, AesValue::column("upper"));
+    }
+}
+
+/// Compute five-number summary from sorted data
+fn compute_five_number_summary(
+    coef: f64,
+    sorted_data: &[OrderedFloat<f64>],
+) -> (f64, f64, f64, f64, f64, f64, f64) {
+    let n = sorted_data.len();
+
+    if n == 0 {
+        return (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+    }
+
+    if n == 1 {
+        let val = sorted_data[0].0;
+        return (val, val, val, val, val, val, val);
+    }
+
+    // Compute quartiles using the midpoint method (R type 7)
+    let q1 = percentile(sorted_data, 0.25);
+    let median = percentile(sorted_data, 0.5);
+    let q3 = percentile(sorted_data, 0.75);
+
+    // Compute whiskers and outliers
+    let iqr = q3 - q1;
+    let lower_fence = q1 - coef * iqr;
+    let upper_fence = q3 + coef * iqr;
+
+    // Find whisker endpoints (min/max values within fences)
+    let ymin = sorted_data
+        .iter()
+        .find(|&&v| v.0 >= lower_fence)
+        .copied()
+        .unwrap_or(sorted_data[0])
+        .0;
+
+    let ymax = sorted_data
+        .iter()
+        .rev()
+        .find(|&&v| v.0 <= upper_fence)
+        .copied()
+        .unwrap_or(sorted_data[n - 1])
+        .0;
+
+    (ymin, q1, median, q3, ymax, lower_fence, upper_fence)
 }
 
 #[cfg(test)]
@@ -507,6 +449,7 @@ mod tests {
     #[test]
     fn test_percentile() {
         let data = vec![1.0, 2.0, 3.0, 4.0, 5.0];
+        let data: Vec<OrderedFloat<f64>> = data.into_iter().map(OrderedFloat).collect();
         assert_eq!(percentile(&data, 0.0), 1.0);
         assert_eq!(percentile(&data, 0.5), 3.0);
         assert_eq!(percentile(&data, 1.0), 5.0);
@@ -516,10 +459,10 @@ mod tests {
 
     #[test]
     fn test_five_number_summary() {
-        let boxplot = Boxplot::new();
         let data = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0];
+        let data: Vec<OrderedFloat<f64>> = data.into_iter().map(OrderedFloat).collect();
         let (ymin, q1, median, q3, ymax, _lower_fence, _upper_fence) =
-            boxplot.compute_five_number_summary(&data);
+            compute_five_number_summary(1.5, &data);
 
         assert_eq!(median, 5.5);
         assert_eq!(q1, 3.25);
@@ -531,11 +474,11 @@ mod tests {
 
     #[test]
     fn test_boxplot_with_outliers() {
-        let boxplot = Boxplot::new();
         // Data with clear outliers: [1, 10, 10, 10, 10, 10, 10, 100]
         let data = vec![1.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 100.0];
+        let data: Vec<OrderedFloat<f64>> = data.into_iter().map(OrderedFloat).collect();
         let (ymin, q1, median, q3, ymax, _lower_fence, _upper_fence) =
-            boxplot.compute_five_number_summary(&data);
+            compute_five_number_summary(1.5, &data);
 
         // Q1 = 10, Q3 = 10, IQR = 0, fences at 10 ± 0 = 10
         // So 1.0 and 100.0 should be outliers, whiskers at 10

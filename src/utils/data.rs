@@ -416,3 +416,144 @@ fn visit3_inner2<T: Vectorable, U: Vectorable, V: VectorVisitor3>(
         VectorIter::Bool(it3) => visitor.visit(it1, it2, it3),
     }
 }
+
+pub trait DiscreteContinuousContinuousVisitor3 {
+    fn visit<T: Vectorable + DiscreteType, U: Vectorable + ContinuousType, V: Vectorable + ContinuousType>(
+        &mut self,
+        value1: impl Iterator<Item = T>,
+        value2: impl Iterator<Item = U>,
+        value3: impl Iterator<Item = V>,
+    );
+}
+
+pub fn visit3_dcc<'a, V: DiscreteContinuousContinuousVisitor3>(
+    iter1: VectorIter<'a>,
+    iter2: VectorIter<'a>,
+    iter3: VectorIter<'a>,
+    visitor: &mut V,
+) -> Result<(), PlotError> {
+    match iter1 {
+        VectorIter::Int(it1) => visit3_dcc_inner1(it1, iter2, iter3, visitor),
+        VectorIter::Str(it1) => visit3_dcc_inner1(it1.map(|s| s.to_string()), iter2, iter3, visitor),
+        VectorIter::Float(_) => Err(PlotError::AestheticDomainMismatch {
+            expected: crate::aesthetics::AestheticDomain::Discrete,
+            actual: DataType::Vector(VectorType::Float),
+        }),
+        VectorIter::Bool(it1) => visit3_dcc_inner1(it1, iter2, iter3, visitor),
+    }
+}
+
+fn visit3_dcc_inner1<T: Vectorable + DiscreteType, V: DiscreteContinuousContinuousVisitor3>(
+    it1: impl Iterator<Item = T>,
+    iter2: VectorIter,
+    iter3: VectorIter,
+    visitor: &mut V,
+) -> Result<(), PlotError> {
+    match iter2 {
+        VectorIter::Int(it2) => visit3_dcc_inner2(it1, it2, iter3, visitor),
+        VectorIter::Float(it2) => visit3_dcc_inner2(it1, it2, iter3, visitor),
+        VectorIter::Str(_) => Err(PlotError::AestheticDomainMismatch {
+            expected: crate::aesthetics::AestheticDomain::Continuous,
+            actual: DataType::Vector(VectorType::Str),
+        }),
+        VectorIter::Bool(_) => Err(PlotError::AestheticDomainMismatch {
+            expected: crate::aesthetics::AestheticDomain::Continuous,
+            actual: DataType::Vector(VectorType::Bool),
+        }),
+    }
+}
+
+fn visit3_dcc_inner2<T: Vectorable + DiscreteType, U: Vectorable + ContinuousType, V: DiscreteContinuousContinuousVisitor3>(
+    it1: impl Iterator<Item = T>,
+    it2: impl Iterator<Item = U>,
+    iter3: VectorIter,
+    visitor: &mut V,
+) -> Result<(), PlotError> {
+    match iter3 {
+        VectorIter::Int(it3) => {
+            visitor.visit(it1, it2, it3);
+            Ok(())
+        }
+        VectorIter::Float(it3) => {
+            visitor.visit(it1, it2, it3);
+            Ok(())
+        }
+        VectorIter::Str(_) => Err(PlotError::AestheticDomainMismatch {
+            expected: crate::aesthetics::AestheticDomain::Continuous,
+            actual: DataType::Vector(VectorType::Str),
+        }),
+        VectorIter::Bool(_) => Err(PlotError::AestheticDomainMismatch {
+            expected: crate::aesthetics::AestheticDomain::Continuous,
+            actual: DataType::Vector(VectorType::Bool),
+        }),
+    }
+}
+
+pub trait DiscreteDiscreteContinuousVisitor3 {
+    fn visit<T: Vectorable + DiscreteType, U: Vectorable + DiscreteType, V: Vectorable + ContinuousType>(
+        &mut self,
+        value1: impl Iterator<Item = T>,
+        value2: impl Iterator<Item = U>,
+        value3: impl Iterator<Item = V>,
+    );
+}
+
+pub fn visit3_ddc<'a, V: DiscreteDiscreteContinuousVisitor3>(
+    iter1: VectorIter<'a>,
+    iter2: VectorIter<'a>,
+    iter3: VectorIter<'a>,
+    visitor: &mut V,
+) -> Result<(), PlotError> {
+    match iter1 {
+        VectorIter::Int(it1) => visit3_ddc_inner1(it1, iter2, iter3, visitor),
+        VectorIter::Str(it1) => visit3_ddc_inner1(it1.map(|s| s.to_string()), iter2, iter3, visitor),
+        VectorIter::Float(_) => Err(PlotError::AestheticDomainMismatch {
+            expected: crate::aesthetics::AestheticDomain::Discrete,
+            actual: DataType::Vector(VectorType::Float),
+        }),
+        VectorIter::Bool(it1) => visit3_ddc_inner1(it1, iter2, iter3, visitor),
+    }
+}
+
+fn visit3_ddc_inner1<T: Vectorable + DiscreteType, V: DiscreteDiscreteContinuousVisitor3>(
+    it1: impl Iterator<Item = T>,
+    iter2: VectorIter,
+    iter3: VectorIter,
+    visitor: &mut V,
+) -> Result<(), PlotError> {
+    match iter2 {
+        VectorIter::Int(it2) => visit3_ddc_inner2(it1, it2, iter3, visitor),
+        VectorIter::Str(it2) => visit3_ddc_inner2(it1, it2.map(|s| s.to_string()), iter3, visitor),
+        VectorIter::Float(_) => Err(PlotError::AestheticDomainMismatch {
+            expected: crate::aesthetics::AestheticDomain::Discrete,
+            actual: DataType::Vector(VectorType::Float),
+        }),
+        VectorIter::Bool(it2) => visit3_ddc_inner2(it1, it2, iter3, visitor),
+    }
+}
+
+fn visit3_ddc_inner2<T: Vectorable + DiscreteType, U: Vectorable + DiscreteType, V: DiscreteDiscreteContinuousVisitor3>(
+    it1: impl Iterator<Item = T>,
+    it2: impl Iterator<Item = U>,
+    iter3: VectorIter,
+    visitor: &mut V,
+) -> Result<(), PlotError> {
+    match iter3 {
+        VectorIter::Int(it3) => {
+            visitor.visit(it1, it2, it3);
+            Ok(())
+        }
+        VectorIter::Float(it3) => {
+            visitor.visit(it1, it2, it3);
+            Ok(())
+        }
+        VectorIter::Str(_) => Err(PlotError::AestheticDomainMismatch {
+            expected: crate::aesthetics::AestheticDomain::Continuous,
+            actual: DataType::Vector(VectorType::Str),
+        }),
+        VectorIter::Bool(_) => Err(PlotError::AestheticDomainMismatch {
+            expected: crate::aesthetics::AestheticDomain::Continuous,
+            actual: DataType::Vector(VectorType::Bool),
+        }),
+    }
+}
