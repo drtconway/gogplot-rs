@@ -1,9 +1,10 @@
 // Statistical summary transformation
 
 use crate::aesthetics::{AesMap, Aesthetic};
-use crate::data::{DataSource, GenericVector, VectorType};
+use crate::data::{ContinuousType, DataSource, DiscreteType, GenericVector, VectorType};
 use crate::error::{PlotError, Result};
 use crate::stat::StatTransform;
+use crate::utils::data::{ContinuousVectorVisitor, DiscreteContinuousVisitor2, Vectorable};
 use crate::utils::dataframe::{DataFrame, FloatVec, IntVec, StrVec};
 use std::collections::HashMap;
 
@@ -258,6 +259,125 @@ impl StatTransform for Summary {
         // (e.g., .geom_hline(Aes::y("mean")) or .geom_hline(Aes::y("y_mean")))
         Ok(Some((Box::new(df), mapping.clone())))
     }
+}
+
+struct Summarizer {
+    aesthetic: Aesthetic,
+}
+
+impl Summarizer {
+    fn new(aesthetic: Aesthetic) -> Self {
+        Self { aesthetic }
+    }
+
+    fn summarize<T: Vectorable + ContinuousType>(&self, xs: &[T::Sortable]) -> (i64, T, T, f64, T, f64) {
+        let n = xs.len();
+        let min = T::from_sortable(xs.first().cloned().unwrap());
+        let max = T::from_sortable(xs.last().cloned().unwrap());
+        let mean = xs
+            .iter()
+            .map(|v| T::from_sortable(v.clone()).to_f64())
+            .sum::<f64>()
+            / n as f64;
+        let median = T::from_sortable(xs[n / 2].clone());
+        let sd = {
+            let variance = xs
+                .iter()
+                .map(|v| {
+                    let d = T::from_sortable(v.clone()).to_f64() - mean;
+                    d * d
+                })
+                .sum::<f64>()
+                / n as f64;
+            variance.sqrt()
+        };
+        (n as i64, min, max, mean, median, sd)
+    }
+}
+
+impl ContinuousVectorVisitor for Summarizer {
+    type Output = (DataFrame, AesMap);
+
+    fn visit<T: Vectorable + ContinuousType>(
+        &mut self,
+        x_values: impl Iterator<Item = T>,
+    ) -> std::result::Result<Self::Output, PlotError> {
+        let mut xs: Vec<T::Sortable> = x_values.map(|v| v.to_sortable()).collect();
+        xs.sort();
+
+        let (n, min, max, mean, median, sd) = self.summarize(&xs);
+
+        let mut data = DataFrame::new();
+        data.add_column("n", Box::new(IntVec(vec![n])));
+        data.add_column("min", T::make_vector(vec![min]));
+        data.add_column("max", T::make_vector(vec![max]));
+        data.add_column("mean", Box::new(FloatVec(vec![mean])));
+        data.add_column("median", T::make_vector(vec![median]));
+        data.add_column("sd", Box::new(FloatVec(vec![sd])));
+
+        let mapping = AesMap::new();
+
+        Ok((data, mapping))
+    }
+}
+
+impl DiscreteContinuousVisitor2 for Summarizer {
+    type Output = (DataFrame, AesMap);
+    
+    fn visit<G: Vectorable + DiscreteType, T: Vectorable + ContinuousType>(
+        &mut self,
+        group_values: impl Iterator<Item = G>,
+        x_values: impl Iterator<Item = T>,
+    ) -> std::result::Result<Self::Output, PlotError> {
+        let mut groups: HashMap<G::Sortable, Vec<T>> = HashMap::new();
+        for (g, x) in group_values.zip(x_values) {
+            groups
+                .entry(g.to_sortable())
+                .or_insert_with(Vec::new)
+                .push(x);
+        }
+
+        let mut pairs : Vec<(G::Sortable, Vec<T>)> = groups.into_iter().collect();
+        pairs.sort_by(|(g1, _), (g2, _)| g1.cmp(g2));
+
+        let mut n_values = Vec::new();
+        let mut min_values = Vec::new();
+        let mut max_values = Vec::new();
+        let mut mean_values = Vec::new();
+        let mut median_values = Vec::new();
+        let mut sd_values = Vec::new();
+        let mut group_keys = Vec::new();
+
+        for (group_key, xs) in pairs.into_iter() {
+            let mut xs_sortable: Vec<T::Sortable> = xs.into_iter().map(|v| v.to_sortable()).collect();
+            xs_sortable.sort();
+
+            let (n, min, max, mean, median, sd) = self.summarize(&xs_sortable);
+
+            group_keys.push(G::from_sortable(group_key));
+            n_values.push(n);
+            min_values.push(min);
+            max_values.push(max);
+            mean_values.push(mean);
+            median_values.push(median);
+            sd_values.push(sd);
+        }
+
+        let mut data = DataFrame::new();
+        data.add_column("group", G::make_vector(group_keys));
+        data.add_column("n", Box::new(IntVec(n_values)));
+        data.add_column("min", T::make_vector(min_values));
+        data.add_column("max", T::make_vector(max_values));
+        data.add_column("mean", Box::new(FloatVec(mean_values)));
+        data.add_column("median", T::make_vector(median_values));
+        data.add_column("sd", Box::new(FloatVec(sd_values)));
+
+        let mapping = AesMap::new();
+
+        Ok((data, mapping))
+    }
+
+    
 }
 
 #[cfg(test)]
