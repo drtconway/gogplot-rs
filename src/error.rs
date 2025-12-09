@@ -132,6 +132,11 @@ pub enum PlotError {
         column: String,
     },
 
+    StatError {
+        stat: String,
+        details: String,
+    },
+
     Other {
         details: String,
     },
@@ -207,6 +212,9 @@ impl Display for PlotError {
                     "Column '{}' is a string and must use categorical scale for {:?}, but continuous was requested",
                     column, aesthetic
                 )
+            }
+            PlotError::StatError { stat, details } => {
+                write!(f, "Stat '{}' error: {}", stat, details)
             }
             PlotError::Other { details } => {
                 write!(f, "Plot error: {}", details)

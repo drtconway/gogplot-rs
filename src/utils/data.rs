@@ -173,18 +173,20 @@ fn visit2_ca_inner<T: Vectorable + ContinuousType, V: ContinuousVectorVisitor2>(
 
 /// Visitor for two vectors where both must be continuous
 pub trait ContinuousContinuousVisitor2 {
+    type Output;
+
     fn visit<T: Vectorable + ContinuousType, U: Vectorable + ContinuousType>(
         &mut self,
         value1: impl Iterator<Item = T>,
         value2: impl Iterator<Item = U>,
-    );
+    ) -> std::result::Result<Self::Output, PlotError>;
 }
 
 pub fn visit2_cc<'a, V: ContinuousContinuousVisitor2>(
     iter1: VectorIter<'a>,
     iter2: VectorIter<'a>,
     visitor: &mut V,
-) -> Result<(), PlotError> {
+) -> Result<V::Output, PlotError> {
     match iter1 {
         VectorIter::Int(it1) => visit2_cc_inner(it1, iter2, visitor),
         VectorIter::Float(it1) => visit2_cc_inner(it1, iter2, visitor),
@@ -203,15 +205,13 @@ fn visit2_cc_inner<T: Vectorable + ContinuousType, V: ContinuousContinuousVisito
     it1: impl Iterator<Item = T>,
     iter2: VectorIter,
     visitor: &mut V,
-) -> Result<(), PlotError> {
+) -> Result<V::Output, PlotError> {
     match iter2 {
         VectorIter::Int(it2) => {
-            visitor.visit(it1, it2);
-            Ok(())
+            visitor.visit(it1, it2)
         }
         VectorIter::Float(it2) => {
-            visitor.visit(it1, it2);
-            Ok(())
+            visitor.visit(it1, it2)
         }
         VectorIter::Str(_) => Err(PlotError::AestheticDomainMismatch {
             expected: crate::aesthetics::AestheticDomain::Continuous,
