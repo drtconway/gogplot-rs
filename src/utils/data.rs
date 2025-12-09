@@ -47,16 +47,18 @@ pub fn visit<'a, V: VectorVisitor>(iter: VectorIter<'a>, visitor: &mut V) {
 
 /// Visitor that only accepts continuous types (i64, f64)
 pub trait ContinuousVectorVisitor {
-    fn visit<T: Vectorable + ContinuousType>(&mut self, value: impl Iterator<Item = T>);
+    type Output;
+
+    fn visit<T: Vectorable + ContinuousType>(&mut self, value: impl Iterator<Item = T>) -> std::result::Result<Self::Output, PlotError>;
 }
 
 pub fn visit_c<'a, V: ContinuousVectorVisitor>(
     iter: VectorIter<'a>,
     visitor: &mut V,
-) -> Result<(), PlotError> {
+) -> Result<V::Output, PlotError> {
     match iter {
-        VectorIter::Int(it) => Ok(visitor.visit(it)),
-        VectorIter::Float(it) => Ok(visitor.visit(it)),
+        VectorIter::Int(it) => visitor.visit(it),
+        VectorIter::Float(it) => visitor.visit(it),
         VectorIter::Str(_) => Err(PlotError::AestheticDomainMismatch {
             expected: crate::aesthetics::AestheticDomain::Continuous,
             actual: DataType::Vector(VectorType::Str),
@@ -318,18 +320,20 @@ fn visit2_dd_inner<T: Vectorable + DiscreteType, V: DiscreteDiscreteVisitor2>(
 }
 
 pub trait DiscreteContinuousVisitor2 {
+    type Output;
+
     fn visit<T: Vectorable + DiscreteType, U: Vectorable + ContinuousType>(
         &mut self,
         value1: impl Iterator<Item = T>,
         value2: impl Iterator<Item = U>,
-    );
+    ) -> std::result::Result<Self::Output, PlotError>;
 }
 
 pub fn visit2_dc<'a, V: DiscreteContinuousVisitor2>(
     iter1: VectorIter<'a>,
     iter2: VectorIter<'a>,
     visitor: &mut V,
-) -> Result<(), PlotError> {
+) -> Result<V::Output, PlotError> {
     match iter1 {
         VectorIter::Int(it1) => visit2_dc_inner(it1, iter2, visitor),
         VectorIter::Str(it1) => visit2_dc_inner(it1.map(|s| s.to_string()), iter2, visitor),
@@ -345,15 +349,13 @@ fn visit2_dc_inner<T: Vectorable + DiscreteType, V: DiscreteContinuousVisitor2>(
     it1: impl Iterator<Item = T>,
     iter2: VectorIter,
     visitor: &mut V,
-) -> Result<(), PlotError> {
+) -> Result<V::Output, PlotError> {
     match iter2 {
         VectorIter::Int(it2) => {
-            visitor.visit(it1, it2);
-            Ok(())
+            visitor.visit(it1, it2)
         }
         VectorIter::Float(it2) => {
-            visitor.visit(it1, it2);
-            Ok(())
+            visitor.visit(it1, it2)
         }
         VectorIter::Str(_) => Err(PlotError::AestheticDomainMismatch {
             expected: crate::aesthetics::AestheticDomain::Continuous,
@@ -490,12 +492,14 @@ fn visit3_dcc_inner2<T: Vectorable + DiscreteType, U: Vectorable + ContinuousTyp
 }
 
 pub trait DiscreteDiscreteContinuousVisitor3 {
+    type Output;
+
     fn visit<T: Vectorable + DiscreteType, U: Vectorable + DiscreteType, V: Vectorable + ContinuousType>(
         &mut self,
         value1: impl Iterator<Item = T>,
         value2: impl Iterator<Item = U>,
         value3: impl Iterator<Item = V>,
-    );
+    ) -> std::result::Result<Self::Output, PlotError>;
 }
 
 pub fn visit3_ddc<'a, V: DiscreteDiscreteContinuousVisitor3>(
@@ -503,7 +507,7 @@ pub fn visit3_ddc<'a, V: DiscreteDiscreteContinuousVisitor3>(
     iter2: VectorIter<'a>,
     iter3: VectorIter<'a>,
     visitor: &mut V,
-) -> Result<(), PlotError> {
+) -> Result<V::Output, PlotError> {
     match iter1 {
         VectorIter::Int(it1) => visit3_ddc_inner1(it1, iter2, iter3, visitor),
         VectorIter::Str(it1) => visit3_ddc_inner1(it1.map(|s| s.to_string()), iter2, iter3, visitor),
@@ -520,7 +524,7 @@ fn visit3_ddc_inner1<T: Vectorable + DiscreteType, V: DiscreteDiscreteContinuous
     iter2: VectorIter,
     iter3: VectorIter,
     visitor: &mut V,
-) -> Result<(), PlotError> {
+) -> Result<V::Output, PlotError> {
     match iter2 {
         VectorIter::Int(it2) => visit3_ddc_inner2(it1, it2, iter3, visitor),
         VectorIter::Str(it2) => visit3_ddc_inner2(it1, it2.map(|s| s.to_string()), iter3, visitor),
@@ -537,15 +541,13 @@ fn visit3_ddc_inner2<T: Vectorable + DiscreteType, U: Vectorable + DiscreteType,
     it2: impl Iterator<Item = U>,
     iter3: VectorIter,
     visitor: &mut V,
-) -> Result<(), PlotError> {
+) -> Result<V::Output, PlotError> {
     match iter3 {
         VectorIter::Int(it3) => {
-            visitor.visit(it1, it2, it3);
-            Ok(())
+            visitor.visit(it1, it2, it3)
         }
         VectorIter::Float(it3) => {
-            visitor.visit(it1, it2, it3);
-            Ok(())
+            visitor.visit(it1, it2, it3)
         }
         VectorIter::Str(_) => Err(PlotError::AestheticDomainMismatch {
             expected: crate::aesthetics::AestheticDomain::Continuous,

@@ -1,8 +1,10 @@
 use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain};
 use crate::data::{ContinuousType, DataSource, DiscreteType, VectorIter};
-use crate::error::Result;
+use crate::error::{PlotError, Result};
 use crate::stat::StatTransform;
-use crate::utils::data::{ContinuousVectorVisitor, DiscreteContinuousVisitor2, Vectorable, visit_c, visit2_dc};
+use crate::utils::data::{
+    ContinuousVectorVisitor, DiscreteContinuousVisitor2, Vectorable, visit_c, visit2_dc,
+};
 use crate::utils::dataframe::{DataFrame, FloatVec, IntVec};
 use std::collections::HashMap;
 
@@ -182,19 +184,16 @@ impl StatTransform for Bin {
                 .unwrap();
 
             let mut binner = GroupedValueBinner::new(binner, self.strategy.cumulative);
-            visit2_dc(group_iter, x_values, &mut binner)?;
-
-            Ok(Some((Box::new(binner.data), binner.mapping)))
+            visit2_dc(group_iter, x_values, &mut binner)
+                .map(|(data, mapping)| Some((Box::new(data) as Box<dyn DataSource>, mapping)))
         } else {
             let x_values = mapping
                 .get_vector_iter(&Aesthetic::X(AestheticDomain::Continuous), data.as_ref())
                 .unwrap();
 
-
             let mut binner = UngroupedValueBinner::new(binner, self.strategy.cumulative);
-            visit_c(x_values, &mut binner)?;
-
-            Ok(Some((Box::new(binner.data), binner.mapping)))
+            visit_c(x_values, &mut binner)
+                .map(|(data, mapping)| Some((Box::new(data) as Box<dyn DataSource>, mapping)))
         }
     }
 }
@@ -242,7 +241,12 @@ impl UngroupedValueBinner {
 }
 
 impl ContinuousVectorVisitor for UngroupedValueBinner {
-    fn visit<T: Vectorable + ContinuousType>(&mut self, values: impl Iterator<Item = T>) {
+    type Output = (DataFrame, AesMap);
+
+    fn visit<T: Vectorable + ContinuousType>(
+        &mut self,
+        values: impl Iterator<Item = T>,
+    ) -> std::result::Result<Self::Output, PlotError> {
         let mut counts = vec![0i64; self.binner.len()];
 
         for value in values {
@@ -269,53 +273,54 @@ impl ContinuousVectorVisitor for UngroupedValueBinner {
             maxs.push(max);
         }
 
-        self.data.add_column("xmin", Box::new(FloatVec(mins)));
-        self.data.add_column("x", Box::new(FloatVec(centers)));
-        self.data.add_column("xmax", Box::new(FloatVec(maxs)));
-        self.data.add_column("count", Box::new(IntVec(counts)));
-        self.mapping.set(
+        let mut data = DataFrame::new();
+        let mut mapping = AesMap::new();
+
+        data.add_column("xmin", Box::new(FloatVec(mins)));
+        data.add_column("x", Box::new(FloatVec(centers)));
+        data.add_column("xmax", Box::new(FloatVec(maxs)));
+        data.add_column("count", Box::new(IntVec(counts)));
+
+        mapping.set(
             Aesthetic::X(AestheticDomain::Continuous),
             AesValue::column("x"),
         );
-        self.mapping.set(
+        mapping.set(
             Aesthetic::Xmin(AestheticDomain::Continuous),
             AesValue::column("xmin"),
         );
-        self.mapping.set(
+        mapping.set(
             Aesthetic::Xmax(AestheticDomain::Continuous),
             AesValue::column("xmax"),
         );
-        self.mapping.set(
+        mapping.set(
             Aesthetic::Y(AestheticDomain::Continuous),
             AesValue::column("count"),
         );
+
+        Ok((data, mapping))
     }
 }
 
 struct GroupedValueBinner {
     binner: Binner,
     cumulative: bool,
-    data: DataFrame,
-    mapping: AesMap,
 }
 
 impl GroupedValueBinner {
     fn new(binner: Binner, cumulative: bool) -> Self {
-        Self {
-            binner,
-            cumulative,
-            data: DataFrame::new(),
-            mapping: AesMap::new(),
-        }
+        Self { binner, cumulative }
     }
 }
 
 impl DiscreteContinuousVisitor2 for GroupedValueBinner {
+    type Output = (DataFrame, AesMap);
+
     fn visit<G: Vectorable + DiscreteType, T: Vectorable + ContinuousType>(
         &mut self,
         group_values: impl Iterator<Item = G>,
         x_values: impl Iterator<Item = T>,
-    ) {
+    ) -> std::result::Result<Self::Output, PlotError> {
         let mut groups: HashMap<G::Sortable, Vec<i64>> = HashMap::new();
         for (group, x) in group_values.zip(x_values) {
             let value_f64 = x.to_f64();
@@ -352,32 +357,34 @@ impl DiscreteContinuousVisitor2 for GroupedValueBinner {
             }
         }
 
-        self.data.add_column("xmin", Box::new(FloatVec(mins)));
-        self.data.add_column("x", Box::new(FloatVec(centers)));
-        self.data.add_column("xmax", Box::new(FloatVec(maxs)));
-        self.data.add_column("count", Box::new(IntVec(counts)));
-        self.data.add_column("group", G::make_vector(group_values));
+        let mut data = DataFrame::new();
+        let mut mapping = AesMap::new();
 
-        self.mapping.set(
+        data.add_column("xmin", Box::new(FloatVec(mins)));
+        data.add_column("x", Box::new(FloatVec(centers)));
+        data.add_column("xmax", Box::new(FloatVec(maxs)));
+        data.add_column("count", Box::new(IntVec(counts)));
+        data.add_column("group", G::make_vector(group_values));
+
+        mapping.set(
             Aesthetic::X(AestheticDomain::Continuous),
             AesValue::column("x"),
         );
-        self.mapping.set(
+        mapping.set(
             Aesthetic::Xmin(AestheticDomain::Continuous),
             AesValue::column("xmin"),
         );
-        self.mapping.set(
+        mapping.set(
             Aesthetic::Xmax(AestheticDomain::Continuous),
             AesValue::column("xmax"),
         );
-        self.mapping.set(
+        mapping.set(
             Aesthetic::Y(AestheticDomain::Continuous),
             AesValue::column("count"),
         );
-        self.mapping.set(
-            Aesthetic::Group,
-            AesValue::column("group"),
-        );
+        mapping.set(Aesthetic::Group, AesValue::column("group"));
+
+        Ok((data, mapping))
     }
 }
 

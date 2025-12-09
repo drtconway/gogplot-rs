@@ -94,13 +94,12 @@ impl StatTransform for Boxplot {
 
         if let Some(group_values) = mapping.get_vector_iter(&Aesthetic::Group, data.as_ref()) {
             let mut counter = GroupedBoxplotCounter::new(self.coef);
-            visit3_ddc(group_values, x_values, y_values, &mut counter)?;
-            Ok(Some((Box::new(counter.data), counter.mapping)))
+            visit3_ddc(group_values, x_values, y_values, &mut counter)
+                .map(|(data, mapping)| Some((Box::new(data) as Box<dyn DataSource>, mapping)))
         } else {
             let mut counter = UngroupedBoxplotCounter::new(self.coef);
-            visit2_dc(x_values, y_values, &mut counter)?;
-
-            Ok(Some((Box::new(counter.data), counter.mapping)))
+            visit2_dc(x_values, y_values, &mut counter)
+                .map(|(data, mapping)| Some((Box::new(data) as Box<dyn DataSource>, mapping)))
         }
     }
 }
@@ -136,21 +135,17 @@ fn percentile(sorted_data: &[OrderedFloat<f64>], p: f64) -> f64 {
 
 struct UngroupedBoxplotCounter {
     coef: f64,
-    data: DataFrame,
-    mapping: AesMap,
 }
 
 impl UngroupedBoxplotCounter {
     fn new(coef: f64) -> Self {
-        Self {
-            coef,
-            data: DataFrame::new(),
-            mapping: AesMap::new(),
-        }
+        Self { coef }
     }
 }
 
 impl DiscreteContinuousVisitor2 for UngroupedBoxplotCounter {
+    type Output = (DataFrame, AesMap);
+
     fn visit<
         T: crate::utils::data::Vectorable + DiscreteType,
         U: crate::utils::data::Vectorable + ContinuousType,
@@ -158,7 +153,7 @@ impl DiscreteContinuousVisitor2 for UngroupedBoxplotCounter {
         &mut self,
         x_iter: impl Iterator<Item = T>,
         y_iter: impl Iterator<Item = U>,
-    ) {
+    ) -> std::result::Result<Self::Output, PlotError> {
         let mut grouped_data: HashMap<T::Sortable, Vec<OrderedFloat<f64>>> = HashMap::new();
         for (x, y) in x_iter.zip(y_iter) {
             let y = y.to_f64();
@@ -214,70 +209,63 @@ impl DiscreteContinuousVisitor2 for UngroupedBoxplotCounter {
             }
         }
 
-        self.data.add_column("x", T::make_vector(result_x));
-        self.data.add_column("y", Box::new(FloatVec(result_y)));
-        self.data
-            .add_column("ymin", Box::new(FloatVec(result_ymin)));
-        self.data
-            .add_column("lower", Box::new(FloatVec(result_lower)));
-        self.data
-            .add_column("middle", Box::new(FloatVec(result_middle)));
-        self.data
-            .add_column("upper", Box::new(FloatVec(result_upper)));
-        self.data
-            .add_column("ymax", Box::new(FloatVec(result_ymax)));
+        let mut data = DataFrame::new();
+        let mut mapping = AesMap::new();
+
+        data.add_column("x", T::make_vector(result_x));
+        data.add_column("y", Box::new(FloatVec(result_y)));
+        data.add_column("ymin", Box::new(FloatVec(result_ymin)));
+        data.add_column("lower", Box::new(FloatVec(result_lower)));
+        data.add_column("middle", Box::new(FloatVec(result_middle)));
+        data.add_column("upper", Box::new(FloatVec(result_upper)));
+        data.add_column("ymax", Box::new(FloatVec(result_ymax)));
 
         // Update mapping
-        self.mapping.set(
+        mapping.set(
             Aesthetic::X(AestheticDomain::Discrete),
             AesValue::column("x"),
         );
-        self.mapping.set(
+        mapping.set(
             Aesthetic::Xmin(AestheticDomain::Discrete),
             AesValue::column("x"),
         );
-        self.mapping.set(
+        mapping.set(
             Aesthetic::Xmax(AestheticDomain::Discrete),
             AesValue::column("x"),
         );
-        self.mapping.set(
+        mapping.set(
             Aesthetic::Y(AestheticDomain::Continuous),
             AesValue::column("y"),
         );
-        self.mapping.set(
+        mapping.set(
             Aesthetic::Ymin(AestheticDomain::Continuous),
             AesValue::column("ymin"),
         );
-        self.mapping.set(
+        mapping.set(
             Aesthetic::Ymax(AestheticDomain::Continuous),
             AesValue::column("ymax"),
         );
-        self.mapping
-            .set(Aesthetic::Lower, AesValue::column("lower"));
-        self.mapping
-            .set(Aesthetic::Middle, AesValue::column("middle"));
-        self.mapping
-            .set(Aesthetic::Upper, AesValue::column("upper"));
+        mapping.set(Aesthetic::Lower, AesValue::column("lower"));
+        mapping.set(Aesthetic::Middle, AesValue::column("middle"));
+        mapping.set(Aesthetic::Upper, AesValue::column("upper"));
+
+        Ok((data, mapping))
     }
 }
 
 struct GroupedBoxplotCounter {
     coef: f64,
-    data: DataFrame,
-    mapping: AesMap,
 }
 
 impl GroupedBoxplotCounter {
     fn new(coef: f64) -> Self {
-        Self {
-            coef,
-            data: DataFrame::new(),
-            mapping: AesMap::new(),
-        }
+        Self { coef }
     }
 }
 
 impl DiscreteDiscreteContinuousVisitor3 for GroupedBoxplotCounter {
+    type Output = (DataFrame, AesMap);
+
     fn visit<
         G: crate::utils::data::Vectorable + DiscreteType,
         T: crate::utils::data::Vectorable + DiscreteType,
@@ -287,7 +275,7 @@ impl DiscreteDiscreteContinuousVisitor3 for GroupedBoxplotCounter {
         group_iter: impl Iterator<Item = G>,
         x_iter: impl Iterator<Item = T>,
         y_iter: impl Iterator<Item = U>,
-    ) {
+    ) -> std::result::Result<Self::Output, PlotError> {
         let mut grouped_data: HashMap<(G::Sortable, T::Sortable), Vec<OrderedFloat<f64>>> =
             HashMap::new();
         for ((group, x), y) in group_iter.zip(x_iter).zip(y_iter) {
@@ -347,53 +335,49 @@ impl DiscreteDiscreteContinuousVisitor3 for GroupedBoxplotCounter {
             }
         }
 
-        self.data.add_column("group", G::make_vector(result_group));
-        self.data.add_column("x", T::make_vector(result_x));
-        self.data.add_column("y", Box::new(FloatVec(result_y)));
-        self.data
-            .add_column("ymin", Box::new(FloatVec(result_ymin)));
-        self.data
-            .add_column("lower", Box::new(FloatVec(result_lower)));
-        self.data
-            .add_column("middle", Box::new(FloatVec(result_middle)));
-        self.data
-            .add_column("upper", Box::new(FloatVec(result_upper)));
-        self.data
-            .add_column("ymax", Box::new(FloatVec(result_ymax)));
+        let mut data = DataFrame::new();
+        let mut mapping = AesMap::new();
+
+        data.add_column("group", G::make_vector(result_group));
+        data.add_column("x", T::make_vector(result_x));
+        data.add_column("y", Box::new(FloatVec(result_y)));
+        data.add_column("ymin", Box::new(FloatVec(result_ymin)));
+        data.add_column("lower", Box::new(FloatVec(result_lower)));
+        data.add_column("middle", Box::new(FloatVec(result_middle)));
+        data.add_column("upper", Box::new(FloatVec(result_upper)));
+        data.add_column("ymax", Box::new(FloatVec(result_ymax)));
 
         // Update mapping
-        self.mapping
-            .set(Aesthetic::Group, AesValue::column("group"));
-        self.mapping.set(
+        mapping.set(Aesthetic::Group, AesValue::column("group"));
+        mapping.set(
             Aesthetic::X(AestheticDomain::Discrete),
             AesValue::column("x"),
         );
-        self.mapping.set(
+        mapping.set(
             Aesthetic::Xmin(AestheticDomain::Discrete),
             AesValue::column("x"),
         );
-        self.mapping.set(
+        mapping.set(
             Aesthetic::Xmax(AestheticDomain::Discrete),
             AesValue::column("x"),
         );
-        self.mapping.set(
+        mapping.set(
             Aesthetic::Y(AestheticDomain::Continuous),
             AesValue::column("y"),
         );
-        self.mapping.set(
+        mapping.set(
             Aesthetic::Ymin(AestheticDomain::Continuous),
             AesValue::column("ymin"),
         );
-        self.mapping.set(
+        mapping.set(
             Aesthetic::Ymax(AestheticDomain::Continuous),
             AesValue::column("ymax"),
         );
-        self.mapping
-            .set(Aesthetic::Lower, AesValue::column("lower"));
-        self.mapping
-            .set(Aesthetic::Middle, AesValue::column("middle"));
-        self.mapping
-            .set(Aesthetic::Upper, AesValue::column("upper"));
+        mapping.set(Aesthetic::Lower, AesValue::column("lower"));
+        mapping.set(Aesthetic::Middle, AesValue::column("middle"));
+        mapping.set(Aesthetic::Upper, AesValue::column("upper"));
+
+        Ok((data, mapping))
     }
 }
 
