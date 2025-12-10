@@ -1,10 +1,9 @@
-use super::{ColorScale, ScaleBase};
+use super::ScaleBase;
 use crate::data::GenericVector;
 use crate::scale::{ContinuousColorScale, DiscreteColorScale};
 use crate::theme::{Color, color};
 use crate::utils::set::DiscreteSet;
 use crate::visuals::palette::{discrete_palette, okabe_ito_palette};
-use std::collections::{HashMap, HashSet};
 
 /// Discrete color scale that maps categories to colors.
 pub struct DiscreteColor {
