@@ -1,5 +1,7 @@
-use super::{ContinuousScale, ScaleBase, ScaleType};
+use super::{ContinuousPositionalScale, ScaleBase, ScaleType};
 use super::transform::{Transform, IdentityTransform, SqrtTransform, Log10Transform};
+use crate::data::ContinuousType;
+use crate::scale::PositionalScale;
 use crate::{data::compute_min_max, error::PlotError};
 
 /// Builder for creating continuous scales with customizable properties.
@@ -469,14 +471,25 @@ impl ScaleBase for ContinuousScaleImpl {
     }
 }
 
-impl ContinuousScale for ContinuousScaleImpl {
-    fn map_value(&self, data: f64) -> Option<f64> {
+impl PositionalScale for ContinuousScaleImpl {
+    fn breaks(&self) -> &[f64] {
+    &self.breaks
+    }
+
+    fn labels(&self) -> &[String] {
+        &self.labels
+    }
+}
+
+impl ContinuousPositionalScale for ContinuousScaleImpl {
+    fn map_value<T: ContinuousType>(&self, value: &T) -> Option<f64> {
+        let value = value.to_f64();
         let (d0, d1) = self.domain;
-        if data < d0.min(d1) || data > d0.max(d1) {
+        if value < d0.min(d1) || value > d0.max(d1) {
             return None;
         }
 
-        let transformed_data = self.transform.transform(data);
+        let transformed_data = self.transform.transform(value);
         let transformed_d0 = self.transform.transform(d0);
         let transformed_d1 = self.transform.transform(d1);
 
@@ -485,22 +498,6 @@ impl ContinuousScale for ContinuousScaleImpl {
         }
 
         Some((transformed_data - transformed_d0) / (transformed_d1 - transformed_d0))
-    }
-
-    fn inverse(&self, value: f64) -> f64 {
-        let (d0, d1) = self.domain;
-        let transformed_d0 = self.transform.transform(d0);
-        let transformed_d1 = self.transform.transform(d1);
-        let transformed_value = transformed_d0 + value * (transformed_d1 - transformed_d0);
-        self.transform.inverse(transformed_value)
-    }
-
-    fn breaks(&self) -> &[f64] {
-        &self.breaks
-    }
-
-    fn labels(&self) -> &[String] {
-        &self.labels
     }
 }
 

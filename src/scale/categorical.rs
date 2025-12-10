@@ -1,6 +1,10 @@
 use std::collections::HashMap;
 
-use super::{ContinuousScale, ScaleBase};
+use crate::data::{DiscreteType, PrimitiveValue};
+
+use super::{DiscretePositionalScale, PositionalScale, ScaleBase};
+
+mod set;
 
 pub struct Builder {
     drop: bool,
@@ -58,7 +62,7 @@ impl Builder {
 }
 
 pub struct Catagorical {
-    pub(crate) mapping: HashMap<String, f64>,
+    mapping: HashMap<String, f64>,
     breaks: Vec<f64>,
     labels: Vec<String>,
     category_width: f64, // Width of each category slice in normalized space
@@ -87,6 +91,10 @@ impl Catagorical {
             category_width,
             padding: 0.1, // 10% padding on each side by default
         }
+    }
+
+    fn to_primitive<T: DiscreteType>(&self, value: &T) -> PrimitiveValue {
+        Some(value.as_str())
     }
 
     pub fn map_category(&self, data: &str) -> f64 {
@@ -171,23 +179,7 @@ impl ScaleBase for Catagorical {
     }
 }
 
-impl ContinuousScale for Catagorical {
-    fn map_value(&self, value: f64) -> Option<f64> {
-        // For categorical scales, this maps a numeric position to itself
-        // Always return Some since categorical scales don't have domain bounds
-        Some(value)
-    }
-
-    fn map_category(&self, category: &str, aesthetic: crate::aesthetics::Aesthetic) -> Option<f64> {
-        // Map category string to numeric position based on aesthetic
-        Some(self.map_category_with_aesthetic(category, aesthetic))
-    }
-
-    fn inverse(&self, value: f64) -> f64 {
-        // Inverse of identity
-        value
-    }
-
+impl PositionalScale for Catagorical {
     fn breaks(&self) -> &[f64] {
         &self.breaks
     }
@@ -195,13 +187,21 @@ impl ContinuousScale for Catagorical {
     fn labels(&self) -> &[String] {
         &self.labels
     }
+}
 
-    fn categorical_info(&self) -> Option<super::CategoricalInfo> {
-        Some(super::CategoricalInfo {
-            category_width: self.category_width,
-            padding: self.padding,
-            n_categories: self.mapping.len(),
-        })
+impl DiscretePositionalScale for Catagorical {
+    fn len(&self) -> usize {
+        self.mapping.len()
+    }
+
+    fn ordinal<T: crate::scale::DiscreteType>(&self, value: &T) -> Option<usize> {
+        None
+    }
+
+    fn map_value(&self, value: f64) -> Option<f64> {
+        // For categorical scales, this maps a numeric position to itself
+        // Always return Some since categorical scales don't have domain bounds
+        Some(value)
     }
 }
 

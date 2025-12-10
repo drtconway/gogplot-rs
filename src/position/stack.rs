@@ -28,6 +28,7 @@ impl PositionAdjust for Stack {
                 aesthetic: Aesthetic::X(AestheticDomain::Discrete),
             })?;
 
+        let y_values = mapping.get_vector_iter(&Aesthetic::Y(()), data)
         // Get x and y column names
         let x_col_name = match mapping.get(&Aesthetic::X) {
             Some(AesValue::Column { name, .. }) => name.clone(),

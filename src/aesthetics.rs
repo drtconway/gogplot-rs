@@ -1,4 +1,5 @@
 use crate::data::{self, DataSource, PrimitiveValue, VectorIter};
+use crate::error::PlotError;
 use crate::scale::ScaleType;
 use std::collections::HashMap;
 
@@ -6,6 +7,43 @@ use std::collections::HashMap;
 pub enum AestheticDomain {
     Continuous,
     Discrete,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum AestheticRange {
+    Continuous,
+    Colour,
+    Shape,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PrimaryAesthetic {
+    X(AestheticDomain),
+    Y(AestheticDomain),
+    Color,
+    Fill,
+    Shape,
+    Size,
+    Alpha,
+    Linetype,
+}
+
+impl TryFrom<Aesthetic> for PrimaryAesthetic {
+    type Error = PlotError;
+
+    fn try_from(aes: Aesthetic) -> Result<Self, Self::Error> {
+        match aes {
+            Aesthetic::X(kind) => Ok(PrimaryAesthetic::X(kind)),
+            Aesthetic::Y(kind) => Ok(PrimaryAesthetic::Y(kind)),
+            Aesthetic::Color => Ok(PrimaryAesthetic::Color),
+            Aesthetic::Fill => Ok(PrimaryAesthetic::Fill),
+            Aesthetic::Shape => Ok(PrimaryAesthetic::Shape),
+            Aesthetic::Size => Ok(PrimaryAesthetic::Size),
+            Aesthetic::Alpha => Ok(PrimaryAesthetic::Alpha),
+            Aesthetic::Linetype => Ok(PrimaryAesthetic::Linetype),
+            _ => Err(PlotError::InvalidAestheticConversion { from: aes }),
+        }
+    }
 }
 
 // Supported aesthetics
@@ -501,25 +539,25 @@ impl AesMap {
                 AesValue::Column { name, .. } => {
                     let column = data.get(name.as_str())?;
                     Some(column.iter())
-                },
-                AesValue::Constant { value, .. } => {
-                    match value {
-                        PrimitiveValue::Int(i) => {
-                            let n = data.len();
-                            Some(VectorIter::Int(Box::new(std::iter::repeat(*i).take(n))))
-                        }
-                        PrimitiveValue::Float(f) => {
-                            let n = data.len();
-                            Some(VectorIter::Float(Box::new(std::iter::repeat(*f).take(n))))
-                        }
-                        PrimitiveValue::Str(s) => {
-                            let n = data.len();
-                            Some(VectorIter::Str(Box::new(std::iter::repeat(s.as_str()).take(n))))
-                        }
-                        PrimitiveValue::Bool(b) => {
-                            let n = data.len();
-                            Some(VectorIter::Bool(Box::new(std::iter::repeat(*b).take(n))))
-                        }
+                }
+                AesValue::Constant { value, .. } => match value {
+                    PrimitiveValue::Int(i) => {
+                        let n = data.len();
+                        Some(VectorIter::Int(Box::new(std::iter::repeat(*i).take(n))))
+                    }
+                    PrimitiveValue::Float(f) => {
+                        let n = data.len();
+                        Some(VectorIter::Float(Box::new(std::iter::repeat(*f).take(n))))
+                    }
+                    PrimitiveValue::Str(s) => {
+                        let n = data.len();
+                        Some(VectorIter::Str(Box::new(
+                            std::iter::repeat(s.as_str()).take(n),
+                        )))
+                    }
+                    PrimitiveValue::Bool(b) => {
+                        let n = data.len();
+                        Some(VectorIter::Bool(Box::new(std::iter::repeat(*b).take(n))))
                     }
                 },
             },

@@ -2,6 +2,8 @@
 
 use cairo::Context;
 
+pub mod palette;
+
 /// Line style patterns for line geoms
 #[derive(Clone, Debug, PartialEq)]
 #[derive(Default)]

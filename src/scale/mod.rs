@@ -1,4 +1,5 @@
-use crate::data::GenericVector;
+use crate::aesthetics::AestheticDomain;
+use crate::data::{ContinuousType, DiscreteType, GenericVector};
 use crate::theme::Color;
 use crate::visuals::Shape;
 
@@ -55,51 +56,7 @@ pub trait ScaleBase: Send + Sync {
     fn scale_type(&self) -> ScaleType;
 }
 
-/// Scales that map to continuous [0, 1] normalized coordinates.
-///
-/// Used for position (x, y), size, alpha, and other continuous aesthetics.
-/// These scales transform data values to normalized [0, 1] space, which
-/// the rendering layer then maps to actual viewport coordinates.
-pub trait ContinuousScale: ScaleBase {
-    /// Map a value from the data domain to normalized [0, 1] coordinates.
-    ///
-    /// # Arguments
-    /// * `value` - A value in the data domain
-    ///
-    /// # Returns
-    /// * `Some(normalized_value)` - The corresponding value in [0, 1] range
-    /// * `None` - If the value is outside the scale's domain bounds (will be filtered out)
-    fn map_value(&self, value: f64) -> Option<f64>;
-
-    /// Map a categorical value to a numeric position.
-    ///
-    /// This is used for categorical scales that need to map string categories to positions.
-    /// For purely continuous scales, this should return None.
-    ///
-    /// # Arguments
-    /// * `category` - A category name/value
-    /// * `aesthetic` - The aesthetic being mapped (e.g., X, Xmin, Xmax) to determine
-    ///                 whether to return the center, left edge, or right edge of the category
-    ///
-    /// # Returns
-    /// * `Some(position)` - The numeric position for this category
-    /// * `None` - If this is not a categorical scale or category is not recognized
-    fn map_category(&self, _category: &str, _aesthetic: crate::aesthetics::Aesthetic) -> Option<f64> {
-        None // Default: not a categorical scale
-    }
-
-    /// Map a normalized [0, 1] value back to the data domain (inverse mapping).
-    ///
-    /// This is useful for interactive features like zooming or reading values from
-    /// the plot. It performs the reverse transformation of `map_value`.
-    ///
-    /// # Arguments
-    /// * `value` - A normalized value in [0, 1] range
-    ///
-    /// # Returns
-    /// The corresponding value in the data domain
-    fn inverse(&self, value: f64) -> f64;
-
+pub trait PositionalScale: ScaleBase {
     /// Get the axis break positions in data coordinates.
     ///
     /// Breaks are the positions where tick marks and grid lines should be drawn.
@@ -117,29 +74,54 @@ pub trait ContinuousScale: ScaleBase {
     /// # Returns
     /// A slice of formatted label strings
     fn labels(&self) -> &[String];
+}
 
-    /// Get categorical scale information if this scale was derived from a categorical scale.
+/// Scales that map to continuous [0, 1] normalized coordinates.
+///
+/// Used for position (x, y), size, alpha, and other continuous aesthetics.
+/// These scales transform data values to normalized [0, 1] space, which
+/// the rendering layer then maps to actual viewport coordinates.
+pub trait ContinuousPositionalScale: PositionalScale {
+    /// Map a value from the data domain to normalized [0, 1] coordinates.
     ///
-    /// When a categorical scale is converted to a continuous scale for normalization,
-    /// the resulting scale can preserve the original categorical scale's geometric
-    /// properties (category width, padding) by returning them here.
-    ///
-    /// This allows position adjustments like Dodge to subdivide the category space
-    /// correctly even when working with normalized continuous values.
+    /// # Arguments
+    /// * `value` - A value in the data domain
     ///
     /// # Returns
-    /// * `Some(info)` - If this scale was derived from a categorical scale
-    /// * `None` - If this is a purely continuous scale
-    fn categorical_info(&self) -> Option<CategoricalInfo> {
-        None // Default: not derived from a categorical scale
-    }
+    /// * `Some(normalized_value)` - The corresponding value in [0, 1] range
+    /// * `None` - If the value is outside the scale's domain bounds (will be filtered out)
+    fn map_value<T: ContinuousType>(&self, value: &T) -> Option<f64>;
+}
+
+pub trait DiscretePositionalScale: PositionalScale {
+    fn len(&self) -> usize;
+
+    fn ordinal<T: DiscreteType>(&self, value: &T) -> Option<usize>;
+
+    /// Map a discrete category to normalized [0, 1] coordinates.
+    ///
+    /// # Arguments
+    /// * `category` - A category name/value
+    ///
+    /// # Returns
+    /// * `Some(normalized_value)` - The corresponding value in [0, 1] range
+    /// * `None` - If the category is not in the scale's domain
+    fn map_value<T: DiscreteType>(&self, value: &T) -> Option<f64>;
+}
+
+pub trait ColorScale: ScaleBase {
+    fn aesthetic_domain(&self) -> AestheticDomain;
+
+    fn breaks(&self) -> &[Color];
+
+    fn labels(&self) -> &[String];
 }
 
 /// Scales that map data values to colors.
 ///
 /// Can handle both continuous domains (gradients) and discrete domains (palettes).
 /// The implementation determines whether it accepts continuous or categorical input.
-pub trait ColorScale: ScaleBase {
+pub trait ContinuousColorScale: ScaleBase {
     /// Map continuous numeric values to colors.
     ///
     /// Used for gradient color scales where numeric data maps to a color gradient.
@@ -150,14 +132,16 @@ pub trait ColorScale: ScaleBase {
     /// # Returns
     /// * `Some(color)` - The corresponding color
     /// * `None` - If the value is outside the scale's domain
-    fn map_continuous_to_color(&self, value: f64) -> Option<Color> {
-        let _ = value;
-        None // Default: not supported
-    }
+    fn map_value<T: ContinuousType>(&self, value: &T) -> Option<Color>;
 
-    /// Map discrete categorical values to colors.
+    fn domain(&self) -> Option<(f64, f64)>;
+}
+
+
+pub trait DiscreteColorScale: ScaleBase {
+    /// Map discrete categories to colors.
     ///
-    /// Used for categorical color scales where distinct categories get distinct colors.
+    /// Used for categorical color scales where each category maps to a distinct color.
     ///
     /// # Arguments
     /// * `category` - A category name/value
@@ -165,24 +149,7 @@ pub trait ColorScale: ScaleBase {
     /// # Returns
     /// * `Some(color)` - The corresponding color for this category
     /// * `None` - If the category is not in the scale's domain
-    fn map_discrete_to_color(&self, category: &str) -> Option<Color> {
-        let _ = category;
-        None // Default: not supported
-    }
-
-    /// Get legend breaks as formatted strings.
-    fn legend_breaks(&self) -> Vec<String>;
-
-    /// Returns true if this is a continuous color scale (gradient), false if discrete.
-    fn is_continuous(&self) -> bool {
-        false // Default: discrete
-    }
-
-    /// Get the domain for continuous color scales.
-    /// Returns None for discrete scales.
-    fn get_continuous_domain(&self) -> Option<(f64, f64)> {
-        None
-    }
+    fn map_value<T: DiscreteType>(&self, value: &T) -> Option<Color>;
 }
 
 /// Scales that map data values to point shapes.
@@ -198,13 +165,15 @@ pub trait ShapeScale: ScaleBase {
     /// # Returns
     /// * `Some(shape)` - The corresponding shape for this category
     /// * `None` - If the category is not in the scale's domain
-    fn map_to_shape(&self, category: &str) -> Option<Shape>;
+    fn map_value<T: DiscreteType>(&self, value: &T) -> Option<Shape>;
 
-    /// Get legend breaks as formatted strings.
-    fn legend_breaks(&self) -> Vec<String>;
+    fn breaks(&self) -> &[Shape];
+
+    fn labels(&self) -> &[String];
 }
 
 pub mod categorical;
 pub mod color;
 pub mod continuous;
+pub mod discrete;
 pub mod shape;

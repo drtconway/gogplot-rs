@@ -4,6 +4,8 @@ use std::hash::Hash;
 pub trait PrimitiveType: PartialEq + PartialOrd + Clone + Sized + Send + Sync + 'static {
     type Sortable: Eq + Ord + Hash + Clone;
 
+    fn to_primitive(&self) -> PrimitiveValue;
+
     fn to_sortable(&self) -> Self::Sortable;
 
     fn from_sortable(sortable: Self::Sortable) -> Self;
@@ -11,6 +13,10 @@ pub trait PrimitiveType: PartialEq + PartialOrd + Clone + Sized + Send + Sync + 
 
 impl PrimitiveType for i64 {
     type Sortable = i64;
+
+    fn to_primitive(&self) -> PrimitiveValue {
+        PrimitiveValue::Int(*self)
+    }
 
     fn to_sortable(&self) -> Self::Sortable {
         *self
@@ -24,6 +30,10 @@ impl PrimitiveType for i64 {
 impl PrimitiveType for f64 {
     type Sortable = OrderedFloat<f64>;
 
+    fn to_primitive(&self) -> PrimitiveValue {
+        PrimitiveValue::Float(*self)
+    }
+
     fn to_sortable(&self) -> Self::Sortable {
         OrderedFloat(*self)
     }
@@ -36,6 +46,10 @@ impl PrimitiveType for f64 {
 impl PrimitiveType for String {
     type Sortable = String;
 
+    fn to_primitive(&self) -> PrimitiveValue {
+        PrimitiveValue::Str(self.clone())
+    }
+
     fn to_sortable(&self) -> Self::Sortable {
         self.clone()
     }
@@ -47,6 +61,10 @@ impl PrimitiveType for String {
 
 impl PrimitiveType for bool {
     type Sortable = bool;
+
+    fn to_primitive(&self) -> PrimitiveValue {
+        PrimitiveValue::Bool(*self)
+    }
 
     fn to_sortable(&self) -> Self::Sortable {
         *self
@@ -86,6 +104,24 @@ pub enum PrimitiveValue {
     Float(f64),
     Str(String),
     Bool(bool),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum DiscreteValue {
+    Str(String),
+    Int(i64),
+    Bool(bool),
+}
+
+impl From<PrimitiveValue> for DiscreteValue {
+    fn from(pv: PrimitiveValue) -> Self {
+        match pv {
+            PrimitiveValue::Str(s) => DiscreteValue::Str(s),
+            PrimitiveValue::Int(i) => DiscreteValue::Int(i),
+            PrimitiveValue::Bool(b) => DiscreteValue::Bool(b),
+            _ => panic!("Unsupported primitive type for DiscreteValue"),
+        }
+    }
 }
 
 /// Simplified data type classification for determining scale types.

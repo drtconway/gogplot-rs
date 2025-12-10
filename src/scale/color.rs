@@ -1,35 +1,24 @@
 use super::{ColorScale, ScaleBase};
 use crate::data::GenericVector;
+use crate::scale::{ContinuousColorScale, DiscreteColorScale};
 use crate::theme::{Color, color};
+use crate::utils::set::DiscreteSet;
+use crate::visuals::palette::{discrete_palette, okabe_ito_palette};
 use std::collections::{HashMap, HashSet};
 
 /// Discrete color scale that maps categories to colors.
 pub struct DiscreteColor {
     palette: Vec<Color>,
-    mapping: HashMap<String, usize>,
+    elements: DiscreteSet,
 }
 
 impl DiscreteColor {
     /// Create a new discrete color scale with a palette.
-    pub fn new(palette: Vec<Color>) -> Self {
+    pub fn new() -> Self {
         Self {
-            palette,
-            mapping: HashMap::new(),
+            palette: okabe_ito_palette(),
+            elements: DiscreteSet::new(),
         }
-    }
-
-    /// Create a default discrete color scale with a colorblind-friendly palette.
-    pub fn default_palette() -> Self {
-        Self::new(vec![
-            Color(228, 26, 28, 255),   // red
-            Color(55, 126, 184, 255),  // blue
-            Color(77, 175, 74, 255),   // green
-            Color(152, 78, 163, 255),  // purple
-            Color(255, 127, 0, 255),   // orange
-            Color(255, 255, 51, 255),  // yellow
-            Color(166, 86, 40, 255),   // brown
-            Color(247, 129, 191, 255), // pink
-        ])
     }
 
     /// Set a custom color palette.
@@ -42,61 +31,36 @@ impl ScaleBase for DiscreteColor {
     fn scale_type(&self) -> super::ScaleType {
         super::ScaleType::Categorical
     }
-    
-    fn train(&mut self, data: &[&dyn GenericVector]) {
-        // Extract unique categories from all data vectors and assign them to palette colors
-        let mut categories: Vec<String> = Vec::new();
-        let mut seen: HashSet<String> = HashSet::new();
 
+    fn train(&mut self, data: &[&dyn GenericVector]) {
         for vec in data {
-            if let Some(strings) = vec.iter_str() {
-                // String data
-                for s in strings {
-                    if !seen.contains(s) {
-                        categories.push(s.to_string());
-                        seen.insert(s.to_string());
-                    }
+            if let Some(ints) = vec.iter_int() {
+                for v in ints {
+                    self.elements.add(&v);
                 }
-            } else if let Some(ints) = vec.iter_int() {
-                // Integer data - convert to strings for categorical treatment
-                for i in ints {
-                    let s = i.to_string();
-                    if !seen.contains(&s) {
-                        categories.push(s.clone());
-                        seen.insert(s);
-                    }
+            } else if let Some(strs) = vec.iter_str() {
+                for v in strs {
+                    self.elements.add(&v);
                 }
-            } else if let Some(floats) = vec.iter_float() {
-                // Float data - convert to strings for categorical treatment
-                for f in floats {
-                    let s = f.to_string();
-                    if !seen.contains(&s) {
-                        categories.push(s.clone());
-                        seen.insert(s);
-                    }
+            } else if let Some(bools) = vec.iter_bool() {
+                for v in bools {
+                    self.elements.add(&v);
                 }
             }
         }
+        self.elements.build();
 
-        self.mapping.clear();
-        for (idx, category) in categories.iter().enumerate() {
-            self.mapping
-                .insert(category.clone(), idx % self.palette.len());
+        let n = self.elements.len();
+        if n > self.palette.len() {
+            self.palette = discrete_palette(n);
         }
     }
 }
 
-impl ColorScale for DiscreteColor {
-    fn map_discrete_to_color(&self, category: &str) -> Option<Color> {
-        self.mapping
-            .get(category)
-            .and_then(|&idx| self.palette.get(idx).copied())
-    }
-
-    fn legend_breaks(&self) -> Vec<String> {
-        let mut breaks: Vec<_> = self.mapping.keys().cloned().collect();
-        breaks.sort();
-        breaks
+impl DiscreteColorScale for DiscreteColor {
+    fn map_value<T: crate::data::DiscreteType>(&self, value: &T) -> Option<Color> {
+        let ordinal = self.elements.ordinal(value)?;
+        Some(self.palette[ordinal])
     }
 }
 
@@ -142,16 +106,16 @@ impl ContinuousColor {
         let segment_count = self.colors.len() - 1;
         let scaled = t * segment_count as f64;
         let segment = (scaled.floor() as usize).min(segment_count - 1);
-        let local_t = scaled - segment as f64;
+        let t = scaled - segment as f64;
 
         // Interpolate between the two colors in this segment
         let Color(r1, g1, b1, a1) = self.colors[segment];
         let Color(r2, g2, b2, a2) = self.colors[segment + 1];
 
-        let r = (r1 as f64 + local_t * (r2 as f64 - r1 as f64)) as u8;
-        let g = (g1 as f64 + local_t * (g2 as f64 - g1 as f64)) as u8;
-        let b = (b1 as f64 + local_t * (b2 as f64 - b1 as f64)) as u8;
-        let a = (a1 as f64 + local_t * (a2 as f64 - a1 as f64)) as u8;
+        let r = (r1 as f64 + t * (r2 as f64 - r1 as f64)) as u8;
+        let g = (g1 as f64 + t * (g2 as f64 - g1 as f64)) as u8;
+        let b = (b1 as f64 + t * (b2 as f64 - b1 as f64)) as u8;
+        let a = (a1 as f64 + t * (a2 as f64 - a1 as f64)) as u8;
 
         Color(r, g, b, a)
     }
@@ -161,7 +125,7 @@ impl ScaleBase for ContinuousColor {
     fn scale_type(&self) -> super::ScaleType {
         super::ScaleType::Continuous
     }
-    
+
     fn train(&mut self, data: &[&dyn GenericVector]) {
         use crate::data::compute_min_max;
 
@@ -171,36 +135,18 @@ impl ScaleBase for ContinuousColor {
     }
 }
 
-impl ColorScale for ContinuousColor {
-    fn map_continuous_to_color(&self, value: f64) -> Option<Color> {
-        let (d0, d1) = self.domain;
+impl ContinuousColorScale for ContinuousColor {
+    fn domain(&self) -> Option<(f64, f64)> {
+        Some(self.domain)
+    }
 
-        // Check bounds
-        if value < d0.min(d1) || value > d0.max(d1) {
+    fn map_value<T: crate::data::ContinuousType>(&self, value: &T) -> Option<Color> {
+        let v = value.to_primitive();
+        if v < self.domain.0 || v > self.domain.1 {
             return None;
         }
-
-        // Normalize to [0, 1]
-        let t = (value - d0) / (d1 - d0);
+        let t = (v - self.domain.0) / (self.domain.1 - self.domain.0);
         Some(self.interpolate_color(t))
-    }
-
-    fn legend_breaks(&self) -> Vec<String> {
-        // Generate some representative values
-        let (d0, d1) = self.domain;
-        vec![
-            format!("{:.2}", d0),
-            format!("{:.2}", (d0 + d1) / 2.0),
-            format!("{:.2}", d1),
-        ]
-    }
-
-    fn is_continuous(&self) -> bool {
-        true
-    }
-
-    fn get_continuous_domain(&self) -> Option<(f64, f64)> {
-        Some(self.domain)
     }
 }
 
@@ -208,14 +154,6 @@ impl ColorScale for ContinuousColor {
 mod tests {
     use super::*;
     use crate::utils::dataframe::StrVec;
-
-    #[test]
-    fn test_discrete_color_new() {
-        let palette = vec![Color(255, 0, 0, 255), Color(0, 255, 0, 255)];
-        let scale = DiscreteColor::new(palette.clone());
-        assert_eq!(scale.palette.len(), 2);
-        assert_eq!(scale.mapping.len(), 0);
-    }
 
     #[test]
     fn test_discrete_color_default_palette() {

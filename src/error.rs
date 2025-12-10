@@ -45,72 +45,81 @@ impl Display for DataType {
 #[derive(Debug)]
 pub enum PlotError {
     /// A required aesthetic is missing from the mapping
-    MissingAesthetic { aesthetic: Aesthetic },
-    
+    MissingAesthetic {
+        aesthetic: Aesthetic,
+    },
+
     /// A column referenced in a mapping is missing from the data
-    MissingColumn { column: String },
-    
+    MissingColumn {
+        column: String,
+    },
+
     /// An aesthetic has an invalid type (e.g., expected float but got string)
     InvalidAestheticType {
         aesthetic: Aesthetic,
         expected: DataType,
         actual: DataType,
     },
-    
+
     /// A column has an invalid type for the operation
     InvalidColumnType {
         column: String,
         expected: DataType,
     },
-    
+
     /// Scale configuration error (e.g., mismatched breaks and labels)
     ScaleMismatch {
         breaks_count: usize,
         labels_count: usize,
     },
-    
+
     /// Invalid scale limits
     InvalidLimits {
         min: f64,
         max: f64,
     },
-    
+
     /// A required stat input is missing
     MissingStatInput {
         stat: String,
         aesthetic: Aesthetic,
     },
-    
+
     /// No valid data for statistical transformation
     NoValidData {
         reason: String,
     },
-    
+
     /// Data source is missing
     NoDataSource,
-    
+
     /// File I/O error
     IoError {
         operation: String,
         source: io::Error,
     },
-    
+
     /// Cairo rendering error
     RenderError {
         operation: String,
         message: String,
     },
-    
+
     /// Invalid file path
     InvalidPath {
         path: String,
     },
-    
+
     /// Unsupported file format
     UnsupportedFormat {
         extension: String,
     },
-    
+
+    /// Invalid conversion of aesthetic value to primary aesthetic
+    InvalidAestheticConversion {
+        from: Aesthetic,
+    },
+
     /// Aesthetic has conflicting scale type requirements
     AestheticTypeMismatch {
         aesthetic: Aesthetic,
@@ -125,7 +134,7 @@ pub enum PlotError {
         expected: AestheticDomain,
         actual: DataType,
     },
-    
+
     /// String column requires categorical scale but continuous was requested
     StringColumnRequiresCategorical {
         aesthetic: Aesthetic,
@@ -151,7 +160,11 @@ impl Display for PlotError {
             PlotError::MissingColumn { column } => {
                 write!(f, "Column '{}' not found in data", column)
             }
-            PlotError::InvalidAestheticType { aesthetic, expected, actual } => {
+            PlotError::InvalidAestheticType {
+                aesthetic,
+                expected,
+                actual,
+            } => {
                 write!(
                     f,
                     "Invalid type for aesthetic {:?}: expected {}, got {}",
@@ -159,9 +172,16 @@ impl Display for PlotError {
                 )
             }
             PlotError::InvalidColumnType { column, expected } => {
-                write!(f, "Column '{}' has invalid type: expected {}", column, expected)
+                write!(
+                    f,
+                    "Column '{}' has invalid type: expected {}",
+                    column, expected
+                )
             }
-            PlotError::ScaleMismatch { breaks_count, labels_count } => {
+            PlotError::ScaleMismatch {
+                breaks_count,
+                labels_count,
+            } => {
                 write!(
                     f,
                     "Scale breaks and labels have mismatched lengths: {} breaks, {} labels",
@@ -192,7 +212,19 @@ impl Display for PlotError {
             PlotError::UnsupportedFormat { extension } => {
                 write!(f, "Unsupported file format: {}", extension)
             }
-            PlotError::AestheticTypeMismatch { aesthetic, user_hint, geom_requirement, reason } => {
+            PlotError::InvalidAestheticConversion { from } => {
+                write!(
+                    f,
+                    "Cannot convert aesthetic {:?} to primary aesthetic",
+                    from
+                )
+            }
+            PlotError::AestheticTypeMismatch {
+                aesthetic,
+                user_hint,
+                geom_requirement,
+                reason,
+            } => {
                 write!(
                     f,
                     "Scale type conflict for {:?}: user specified {}, geom requires {}. {}",
@@ -275,9 +307,7 @@ impl PlotError {
     }
 
     pub fn invalid_path(path: impl Into<String>) -> Self {
-        PlotError::InvalidPath {
-            path: path.into(),
-        }
+        PlotError::InvalidPath { path: path.into() }
     }
 
     pub fn unsupported_format(extension: impl Into<String>) -> Self {
@@ -300,7 +330,10 @@ impl PlotError {
         }
     }
 
-    pub fn string_column_requires_categorical(aesthetic: Aesthetic, column: impl Into<String>) -> Self {
+    pub fn string_column_requires_categorical(
+        aesthetic: Aesthetic,
+        column: impl Into<String>,
+    ) -> Self {
         PlotError::StringColumnRequiresCategorical {
             aesthetic,
             column: column.into(),
@@ -334,7 +367,7 @@ impl From<VectorType> for DataType {
 }
 
 /// Helper function to convert Cairo errors to PlotError
-/// 
+///
 /// # Example
 /// ```ignore
 /// ctx.cairo.stroke().map_err(to_plot_error)?;
