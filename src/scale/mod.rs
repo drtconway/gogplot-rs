@@ -172,7 +172,6 @@ pub trait ShapeScale: ScaleBase {
     fn labels(&self) -> &[String];
 }
 
-pub mod categorical;
 pub mod color;
 pub mod continuous;
 pub mod discrete;
