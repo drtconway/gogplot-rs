@@ -1,12 +1,14 @@
 use super::{ScaleBase, ShapeScale};
 use crate::data::GenericVector;
+use crate::utils::set::DiscreteSet;
 use crate::visuals::Shape;
-use std::collections::HashMap;
 
 /// Discrete shape scale that maps categories to point shapes.
 pub struct DiscreteShape {
     shapes: Vec<Shape>,
-    mapping: HashMap<String, usize>,
+    elements: DiscreteSet,
+    breaks: Vec<Shape>,
+    labels: Vec<String>,
 }
 
 impl DiscreteShape {
@@ -14,7 +16,9 @@ impl DiscreteShape {
     pub fn new(shapes: Vec<Shape>) -> Self {
         Self {
             shapes,
-            mapping: HashMap::new(),
+            elements: DiscreteSet::new(),
+            breaks: Vec::new(),
+            labels: Vec::new(),
         }
     }
 
@@ -35,41 +39,48 @@ impl ScaleBase for DiscreteShape {
     fn scale_type(&self) -> super::ScaleType {
         super::ScaleType::Categorical
     }
-    
-    fn train(&mut self, data: &[&dyn GenericVector]) {
-        // Extract unique categories from all data vectors and assign them to shapes
-        let mut categories: Vec<String> = Vec::new();
 
+    fn train(&mut self, data: &[&dyn GenericVector]) {
+        self.elements = DiscreteSet::new(); // Reset elements for retraining
         for vec in data {
-            if let Some(strings) = vec.iter_str() {
-                for s in strings {
-                    let s_string = s.to_string();
-                    if !categories.contains(&s_string) {
-                        categories.push(s_string);
-                    }
+            if let Some(ints) = vec.iter_int() {
+                for v in ints {
+                    self.elements.add(&v);
+                }
+            } else if let Some(strs) = vec.iter_str() {
+                for v in strs {
+                    self.elements.add(&v);
+                }
+            } else if let Some(bools) = vec.iter_bool() {
+                for v in bools {
+                    self.elements.add(&v);
                 }
             }
         }
+        self.elements.build();
 
-        self.mapping.clear();
-        for (idx, category) in categories.iter().enumerate() {
-            self.mapping
-                .insert(category.clone(), idx % self.shapes.len());
+        for (i, item) in self.elements.iter().enumerate() {
+            let shape = self.shapes[i % self.shapes.len()];
+            self.breaks.push(shape);
+            let label = item.to_string();
+            self.labels.push(label);
         }
     }
 }
 
 impl ShapeScale for DiscreteShape {
-    fn map_to_shape(&self, category: &str) -> Option<Shape> {
-        self.mapping
-            .get(category)
-            .and_then(|&idx| self.shapes.get(idx).copied())
+    fn map_value<T: crate::data::DiscreteType>(&self, value: &T) -> Option<Shape> {
+        let ordinal = self.elements.ordinal(value)?;
+        let shape = self.shapes[ordinal % self.shapes.len()];
+        Some(shape)
     }
 
-    fn legend_breaks(&self) -> Vec<String> {
-        let mut breaks: Vec<_> = self.mapping.keys().cloned().collect();
-        breaks.sort();
-        breaks
+    fn breaks(&self) -> &[Shape] {
+        &self.breaks
+    }
+
+    fn labels(&self) -> &[String] {
+        &self.labels
     }
 }
 

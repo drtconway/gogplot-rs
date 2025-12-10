@@ -113,6 +113,16 @@ pub enum DiscreteValue {
     Bool(bool),
 }
 
+impl DiscreteValue {
+    pub fn to_string(&self) -> String {
+        match self {
+            DiscreteValue::Int(i) => i.to_string(),
+            DiscreteValue::Str(s) => s.clone(),
+            DiscreteValue::Bool(b) => b.to_string(),
+        }
+    }
+}
+
 impl From<PrimitiveValue> for DiscreteValue {
     fn from(pv: PrimitiveValue) -> Self {
         match pv {
