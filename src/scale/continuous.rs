@@ -1,7 +1,5 @@
-use super::{ContinuousPositionalScale, ScaleBase, ScaleType};
-use super::transform::{Transform, IdentityTransform, SqrtTransform, Log10Transform};
+use super::transform::{IdentityTransform, Log10Transform, SqrtTransform, Transform};
 use crate::data::ContinuousType;
-use crate::scale::PositionalScale;
 use crate::{data::compute_min_max, error::PlotError};
 
 /// Builder for creating continuous scales with customizable properties.
@@ -234,8 +232,8 @@ impl Continuous {
     ///     .limits((0.0, 100.0))
     ///     .linear()?;
     /// ```
-    pub fn linear(self) -> Result<ContinuousScaleImpl, PlotError> {
-        let mut scale = ContinuousScaleImpl::new(Box::new(IdentityTransform));
+    pub fn linear(self) -> Result<ContinuousPositionalScale, PlotError> {
+        let mut scale = ContinuousPositionalScale::new(Box::new(IdentityTransform));
 
         if let Some(limits) = self.limits {
             scale = scale.with_limits(limits);
@@ -279,8 +277,8 @@ impl Continuous {
     ///     .limits((0.0, 100.0))
     ///     .sqrt()?;
     /// ```
-    pub fn sqrt(self) -> Result<ContinuousScaleImpl, PlotError> {
-        let mut scale = ContinuousScaleImpl::new(Box::new(SqrtTransform));
+    pub fn sqrt(self) -> Result<ContinuousPositionalScale, PlotError> {
+        let mut scale = ContinuousPositionalScale::new(Box::new(SqrtTransform));
 
         if let Some(limits) = self.limits {
             scale = scale.with_limits(limits);
@@ -326,8 +324,8 @@ impl Continuous {
     ///     .breaks(vec![1.0, 10.0, 100.0, 1000.0])
     ///     .log10()?;
     /// ```
-    pub fn log10(self) -> Result<ContinuousScaleImpl, PlotError> {
-        let mut scale = ContinuousScaleImpl::new(Box::new(Log10Transform));
+    pub fn log10(self) -> Result<ContinuousPositionalScale, PlotError> {
+        let mut scale = ContinuousPositionalScale::new(Box::new(Log10Transform));
 
         if let Some(limits) = self.limits {
             scale = scale.with_limits(limits);
@@ -353,17 +351,17 @@ impl Continuous {
 ///
 /// This replaces the separate `Linear`, `Sqrt`, and `Log10` structs with
 /// a single implementation that accepts any `Transform` object.
-pub struct ContinuousScaleImpl {
+pub struct ContinuousPositionalScale {
     transform: Box<dyn Transform>,
-    pub(crate) domain: (f64, f64),
-    pub(crate) breaks: Vec<f64>,
-    pub(crate) labels: Vec<String>,
+    domain: (f64, f64),
+    breaks: Vec<f64>,
+    labels: Vec<String>,
     trained: bool,
     lower_bound: Option<f64>,
     upper_bound: Option<f64>,
 }
 
-impl ContinuousScaleImpl {
+impl ContinuousPositionalScale {
     pub fn new(transform: Box<dyn Transform>) -> Self {
         Self {
             transform,
@@ -403,11 +401,17 @@ impl ContinuousScaleImpl {
     }
 }
 
-impl ScaleBase for ContinuousScaleImpl {
-    fn scale_type(&self) -> ScaleType {
-        ScaleType::Continuous
+impl Default for ContinuousPositionalScale {
+    fn default() -> Self {
+        Self::new(Box::new(IdentityTransform))
     }
-    
+}
+
+impl super::traits::ScaleBase for ContinuousPositionalScale {
+    fn scale_type(&self) -> super::ScaleType {
+        super::ScaleType::Continuous
+    }
+
     fn train(&mut self, data: &[&dyn crate::data::GenericVector]) {
         if let Some((mut min, mut max)) = compute_min_max(data) {
             if self.trained {
@@ -433,17 +437,23 @@ impl ScaleBase for ContinuousScaleImpl {
 
             let range = max - min;
             let expansion = if range.abs() < 1e-10 {
-                if min.abs() < 1e-10 { 1.0 } else { min.abs() * 0.1 }
+                if min.abs() < 1e-10 {
+                    1.0
+                } else {
+                    min.abs() * 0.1
+                }
             } else {
                 range * 0.05
             };
 
-            let lower_expansion = if self.lower_bound.is_some() && min == self.lower_bound.unwrap() {
+            let lower_expansion = if self.lower_bound.is_some() && min == self.lower_bound.unwrap()
+            {
                 0.0
             } else {
                 expansion
             };
-            let upper_expansion = if self.upper_bound.is_some() && max == self.upper_bound.unwrap() {
+            let upper_expansion = if self.upper_bound.is_some() && max == self.upper_bound.unwrap()
+            {
                 0.0
             } else {
                 expansion
@@ -465,15 +475,19 @@ impl ScaleBase for ContinuousScaleImpl {
 
             self.domain = (final_min, final_max);
             self.breaks = self.transform.breaks(self.domain, 5);
-            self.labels = self.breaks.iter().map(|b| self.transform.format(*b)).collect();
+            self.labels = self
+                .breaks
+                .iter()
+                .map(|b| self.transform.format(*b))
+                .collect();
             self.trained = true;
         }
     }
 }
 
-impl PositionalScale for ContinuousScaleImpl {
+impl super::traits::PositionalScale for ContinuousPositionalScale {
     fn breaks(&self) -> &[f64] {
-    &self.breaks
+        &self.breaks
     }
 
     fn labels(&self) -> &[String] {
@@ -481,7 +495,7 @@ impl PositionalScale for ContinuousScaleImpl {
     }
 }
 
-impl ContinuousPositionalScale for ContinuousScaleImpl {
+impl super::traits::ContinuousPositionalScale for ContinuousPositionalScale {
     fn map_value<T: ContinuousType>(&self, value: &T) -> Option<f64> {
         let value = value.to_f64();
         let (d0, d1) = self.domain;

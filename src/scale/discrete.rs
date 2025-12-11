@@ -1,6 +1,6 @@
 use crate::{
     data::{DiscreteType, DiscreteValue},
-    scale::{self, PositionalScale, ScaleBase}, utils::set::DiscreteSet,
+    utils::set::DiscreteSet,
 };
 
 pub struct DiscretePositionalScale {
@@ -19,7 +19,13 @@ impl DiscretePositionalScale {
     }
 }
 
-impl ScaleBase for DiscretePositionalScale {
+impl Default for DiscretePositionalScale {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl super::traits::ScaleBase for DiscretePositionalScale {
     fn train(&mut self, data: &[&dyn crate::data::GenericVector]) {
         for vec in data {
             if let Some(ints) = vec.iter_int() {
@@ -49,12 +55,12 @@ impl ScaleBase for DiscretePositionalScale {
         }).collect();
     }
 
-    fn scale_type(&self) -> scale::ScaleType {
-        scale::ScaleType::Categorical
+    fn scale_type(&self) -> super::ScaleType {
+        super::ScaleType::Categorical
     }
 }
 
-impl PositionalScale for DiscretePositionalScale {
+impl super::traits::PositionalScale for DiscretePositionalScale {
     fn breaks(&self) -> &[f64] {
         &self.breaks
     }
@@ -64,7 +70,7 @@ impl PositionalScale for DiscretePositionalScale {
     }
 }
 
-impl scale::DiscretePositionalScale for DiscretePositionalScale {
+impl super::traits::DiscretePositionalScale for DiscretePositionalScale {
     fn len(&self) -> usize {
         self.elements.len()
     }

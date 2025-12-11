@@ -1,17 +1,16 @@
-use super::{ScaleBase, ShapeScale};
 use crate::data::GenericVector;
 use crate::utils::set::DiscreteSet;
 use crate::visuals::Shape;
 
 /// Discrete shape scale that maps categories to point shapes.
-pub struct DiscreteShape {
+pub struct ShapeScale {
     shapes: Vec<Shape>,
     elements: DiscreteSet,
     breaks: Vec<Shape>,
     labels: Vec<String>,
 }
 
-impl DiscreteShape {
+impl ShapeScale {
     /// Create a new discrete shape scale with a set of shapes.
     pub fn new(shapes: Vec<Shape>) -> Self {
         Self {
@@ -35,7 +34,13 @@ impl DiscreteShape {
     }
 }
 
-impl ScaleBase for DiscreteShape {
+impl Default for ShapeScale {
+    fn default() -> Self {
+        Self::default_shapes()
+    }
+}
+
+impl super::traits::ScaleBase for ShapeScale {
     fn scale_type(&self) -> super::ScaleType {
         super::ScaleType::Categorical
     }
@@ -68,7 +73,7 @@ impl ScaleBase for DiscreteShape {
     }
 }
 
-impl ShapeScale for DiscreteShape {
+impl super::traits::ShapeScale for ShapeScale {
     fn map_value<T: crate::data::DiscreteType>(&self, value: &T) -> Option<Shape> {
         let ordinal = self.elements.ordinal(value)?;
         let shape = self.shapes[ordinal % self.shapes.len()];
@@ -92,14 +97,14 @@ mod tests {
     #[test]
     fn test_discrete_shape_new() {
         let shapes = vec![Shape::Circle, Shape::Square];
-        let scale = DiscreteShape::new(shapes);
+        let scale = ShapeScale::new(shapes);
         assert_eq!(scale.shapes.len(), 2);
         assert_eq!(scale.mapping.len(), 0);
     }
 
     #[test]
     fn test_discrete_shape_default() {
-        let scale = DiscreteShape::default_shapes();
+        let scale = ShapeScale::default_shapes();
         assert_eq!(scale.shapes.len(), 6);
         assert_eq!(scale.shapes[0], Shape::Circle);
         assert_eq!(scale.shapes[1], Shape::Square);
@@ -111,7 +116,7 @@ mod tests {
 
     #[test]
     fn test_discrete_shape_train() {
-        let mut scale = DiscreteShape::default_shapes();
+        let mut scale = ShapeScale::default_shapes();
         let data = StrVec(vec![
             "cat".to_string(),
             "dog".to_string(),
@@ -129,7 +134,7 @@ mod tests {
 
     #[test]
     fn test_discrete_shape_map_category() {
-        let mut scale = DiscreteShape::default_shapes();
+        let mut scale = ShapeScale::default_shapes();
         let data = StrVec(vec!["A".to_string(), "B".to_string(), "C".to_string()]);
 
         scale.train(&[&data]);
@@ -147,7 +152,7 @@ mod tests {
 
     #[test]
     fn test_discrete_shape_wrap_around() {
-        let mut scale = DiscreteShape::new(vec![Shape::Circle, Shape::Square]);
+        let mut scale = ShapeScale::new(vec![Shape::Circle, Shape::Square]);
         let data = StrVec(vec![
             "A".to_string(),
             "B".to_string(),
@@ -163,7 +168,7 @@ mod tests {
 
     #[test]
     fn test_discrete_shape_legend_breaks() {
-        let mut scale = DiscreteShape::default_shapes();
+        let mut scale = ShapeScale::default_shapes();
         let data = StrVec(vec!["Z".to_string(), "A".to_string(), "M".to_string()]);
 
         scale.train(&[&data]);
@@ -175,7 +180,7 @@ mod tests {
 
     #[test]
     fn test_discrete_shape_retrain() {
-        let mut scale = DiscreteShape::default_shapes();
+        let mut scale = ShapeScale::default_shapes();
 
         // First training
         let data1 = StrVec(vec!["A".to_string(), "B".to_string()]);

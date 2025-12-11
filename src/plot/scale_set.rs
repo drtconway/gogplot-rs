@@ -118,9 +118,9 @@ impl ScaleSet {
         x_axis_title: &mut Option<String>,
         y_axis_title: &mut Option<String>,
     ) {
-        use crate::scale::color::DiscreteColor;
+        use crate::scale::color::DiscreteColorScale;
         use crate::scale::continuous::Continuous;
-        use crate::scale::shape::DiscreteShape;
+        use crate::scale::shape::ShapeScale;
         use crate::scale::ScaleType;
 
         // Find the first layer that maps each aesthetic to determine default scales
@@ -263,12 +263,12 @@ impl ScaleSet {
                             data,
                         ) {
                             Ok(ScaleType::Categorical) => {
-                                self.color = Some(Box::new(DiscreteColor::default_palette()));
+                                self.color = Some(Box::new(DiscreteColorScale::default_palette()));
                             }
                             Ok(ScaleType::Continuous | ScaleType::Either) => {
                                 // Could create a continuous color scale here if needed
                                 // For now, default to categorical for color
-                                self.color = Some(Box::new(DiscreteColor::default_palette()));
+                                self.color = Some(Box::new(DiscreteColorScale::default_palette()));
                             }
                             Err(_) => {}
                         }
@@ -293,12 +293,12 @@ impl ScaleSet {
                             data,
                         ) {
                             Ok(ScaleType::Categorical) => {
-                                self.fill = Some(Box::new(DiscreteColor::default_palette()));
+                                self.fill = Some(Box::new(DiscreteColorScale::default_palette()));
                             }
                             Ok(ScaleType::Continuous | ScaleType::Either) => {
                                 // Could create a continuous color scale here if needed
                                 // For now, default to categorical for fill
-                                self.fill = Some(Box::new(DiscreteColor::default_palette()));
+                                self.fill = Some(Box::new(DiscreteColorScale::default_palette()));
                             }
                             Err(_) => {}
                         }
@@ -310,7 +310,7 @@ impl ScaleSet {
             if self.shape.is_none() {
                 if matches!(layer_mapping.get(&Aesthetic::Shape), Some(AesValue::Column { name: _, hint: Some(ScaleType::Categorical) , ..})) {
                     // Create default discrete shape scale
-                    self.shape = Some(Box::new(DiscreteShape::default_shapes()));
+                    self.shape = Some(Box::new(ShapeScale::default_shapes()));
                 }
             }
 

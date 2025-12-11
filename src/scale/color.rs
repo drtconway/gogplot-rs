@@ -1,17 +1,15 @@
-use super::ScaleBase;
 use crate::data::GenericVector;
-use crate::scale::{ContinuousColorScale, DiscreteColorScale};
 use crate::theme::{Color, color};
 use crate::utils::set::DiscreteSet;
 use crate::visuals::palette::{discrete_palette, okabe_ito_palette};
 
 /// Discrete color scale that maps categories to colors.
-pub struct DiscreteColor {
+pub struct DiscreteColorScale {
     palette: Vec<Color>,
     elements: DiscreteSet,
 }
 
-impl DiscreteColor {
+impl DiscreteColorScale {
     /// Create a new discrete color scale with a palette.
     pub fn new() -> Self {
         Self {
@@ -26,7 +24,13 @@ impl DiscreteColor {
     }
 }
 
-impl ScaleBase for DiscreteColor {
+impl Default for DiscreteColorScale {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl super::traits::ScaleBase for DiscreteColorScale {
     fn scale_type(&self) -> super::ScaleType {
         super::ScaleType::Categorical
     }
@@ -56,7 +60,7 @@ impl ScaleBase for DiscreteColor {
     }
 }
 
-impl DiscreteColorScale for DiscreteColor {
+impl super::traits::DiscreteColorScale for DiscreteColorScale {
     fn map_value<T: crate::data::DiscreteType>(&self, value: &T) -> Option<Color> {
         let ordinal = self.elements.ordinal(value)?;
         Some(self.palette[ordinal])
@@ -64,12 +68,12 @@ impl DiscreteColorScale for DiscreteColor {
 }
 
 /// Continuous color scale that maps numeric values to a gradient.
-pub struct ContinuousColor {
+pub struct ContinuousColorScale {
     domain: (f64, f64),
     colors: Vec<Color>,
 }
 
-impl ContinuousColor {
+impl ContinuousColorScale {
     /// Create a new continuous color gradient with a list of colors.
     /// Colors are interpolated evenly across the domain.
     pub fn new(domain: (f64, f64), colors: Vec<Color>) -> Self {
@@ -120,7 +124,13 @@ impl ContinuousColor {
     }
 }
 
-impl ScaleBase for ContinuousColor {
+impl Default for ContinuousColorScale {
+    fn default() -> Self {
+        Self::default_gradient((0.0, 1.0))
+    }
+}
+
+impl super::traits::ScaleBase for ContinuousColorScale {
     fn scale_type(&self) -> super::ScaleType {
         super::ScaleType::Continuous
     }
@@ -134,7 +144,7 @@ impl ScaleBase for ContinuousColor {
     }
 }
 
-impl ContinuousColorScale for ContinuousColor {
+impl super::traits::ContinuousColorScale for ContinuousColorScale {
     fn domain(&self) -> Option<(f64, f64)> {
         Some(self.domain)
     }
@@ -156,13 +166,13 @@ mod tests {
 
     #[test]
     fn test_discrete_color_default_palette() {
-        let scale = DiscreteColor::default_palette();
+        let scale = DiscreteColorScale::default_palette();
         assert_eq!(scale.palette.len(), 8);
     }
 
     #[test]
     fn test_discrete_color_train() {
-        let mut scale = DiscreteColor::default_palette();
+        let mut scale = DiscreteColorScale::default_palette();
         let data = StrVec(vec![
             "A".to_string(),
             "B".to_string(),
@@ -180,7 +190,7 @@ mod tests {
 
     #[test]
     fn test_discrete_color_map_category() {
-        let mut scale = DiscreteColor::default_palette();
+        let mut scale = DiscreteColorScale::default_palette();
         let data = StrVec(vec![
             "red".to_string(),
             "blue".to_string(),
@@ -200,7 +210,7 @@ mod tests {
 
     #[test]
     fn test_discrete_color_legend_breaks() {
-        let mut scale = DiscreteColor::default_palette();
+        let mut scale = DiscreteColorScale::default_palette();
         let data = StrVec(vec!["Z".to_string(), "A".to_string(), "M".to_string()]);
 
         scale.train(&[&data]);
@@ -212,7 +222,7 @@ mod tests {
 
     #[test]
     fn test_continuous_color_new() {
-        let scale = ContinuousColor::new(
+        let scale = ContinuousColorScale::new(
             (0.0, 100.0),
             vec![Color::rgb(0, 0, 255), Color::rgb(255, 0, 0)],
         );
@@ -222,7 +232,7 @@ mod tests {
 
     #[test]
     fn test_continuous_color_default_gradient() {
-        let scale = ContinuousColor::default_gradient((0.0, 1.0));
+        let scale = ContinuousColorScale::default_gradient((0.0, 1.0));
         assert_eq!(scale.domain, (0.0, 1.0));
         assert_eq!(scale.colors.len(), 2);
         assert_eq!(scale.colors[0], Color::rgb(154, 192, 205)); // lightblue3
@@ -231,7 +241,7 @@ mod tests {
 
     #[test]
     fn test_continuous_color_interpolate() {
-        let scale = ContinuousColor::new(
+        let scale = ContinuousColorScale::new(
             (0.0, 100.0),
             vec![Color::rgb(0, 0, 0), Color::rgb(100, 100, 100)],
         );
@@ -250,7 +260,7 @@ mod tests {
 
     #[test]
     fn test_continuous_color_out_of_bounds() {
-        let scale = ContinuousColor::new(
+        let scale = ContinuousColorScale::new(
             (0.0, 100.0),
             vec![Color::rgb(0, 0, 255), Color::rgb(255, 0, 0)],
         );
@@ -261,7 +271,7 @@ mod tests {
 
     #[test]
     fn test_continuous_color_legend_breaks() {
-        let scale = ContinuousColor::default_gradient((0.0, 100.0));
+        let scale = ContinuousColorScale::default_gradient((0.0, 100.0));
         let breaks = scale.legend_breaks();
 
         assert_eq!(breaks.len(), 3);
@@ -272,7 +282,7 @@ mod tests {
 
     #[test]
     fn test_discrete_color_set_palette() {
-        let mut scale = DiscreteColor::default_palette();
+        let mut scale = DiscreteColorScale::default_palette();
         let custom_palette = vec![Color(255, 255, 255, 255), Color(0, 0, 0, 255)];
 
         scale.set_palette(custom_palette.clone());

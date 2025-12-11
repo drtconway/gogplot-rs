@@ -184,8 +184,8 @@ impl Plot {
     /// ])
     /// ```
     pub fn scale_color_continuous(mut self, colors: Vec<Color>) -> Self {
-        use crate::scale::color::ContinuousColor;
-        self.scales.color = Some(Box::new(ContinuousColor::new((0.0, 1.0), colors)));
+        use crate::scale::color::ContinuousColorScale;
+        self.scales.color = Some(Box::new(ContinuousColorScale::new((0.0, 1.0), colors)));
         self
     }
 
@@ -197,15 +197,15 @@ impl Plot {
 
     /// Set a continuous fill scale with custom gradient colors (builder style)
     pub fn scale_fill_continuous(mut self, colors: Vec<Color>) -> Self {
-        use crate::scale::color::ContinuousColor;
-        self.scales.fill = Some(Box::new(ContinuousColor::new((0.0, 1.0), colors)));
+        use crate::scale::color::ContinuousColorScale;
+        self.scales.fill = Some(Box::new(ContinuousColorScale::new((0.0, 1.0), colors)));
         self
     }
 
     /// Set a discrete fill scale with custom colors (builder style)
     pub fn scale_fill_manual(mut self, colors: Vec<Color>) -> Self {
-        use crate::scale::color::DiscreteColor;
-        self.scales.fill = Some(Box::new(DiscreteColor::new(colors)));
+        use crate::scale::color::DiscreteColorScale;
+        self.scales.fill = Some(Box::new(DiscreteColorScale::new(colors)));
         self
     }
 
