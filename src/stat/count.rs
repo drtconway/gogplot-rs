@@ -1,6 +1,6 @@
 use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain};
 use crate::data::{DataSource, DiscreteType};
-use crate::error::Result;
+use crate::error::{PlotError, Result};
 use crate::stat::StatTransform;
 use crate::utils::data::{DiscreteDiscreteVisitor2, DiscreteVectorVisitor, Vectorable, visit_d, visit2_dd};
 use crate::utils::dataframe::{DataFrame, IntVec};
@@ -85,7 +85,8 @@ impl UngroupedValueCounter {
 }
 
 impl DiscreteVectorVisitor for UngroupedValueCounter {
-    fn visit<T: Vectorable + DiscreteType>(&mut self, values: impl Iterator<Item = T>) {
+    type Output = ();
+    fn visit<T: Vectorable + DiscreteType>(&mut self, values: impl Iterator<Item = T>) -> std::result::Result<Self::Output, PlotError> {
         let counts: HashMap<T::Sortable, i64> = {
             let mut map = HashMap::new();
             for val in values {
@@ -114,6 +115,7 @@ impl DiscreteVectorVisitor for UngroupedValueCounter {
             Aesthetic::Y(AestheticDomain::Continuous),
             AesValue::column("count"),
         );
+        Ok(())
     }
 }
 

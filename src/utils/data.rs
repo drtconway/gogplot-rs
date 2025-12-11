@@ -72,21 +72,23 @@ pub fn visit_c<'a, V: ContinuousVectorVisitor>(
 
 /// Visitor that only accepts discrete types (i64, String, bool)
 pub trait DiscreteVectorVisitor {
-    fn visit<T: Vectorable + DiscreteType>(&mut self, value: impl Iterator<Item = T>);
+    type Output;
+
+    fn visit<T: Vectorable + DiscreteType>(&mut self, value: impl Iterator<Item = T>) -> std::result::Result<Self::Output, PlotError>;
 }
 
 pub fn visit_d<'a, V: DiscreteVectorVisitor>(
     iter: VectorIter<'a>,
     visitor: &mut V,
-) -> Result<(), PlotError> {
+) -> Result<V::Output, PlotError> {
     match iter {
-        VectorIter::Int(it) => Ok(visitor.visit(it)),
+        VectorIter::Int(it) => visitor.visit(it),
         VectorIter::Float(_) => Err(PlotError::AestheticDomainMismatch {
             expected: crate::aesthetics::AestheticDomain::Discrete,
             actual: DataType::Vector(VectorType::Float),
         }),
-        VectorIter::Str(it) => Ok(visitor.visit(it.map(|s| s.to_string()))),
-        VectorIter::Bool(it) => Ok(visitor.visit(it)),
+        VectorIter::Str(it) => visitor.visit(it.map(|s| s.to_string())),
+        VectorIter::Bool(it) => visitor.visit(it),
     }
 }
 

@@ -1,4 +1,6 @@
-use crate::aesthetics::AestheticDomain;
+use std::collections::HashMap;
+
+use crate::aesthetics::{Aesthetic, AestheticDomain, PrimaryAesthetic};
 use crate::data::{ContinuousType, DiscreteType, GenericVector};
 use crate::theme::Color;
 use crate::visuals::Shape;
@@ -176,3 +178,32 @@ pub mod color;
 pub mod continuous;
 pub mod discrete;
 pub mod shape;
+
+pub enum ScaleWrapper {
+    ContinuousPositional(continuous::Continuous),
+    DiscretePositional(discrete::DiscretePositionalScale),
+    ContinuousColor(color::ContinuousColor),
+    DiscreteColor(color::DiscreteColor),
+    Shape(shape::DiscreteShape),
+}
+
+pub struct ScaleSet {
+    scales: HashMap<PrimaryAesthetic, ScaleWrapper>,
+}
+
+impl ScaleSet {
+    pub fn scale(&mut self, aes: Aesthetic) -> &ScaleWrapper {
+        let primary = PrimaryAesthetic::try_from(aes).unwrap();
+        if let Some(scale) = self.scales.get(&primary) {
+            return scale;
+        } else {
+
+        }
+        self.scales.get(&primary).unwrap()
+    }
+
+    pub fn scale_mut(&mut self, aes: Aesthetic) -> Option<&mut ScaleWrapper> {
+        let primary = PrimaryAesthetic::try_from(aes).unwrap();
+        self.scales.get_mut(&primary)
+    }
+}

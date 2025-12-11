@@ -1,6 +1,7 @@
-use crate::data::{self, DataSource, PrimitiveValue, VectorIter};
+use crate::data::{self, DataSource, GenericVector, PrimitiveValue, VectorIter};
 use crate::error::PlotError;
 use crate::scale::ScaleType;
+use crate::utils::dataframe::{BoolVec, FloatVec, IntVec, StrVec};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -20,8 +21,8 @@ pub enum AestheticRange {
 pub enum PrimaryAesthetic {
     X(AestheticDomain),
     Y(AestheticDomain),
-    Color,
-    Fill,
+    Color(AestheticDomain),
+    Fill(AestheticDomain),
     Shape,
     Size,
     Alpha,
@@ -35,8 +36,8 @@ impl TryFrom<Aesthetic> for PrimaryAesthetic {
         match aes {
             Aesthetic::X(kind) => Ok(PrimaryAesthetic::X(kind)),
             Aesthetic::Y(kind) => Ok(PrimaryAesthetic::Y(kind)),
-            Aesthetic::Color => Ok(PrimaryAesthetic::Color),
-            Aesthetic::Fill => Ok(PrimaryAesthetic::Fill),
+            Aesthetic::Color(kind) => Ok(PrimaryAesthetic::Color(kind)),
+            Aesthetic::Fill(kind) => Ok(PrimaryAesthetic::Fill(kind)),
             Aesthetic::Shape => Ok(PrimaryAesthetic::Shape),
             Aesthetic::Size => Ok(PrimaryAesthetic::Size),
             Aesthetic::Alpha => Ok(PrimaryAesthetic::Alpha),
@@ -58,8 +59,8 @@ pub enum Aesthetic {
     Lower,  // Q1 (first quartile) for boxplots
     Middle, // Median for boxplots
     Upper,  // Q3 (third quartile) for boxplots
-    Color,
-    Fill,
+    Color(AestheticDomain),
+    Fill(AestheticDomain),
     Alpha,
     Size,
     Shape,
@@ -81,8 +82,8 @@ impl Aesthetic {
     pub fn is_grouping(&self) -> bool {
         matches!(
             self,
-            Aesthetic::Color
-                | Aesthetic::Fill
+            Aesthetic::Color(AestheticDomain::Discrete)
+                | Aesthetic::Fill(AestheticDomain::Discrete)
                 | Aesthetic::Shape
                 | Aesthetic::Linetype
                 | Aesthetic::Group
@@ -120,6 +121,35 @@ impl Aesthetic {
         )
     }
 
+    /// Returns the AestheticDomain for the aesthetic,
+    /// which may be explicit or implied.
+    pub fn domain(&self) -> AestheticDomain {
+        match self {
+            Aesthetic::X(kind)
+            | Aesthetic::Y(kind)
+            | Aesthetic::Xmin(kind)
+            | Aesthetic::Xmax(kind)
+            | Aesthetic::Ymin(kind)
+            | Aesthetic::Ymax(kind)
+            | Aesthetic::Color(kind)
+            | Aesthetic::Fill(kind) => *kind,
+            Aesthetic::Alpha | Aesthetic::Size => AestheticDomain::Continuous,
+            Aesthetic::Shape
+            | Aesthetic::Linetype
+            | Aesthetic::Group => AestheticDomain::Discrete,
+            Aesthetic::XBegin
+            | Aesthetic::XEnd
+            | Aesthetic::XIntercept
+            | Aesthetic::YBegin
+            | Aesthetic::YEnd
+            | Aesthetic::YIntercept
+            | Aesthetic::Lower
+            | Aesthetic::Middle
+            | Aesthetic::Upper
+            | Aesthetic::Label => AestheticDomain::Continuous,
+        }
+    }
+
     /// A printable name for the aesthetic.
     pub fn to_str(&self) -> &'static str {
         match self {
@@ -132,8 +162,8 @@ impl Aesthetic {
             Aesthetic::Lower => "lower",
             Aesthetic::Middle => "middle",
             Aesthetic::Upper => "upper",
-            Aesthetic::Color => "color",
-            Aesthetic::Fill => "fill",
+            Aesthetic::Color(_) => "color",
+            Aesthetic::Fill(_) => "fill",
             Aesthetic::Alpha => "alpha",
             Aesthetic::Size => "size",
             Aesthetic::Shape => "shape",
@@ -274,6 +304,54 @@ impl AesValue {
         match self {
             AesValue::Constant { value, .. } => Some(value),
             _ => None,
+        }
+    }
+
+    pub fn duplicate(
+        &self,
+        data: &dyn DataSource,
+    ) -> Result<(AesValue, Option<(String, Box<dyn GenericVector>)>)> {
+        match self {
+            AesValue::Column {
+                name,
+                hint,
+                original_name,
+            } => {
+                let column = data.get(name.as_str())?;
+                let cloned_column: Box<dyn GenericVector> = match column.iter() {
+                    data::VectorIter::Int(iter) => {
+                        let vec: Vec<i64> = iter.collect();
+                        Box::new(IntVec::from_vec(vec))
+                    }
+                    data::VectorIter::Float(iter) => {
+                        let vec: Vec<f64> = iter.collect();
+                        Box::new(FloatVec::from_vec(vec))
+                    }
+                    data::VectorIter::Str(iter) => {
+                        let vec: Vec<String> = iter.map(|s| s.to_string()).collect();
+                        Box::new(StrVec::from_vec(vec))
+                    }
+                    data::VectorIter::Bool(iter) => {
+                        let vec: Vec<bool> = iter.collect();
+                        Box::new(BoolVec::from_vec(vec))
+                    }
+                };
+                Ok((
+                    AesValue::Column {
+                        name: name.clone(),
+                        hint: *hint,
+                        original_name: original_name.clone(),
+                    },
+                    Some((name.clone(), cloned_column)),
+                ))
+            }
+            AesValue::Constant { value, hint } => Ok((
+                AesValue::Constant {
+                    value: value.clone(),
+                    hint: *hint,
+                },
+                None,
+            )),
         }
     }
 }

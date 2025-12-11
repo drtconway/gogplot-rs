@@ -1,11 +1,11 @@
 // Stack position adjustment for bars
 
 use super::PositionAdjust;
-use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain};
-use crate::data::{DataSource, PrimitiveValue};
+use crate::aesthetics::{AesMap, AesValue, Aesthetic};
+use crate::data::{DataSource, DiscreteType};
 use crate::error::{DataType, PlotError};
+use crate::utils::data::{DiscreteVectorVisitor, Vectorable, visit_d};
 use crate::utils::dataframe::{DataFrame, FloatVec};
-use crate::utils::grouping::{create_composite_keys, get_grouping_columns};
 use std::collections::HashMap;
 
 /// Stack position adjustment
@@ -19,153 +19,134 @@ impl PositionAdjust for Stack {
         &self,
         data: Box<dyn DataSource>,
         mapping: &AesMap,
-        _scales: &crate::plot::ScaleSet,
+        scales: &crate::plot::ScaleSet,
     ) -> Result<Option<(Box<dyn DataSource>, AesMap, Option<crate::plot::ScaleSet>)>, PlotError>
     {
-        let x_values = mapping
-            .get_vector_iter(&Aesthetic::X(AestheticDomain::Discrete), data.as_ref())
-            .ok_or_else(|| PlotError::MissingAesthetic {
-                aesthetic: Aesthetic::X(AestheticDomain::Discrete),
-            })?;
-
-        let y_values = mapping.get_vector_iter(&Aesthetic::Y(()), data)
-        // Get x and y column names
-        let x_col_name = match mapping.get(&Aesthetic::X) {
-            Some(AesValue::Column { name, .. }) => name.clone(),
-            _ => return Ok(None),
-        };
-
-        let y_col_name = match mapping.get(&Aesthetic::Y) {
-            Some(AesValue::Column { name, .. }) => name.clone(),
-            _ => return Ok(None),
-        };
-
-        // Get grouping columns using utility
-        let group_aesthetics = get_grouping_columns(mapping);
-
-        // If no grouping, no stacking needed
-        if group_aesthetics.is_empty() {
-            return Ok(None);
+        if !mapping.has_aesthetic(&Aesthetic::Group) {
+            // No grouping aesthetic, cannot stack
+            return Err(PlotError::MissingAesthetic {
+                aesthetic: Aesthetic::Group,
+            });
         }
 
-        // Get columns
-        let x_col = data
-            .get(x_col_name.as_str())
-            .ok_or_else(|| PlotError::missing_column(&x_col_name))?;
-        let y_col = data
-            .get(y_col_name.as_str())
-            .ok_or_else(|| PlotError::missing_column(&y_col_name))?;
-
-        // Get y values as floats
-        let y_values: Vec<f64> = if let Some(float_iter) = y_col.iter_float() {
-            float_iter.collect()
-        } else if let Some(int_iter) = y_col.iter_int() {
-            int_iter.map(|v| v as f64).collect()
-        } else {
-            return Err(PlotError::InvalidAestheticType {
-                aesthetic: Aesthetic::Y,
-                expected: DataType::Numeric,
-                actual: DataType::Custom("string or other".to_string()),
-            });
-        };
-
-        // Create composite keys using utility
-        let composite_keys = create_composite_keys(data.as_ref(), &group_aesthetics);
-        let n_rows = y_values.len();
-
-        // Get x values
-        let x_values: Vec<PrimitiveValue> = if let Some(float_iter) = x_col.iter_float() {
-            float_iter.map(|v| PrimitiveValue::Float(v)).collect()
-        } else if let Some(int_iter) = x_col.iter_int() {
-            int_iter.map(|v| PrimitiveValue::Int(v)).collect()
-        } else if let Some(str_iter) = x_col.iter_str() {
-            str_iter
-                .map(|s| PrimitiveValue::Str(s.to_string()))
-                .collect()
-        } else {
-            return Err(PlotError::InvalidAestheticType {
-                aesthetic: Aesthetic::X,
-                expected: DataType::Custom("numeric or string".to_string()),
-                actual: DataType::Custom("unknown".to_string()),
-            });
-        };
-
-        // Group by x value and composite key, computing cumulative sums
-        // For each x position, we need to stack bars
-        let mut stacked_data: HashMap<String, Vec<(String, f64, f64)>> = HashMap::new();
-
-        for (i, x_val) in x_values.iter().enumerate() {
-            let x_key = format!("{:?}", x_val);
-            let group_key = &composite_keys[i];
-            let y_val = y_values[i];
-
-            stacked_data
-                .entry(x_key)
-                .or_default()
-                .push((group_key.clone(), y_val, 0.0));
+        let mut y_like_data: HashMap<Aesthetic, Vec<f64>> = HashMap::new();
+        for aes in mapping.aesthetics() {
+            if aes.is_y_like() && aes.is_continuous() {
+                let y_like_values = mapping.get_iter_float(aes, data.as_ref()).unwrap();
+                let y_like_values = y_like_values.collect::<Vec<f64>>();
+                y_like_data.insert(*aes, y_like_values);
+            }
         }
+        let group_values = mapping
+        .get_vector_iter(&Aesthetic::Group, data.as_ref()).unwrap();
 
-        // Compute stack positions (y0, y1) for each group at each x
-        let mut y_bottom: HashMap<(String, String), f64> = HashMap::new(); // (x_key, group) -> y_bottom
-        let mut y_top: HashMap<(String, String), f64> = HashMap::new(); // (x_key, group) -> y_top
+        let mut grouped_stacker = GroupStacker::new(y_like_data);
 
-        for (x_key, groups) in &mut stacked_data {
-            let mut cumsum = 0.0;
-            for (group_key, y_val, _) in groups.iter_mut() {
-                let key = (x_key.clone(), group_key.clone());
-                y_bottom.insert(key.clone(), cumsum);
-                cumsum += *y_val;
-                y_top.insert(key, cumsum);
+        let max_val = visit_d(group_values, &mut grouped_stacker)?;
+
+        let y_like_data = grouped_stacker.y_like_data;
+
+        // Create new dataframe with all original columns, replacing y-like aesthetics with stacked versions
+        let mut new_data: DataFrame = DataFrame::new();
+        let mut new_mapping = AesMap::new();
+        for (aes, aes_value) in mapping.iter() {
+            if let Some(stacked_values) = y_like_data.remove(aes) {
+                let name = get_or_invent_column_name(&aes_value, &data, &new_data, &aes);
+                new_data.add_column(
+                    &name,
+                    Box::new(FloatVec::from_vec(stacked_values.clone())),
+                );
+                new_mapping.set(*aes, AesValue::column(name));
+            } else {
+                let (new_aes_value, opt_name_and_vector) = aes_value.duplicate(data.as_ref())?;
+                if let Some((name, vector)) = opt_name_and_vector {
+                    new_data.add_column(&name, vector);
+                }
+                new_mapping.set(*aes, new_aes_value);
+            }
+        }
+        
+        let mut scale_set = scales.clone();
+        scale_set.update_y_like_max(max_val);
+
+        Ok(Some((Box::new(new_data), new_mapping, Some(scale_set))) )
+    }
+}
+
+struct GroupStacker {
+    y_like_data: HashMap<Aesthetic, Vec<f64>>,
+}
+
+impl GroupStacker {
+    fn new(y_like_data: HashMap<Aesthetic, Vec<f64>>) -> Self {
+        Self { y_like_data }
+    }
+}
+
+impl DiscreteVectorVisitor for GroupStacker {
+    type Output = f64;
+
+    fn visit<T: Vectorable + DiscreteType>(&mut self, group_values: impl Iterator<Item = T>) -> std::result::Result<Self::Output, PlotError> {
+
+        let group_values: Vec<T::Sortable> = group_values.map(|v| v.to_sortable()).collect();
+
+        // Collect maxima per group
+        let mut maxima: HashMap<T::Sortable, _> = HashMap::new();
+        for (i, group_value) in group_values.enumerate() {
+            for vals in self.y_like_data.values_mut() {
+                let entry = maxima.entry(group_value).or_insert(f64::NEG_INFINITY);
+                if *entry < vals[i] {
+                    *entry = vals[i];
+                }
             }
         }
 
-        // Create new data with ymin and ymax columns
-        let mut new_df = DataFrame::new();
+        // Get the keys in sorted order
+        let mut sorted_keys: Vec<_> = maxima.keys().cloned().collect();
+        sorted_keys.sort();
 
-        // Copy all original columns by reconstructing them
-        use crate::utils::dataframe::{IntVec, StrVec};
-        for col_name in data.column_names() {
-            let col = data.get(col_name.as_str()).unwrap();
-
-            let new_col: Box<dyn crate::data::GenericVector> =
-                if let Some(int_iter) = col.iter_int() {
-                    Box::new(IntVec(int_iter.collect()))
-                } else if let Some(float_iter) = col.iter_float() {
-                    Box::new(FloatVec(float_iter.collect()))
-                } else if let Some(str_iter) = col.iter_str() {
-                    Box::new(StrVec(str_iter.map(|s| s.to_string()).collect()))
-                } else {
-                    continue;
-                };
-            new_df.add_column(&col_name, new_col);
+        // Compute the per-group offsets
+        let mut cumulative = 0.0;
+        for key in &sorted_keys {
+            let max_val = maxima.get_mut(key).unwrap();
+            let val = *max_val;
+            *max_val = cumulative;
+            cumulative += val;
         }
 
-        // Add ymin and ymax columns
-        let mut ymin_vals = Vec::with_capacity(n_rows);
-        let mut ymax_vals = Vec::with_capacity(n_rows);
+        let offsets = maxima;
 
-        for (i, x_val) in x_values.iter().enumerate() {
-            let x_key = format!("{:?}", x_val);
-            let group_key = &composite_keys[i];
-            let key = (x_key, group_key.clone());
-
-            let bottom = *y_bottom.get(&key).unwrap_or(&0.0);
-            let top = *y_top.get(&key).unwrap_or(&y_values[i]);
-
-            ymin_vals.push(bottom);
-            ymax_vals.push(top);
+        // Apply offsets to y-like data
+        for (aes, vals) in self.y_like_data.iter_mut() {
+            for (i, group_value) in group_values.iter().enumerate() {
+                if let Some(offset) = offsets.get(group_value) {
+                    vals[i] += offset;
+                }
+            }
         }
 
-        new_df.add_column("ymin", Box::new(FloatVec(ymin_vals)));
-        new_df.add_column("ymax", Box::new(FloatVec(ymax_vals)));
+        Ok(cumulative)
+    }
+}
 
-        // Update mapping to use ymin and ymax
-        let mut new_mapping = mapping.clone();
-        new_mapping.set(Aesthetic::Ymin, AesValue::column("ymin"));
-        new_mapping.set(Aesthetic::Ymax, AesValue::column("ymax"));
-
-        // Stack doesn't transform scales, returns None
-        Ok(Some((Box::new(new_df), new_mapping, None)))
+fn get_or_invent_column_name(
+    aes_value: &AesValue,
+    original_data: &Box<dyn DataSource>,
+    new_data: &DataFrame,
+    aes: &Aesthetic,
+) -> String {
+    if let Some(name) = aes_value.column_name() {
+        name
+    } else {
+        // Invent a new column name
+        let aes_name = aes.to_str();
+        let mut proposed_name = format!("stacked_{}", aes_name).to_lowercase();
+        let mut counter = 1;
+        while original_data.get(&proposed_name).is_some() || new_data.get(&proposed_name).is_some() {
+            proposed_name = format!("stacked_{}_{}", aes_name, counter).to_lowercase();
+            counter += 1;
+        }
+        proposed_name
     }
 }
 
