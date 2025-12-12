@@ -335,6 +335,7 @@ impl DiscreteContinuousVisitor2 for GroupedValueBinner {
         pairs.sort_by_key(|(group, _)| group.clone());
 
         let n = pairs.len() * self.binner.len();
+        let mut bins = Vec::with_capacity(n);
         let mut mins = Vec::with_capacity(n);
         let mut centers = Vec::with_capacity(n);
         let mut maxs = Vec::with_capacity(n);
@@ -347,6 +348,7 @@ impl DiscreteContinuousVisitor2 for GroupedValueBinner {
                 if self.cumulative && i > 0 {
                     group_counts[i] += group_counts[i - 1];
                 }
+                bins.push(i as i64);
                 let count = group_counts[i];
                 counts.push(count);
                 let (min, max) = self.binner.bin_bounds(i);
@@ -360,12 +362,17 @@ impl DiscreteContinuousVisitor2 for GroupedValueBinner {
         let mut data = DataFrame::new();
         let mut mapping = AesMap::new();
 
+        data.add_column("bin", Box::new(IntVec(bins)));
         data.add_column("xmin", Box::new(FloatVec(mins)));
         data.add_column("x", Box::new(FloatVec(centers)));
         data.add_column("xmax", Box::new(FloatVec(maxs)));
         data.add_column("count", Box::new(IntVec(counts)));
         data.add_column("group", G::make_vector(group_values));
 
+        mapping.set(
+            Aesthetic::X(AestheticDomain::Discrete),
+            AesValue::column("bin"),
+        );
         mapping.set(
             Aesthetic::X(AestheticDomain::Continuous),
             AesValue::column("x"),

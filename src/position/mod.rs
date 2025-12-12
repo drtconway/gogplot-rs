@@ -25,8 +25,7 @@ pub trait PositionAdjust {
     /// * `Some((data, mapping, scales))` - Adjusted data, mapping, and optionally transformed scales
     fn apply(
         &self,
-        data: Box<dyn DataSource>,
+        data: &Box<dyn DataSource>,
         mapping: &AesMap,
-        scales: &crate::plot::ScaleSet,
-    ) -> Result<Option<(Box<dyn DataSource>, AesMap, Option<crate::plot::ScaleSet>)>, PlotError>;
+    ) -> Result<Option<(Box<dyn DataSource>, AesMap)>, PlotError>;
 }

@@ -17,10 +17,9 @@ pub struct Stack;
 impl PositionAdjust for Stack {
     fn apply(
         &self,
-        data: Box<dyn DataSource>,
+        data: &Box<dyn DataSource>,
         mapping: &AesMap,
-        scales: &crate::plot::ScaleSet,
-    ) -> Result<Option<(Box<dyn DataSource>, AesMap, Option<crate::plot::ScaleSet>)>, PlotError>
+    ) -> Result<Option<(Box<dyn DataSource>, AesMap)>, PlotError>
     {
         if !mapping.has_aesthetic(&Aesthetic::Group) {
             // No grouping aesthetic, cannot stack
@@ -66,10 +65,7 @@ impl PositionAdjust for Stack {
             }
         }
         
-        let mut scale_set = scales.clone();
-        scale_set.update_y_like_max(max_val);
-
-        Ok(Some((Box::new(new_data), new_mapping, Some(scale_set))) )
+        Ok(Some((Box::new(new_data), new_mapping) ))
     }
 }
 
