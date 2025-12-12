@@ -1,7 +1,7 @@
 use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain};
 use crate::data::{DataSource, DiscreteType};
 use crate::error::{PlotError, Result};
-use crate::stat::StatTransform;
+use crate::stat::Stat;
 use crate::utils::data::{DiscreteDiscreteVisitor2, DiscreteVectorVisitor, Vectorable, visit_d, visit2_dd};
 use crate::utils::dataframe::{DataFrame, IntVec};
 use std::collections::HashMap;
@@ -25,7 +25,7 @@ enum XValues {
 /// - count: [2, 3, 1]
 pub struct Count;
 
-impl StatTransform for Count {
+impl Stat for Count {
     fn apply(
         &self,
         data: Box<dyn DataSource>,

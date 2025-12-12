@@ -1,4 +1,4 @@
-use super::PositionAdjust;
+use super::Position;
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain};
 use crate::data::{DataSource, DiscreteType};
 use crate::error::PlotError;
@@ -25,7 +25,7 @@ impl Default for Dodge {
     }
 }
 
-impl PositionAdjust for Dodge {
+impl Position for Dodge {
     fn apply(
         &self,
         data: &Box<dyn DataSource>,

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain};
 use crate::data::{ContinuousType, DataSource, DiscreteType, PrimitiveType, VectorIter};
 use crate::error::PlotError;
-use crate::stat::StatTransform;
+use crate::stat::Stat;
 use crate::utils::data::{
     ContinuousVectorVisitor, DiscreteContinuousVisitor2, Vectorable, visit_c, visit2_dc,
 };
@@ -213,7 +213,7 @@ impl Density {
     }
 }
 
-impl StatTransform for Density {
+impl Stat for Density {
     fn apply(
         &self,
         data: Box<dyn DataSource>,

@@ -4,7 +4,7 @@ use crate::error::PlotError;
 use crate::layer::{Layer, Position};
 use crate::position::dodge::Dodge;
 use crate::position::stack::Stack;
-use crate::position::PositionAdjust;
+use crate::position::Position;
 
 /// Apply position adjustments to layers
 ///

@@ -1,7 +1,7 @@
 use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain};
 use crate::data::{ContinuousType, DataSource, DiscreteType, VectorIter};
 use crate::error::{PlotError, Result};
-use crate::stat::StatTransform;
+use crate::stat::Stat;
 use crate::utils::data::{
     ContinuousVectorVisitor, DiscreteContinuousVisitor2, Vectorable, visit_c, visit2_dc,
 };
@@ -157,7 +157,7 @@ impl Default for Bin {
     }
 }
 
-impl StatTransform for Bin {
+impl Stat for Bin {
     fn apply(
         &self,
         data: Box<dyn DataSource>,

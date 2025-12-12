@@ -3,7 +3,7 @@ use crate::data::{DataSource, VectorType};
 use crate::error::{DataType, PlotError};
 use crate::layer::Layer;
 use crate::plot::ScaleSet;
-use crate::scale::{ContinuousScale, ScaleType};
+use crate::scale::ScaleType;
 use crate::theme::{self, Color};
 use cairo::Context;
 use ordered_float::OrderedFloat;

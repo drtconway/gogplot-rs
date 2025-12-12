@@ -13,7 +13,9 @@ pub trait ScaleBase: Default + Clone + Send + Sync {
     /// This method allows the scale to learn appropriate domain bounds by examining
     /// the data. For continuous scales, this typically computes min/max values
     /// across all provided data sources. For categorical scales, this extracts
-    /// unique categories.
+    /// unique categories. This may be called multiple times with different data
+    /// to incrementally refine the domain. The domain should be taken as the union
+    /// of all data seen so far.
     ///
     /// If the scale's domain is already explicitly set (e.g., via a builder),
     /// this method may be a no-op.

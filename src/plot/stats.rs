@@ -8,7 +8,7 @@ use crate::stat::count::Count;
 use crate::stat::density::Density;
 use crate::stat::smooth::Smooth;
 use crate::stat::summary::Summary;
-use crate::stat::StatTransform;
+use crate::stat::Stat;
 
 /// Apply statistical transformation to a single layer
 ///

@@ -21,7 +21,7 @@ use crate::error::Result;
 /// - Bin: Bin data into ranges and count
 /// - Boxplot: Compute five-number summary statistics
 /// - Density: Compute kernel density estimate
-pub trait StatTransform: Send + Sync {
+pub trait Stat: Send + Sync {
     /// Apply the statistical transformation.
     ///
     /// Takes ownership of the original data source and returns a new data source
@@ -50,7 +50,7 @@ pub trait StatTransform: Send + Sync {
 /// Identity transformation - returns None to signal no transformation
 pub struct Identity;
 
-impl StatTransform for Identity {
+impl Stat for Identity {
     fn apply(
         &self,
         _data: Box<dyn DataSource>,

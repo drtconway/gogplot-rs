@@ -1,6 +1,6 @@
 // Stack position adjustment for bars
 
-use super::PositionAdjust;
+use super::Position;
 use crate::aesthetics::{AesMap, AesValue, Aesthetic};
 use crate::data::{DataSource, DiscreteType};
 use crate::error::{DataType, PlotError};
@@ -14,7 +14,7 @@ use std::collections::HashMap;
 /// Requires grouping aesthetics (fill, color, etc.) to determine which bars to stack.
 pub struct Stack;
 
-impl PositionAdjust for Stack {
+impl Position for Stack {
     fn apply(
         &self,
         data: &Box<dyn DataSource>,

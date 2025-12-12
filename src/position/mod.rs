@@ -12,7 +12,7 @@ use crate::error::PlotError;
 /// Position adjustments can transform data, aesthetic mappings, and scales.
 /// This allows adjustments like dodge to modify how data is positioned without
 /// requiring intermediate data-space coordinates.
-pub trait PositionAdjust {
+pub trait Position {
     /// Apply position adjustment to data
     ///
     /// # Arguments

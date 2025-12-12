@@ -10,7 +10,7 @@ use ordered_float::OrderedFloat;
 use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain};
 use crate::data::{ContinuousType, DataSource, DiscreteType, PrimitiveType};
 use crate::error::{PlotError, Result};
-use crate::stat::StatTransform;
+use crate::stat::Stat;
 use crate::utils::data::{
     DiscreteContinuousVisitor2, DiscreteDiscreteContinuousVisitor3, visit2_dc, visit3_ddc,
 };
@@ -75,7 +75,7 @@ impl Default for Boxplot {
     }
 }
 
-impl StatTransform for Boxplot {
+impl Stat for Boxplot {
     fn apply(
         &self,
         data: Box<dyn DataSource>,

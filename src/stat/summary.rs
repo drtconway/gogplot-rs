@@ -3,7 +3,7 @@
 use crate::aesthetics::{AesMap, Aesthetic};
 use crate::data::{ContinuousType, DataSource, DiscreteType, GenericVector, VectorType};
 use crate::error::{PlotError, Result};
-use crate::stat::StatTransform;
+use crate::stat::Stat;
 use crate::utils::data::{ContinuousVectorVisitor, DiscreteContinuousVisitor2, Vectorable};
 use crate::utils::dataframe::{DataFrame, FloatVec, IntVec, StrVec};
 use std::collections::HashMap;
@@ -216,7 +216,7 @@ impl Summary {
     }
 }
 
-impl StatTransform for Summary {
+impl Stat for Summary {
     fn apply(
         &self,
         data: Box<dyn DataSource>,

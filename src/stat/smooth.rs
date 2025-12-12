@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain};
 use crate::data::{ContinuousType, DataSource};
 use crate::error::{PlotError, Result};
-use crate::stat::StatTransform;
+use crate::stat::Stat;
 use crate::utils::data::{
     ContinuousContinuousVisitor2, DiscreteContinuousContinuousVisitor3, Vectorable, visit2_cc,
     visit3_dcc,
@@ -646,7 +646,7 @@ fn predict_linear_model(
     (y_pred, ymin, ymax, se)
 }
 
-impl StatTransform for Smooth {
+impl Stat for Smooth {
     fn apply(
         &self,
         data: Box<dyn DataSource>,
