@@ -31,21 +31,37 @@ pub struct CategoricalInfo {
 pub mod traits;
 
 pub mod color;
-//pub mod continuous;
-//pub mod discrete;
 pub mod positional;
 pub mod shape;
 
 
 
+#[derive(Debug, Clone)]
 pub struct ScaleSet {
-    x_continuous: positional::ContinuousPositionalScale,
-    x_discrete: positional::DiscretePositionalScale,
-    y_continuous: positional::ContinuousPositionalScale,
-    y_discrete: positional::DiscretePositionalScale,
-    color_continuous: color::ContinuousColorScale,
-    color_discrete: color::DiscreteColorScale,
-    fill_continuous: color::ContinuousColorScale,
-    fill_discrete: color::DiscreteColorScale,
-    shape_scale: shape::ShapeScale,
+    pub x_continuous: positional::ContinuousPositionalScale,
+    pub x_discrete: positional::DiscretePositionalScale,
+    pub y_continuous: positional::ContinuousPositionalScale,
+    pub y_discrete: positional::DiscretePositionalScale,
+    pub color_continuous: color::ContinuousColorScale,
+    pub color_discrete: color::DiscreteColorScale,
+    pub fill_continuous: color::ContinuousColorScale,
+    pub fill_discrete: color::DiscreteColorScale,
+    pub shape_scale: shape::ShapeScale,
 }
+
+impl Default for ScaleSet {
+    fn default() -> Self {
+        Self {
+            x_continuous: positional::ContinuousPositionalScale::default(),
+            x_discrete: positional::DiscretePositionalScale::default(),
+            y_continuous: positional::ContinuousPositionalScale::default(),
+            y_discrete: positional::DiscretePositionalScale::default(),
+            color_continuous: color::ContinuousColorScale::default(),
+            color_discrete: color::DiscreteColorScale::default(),
+            fill_continuous: color::ContinuousColorScale::default(),
+            fill_discrete: color::DiscreteColorScale::default(),
+            shape_scale: shape::ShapeScale::default(),
+        }
+    }
+}
+

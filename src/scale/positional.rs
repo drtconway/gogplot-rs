@@ -4,6 +4,7 @@ use crate::{
     utils::set::DiscreteSet,
 };
 
+#[derive(Debug, Clone)]
 pub struct ContinuousPositionalScale {
     transform: Box<dyn Transform>,
     domain: (f64, f64),
@@ -168,6 +169,7 @@ impl super::traits::ContinuousPositionalScale for ContinuousPositionalScale {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct DiscretePositionalScale {
     elements: DiscreteSet,
     breaks: Vec<f64>,

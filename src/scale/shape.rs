@@ -3,6 +3,7 @@ use crate::utils::set::DiscreteSet;
 use crate::visuals::Shape;
 
 /// Discrete shape scale that maps categories to point shapes.
+#[derive(Debug, Clone)]
 pub struct ShapeScale {
     shapes: Vec<Shape>,
     elements: DiscreteSet,

@@ -7,7 +7,7 @@ use crate::visuals::Shape;
 use super::ScaleType;
 
 /// Base trait for all scales providing common functionality.
-pub trait ScaleBase: Default + Send + Sync {
+pub trait ScaleBase: Default + Clone + Send + Sync {
     /// Train the scale on data to automatically determine the domain.
     ///
     /// This method allows the scale to learn appropriate domain bounds by examining

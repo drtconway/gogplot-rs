@@ -3,7 +3,9 @@ use crate::theme::{Color, color};
 use crate::utils::set::DiscreteSet;
 use crate::visuals::palette::{discrete_palette, okabe_ito_palette};
 
+
 /// Discrete color scale that maps categories to colors.
+#[derive(Debug, Clone)]
 pub struct DiscreteColorScale {
     palette: Vec<Color>,
     elements: DiscreteSet,
@@ -68,6 +70,7 @@ impl super::traits::DiscreteColorScale for DiscreteColorScale {
 }
 
 /// Continuous color scale that maps numeric values to a gradient.
+#[derive(Debug, Clone)]
 pub struct ContinuousColorScale {
     domain: (f64, f64),
     colors: Vec<Color>,
