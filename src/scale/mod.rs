@@ -31,17 +31,18 @@ pub struct CategoricalInfo {
 pub mod traits;
 
 pub mod color;
-pub mod continuous;
-pub mod discrete;
+//pub mod continuous;
+//pub mod discrete;
+pub mod positional;
 pub mod shape;
 
 
 
 pub struct ScaleSet {
-    x_continuous: continuous::ContinuousPositionalScale,
-    x_discrete: discrete::DiscretePositionalScale,
-    y_continuous: continuous::ContinuousPositionalScale,
-    y_discrete: discrete::DiscretePositionalScale,
+    x_continuous: positional::ContinuousPositionalScale,
+    x_discrete: positional::DiscretePositionalScale,
+    y_continuous: positional::ContinuousPositionalScale,
+    y_discrete: positional::DiscretePositionalScale,
     color_continuous: color::ContinuousColorScale,
     color_discrete: color::DiscreteColorScale,
     fill_continuous: color::ContinuousColorScale,
