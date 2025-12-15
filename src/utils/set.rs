@@ -39,6 +39,24 @@ impl DiscreteSet {
         self.bools.dedup();
     }
 
+    pub fn contains<T: DiscreteType>(&self, value: &T) -> bool {
+        let value = DiscreteValue::from(value.to_primitive());
+        match value {
+            DiscreteValue::Int(v) => {
+                let index = Self::lower_bound(&self.ints, &v);
+                index < self.ints.len() && self.ints[index] == v
+            }
+            DiscreteValue::Str(v) => {
+                let index = Self::lower_bound(&self.strings, &v);
+                index < self.strings.len() && self.strings[index] == v
+            }
+            DiscreteValue::Bool(v) => {
+                let index = Self::lower_bound(&self.bools, &v);
+                index < self.bools.len() && self.bools[index] == v
+            }
+        }
+    }
+
     pub fn ordinal<T: DiscreteType>(&self, value: &T) -> Option<usize> {
         let value = DiscreteValue::from(value.to_primitive());
         match value {
@@ -69,6 +87,24 @@ impl DiscreteSet {
         }
     }
 
+    pub fn union(&mut self, other: &DiscreteSet) {
+        for v in &other.ints {
+            if !self.contains(v) {
+                self.ints.push(*v);
+            }
+        }
+        for v in &other.strings {
+            if !self.contains(v) {
+                self.strings.push(v.clone());
+            }
+        }
+        for v in &other.bools {
+            if !self.contains(v) {
+                self.bools.push(*v);
+            }
+        }
+        self.build();
+    }
     pub fn iter(&self) -> impl Iterator<Item = DiscreteValue> + '_ {
         self.ints
             .iter()

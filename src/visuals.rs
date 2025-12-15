@@ -85,6 +85,7 @@ pub enum Shape {
     Diamond,
     Cross,
     Plus,
+    Other(char)
 }
 
 impl Shape {
@@ -140,6 +141,16 @@ impl Shape {
                 ctx.move_to(x, y - size);
                 ctx.line_to(x, y + size);
                 ctx.stroke().ok();
+            }
+            Shape::Other(c) => {
+                // For other shapes, draw the character at the position
+                // with the character centered on the position.
+                let text = c.to_string();
+                let extents = ctx.text_extents(&text);
+                let width = extents.width;
+                let height = extents.height;
+                ctx.move_to(x - width * 0.5, y + height * 0.5);
+                ctx.show_text(&text).ok();
             }
         }
     }

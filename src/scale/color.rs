@@ -1,7 +1,7 @@
-use crate::data::GenericVector;
+use crate::data::{GenericVector, VectorIter};
 use crate::theme::{Color, color};
 use crate::utils::set::DiscreteSet;
-use crate::visuals::palette::{discrete_palette, okabe_ito_palette};
+use crate::visuals::palette::okabe_ito_palette;
 
 
 /// Discrete color scale that maps categories to colors.
@@ -33,36 +33,12 @@ impl Default for DiscreteColorScale {
 }
 
 impl super::traits::ScaleBase for DiscreteColorScale {
-    fn scale_type(&self) -> super::ScaleType {
-        super::ScaleType::Categorical
-    }
-
-    fn train(&mut self, data: &[&dyn GenericVector]) {
-        for vec in data {
-            if let Some(ints) = vec.iter_int() {
-                for v in ints {
-                    self.elements.add(&v);
-                }
-            } else if let Some(strs) = vec.iter_str() {
-                for v in strs {
-                    self.elements.add(&v);
-                }
-            } else if let Some(bools) = vec.iter_bool() {
-                for v in bools {
-                    self.elements.add(&v);
-                }
-            }
-        }
-        self.elements.build();
-
-        let n = self.elements.len();
-        if n > self.palette.len() {
-            self.palette = discrete_palette(n);
-        }
+    fn train<'a>(&mut self, iter: VectorIter<'a>) {
+        self.train_discrete(iter);
     }
 }
 
-impl super::traits::DiscreteColorScale for DiscreteColorScale {
+impl super::traits::ColorRangeScale for DiscreteColorScale {
     fn map_value<T: crate::data::DiscreteType>(&self, value: &T) -> Option<Color> {
         let ordinal = self.elements.ordinal(value)?;
         Some(self.palette[ordinal])
@@ -134,30 +110,41 @@ impl Default for ContinuousColorScale {
 }
 
 impl super::traits::ScaleBase for ContinuousColorScale {
-    fn scale_type(&self) -> super::ScaleType {
-        super::ScaleType::Continuous
-    }
-
-    fn train(&mut self, data: &[&dyn GenericVector]) {
-        use crate::data::compute_min_max;
-
-        if let Some((min, max)) = compute_min_max(data) {
-            self.domain = (min, max);
-        }
+    fn train<'a>(&mut self, iter: VectorIter<'a>) {
+        self.train_continuous(iter);
     }
 }
 
-impl super::traits::ContinuousColorScale for ContinuousColorScale {
+impl super::traits::ContinuousDomainScale for ContinuousColorScale {
     fn domain(&self) -> Option<(f64, f64)> {
         Some(self.domain)
     }
 
-    fn map_value<T: crate::data::ContinuousType>(&self, value: &T) -> Option<Color> {
-        let v = value.to_primitive();
-        if v < self.domain.0 || v > self.domain.1 {
+    fn set_domain(&mut self, domain: (f64, f64)) {
+        self.domain = domain;
+    }
+
+    fn limits(&self) -> (Option<f64>, Option<f64>) {
+        (None, None)
+    }
+
+    fn breaks(&self) -> &[f64] {
+        &[]
+    }
+
+    fn labels(&self) -> &[String] {
+        &[]
+    }
+}
+
+impl super::traits::ColorRangeScale for ContinuousColorScale {
+    fn map_value<T: crate::data::PrimitiveType>(&self, value: &T) -> Option<Color> {
+        let v = value.to_f64()?;
+        let (min_domain, max_domain) = self.domain;
+        if v < min_domain || v > max_domain {
             return None;
         }
-        let t = (v - self.domain.0) / (self.domain.1 - self.domain.0);
+        let t = (v - min_domain) / (max_domain - min_domain);
         Some(self.interpolate_color(t))
     }
 }

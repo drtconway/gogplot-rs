@@ -1,4 +1,4 @@
-use crate::data::GenericVector;
+use crate::data::{GenericVector, VectorIter};
 use crate::utils::set::DiscreteSet;
 use crate::visuals::Shape;
 
@@ -7,8 +7,6 @@ use crate::visuals::Shape;
 pub struct ShapeScale {
     shapes: Vec<Shape>,
     elements: DiscreteSet,
-    breaks: Vec<Shape>,
-    labels: Vec<String>,
 }
 
 impl ShapeScale {
@@ -17,8 +15,6 @@ impl ShapeScale {
         Self {
             shapes,
             elements: DiscreteSet::new(),
-            breaks: Vec::new(),
-            labels: Vec::new(),
         }
     }
 
@@ -42,52 +38,30 @@ impl Default for ShapeScale {
 }
 
 impl super::traits::ScaleBase for ShapeScale {
-    fn scale_type(&self) -> super::ScaleType {
-        super::ScaleType::Categorical
-    }
-
-    fn train(&mut self, data: &[&dyn GenericVector]) {
-        self.elements = DiscreteSet::new(); // Reset elements for retraining
-        for vec in data {
-            if let Some(ints) = vec.iter_int() {
-                for v in ints {
-                    self.elements.add(&v);
-                }
-            } else if let Some(strs) = vec.iter_str() {
-                for v in strs {
-                    self.elements.add(&v);
-                }
-            } else if let Some(bools) = vec.iter_bool() {
-                for v in bools {
-                    self.elements.add(&v);
-                }
-            }
-        }
-        self.elements.build();
-
-        for (i, item) in self.elements.iter().enumerate() {
-            let shape = self.shapes[i % self.shapes.len()];
-            self.breaks.push(shape);
-            let label = item.to_string();
-            self.labels.push(label);
-        }
+    fn train<'a>(&mut self, iter: VectorIter<'a>) {
+        self.train_discrete(iter);
     }
 }
 
-impl super::traits::ShapeScale for ShapeScale {
+impl super::traits::DiscreteDomainScale for ShapeScale {
+    fn categories(&self) -> &DiscreteSet {
+        &self.elements
+    }
+
+    fn add_categories(&mut self, categories: DiscreteSet) {
+        self.elements.union(&categories);
+    }
+}
+
+impl super::traits::ShapeRangeScale for ShapeScale {
     fn map_value<T: crate::data::DiscreteType>(&self, value: &T) -> Option<Shape> {
         let ordinal = self.elements.ordinal(value)?;
         let shape = self.shapes[ordinal % self.shapes.len()];
         Some(shape)
     }
+}
 
-    fn breaks(&self) -> &[Shape] {
-        &self.breaks
-    }
-
-    fn labels(&self) -> &[String] {
-        &self.labels
-    }
+impl super::traits::ShapeScale for ShapeScale {
 }
 
 #[cfg(test)]

@@ -394,6 +394,10 @@ impl AesMap {
         self.map.iter()
     }
 
+    pub fn iter_aesthetics(&self) -> impl Iterator<Item = &Aesthetic> {
+        self.map.keys()
+    }
+
     pub fn contains(&self, aes: Aesthetic) -> bool {
         self.map.contains_key(&aes)
     }

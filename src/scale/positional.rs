@@ -1,5 +1,5 @@
 use crate::{
-    data::{ContinuousType, DiscreteType, DiscreteValue, compute_min_max},
+    data::{ContinuousType, DiscreteType, VectorIter},
     scale::transform::{IdentityTransform, Transform},
     utils::set::DiscreteSet,
 };
@@ -10,7 +10,6 @@ pub struct ContinuousPositionalScale {
     domain: (f64, f64),
     breaks: Vec<f64>,
     labels: Vec<String>,
-    trained: bool,
     lower_bound: Option<f64>,
     upper_bound: Option<f64>,
 }
@@ -22,7 +21,6 @@ impl ContinuousPositionalScale {
             domain: (0.0, 1.0),
             breaks: Vec::new(),
             labels: Vec::new(),
-            trained: false,
             lower_bound: None,
             upper_bound: None,
         }
@@ -62,84 +60,24 @@ impl Default for ContinuousPositionalScale {
 }
 
 impl super::traits::ScaleBase for ContinuousPositionalScale {
-    fn scale_type(&self) -> super::ScaleType {
-        super::ScaleType::Continuous
-    }
-
-    fn train(&mut self, data: &[&dyn crate::data::GenericVector]) {
-        if let Some((mut min, mut max)) = compute_min_max(data) {
-            if self.trained {
-                let (curr_min, curr_max) = self.domain;
-                min = min.min(curr_min);
-                max = max.max(curr_max);
-            }
-
-            let (domain_min, domain_max) = self.transform.domain();
-            if domain_min.is_finite() {
-                min = min.max(domain_min);
-            }
-            if domain_max.is_finite() {
-                max = max.min(domain_max);
-            }
-
-            if let Some(lower) = self.lower_bound {
-                min = min.min(lower);
-            }
-            if let Some(upper) = self.upper_bound {
-                max = max.max(upper);
-            }
-
-            let range = max - min;
-            let expansion = if range.abs() < 1e-10 {
-                if min.abs() < 1e-10 {
-                    1.0
-                } else {
-                    min.abs() * 0.1
-                }
-            } else {
-                range * 0.05
-            };
-
-            let lower_expansion = if self.lower_bound.is_some() && min == self.lower_bound.unwrap()
-            {
-                0.0
-            } else {
-                expansion
-            };
-            let upper_expansion = if self.upper_bound.is_some() && max == self.upper_bound.unwrap()
-            {
-                0.0
-            } else {
-                expansion
-            };
-
-            let expanded_min = min - lower_expansion;
-            let expanded_max = max + upper_expansion;
-
-            let final_min = if domain_min.is_finite() && expanded_min < domain_min {
-                domain_min
-            } else {
-                expanded_min
-            };
-            let final_max = if domain_max.is_finite() && expanded_max > domain_max {
-                domain_max
-            } else {
-                expanded_max
-            };
-
-            self.domain = (final_min, final_max);
-            self.breaks = self.transform.breaks(self.domain, 5);
-            self.labels = self
-                .breaks
-                .iter()
-                .map(|b| self.transform.format(*b))
-                .collect();
-            self.trained = true;
-        }
+    fn train<'a>(&mut self, iter: VectorIter<'a>) {
+        self.train_continuous(iter);
     }
 }
 
-impl super::traits::PositionalScale for ContinuousPositionalScale {
+impl super::traits::ContinuousDomainScale for ContinuousPositionalScale {
+    fn domain(&self) -> Option<(f64, f64)> {
+        Some(self.domain)
+    }
+
+    fn set_domain(&mut self, domain: (f64, f64)) {
+        self.domain = domain;
+    }
+
+    fn limits(&self) -> (Option<f64>, Option<f64>) {
+        (self.lower_bound, self.upper_bound)
+    }
+
     fn breaks(&self) -> &[f64] {
         &self.breaks
     }
@@ -149,7 +87,7 @@ impl super::traits::PositionalScale for ContinuousPositionalScale {
     }
 }
 
-impl super::traits::ContinuousPositionalScale for ContinuousPositionalScale {
+impl super::traits::ContinuousRangeScale for ContinuousPositionalScale {
     fn map_value<T: ContinuousType>(&self, value: &T) -> Option<f64> {
         let value = value.to_f64();
         let (d0, d1) = self.domain;
@@ -168,6 +106,8 @@ impl super::traits::ContinuousPositionalScale for ContinuousPositionalScale {
         Some((transformed_data - transformed_d0) / (transformed_d1 - transformed_d0))
     }
 }
+
+impl super::traits::ContinuousPositionalScale for ContinuousPositionalScale {}
 
 #[derive(Debug, Clone)]
 pub struct DiscretePositionalScale {
@@ -193,63 +133,22 @@ impl Default for DiscretePositionalScale {
 }
 
 impl super::traits::ScaleBase for DiscretePositionalScale {
-    fn train(&mut self, data: &[&dyn crate::data::GenericVector]) {
-        for vec in data {
-            if let Some(ints) = vec.iter_int() {
-                for v in ints {
-                    self.elements.add(&v);
-                }
-            } else if let Some(strs) = vec.iter_str() {
-                for v in strs {
-                    self.elements.add(&v);
-                }
-            } else if let Some(bools) = vec.iter_bool() {
-                for v in bools {
-                    self.elements.add(&v);
-                }
-            }
-        }
-        self.elements.build();
-
-        let n = self.elements.len() as f64;
-        self.breaks = (0..self.elements.len())
-            .map(|i| (i as f64 + 0.5) / n)
-            .collect();
-        self.labels = self
-            .elements
-            .iter()
-            .map(|v| match v {
-                DiscreteValue::Int(i) => i.to_string(),
-                DiscreteValue::Str(s) => s.clone(),
-                DiscreteValue::Bool(b) => b.to_string(),
-            })
-            .collect();
-    }
-
-    fn scale_type(&self) -> super::ScaleType {
-        super::ScaleType::Categorical
+    fn train<'a>(&mut self, iter: VectorIter<'a>) {
+        self.train_discrete(iter);
     }
 }
 
-impl super::traits::PositionalScale for DiscretePositionalScale {
-    fn breaks(&self) -> &[f64] {
-        &self.breaks
+impl super::traits::DiscreteDomainScale for DiscretePositionalScale {
+    fn categories(&self) -> &DiscreteSet {
+        &self.elements
     }
 
-    fn labels(&self) -> &[String] {
-        &self.labels
+    fn add_categories(&mut self, categories: DiscreteSet) {
+        self.elements.union(&categories);
     }
 }
 
-impl super::traits::DiscretePositionalScale for DiscretePositionalScale {
-    fn len(&self) -> usize {
-        self.elements.len()
-    }
-
-    fn ordinal<T: DiscreteType>(&self, value: &T) -> Option<usize> {
-        self.elements.ordinal(value)
-    }
-
+impl super::traits::ContinuousRangeScale for DiscretePositionalScale {
     fn map_value<T: DiscreteType>(&self, value: &T) -> Option<f64> {
         let n = self.len() as f64;
         self.ordinal(value).map(|idx| (idx as f64 + 0.5) / n)
