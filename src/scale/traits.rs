@@ -1,8 +1,10 @@
-use crate::data::{DiscreteType, PrimitiveType, VectorIter};
+use crate::aesthetics::AesValue;
+use crate::data::{DataSource, DiscreteType, PrimitiveType, PrimitiveValue, VectorIter};
 use crate::scale::{ContinuousScaleTrainer, DiscreteScaleTrainer};
 use crate::theme::Color;
 
 use crate::utils::data::{visit_c, visit_d};
+use crate::utils::dataframe::{DataFrame, FloatVec, IntVec};
 use crate::utils::set::DiscreteSet;
 use crate::visuals::Shape;
 
@@ -85,6 +87,46 @@ pub trait ContinuousRangeScale: ScaleBase {
     /// * `Some(normalized_value)` - The corresponding value in [0, 1] range
     /// * `None` - If the value is outside the scale's domain bounds (will be filtered out)
     fn map_value<T: PrimitiveType>(&self, value: &T) -> Option<f64>;
+
+    fn map_primitive_value(&self, value: &PrimitiveValue) -> Option<f64> {
+        match value {
+            PrimitiveValue::Int(v) => self.map_value(v),
+            PrimitiveValue::Float(v) => self.map_value(v),
+            PrimitiveValue::Str(v) => self.map_value(v),
+            PrimitiveValue::Bool(v) => self.map_value(v),
+        }
+    }
+
+    fn map_aesthetic_value(&self, value: &AesValue, data: &DataFrame, new_data: &mut DataFrame) -> Option<AesValue> {
+        match value {
+            AesValue::Column { name, hint, original_name } => {
+                let column = DataSource::get(&data, name)?;
+                let values: Vec<f64> = column.iter().filter_map(|v| {
+                    match v {
+                        PrimitiveValue::Int(v) => self.map_value(v),
+                        PrimitiveValue::Float(v) => self.map_value(v),
+                        PrimitiveValue::Str(v) => self.map_value(v),
+                        PrimitiveValue::Bool(v) => self.map_value(v),
+                    }
+                }).collect();
+
+                new_data.add_column(name.clone(), FloatVec::from(values));
+                Some(AesValue::Column {
+                    name: name.clone(),
+                    hint: hint.clone(),
+                    original_name: original_name.clone(),
+                })
+            },
+            AesValue::Constant { value, hint } =>  {
+                let mapped = self.map_primitive_value(value)?;
+                Some(AesValue::Constant {
+                    value: PrimitiveValue::Float(mapped),
+                    hint: hint.clone(),
+                })
+            },
+        }
+    
+    }
 }
 
 pub trait ColorRangeScale: ScaleBase {
@@ -97,6 +139,47 @@ pub trait ColorRangeScale: ScaleBase {
     /// * `Some(color)` - The corresponding color
     /// * `None` - If the value is outside the scale's domain bounds (will be filtered out)
     fn map_value<T: PrimitiveType>(&self, value: &T) -> Option<Color>;
+
+    fn map_primitive_value(&self, value: &PrimitiveValue) -> Option<Color> {
+        match value {
+            PrimitiveValue::Int(v) => self.map_value(v),
+            PrimitiveValue::Float(v) => self.map_value(v),
+            PrimitiveValue::Str(v) => self.map_value(v),
+            PrimitiveValue::Bool(v) => self.map_value(v),
+        }
+    }
+
+    fn map_aesthetic_value(&self, value: &AesValue, data: &DataFrame, new_data: &mut DataFrame) -> Option<AesValue> {
+        match value {
+            AesValue::Column { name, hint, original_name } => {
+                let column = DataSource::get(&data, name)?;
+                let values: Vec<i64> = column.iter().filter_map(|v| {
+                    let color = match v {
+                        PrimitiveValue::Int(v) => self.map_value(v),
+                        PrimitiveValue::Float(v) => self.map_value(v),
+                        PrimitiveValue::Str(v) => self.map_value(v),
+                        PrimitiveValue::Bool(v) => self.map_value(v),
+                    };
+                    color.map(|c| i64::from(c))
+                }).collect();
+
+                new_data.add_column(name.clone(), IntVec::from(values));
+                Some(AesValue::Column {
+                    name: name.clone(),
+                    hint: hint.clone(),
+                    original_name: original_name.clone(),
+                })
+            },
+            AesValue::Constant { value, hint } =>  {
+                let mapped = self.map_primitive_value(value)?;
+                Some(AesValue::Constant {
+                    value: PrimitiveValue::Float(mapped),
+                    hint: hint.clone(),
+                })
+            },
+        }
+    
+    }
 }
 
 pub trait ShapeRangeScale: ScaleBase {
