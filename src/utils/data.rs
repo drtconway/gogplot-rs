@@ -1,7 +1,5 @@
 use crate::{
-    data::{ContinuousType, DiscreteType, GenericVector, PrimitiveType, VectorIter, VectorType},
-    error::{DataType, PlotError},
-    utils::dataframe::{BoolVec, FloatVec, IntVec, StrVec},
+    data::{ContinuousType, DiscreteType, GenericVector, PrimitiveType, VectorIter, VectorType}, error::{DataType, PlotError}, theme::Color, utils::dataframe::{BoolVec, FloatVec, IntVec, StrVec}
 };
 
 pub trait Vectorable: PrimitiveType {
@@ -559,5 +557,23 @@ fn visit3_ddc_inner2<T: Vectorable + DiscreteType, U: Vectorable + DiscreteType,
             expected: crate::aesthetics::AestheticDomain::Continuous,
             actual: DataType::Vector(VectorType::Bool),
         }),
+    }
+}
+
+pub fn make_color_iter<'a>(
+    iter: VectorIter<'a>,
+) -> impl Iterator<Item = Result<Color, PlotError>> + 'a {
+    match iter {
+        VectorIter::IntVec(int_iter) => int_iter.map(|v| Ok(Color::from(v))),
+        _ => iter.map(|_| panic!("Color must be specified as integer RGBA values")),
+    }
+}
+
+pub fn make_float_iter<'a>(
+    iter: VectorIter<'a>,
+) -> impl Iterator<Item = Result<f64, PlotError>> + 'a {
+    match iter {
+        VectorIter::FloatVec(float_iter) => float_iter.map(|v| Ok(v)),
+        _ => iter.map(|_| panic!("Size must be specified as float values")),
     }
 }

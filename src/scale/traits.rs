@@ -4,7 +4,7 @@ use crate::scale::{ContinuousScaleTrainer, DiscreteScaleTrainer};
 use crate::theme::Color;
 
 use crate::utils::data::{visit_c, visit_d};
-use crate::utils::dataframe::{DataFrame, FloatVec, IntVec};
+use crate::utils::dataframe::{BoolVec, DataFrame, FloatVec, IntVec, StrVec};
 use crate::utils::set::DiscreteSet;
 use crate::visuals::Shape;
 
@@ -26,6 +26,31 @@ pub trait ScaleBase: Default + Clone + Send + Sync {
     /// * `data` - A slice of data vectors to train on (e.g., for rectangles this
     ///            would include both xmin and xmax to get the full range)
     fn train<'a>(&mut self, iter: VectorIter<'a>);
+
+    fn train_one(&mut self, value: PrimitiveValue) {
+        match value {
+            PrimitiveValue::Int(x) => {
+                let xs = IntVec::from(vec![*x]);
+                let iter = VectorIter::from_vecs(vec![&xs]);
+                self.train(iter);
+            },
+            PrimitiveValue::Float(x) => {
+                let xs = FloatVec::from(vec![*x]);
+                let iter = VectorIter::from_vecs(vec![&xs]);
+                self.train(iter);
+            },
+            PrimitiveValue::Str(x) => {
+                let xs = StrVec::from(vec![x.clone()]);
+                let iter = VectorIter::from_vecs(vec![&xs]);
+                self.train(iter);
+            },
+            PrimitiveValue::Bool(x) => {
+                let xs = BoolVec::from(vec![*x]);
+                let iter = VectorIter::from_vecs(vec![&xs]);
+                self.train(iter);
+            },
+        }
+    }
 }
 
 pub trait ContinuousDomainScale: ScaleBase {

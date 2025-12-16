@@ -10,3 +10,9 @@ pub mod datafusion;
 
 #[cfg(feature = "polars")]
 pub mod polars;
+
+#[derive(Debug, Clone)]
+pub enum Either<L, R> {
+    Left(L),
+    Right(R),
+}

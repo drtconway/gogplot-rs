@@ -1,7 +1,10 @@
 use crate::aesthetics::{AesMap, AesValue, Aesthetic};
+use crate::data::PrimitiveValue;
 use crate::error::PlotError;
-use crate::layer::{Layer, Position, Stat};
-use crate::scale::ScaleType;
+use crate::layer::Layer;
+use crate::position::Position;
+use crate::scale::ScaleSet;
+use crate::stat::Stat;
 
 pub mod bar;
 pub mod boxplot;
@@ -35,49 +38,37 @@ pub use smooth::GeomSmooth;
 pub use text::GeomText;
 pub use vline::GeomVLine;
 
-use crate::data::DataSource;
+pub enum GeomConstant<T: Clone> {
+    None,
+    Scaled(PrimitiveValue),
+    Visual(T)
+}
+
+impl<T: Clone> GeomConstant<T> {
+    pub fn or_value(&self, value: T) -> T {
+        match self {
+            GeomConstant::None => value,
+            GeomConstant::Scaled(_) => value,
+            GeomConstant::Visual(v) => v.clone(),
+        }
+    }
+}
+
+impl<T: Clone> Default for GeomConstant<T> {
+    fn default() -> Self {
+        GeomConstant::None
+    }
+}
 
 pub trait Geom: Send + Sync {
-    /// Returns the aesthetics that this geom requires
-    fn required_aesthetics(&self) -> &[Aesthetic];
+    /// Train the provided scales based on the geom's constants where necessary
+    fn train_scales(&self, scales: &mut ScaleSet);
 
-    /// Returns the required scale type for a given aesthetic.
-    /// 
-    /// This allows geoms to specify whether they need continuous or categorical scales.
-    /// For example, boxplots typically require X to be categorical and Y to be continuous.
-    /// 
-    /// Default implementation returns `ScaleType::Either` for all aesthetics, meaning
-    /// the scale type will be determined by the data type.
-    fn aesthetic_scale_type(&self, _aesthetic: Aesthetic) -> ScaleType {
-        ScaleType::Either
-    }
+    /// Apply the provided scales to the geom's aesthetic constants where necessary
+    fn apply_scales(&mut self, scales: &ScaleSet);
 
     /// Render the geom with the provided context
-    fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError>;
-
-    /// Set up any required data columns before scale training
-    ///
-    /// This is called after stat computation but before scale training, allowing geoms
-    /// to add necessary columns to the data. For example, bar charts need xmin/xmax
-    /// columns which should be created from x values with appropriate widths.
-    ///
-    /// This step happens BEFORE scales are trained so that the scales can see all
-    /// the columns that will be used for rendering (e.g., both x and xmin/xmax for bars).
-    ///
-    /// The method receives the mapping to know which aesthetics are mapped and can
-    /// return an updated mapping if it changes which columns aesthetics point to.
-    ///
-    /// # Returns
-    ///
-    /// * `Ok((Some(dataframe), Some(mapping)))` - Data with added columns and updated mapping
-    /// * `Ok((None, Some(mapping)))` - No new data, but mapping updated
-    /// * `Ok((None, None))` - No setup needed, use original data and mapping
-    /// * `Err(...)` - Setup failed
-    fn setup_data(
-        &self,
-        _data: &dyn DataSource,
-        _mapping: &AesMap,
-    ) -> Result<(Option<Box<dyn DataSource>>, Option<AesMap>), PlotError>;
+    fn render<'a>(&self, ctx: &mut RenderContext<'a>) -> Result<(), PlotError>;
 }
 
 /// Trait for geoms that can be converted into layers with their default aesthetics
@@ -103,9 +94,6 @@ pub trait IntoLayer: Sized {
             mapping: Some(mapping),
             stat: Stat::Identity,
             position: Position::Identity,
-            computed_data: None,
-            computed_mapping: None,
-            computed_scales: None,
         }
     }
 }

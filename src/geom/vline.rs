@@ -1,30 +1,29 @@
 use super::{Geom, IntoLayer, RenderContext};
-use crate::aesthetics::{AesValue, Aesthetic};
+use crate::aesthetics::{AesValue, Aesthetic, AestheticDomain};
 use crate::data::PrimitiveValue;
 use crate::error::PlotError;
-use crate::layer::{Position, Stat};
+use crate::layer::Layer;
+use crate::theme::Color;
+use crate::utils::Either;
+use crate::utils::data::{make_color_iter, make_float_iter};
 
 /// GeomVLine renders vertical reference lines at specified x-intercepts
 ///
 /// The x-intercept is specified via the XIntercept aesthetic mapping.
 pub struct GeomVLine {
+    pub x_intercept: Option<PrimitiveValue>,
+
     /// Default line color
-    pub color: Option<AesValue>,
+    pub color: Either<Color, AestheticDomain>,
 
     /// Default line width
-    pub size: Option<AesValue>,
+    pub size: Either<f64, AestheticDomain>,
 
     /// Default alpha/opacity
-    pub alpha: Option<AesValue>,
+    pub alpha: Either<f64, AestheticDomain>,
 
     /// Default line style pattern
     pub linetype: Option<AesValue>,
-
-    /// The stat to use (default is Identity)
-    pub stat: Stat,
-
-    /// The position adjustment (default is Identity)
-    pub position: Position,
 }
 
 impl GeomVLine {
@@ -35,12 +34,11 @@ impl GeomVLine {
     /// - Column: `.aes(|a| a.xintercept("column_name"))`
     pub fn new() -> Self {
         Self {
+            x_intercept: None,
             color: None,
             size: None,
             alpha: None,
             linetype: None,
-            stat: Stat::Identity,
-            position: Position::Identity,
         }
     }
 
@@ -71,16 +69,64 @@ impl GeomVLine {
         self
     }
 
-    /// Set the stat to use (default is Identity)
-    pub fn stat(&mut self, stat: Stat) -> &mut Self {
-        self.stat = stat;
-        self
+    fn get_x_intercept(&self, layer: &Layer) -> Result<impl Iterator<Item = f64>, PlotError> {
+        if let Some(x) = &self.x_intercept {
+            x.as_f64()
+                .map(std::iter::once)
+                .ok_or(PlotError::AestheticMappingError(
+                    Aesthetic::XIntercept,
+                    "xintercept must be a numeric value".to_string(),
+                ))
+        } else {
+            let iter = layer.aesthetic_value_iter(Aesthetic::XIntercept).ok_or(
+                PlotError::MissingAesthetic {
+                    aesthetic: Aesthetic::XIntercept,
+                },
+            )?;
+            make_float_iter(iter)
+        }
     }
 
-    /// Set the position adjustment (default is Identity)
-    pub fn position(&mut self, position: Position) -> &mut Self {
-        self.position = position;
-        self
+    fn get_color(&self, layer: &Layer) -> Result<impl Iterator<Item = Color>, PlotError> {
+        match &self.color {
+            Either::Left(color) => Ok(std::iter::repeat(color.clone())),
+            Either::Right(domain) => {
+                let iter = layer.aesthetic_value_iter(Aesthetic::Color).ok_or(
+                    PlotError::MissingAesthetic {
+                        aesthetic: Aesthetic::Color,
+                    },
+                )?;
+                make_color_iter(iter)
+            }
+        }
+    }
+
+    fn get_size(&self, layer: &Layer) -> Result<impl Iterator<Item = f64>, PlotError> {
+        match &self.size {
+            Either::Left(size) => Ok(std::iter::repeat(*size)),
+            Either::Right(domain) => {
+                let iter = layer.aesthetic_value_iter(Aesthetic::Size).ok_or(
+                    PlotError::MissingAesthetic {
+                        aesthetic: Aesthetic::Size,
+                    },
+                )?;
+                make_float_iter(iter)
+            }
+        }
+    }
+
+    fn get_alpha(&self, layer: &Layer) -> Result<impl Iterator<Item = f64>, PlotError> {
+        match &self.alpha {
+            Either::Left(alpha) => Ok(std::iter::repeat(*alpha)),
+            Either::Right(domain) => {
+                let iter = layer.aesthetic_value_iter(Aesthetic::Alpha).ok_or(
+                    PlotError::MissingAesthetic {
+                        aesthetic: Aesthetic::Alpha,
+                    },
+                )?;
+                make_float_iter(iter)
+            }
+        }
     }
 }
 
@@ -125,47 +171,45 @@ impl IntoLayer for GeomVLine {
             mapping: Some(mapping),
             stat,
             position,
-            computed_data: None,
-            computed_mapping: None,
-            computed_scales: None,
         }
     }
 }
 
 impl Geom for GeomVLine {
-    fn required_aesthetics(&self) -> &[Aesthetic] {
-        &[Aesthetic::XIntercept]
+    fn train_scales(&self, scales: &mut crate::scale::ScaleSet) {
+        if let Some(value) = &self.x_intercept {
+            scales.x_continuous.train_one(value);
+        }
     }
 
-    fn setup_data(
-        &self,
-        _data: &dyn crate::data::DataSource,
-        _mapping: &crate::aesthetics::AesMap,
-    ) -> Result<(Option<Box<dyn crate::data::DataSource>>, Option<crate::aesthetics::AesMap>), PlotError> {
-        // Geom doesn't need to add any columns
-        Ok((None, None))
+    fn apply_scales(&mut self, scales: &crate::scale::ScaleSet) {
+        if let Some(value) = &self.x_intercept {
+            let mapped_value = scales.x_continuous.map_primitive_value(value);
+            if let Some(mapped) = mapped_value {
+                self.x_intercept = Some(PrimitiveValue::Float(mapped));
+            }
+        }
     }
 
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
         use crate::visuals::LineStyle;
         
-        // Get x-intercept values (scaled)
-        let x_values = ctx.get_x_aesthetic_values(Aesthetic::XIntercept)?;
-        
-        // Get visual properties
-        let colors = ctx.get_color_values()?;
-        let alphas = ctx.get_unscaled_aesthetic_values(Aesthetic::Alpha)?;
-        let sizes = ctx.get_unscaled_aesthetic_values(Aesthetic::Size)?;
+        let x_intercepts = self.get_x_intercept(&ctx.layer)?;
+        let colors = self.get_color(&ctx.layer)?;
+        let alphas = self.get_alpha(&ctx.layer)?;
+        let sizes = self.get_size(&ctx.layer)?;
         
         // Get linetype if specified
-        let linetype_pattern = if let Some(AesValue::Constant { value: PrimitiveValue::Str(pattern), .. }) =
-            ctx.mapping().get(&Aesthetic::Linetype)
+        let linetype_pattern = if let Some(AesValue::Constant {
+            value: PrimitiveValue::Str(pattern),
+            ..
+        }) = ctx.mapping().get(&Aesthetic::Linetype)
         {
             Some(pattern.clone())
         } else {
             None
         };
-        
+
         // Apply line style once
         if let Some(pattern) = &linetype_pattern {
             let style = LineStyle::from(pattern.as_str());
@@ -173,22 +217,18 @@ impl Geom for GeomVLine {
         } else {
             LineStyle::default().apply(ctx.cairo);
         }
-        
-        // Draw vertical line(s) across the full height of the plot
+
+        // Draw horizontal line(s) across the full width of the plot
         let (y0, y1) = ctx.y_range;
-        
-        for (((x_normalized, color), alpha), size) in x_values
-            .zip(colors)
-            .zip(alphas)
-            .zip(sizes)
-        {
-            let x_visual = ctx.map_x(x_normalized);
-            
+
+        for (((x_intercept, color), alpha), size) in x_intercepts.zip(colors).zip(alphas).zip(sizes) {
+            let x_visual = ctx.map_x(x_intercept);
+
             // Set drawing properties for this line
             ctx.set_color_alpha(&color, alpha);
             ctx.cairo.set_line_width(size);
-            
-            // Draw line from bottom to top edge of plot area
+
+            // Draw line from left to right edge of plot area
             ctx.cairo.move_to(x_visual, y0);
             ctx.cairo.line_to(x_visual, y1);
             ctx.cairo.stroke().ok();

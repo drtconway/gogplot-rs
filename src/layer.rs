@@ -1,7 +1,7 @@
 // Layer scaffolding for grammar of graphics
 
 use crate::aesthetics::{AesMap, AestheticDomain};
-use crate::data::DataSource;
+use crate::data::{DataSource, VectorIter};
 use crate::geom::Geom;
 use crate::position::Position;
 use crate::scale::ScaleSet;
@@ -245,5 +245,14 @@ impl Layer {
             }
         }
         Ok(())
+    }
+
+    pub fn aesthetic_value_iter<'a>(&'a self, aes: &crate::aesthetics::Aesthetic) -> Option<VectorIter<'a>> {
+        if let Some(mapping) = &self.mapping {
+            if let Some(data) = &self.data {
+                return mapping.get_vector_iter(aes, data);
+            }
+        }
+        None
     }
 }

@@ -1,47 +1,52 @@
 use super::{Geom, IntoLayer, RenderContext};
-use crate::aesthetics::{AesValue, Aesthetic};
+use crate::aesthetics::{AesValue, Aesthetic, AestheticDomain};
 use crate::data::PrimitiveValue;
 use crate::error::PlotError;
-use crate::layer::{Position, Stat};
+use crate::layer::Layer;
+use crate::scale::traits::ScaleBase;
+use crate::theme::Color;
+use crate::utils::Either;
+use crate::utils::data::{make_color_iter, make_float_iter};
+use crate::visuals::LineStyle;
 
 /// GeomHLine renders horizontal reference lines at specified y-intercepts
-/// 
+///
 /// The y-intercept is specified via the YIntercept aesthetic mapping.
 pub struct GeomHLine {
+    pub y_intercept: Option<PrimitiveValue>,
+
     /// Default line color
-    pub color: Option<AesValue>,
+    pub color: Either<Color, AestheticDomain>,
 
     /// Default line width
-    pub size: Option<AesValue>,
+    pub size: Either<f64, AestheticDomain>,
 
     /// Default alpha/opacity
-    pub alpha: Option<AesValue>,
+    pub alpha: Either<f64, AestheticDomain>,
 
     /// Default line style pattern
-    pub linetype: Option<AesValue>,
-
-    /// The stat to use (default is Identity)
-    pub stat: Stat,
-
-    /// The position adjustment (default is Identity)
-    pub position: Position,
+    pub linetype: Option<LineStyle>,
 }
 
 impl GeomHLine {
     /// Create a new horizontal line geom
-    /// 
+    ///
     /// Y-intercept should be specified via aesthetic mapping:
     /// - Constant: `.aes(|a| a.yintercept_const(value))`
     /// - Column: `.aes(|a| a.yintercept("column_name"))`
     pub fn new() -> Self {
         Self {
+            y_intercept: None,
             color: None,
             size: None,
             alpha: None,
             linetype: None,
-            stat: Stat::Identity,
-            position: Position::Identity,
         }
+    }
+
+    pub fn y_intercept(&mut self, value: impl Into<PrimitiveValue>) -> &mut Self {
+        self.y_intercept = Some(value.into());
+        self
     }
 
     /// Set the line color
@@ -71,16 +76,64 @@ impl GeomHLine {
         self
     }
 
-    /// Set the stat to use (default is Identity)
-    pub fn stat(&mut self, stat: Stat) -> &mut Self {
-        self.stat = stat;
-        self
+    fn get_y_intercept(&self, layer: &Layer) -> Result<impl Iterator<Item = f64>, PlotError> {
+        if let Some(y) = &self.y_intercept {
+            y.as_f64()
+                .map(std::iter::once)
+                .ok_or(PlotError::AestheticMappingError(
+                    Aesthetic::YIntercept,
+                    "yintercept must be a numeric value".to_string(),
+                ))
+        } else {
+            let iter = layer.aesthetic_value_iter(Aesthetic::YIntercept).ok_or(
+                PlotError::MissingAesthetic {
+                    aesthetic: Aesthetic::YIntercept,
+                },
+            )?;
+            make_color_iter(iter)
+        }
     }
 
-    /// Set the position adjustment (default is Identity)
-    pub fn position(&mut self, position: Position) -> &mut Self {
-        self.position = position;
-        self
+    fn get_color(&self, layer: &Layer) -> Result<impl Iterator<Item = Color>, PlotError> {
+        match &self.color {
+            Either::Left(color) => Ok(std::iter::repeat(color.clone())),
+            Either::Right(domain) => {
+                let iter = layer.aesthetic_value_iter(Aesthetic::Color).ok_or(
+                    PlotError::MissingAesthetic {
+                        aesthetic: Aesthetic::Color,
+                    },
+                )?;
+                make_color_iter(iter)
+            }
+        }
+    }
+
+    fn get_size(&self, layer: &Layer) -> Result<impl Iterator<Item = f64>, PlotError> {
+        match &self.size {
+            Either::Left(size) => Ok(std::iter::repeat(*size)),
+            Either::Right(domain) => {
+                let iter = layer.aesthetic_value_iter(Aesthetic::Size).ok_or(
+                    PlotError::MissingAesthetic {
+                        aesthetic: Aesthetic::Size,
+                    },
+                )?;
+                make_float_iter(iter)
+            }
+        }
+    }
+
+    fn get_alpha(&self, layer: &Layer) -> Result<impl Iterator<Item = f64>, PlotError> {
+        match &self.alpha {
+            Either::Left(alpha) => Ok(std::iter::repeat(*alpha)),
+            Either::Right(domain) => {
+                let iter = layer.aesthetic_value_iter(Aesthetic::Alpha).ok_or(
+                    PlotError::MissingAesthetic {
+                        aesthetic: Aesthetic::Alpha,
+                    },
+                )?;
+                make_float_iter(iter)
+            }
+        }
     }
 }
 
@@ -125,47 +178,44 @@ impl IntoLayer for GeomHLine {
             mapping: Some(mapping),
             stat,
             position,
-            computed_data: None,
-            computed_mapping: None,
-            computed_scales: None,
         }
     }
 }
 
 impl Geom for GeomHLine {
-    fn required_aesthetics(&self) -> &[Aesthetic] {
-        &[Aesthetic::YIntercept]
+    fn train_scales(&self, scales: &mut crate::scale::ScaleSet) {
+        if let Some(value) = &self.y_intercept {
+            scales.y_continuous.train_one(value);
+        }
     }
 
-    fn setup_data(
-        &self,
-        _data: &dyn crate::data::DataSource,
-        _mapping: &crate::aesthetics::AesMap,
-    ) -> Result<(Option<Box<dyn crate::data::DataSource>>, Option<crate::aesthetics::AesMap>), PlotError> {
-        // Geom doesn't need to add any columns
-        Ok((None, None))
+    fn apply_scales(&mut self, scales: &crate::scale::ScaleSet) {
+        if let Some(value) = &self.y_intercept {
+            let mapped_value = scales.y_continuous.map_primitive_value(value);
+            if let Some(mapped) = mapped_value {
+                self.y_intercept = Some(PrimitiveValue::Float(mapped));
+            }
+        }
     }
 
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
-        use crate::visuals::LineStyle;
-        
-        // Get y-intercept values (scaled)
-        let y_values = ctx.get_y_aesthetic_values(Aesthetic::YIntercept)?;
-        
-        // Get visual properties
-        let colors = ctx.get_color_values()?;
-        let alphas = ctx.get_unscaled_aesthetic_values(Aesthetic::Alpha)?;
-        let sizes = ctx.get_unscaled_aesthetic_values(Aesthetic::Size)?;
+
+        let y_intercepts = self.get_y_intercept(&ctx.layer)?;
+        let colors = self.get_color(&ctx.layer)?;
+        let alphas = self.get_alpha(&ctx.layer)?;
+        let sizes = self.get_size(&ctx.layer)?;
         
         // Get linetype if specified
-        let linetype_pattern = if let Some(AesValue::Constant { value: PrimitiveValue::Str(pattern), .. }) =
-            ctx.mapping().get(&Aesthetic::Linetype)
+        let linetype_pattern = if let Some(AesValue::Constant {
+            value: PrimitiveValue::Str(pattern),
+            ..
+        }) = ctx.mapping().get(&Aesthetic::Linetype)
         {
             Some(pattern.clone())
         } else {
             None
         };
-        
+
         // Apply line style once
         if let Some(pattern) = &linetype_pattern {
             let style = LineStyle::from(pattern.as_str());
@@ -173,21 +223,17 @@ impl Geom for GeomHLine {
         } else {
             LineStyle::default().apply(ctx.cairo);
         }
-        
+
         // Draw horizontal line(s) across the full width of the plot
         let (x0, x1) = ctx.x_range;
-        
-        for (((y_normalized, color), alpha), size) in y_values
-            .zip(colors)
-            .zip(alphas)
-            .zip(sizes)
-        {
-            let y_visual = ctx.map_y(y_normalized);
-            
+
+        for (((y_intercept, color), alpha), size) in y_intercepts.zip(colors).zip(alphas).zip(sizes) {
+            let y_visual = ctx.map_y(y_intercept);
+
             // Set drawing properties for this line
             ctx.set_color_alpha(&color, alpha);
             ctx.cairo.set_line_width(size);
-            
+
             // Draw line from left to right edge of plot area
             ctx.cairo.move_to(x0, y_visual);
             ctx.cairo.line_to(x1, y_visual);

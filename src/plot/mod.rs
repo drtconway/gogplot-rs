@@ -14,7 +14,6 @@ use crate::data::DataSource;
 use crate::error::PlotError;
 use crate::guide::{AxisGuide, Guides};
 use crate::layer::Layer;
-use crate::scale::{ColorScale, ContinuousScale, ShapeScale};
 use crate::theme::{Color, Theme};
 use cairo::ImageSurface;
 use std::path::Path;
