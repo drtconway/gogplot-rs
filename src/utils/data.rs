@@ -1,5 +1,5 @@
 use crate::{
-    data::{ContinuousType, DiscreteType, GenericVector, PrimitiveType, VectorIter, VectorType}, error::{DataType, PlotError}, theme::Color, utils::dataframe::{BoolVec, FloatVec, IntVec, StrVec}
+    data::{ContinuousType, DiscreteType, GenericVector, PrimitiveType, VectorIter, VectorType}, error::{DataType, PlotError}, theme::Color, utils::dataframe::{BoolVec, FloatVec, IntVec, StrVec}, visuals::Shape
 };
 
 pub trait Vectorable: PrimitiveType {
@@ -574,6 +574,15 @@ pub fn make_float_iter<'a>(
 ) -> impl Iterator<Item = Result<f64, PlotError>> + 'a {
     match iter {
         VectorIter::FloatVec(float_iter) => float_iter.map(|v| Ok(v)),
+        _ => iter.map(|_| panic!("Size must be specified as float values")),
+    }
+}
+
+pub fn make_shape_iter<'a>(
+    iter: VectorIter<'a>,
+) -> impl Iterator<Item = Result<Shape, PlotError>> + 'a {
+    match iter {
+        VectorIter::FloatVec(float_iter) => float_iter.map(|v| Ok(Shape::from(v))),
         _ => iter.map(|_| panic!("Size must be specified as float values")),
     }
 }

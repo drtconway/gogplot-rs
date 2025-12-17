@@ -1,18 +1,22 @@
+use std::collections::HashMap;
+
 use super::{Geom, IntoLayer, RenderContext};
-use crate::aesthetics::{AesValue, Aesthetic};
-use crate::data::PrimitiveValue;
+use crate::aesthetics::{AesValue, Aesthetic, AestheticDomain};
+use crate::data::{ContinuousType, DiscreteType, PrimitiveValue};
 use crate::error::PlotError;
+use crate::geom::properties::{ColorProperty, FloatProperty};
+use crate::utils::data::{DiscreteContinuousContinuousVisitor3, Vectorable};
 
 /// GeomLine renders lines connecting points
 pub struct GeomLine {
     /// Default line color (if not mapped)
-    pub color: Option<AesValue>,
+    pub color: ColorProperty,
 
     /// Default line width (if not mapped)
-    pub size: Option<AesValue>,
+    pub size: FloatProperty,
 
     /// Default alpha/opacity (if not mapped)
-    pub alpha: Option<AesValue>,
+    pub alpha: FloatProperty,
 
     /// Default line style pattern (if not mapped)
     pub linetype: Option<AesValue>,
@@ -31,22 +35,19 @@ impl GeomLine {
 
     /// Set the default line color
     pub fn color(&mut self, color: crate::theme::Color) -> &mut Self {
-        let rgba = color.into();
-        self.color = Some(AesValue::constant(PrimitiveValue::Int(rgba)));
+        self.color.color(color);
         self
     }
 
     /// Set the default line width
     pub fn size(&mut self, size: f64) -> &mut Self {
-        self.size = Some(AesValue::constant(PrimitiveValue::Float(size)));
+        self.size.value(size);
         self
     }
 
     /// Set the default alpha/opacity
     pub fn alpha(&mut self, alpha: f64) -> &mut Self {
-        self.alpha = Some(AesValue::constant(PrimitiveValue::Float(
-            alpha.clamp(0.0, 1.0),
-        )));
+        self.alpha.value(alpha);
         self
     }
 
@@ -61,6 +62,18 @@ impl GeomLine {
     pub fn linetype(&mut self, pattern: impl Into<String>) -> &mut Self {
         self.linetype = Some(AesValue::constant(PrimitiveValue::Str(pattern.into())));
         self
+    }
+
+    fn draw_lines<G: DiscreteType>(
+        &self,
+        ctx: &mut RenderContext,
+        x_values: impl Iterator<Item = f64>,
+        y_values: impl Iterator<Item = f64>,
+        group_value: Option<G>,
+    ) -> Result<(), PlotError>
+    {
+        // Implementation of drawing lines goes here
+        Ok(())
     }
 }
 
@@ -105,23 +118,28 @@ impl IntoLayer for GeomLine {
 }
 
 impl Geom for GeomLine {
-    fn required_aesthetics(&self) -> &[Aesthetic] {
-        &[Aesthetic::X, Aesthetic::Y]
+    fn train_scales(&self, scales: &mut crate::scale::ScaleSet) {
     }
 
-    fn setup_data(
-        &self,
-        _data: &dyn crate::data::DataSource,
-        _mapping: &crate::aesthetics::AesMap,
-    ) -> Result<(Option<Box<dyn crate::data::DataSource>>, Option<crate::aesthetics::AesMap>), PlotError> {
-        // Geom doesn't need to add any columns
-        Ok((None, None))
+    fn apply_scales(&mut self, scales: &crate::scale::ScaleSet) {
     }
 
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
+        let data = ctx.layer.data.as_ref().unwrap();
+        let mapping = ctx.layer.mapping.as_ref().unwrap();
+
+        if mapping.contains(Aesthetic::Group) {
+
+        } else {
+            // Get x and y values
+            let x_values = mapping.get_iter_float(&Aesthetic::X(AestheticDomain::Continuous), data).unwrap();
+            let y_values = mapping.get_iter_float(&Aesthetic::Y(AestheticDomain::Continuous), data).unwrap();
+            self.draw_lines(ctx, x_values, y_values, None)?;
+        }
+
         // Get x and y values
-        let x_normalized = ctx.get_x_aesthetic_values(Aesthetic::X)?;
-        let y_normalized = ctx.get_y_aesthetic_values(Aesthetic::Y)?;
+        let x_normalized = mapping.get_iter_float(&Aesthetic::X(AestheticDomain::Continuous), data).unwrap();
+        let y_normalized = mapping.get_iter_float(&Aesthetic::Y(AestheticDomain::Continuous), data).unwrap();
 
         // Collect into vectors for sorting and grouping
         let x_vals: Vec<f64> = x_normalized.collect();
@@ -266,6 +284,46 @@ impl GeomLine {
         }
 
         ctx.cairo.stroke().ok();
+
+        Ok(())
+    }
+}
+
+struct LineGrouper<'a> {
+    geom: &'a GeomLine,
+    ctx: &'a mut RenderContext<'a>,
+}
+
+impl<'a> LineGrouper<'a> {
+    fn new(geom: &'a GeomLine, ctx: &'a mut RenderContext) -> Self {
+        Self { geom, ctx }
+    }
+}
+
+impl<'a> DiscreteContinuousContinuousVisitor3 for LineGrouper<'a> {
+    type Output = ();
+
+    fn visit<G: Vectorable + DiscreteType, T: Vectorable + ContinuousType, U: Vectorable + ContinuousType>(
+        &mut self,
+        group_iter: impl Iterator<Item = G>,
+        x_iter: impl Iterator<Item = T>,
+        y_iter: impl Iterator<Item = U>,
+    ) -> std::result::Result<Self::Output, PlotError> {
+        let mut groups: HashMap<G::Sortable, (Vec<f64>, Vec<f64>)> = HashMap::new();
+        for ((g, x), y) in group_iter.zip(x_iter).zip(y_iter) {
+            let x = x.to_f64();
+            let y = y.to_f64();
+            let entry = groups.entry(g.to_sortable()).or_insert((Vec::new(), Vec::new()));
+            entry.0.push(x);
+            entry.1.push(y);
+        }
+
+        let mut groups = groups.into_iter().collect::<Vec<_>>();
+        groups.sort_by(|a, b| a.0.cmp(&b.0));
+
+        for (group, (mut x_values, mut y_values)) in groups {
+            self.geom.draw_lines(self.ctx, x_values.into_iter(), y_values.into_iter(), Some(group))?;
+        }
 
         Ok(())
     }

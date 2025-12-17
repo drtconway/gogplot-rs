@@ -1,12 +1,11 @@
 use super::{Geom, IntoLayer, RenderContext};
-use crate::aesthetics::{AesValue, Aesthetic, AestheticDomain};
+use crate::aesthetics::{AesValue, Aesthetic};
 use crate::data::PrimitiveValue;
 use crate::error::PlotError;
+use crate::geom::properties::{ColorProperty, FloatProperty};
 use crate::layer::Layer;
 use crate::scale::traits::ScaleBase;
-use crate::theme::Color;
-use crate::utils::Either;
-use crate::utils::data::{make_color_iter, make_float_iter};
+use crate::utils::data::make_float_iter;
 use crate::visuals::LineStyle;
 
 /// GeomHLine renders horizontal reference lines at specified y-intercepts
@@ -16,13 +15,13 @@ pub struct GeomHLine {
     pub y_intercept: Option<PrimitiveValue>,
 
     /// Default line color
-    pub color: Either<Color, AestheticDomain>,
+    pub color: ColorProperty,
 
     /// Default line width
-    pub size: Either<f64, AestheticDomain>,
+    pub size: FloatProperty,
 
     /// Default alpha/opacity
-    pub alpha: Either<f64, AestheticDomain>,
+    pub alpha: FloatProperty,
 
     /// Default line style pattern
     pub linetype: Option<LineStyle>,
@@ -51,22 +50,19 @@ impl GeomHLine {
 
     /// Set the line color
     pub fn color(&mut self, color: crate::theme::Color) -> &mut Self {
-        let rgba = color.into();
-        self.color = Some(AesValue::constant(PrimitiveValue::Int(rgba)));
+        self.color.color(color);
         self
     }
 
     /// Set the line width
     pub fn size(&mut self, size: f64) -> &mut Self {
-        self.size = Some(AesValue::constant(PrimitiveValue::Float(size)));
+        self.size.value(size);
         self
     }
 
     /// Set the alpha/opacity
     pub fn alpha(&mut self, alpha: f64) -> &mut Self {
-        self.alpha = Some(AesValue::constant(PrimitiveValue::Float(
-            alpha.clamp(0.0, 1.0),
-        )));
+        self.alpha.value(alpha);
         self
     }
 
@@ -90,49 +86,7 @@ impl GeomHLine {
                     aesthetic: Aesthetic::YIntercept,
                 },
             )?;
-            make_color_iter(iter)
-        }
-    }
-
-    fn get_color(&self, layer: &Layer) -> Result<impl Iterator<Item = Color>, PlotError> {
-        match &self.color {
-            Either::Left(color) => Ok(std::iter::repeat(color.clone())),
-            Either::Right(domain) => {
-                let iter = layer.aesthetic_value_iter(Aesthetic::Color).ok_or(
-                    PlotError::MissingAesthetic {
-                        aesthetic: Aesthetic::Color,
-                    },
-                )?;
-                make_color_iter(iter)
-            }
-        }
-    }
-
-    fn get_size(&self, layer: &Layer) -> Result<impl Iterator<Item = f64>, PlotError> {
-        match &self.size {
-            Either::Left(size) => Ok(std::iter::repeat(*size)),
-            Either::Right(domain) => {
-                let iter = layer.aesthetic_value_iter(Aesthetic::Size).ok_or(
-                    PlotError::MissingAesthetic {
-                        aesthetic: Aesthetic::Size,
-                    },
-                )?;
-                make_float_iter(iter)
-            }
-        }
-    }
-
-    fn get_alpha(&self, layer: &Layer) -> Result<impl Iterator<Item = f64>, PlotError> {
-        match &self.alpha {
-            Either::Left(alpha) => Ok(std::iter::repeat(*alpha)),
-            Either::Right(domain) => {
-                let iter = layer.aesthetic_value_iter(Aesthetic::Alpha).ok_or(
-                    PlotError::MissingAesthetic {
-                        aesthetic: Aesthetic::Alpha,
-                    },
-                )?;
-                make_float_iter(iter)
-            }
+            make_float_iter(iter)
         }
     }
 }
@@ -199,17 +153,16 @@ impl Geom for GeomHLine {
     }
 
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
-
         let y_intercepts = self.get_y_intercept(&ctx.layer)?;
-        let colors = self.get_color(&ctx.layer)?;
-        let alphas = self.get_alpha(&ctx.layer)?;
-        let sizes = self.get_size(&ctx.layer)?;
-        
+        let colors = self.color.iter(&ctx.layer.data, ctx.layer.mapping)?;
+        let alphas = self.alpha.iter(&ctx.layer.data, ctx.layer.mapping)?;
+        let sizes = self.size.iter(&ctx.layer.data, ctx.layer.mapping)?;
+
         // Get linetype if specified
         let linetype_pattern = if let Some(AesValue::Constant {
             value: PrimitiveValue::Str(pattern),
             ..
-        }) = ctx.mapping().get(&Aesthetic::Linetype)
+        }) = ctx.layer.mapping.get(&Aesthetic::Linetype)
         {
             Some(pattern.clone())
         } else {
@@ -227,7 +180,8 @@ impl Geom for GeomHLine {
         // Draw horizontal line(s) across the full width of the plot
         let (x0, x1) = ctx.x_range;
 
-        for (((y_intercept, color), alpha), size) in y_intercepts.zip(colors).zip(alphas).zip(sizes) {
+        for (((y_intercept, color), alpha), size) in y_intercepts.zip(colors).zip(alphas).zip(sizes)
+        {
             let y_visual = ctx.map_y(y_intercept);
 
             // Set drawing properties for this line

@@ -1,11 +1,12 @@
+use ordered_float::Float;
+
 use super::{Geom, IntoLayer, RenderContext};
-use crate::aesthetics::{AesValue, Aesthetic, AestheticDomain};
+use crate::aesthetics::{AesValue, Aesthetic};
 use crate::data::PrimitiveValue;
 use crate::error::PlotError;
+use crate::geom::properties::{ColorProperty, FloatProperty};
 use crate::layer::Layer;
-use crate::theme::Color;
-use crate::utils::Either;
-use crate::utils::data::{make_color_iter, make_float_iter};
+use crate::utils::data::make_float_iter;
 
 /// GeomVLine renders vertical reference lines at specified x-intercepts
 ///
@@ -14,13 +15,13 @@ pub struct GeomVLine {
     pub x_intercept: Option<PrimitiveValue>,
 
     /// Default line color
-    pub color: Either<Color, AestheticDomain>,
+    pub color: ColorProperty,
 
     /// Default line width
-    pub size: Either<f64, AestheticDomain>,
+    pub size: FloatProperty,
 
     /// Default alpha/opacity
-    pub alpha: Either<f64, AestheticDomain>,
+    pub alpha: FloatProperty,
 
     /// Default line style pattern
     pub linetype: Option<AesValue>,
@@ -84,48 +85,6 @@ impl GeomVLine {
                 },
             )?;
             make_float_iter(iter)
-        }
-    }
-
-    fn get_color(&self, layer: &Layer) -> Result<impl Iterator<Item = Color>, PlotError> {
-        match &self.color {
-            Either::Left(color) => Ok(std::iter::repeat(color.clone())),
-            Either::Right(domain) => {
-                let iter = layer.aesthetic_value_iter(Aesthetic::Color).ok_or(
-                    PlotError::MissingAesthetic {
-                        aesthetic: Aesthetic::Color,
-                    },
-                )?;
-                make_color_iter(iter)
-            }
-        }
-    }
-
-    fn get_size(&self, layer: &Layer) -> Result<impl Iterator<Item = f64>, PlotError> {
-        match &self.size {
-            Either::Left(size) => Ok(std::iter::repeat(*size)),
-            Either::Right(domain) => {
-                let iter = layer.aesthetic_value_iter(Aesthetic::Size).ok_or(
-                    PlotError::MissingAesthetic {
-                        aesthetic: Aesthetic::Size,
-                    },
-                )?;
-                make_float_iter(iter)
-            }
-        }
-    }
-
-    fn get_alpha(&self, layer: &Layer) -> Result<impl Iterator<Item = f64>, PlotError> {
-        match &self.alpha {
-            Either::Left(alpha) => Ok(std::iter::repeat(*alpha)),
-            Either::Right(domain) => {
-                let iter = layer.aesthetic_value_iter(Aesthetic::Alpha).ok_or(
-                    PlotError::MissingAesthetic {
-                        aesthetic: Aesthetic::Alpha,
-                    },
-                )?;
-                make_float_iter(iter)
-            }
         }
     }
 }
@@ -195,9 +154,9 @@ impl Geom for GeomVLine {
         use crate::visuals::LineStyle;
         
         let x_intercepts = self.get_x_intercept(&ctx.layer)?;
-        let colors = self.get_color(&ctx.layer)?;
-        let alphas = self.get_alpha(&ctx.layer)?;
-        let sizes = self.get_size(&ctx.layer)?;
+        let colors = self.color.iter(&ctx.layer.data, ctx.layer.mapping)?;
+        let alphas = self.alpha.iter(&ctx.layer.data, ctx.layer.mapping)?;
+        let sizes = self.size.iter(&ctx.layer.data, ctx.layer.mapping)?;
         
         // Get linetype if specified
         let linetype_pattern = if let Some(AesValue::Constant {

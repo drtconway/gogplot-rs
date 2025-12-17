@@ -6,6 +6,8 @@ use crate::position::Position;
 use crate::scale::ScaleSet;
 use crate::stat::Stat;
 
+pub mod properties;
+
 pub mod bar;
 pub mod boxplot;
 pub mod context;
