@@ -129,76 +129,17 @@ impl Geom for GeomLine {
         let mapping = ctx.layer.mapping.as_ref().unwrap();
 
         if mapping.contains(Aesthetic::Group) {
+            let group_values = mapping.get_vector_iter(&Aesthetic::Group, data).unwrap();
+            let x_values = mapping.get_vector_iter(&Aesthetic::X(AestheticDomain::Continuous), data).unwrap();
+            let y_values = mapping.get_vector_iter(&Aesthetic::Y(AestheticDomain::Continuous), data).unwrap();
 
+            let mut grouper = LineGrouper::new(self, ctx);
+            grouper.visit(group_values, x_values, y_values)?;
         } else {
             // Get x and y values
             let x_values = mapping.get_iter_float(&Aesthetic::X(AestheticDomain::Continuous), data).unwrap();
             let y_values = mapping.get_iter_float(&Aesthetic::Y(AestheticDomain::Continuous), data).unwrap();
             self.draw_lines(ctx, x_values, y_values, None)?;
-        }
-
-        // Get x and y values
-        let x_normalized = mapping.get_iter_float(&Aesthetic::X(AestheticDomain::Continuous), data).unwrap();
-        let y_normalized = mapping.get_iter_float(&Aesthetic::Y(AestheticDomain::Continuous), data).unwrap();
-
-        // Collect into vectors for sorting and grouping
-        let x_vals: Vec<f64> = x_normalized.collect();
-        let y_vals: Vec<f64> = y_normalized.collect();
-
-        // Check if we have a group aesthetic
-        let has_group = ctx.mapping().contains(Aesthetic::Group);
-
-        if has_group {
-            // Get group values
-            let group_col = match ctx.mapping().get(&Aesthetic::Group) {
-                Some(AesValue::Column { name: col, .. }) => col,
-                _ => {
-                    return Err(PlotError::MissingAesthetic {
-                        aesthetic: Aesthetic::Group,
-                    });
-                }
-            };
-
-            let group_vec = ctx
-                .data()
-                .get(group_col.as_str())
-                .ok_or_else(|| PlotError::missing_column(group_col))?;
-
-            // Get group strings
-            let groups = group_vec.iter_str()
-                .ok_or_else(|| PlotError::invalid_column_type(group_col, "string"))?;
-
-            // Organize points by group
-            use std::collections::HashMap;
-            let mut grouped_points: HashMap<String, Vec<(f64, f64, usize)>> = HashMap::new();
-
-            for (i, group) in groups.enumerate() {
-                grouped_points
-                    .entry(group.to_string())
-                    .or_default()
-                    .push((x_vals[i], y_vals[i], i));
-            }
-
-            // Draw each group separately
-            for (_group_name, mut points) in grouped_points {
-                // Sort by x value
-                points.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
-
-                self.draw_line_segment(ctx, &points)?;
-            }
-        } else {
-            // No grouping - create a single sorted line
-            let mut points: Vec<(f64, f64, usize)> = x_vals
-                .iter()
-                .zip(y_vals.iter())
-                .enumerate()
-                .map(|(i, (&x, &y))| (x, y, i))
-                .collect();
-
-            // Sort by x value
-            points.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
-
-            self.draw_line_segment(ctx, &points)?;
         }
 
         Ok(())
