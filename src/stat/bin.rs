@@ -160,7 +160,7 @@ impl Default for Bin {
 impl Stat for Bin {
     fn apply(
         &self,
-        data: Box<dyn DataSource>,
+        data: &Box<dyn DataSource>,
         mapping: &AesMap,
     ) -> Result<Option<(Box<dyn DataSource>, AesMap)>> {
         // Get the x aesthetic - this is required for binning
@@ -404,12 +404,13 @@ mod tests {
     fn test_bin_basic() {
         let mut df = DataFrame::new();
         df.add_column("x", Box::new(FloatVec(vec![1.0, 1.5, 2.0, 2.5, 3.0, 3.5])));
+        let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
         mapping.x("x", AestheticDomain::Continuous);
 
         let bin = Bin::with_count(3);
-        let result = bin.apply(Box::new(df), &mapping);
+        let result = bin.apply(&df, &mapping);
         assert!(result.is_ok());
 
         let (data, new_mapping) = result.unwrap().unwrap();
@@ -431,12 +432,14 @@ mod tests {
     fn test_bin_with_integers() {
         let mut df = DataFrame::new();
         df.add_column("x", Box::new(IntVec(vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10])));
+        let df: Box<dyn DataSource> = Box::new(df);
+
 
         let mut mapping = AesMap::new();
         mapping.x("x", AestheticDomain::Continuous);
 
         let bin = Bin::with_count(5);
-        let (data, _) = bin.apply(Box::new(df), &mapping).unwrap().unwrap();
+        let (data, _) = bin.apply(&df, &mapping).unwrap().unwrap();
 
         let count_col = data.get("count").unwrap();
         let counts: Vec<i64> = count_col.iter_int().unwrap().collect();
@@ -451,12 +454,14 @@ mod tests {
             "x",
             Box::new(FloatVec(vec![0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0])),
         );
+        let df: Box<dyn DataSource> = Box::new(df);
+
 
         let mut mapping = AesMap::new();
         mapping.x("x", AestheticDomain::Continuous);
 
         let bin = Bin::with_width(1.0);
-        let (data, _) = bin.apply(Box::new(df), &mapping).unwrap().unwrap();
+        let (data, _) = bin.apply(&df, &mapping).unwrap().unwrap();
 
         // With binwidth=1.0 and range 0-4, we expect bins like:
         // [0-1), [1-2), [2-3), [3-4]
@@ -476,12 +481,13 @@ mod tests {
     fn test_bin_single_value() {
         let mut df = DataFrame::new();
         df.add_column("x", Box::new(FloatVec(vec![5.0, 5.0, 5.0, 5.0])));
+        let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
         mapping.x("x", AestheticDomain::Continuous);
 
         let bin = Bin::with_count(3);
-        let (data, _) = bin.apply(Box::new(df), &mapping).unwrap().unwrap();
+        let (data, _) = bin.apply(&df, &mapping).unwrap().unwrap();
 
         let x_col = data.get("x").unwrap();
         let centers: Vec<f64> = x_col.iter_float().unwrap().collect();
@@ -497,11 +503,12 @@ mod tests {
     fn test_bin_requires_x() {
         let mut df = DataFrame::new();
         df.add_column("y", Box::new(FloatVec(vec![1.0, 2.0, 3.0])));
+        let df: Box<dyn DataSource> = Box::new(df);
 
         let mapping = AesMap::new(); // No x mapping
 
         let bin = Bin::default();
-        let result = bin.apply(Box::new(df), &mapping);
+        let result = bin.apply(&df, &mapping);
         assert!(result.is_err());
     }
 
@@ -512,12 +519,13 @@ mod tests {
             "x",
             Box::new(FloatVec(vec![1.0, f64::NAN, 2.0, 3.0, f64::NAN, 4.0, 5.0])),
         );
+        let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
         mapping.x("x", AestheticDomain::Continuous);
 
         let bin = Bin::with_count(2);
-        let (data, _) = bin.apply(Box::new(df), &mapping).unwrap().unwrap();
+        let (data, _) = bin.apply(&df, &mapping).unwrap().unwrap();
 
         let count_col = data.get("count").unwrap();
         let counts: Vec<i64> = count_col.iter_int().unwrap().collect();
@@ -535,13 +543,15 @@ mod tests {
                 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0,
             ])),
         );
+        let df: Box<dyn DataSource> = Box::new(df);
+
 
         let mut mapping = AesMap::new();
         mapping.x("x", AestheticDomain::Continuous);
 
         // With range 0-10 and binwidth 2.0, we should get 5 bins
         let bin = Bin::with_width(2.0);
-        let (data, _) = bin.apply(Box::new(df), &mapping).unwrap().unwrap();
+        let (data, _) = bin.apply(&df, &mapping).unwrap().unwrap();
 
         let xmin_col = data.get("xmin").unwrap();
         let xmins: Vec<f64> = xmin_col.iter_float().unwrap().collect();
@@ -601,13 +611,14 @@ mod tests {
                 "B".to_string(),
             ])),
         );
+        let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
         mapping.x("x", AestheticDomain::Continuous);
-        mapping.set(Aesthetic::Fill, AesValue::column("group"));
+        mapping.set(Aesthetic::Fill(AestheticDomain::Continuous), AesValue::column("group"));
 
         let bin = Bin::with_count(3);
-        let (data, new_mapping) = bin.apply(Box::new(df), &mapping).unwrap().unwrap();
+        let (data, new_mapping) = bin.apply(&df, &mapping).unwrap().unwrap();
 
         // Check that y is mapped to count
         assert_eq!(
@@ -691,14 +702,15 @@ mod tests {
                 "Y".to_string(),
             ])),
         );
+        let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
         mapping.x("x", AestheticDomain::Continuous);
-        mapping.set(Aesthetic::Fill, AesValue::column("color"));
+        mapping.set(Aesthetic::Fill(AestheticDomain::Continuous), AesValue::column("color"));
         mapping.set(Aesthetic::Shape, AesValue::column("shape"));
 
         let bin = Bin::with_count(3);
-        let (data, _) = bin.apply(Box::new(df), &mapping).unwrap().unwrap();
+        let (data, _) = bin.apply(&df, &mapping).unwrap().unwrap();
 
         // Check that both grouping columns are preserved
         let color_col = data.get("color").unwrap();

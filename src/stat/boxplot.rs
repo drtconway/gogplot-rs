@@ -78,7 +78,7 @@ impl Default for Boxplot {
 impl Stat for Boxplot {
     fn apply(
         &self,
-        data: Box<dyn DataSource>,
+        data: &Box<dyn DataSource>,
         mapping: &AesMap,
     ) -> Result<Option<(Box<dyn DataSource>, AesMap)>> {
         let x_values = mapping
@@ -482,6 +482,8 @@ mod tests {
         let mut df = DataFrame::new();
         df.add_column("x", Box::new(IntVec(vec![1, 1, 2, 2])));
         df.add_column("y", Box::new(FloatVec(vec![10.0, 20.0, 30.0, 40.0])));
+        let df: Box<dyn DataSource> = Box::new(df);
+
 
         let mut mapping = AesMap::new();
         mapping.set(
@@ -494,7 +496,7 @@ mod tests {
         );
 
         let boxplot = Boxplot::new();
-        let result = boxplot.apply(Box::new(df), &mapping).unwrap();
+        let result = boxplot.apply(&df, &mapping).unwrap();
 
         assert!(result.is_some());
         let (computed, new_mapping) = result.unwrap();
@@ -538,6 +540,7 @@ mod tests {
         let mut df = DataFrame::new();
         df.add_column("x", Box::new(IntVec(vec![1, 1, 1, 1, 1])));
         df.add_column("y", Box::new(FloatVec(vec![1.0, 10.0, 11.0, 12.0, 100.0])));
+        let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
         mapping.set(
@@ -550,7 +553,7 @@ mod tests {
         );
 
         let boxplot = Boxplot::new();
-        let result = boxplot.apply(Box::new(df), &mapping).unwrap();
+        let result = boxplot.apply(&df, &mapping).unwrap();
 
         assert!(result.is_some());
         let (computed, _) = result.unwrap();
@@ -585,6 +588,7 @@ mod tests {
         let mut df = DataFrame::new();
         df.add_column("x", Box::new(IntVec(vec![4, 4, 6, 6])));
         df.add_column("y", Box::new(FloatVec(vec![10.0, 20.0, 30.0, 40.0])));
+        let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
         mapping.set(
@@ -597,7 +601,7 @@ mod tests {
         );
 
         let boxplot = Boxplot::new();
-        let result = boxplot.apply(Box::new(df), &mapping).unwrap().unwrap();
+        let result = boxplot.apply(&df, &mapping).unwrap().unwrap();
         let (computed, _) = result;
 
         // X column should be IntVec
@@ -621,6 +625,7 @@ mod tests {
         let mut df = DataFrame::new();
         df.add_column("x", Box::new(FloatVec(vec![1.5, 1.5, 2.5, 2.5])));
         df.add_column("y", Box::new(FloatVec(vec![10.0, 20.0, 30.0, 40.0])));
+        let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
         mapping.set(
@@ -633,7 +638,7 @@ mod tests {
         );
 
         let boxplot = Boxplot::new();
-        let result = boxplot.apply(Box::new(df), &mapping).unwrap().unwrap();
+        let result = boxplot.apply(&df, &mapping).unwrap().unwrap();
         let (computed, _) = result;
 
         // X column should be FloatVec
@@ -665,6 +670,7 @@ mod tests {
             ])),
         );
         df.add_column("y", Box::new(FloatVec(vec![10.0, 20.0, 30.0, 40.0])));
+        let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
         mapping.set(
@@ -677,7 +683,7 @@ mod tests {
         );
 
         let boxplot = Boxplot::new();
-        let result = boxplot.apply(Box::new(df), &mapping).unwrap().unwrap();
+        let result = boxplot.apply(&df, &mapping).unwrap().unwrap();
         let (computed, _) = result;
 
         // X column should be StrVec

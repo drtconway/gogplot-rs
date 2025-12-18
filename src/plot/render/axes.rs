@@ -2,7 +2,7 @@
 
 use crate::error::PlotError;
 use crate::guide::{AxisGuide, AxisType, XAxisPosition, YAxisPosition};
-use crate::scale::ContinuousScale;
+use crate::scale::positional::ContinuousPositionalScale;
 use crate::theme::Theme;
 use cairo::Context;
 
@@ -12,8 +12,8 @@ use super::cairo_helpers::{apply_line_style, apply_text_theme};
 pub fn draw_grid_lines(
     ctx: &mut Context,
     theme: &Theme,
-    x_scale: Option<&dyn ContinuousScale>,
-    y_scale: Option<&dyn ContinuousScale>,
+    x_scale: &ContinuousPositionalScale,
+    y_scale: &ContinuousPositionalScale,
     plot_x0: f64,
     plot_x1: f64,
     plot_y0: f64,
@@ -92,8 +92,8 @@ pub fn draw_axes(
     theme: &Theme,
     x_axis: Option<&AxisGuide>,
     y_axis: Option<&AxisGuide>,
-    x_scale: Option<&dyn ContinuousScale>,
-    y_scale: Option<&dyn ContinuousScale>,
+    x_scale: &ContinuousPositionalScale,
+    y_scale: &ContinuousPositionalScale,
     title: Option<&String>,
     x0: f64,
     x1: f64,

@@ -1,5 +1,5 @@
 use crate::aesthetics::AesValue;
-use crate::data::{DataSource, DiscreteType, PrimitiveType, PrimitiveValue, VectorIter};
+use crate::data::{DataSource, DiscreteType, GenericVector, PrimitiveType, PrimitiveValue, VectorIter};
 use crate::scale::{ContinuousScaleTrainer, DiscreteScaleTrainer};
 use crate::theme::Color;
 
@@ -30,24 +30,20 @@ pub trait ScaleBase: Default + Clone + Send + Sync {
     fn train_one(&mut self, value: PrimitiveValue) {
         match value {
             PrimitiveValue::Int(x) => {
-                let xs = IntVec::from(vec![*x]);
-                let iter = VectorIter::from_vecs(vec![&xs]);
-                self.train(iter);
+                let xs: IntVec = IntVec::from(vec![x]);
+                self.train(xs.iter());
             },
             PrimitiveValue::Float(x) => {
-                let xs = FloatVec::from(vec![*x]);
-                let iter = VectorIter::from_vecs(vec![&xs]);
-                self.train(iter);
+                let xs = FloatVec::from(vec![x]);
+                self.train(xs.iter());
             },
             PrimitiveValue::Str(x) => {
                 let xs = StrVec::from(vec![x.clone()]);
-                let iter = VectorIter::from_vecs(vec![&xs]);
-                self.train(iter);
+                self.train(xs.iter());
             },
             PrimitiveValue::Bool(x) => {
-                let xs = BoolVec::from(vec![*x]);
-                let iter = VectorIter::from_vecs(vec![&xs]);
-                self.train(iter);
+                let xs = BoolVec::from(vec![x]);
+                self.train(xs.iter());
             },
         }
     }
@@ -125,22 +121,54 @@ pub trait ContinuousRangeScale: ScaleBase {
     fn map_aesthetic_value(&self, value: &AesValue, data: &DataFrame, new_data: &mut DataFrame) -> Option<AesValue> {
         match value {
             AesValue::Column { name, hint, original_name } => {
-                let column = DataSource::get(&data, name)?;
-                let values: Vec<f64> = column.iter().filter_map(|v| {
-                    match v {
-                        PrimitiveValue::Int(v) => self.map_value(v),
-                        PrimitiveValue::Float(v) => self.map_value(v),
-                        PrimitiveValue::Str(v) => self.map_value(v),
-                        PrimitiveValue::Bool(v) => self.map_value(v),
-                    }
-                }).collect();
-
-                new_data.add_column(name.clone(), FloatVec::from(values));
-                Some(AesValue::Column {
-                    name: name.clone(),
-                    hint: hint.clone(),
-                    original_name: original_name.clone(),
-                })
+                let column = DataSource::get(data, name)?;
+                
+                match column.iter() {
+                    VectorIter::Int(iterator) => {
+                        let values: Vec<f64> = iterator
+                            .filter_map(|v| self.map_value(&v))
+                            .collect();
+                        new_data.add_column(name.clone(), Box::new(FloatVec::from(values)));
+                        Some(AesValue::Column {
+                            name: name.clone(),
+                            hint: hint.clone(),
+                            original_name: original_name.clone(),
+                        })
+                    },
+                    VectorIter::Float(iterator) => {
+                        let values: Vec<f64> = iterator
+                            .filter_map(|v| self.map_value(&v))
+                            .collect();
+                        new_data.add_column(name.clone(), Box::new(FloatVec::from(values)));
+                        Some(AesValue::Column {
+                            name: name.clone(),
+                            hint: hint.clone(),
+                            original_name: original_name.clone(),
+                        })
+                    },
+                    VectorIter::Str(iterator) => {
+                        let values: Vec<f64> = iterator
+                            .filter_map(|v| self.map_value(&v.to_string()))
+                            .collect();
+                        new_data.add_column(name.clone(), Box::new(FloatVec::from(values)));
+                        Some(AesValue::Column {
+                            name: name.clone(),
+                            hint: hint.clone(),
+                            original_name: original_name.clone(),
+                        })
+                    },
+                    VectorIter::Bool(iterator) => {
+                        let values: Vec<f64> = iterator
+                            .filter_map(|v| self.map_value(&v))
+                            .collect();
+                        new_data.add_column(name.clone(), Box::new(FloatVec::from(values)));
+                        Some(AesValue::Column {
+                            name: name.clone(),
+                            hint: hint.clone(),
+                            original_name: original_name.clone(),
+                        })
+                    },
+                }
             },
             AesValue::Constant { value, hint } =>  {
                 let mapped = self.map_primitive_value(value)?;
@@ -177,28 +205,66 @@ pub trait ColorRangeScale: ScaleBase {
     fn map_aesthetic_value(&self, value: &AesValue, data: &DataFrame, new_data: &mut DataFrame) -> Option<AesValue> {
         match value {
             AesValue::Column { name, hint, original_name } => {
-                let column = DataSource::get(&data, name)?;
-                let values: Vec<i64> = column.iter().filter_map(|v| {
-                    let color = match v {
-                        PrimitiveValue::Int(v) => self.map_value(v),
-                        PrimitiveValue::Float(v) => self.map_value(v),
-                        PrimitiveValue::Str(v) => self.map_value(v),
-                        PrimitiveValue::Bool(v) => self.map_value(v),
-                    };
-                    color.map(|c| i64::from(c))
-                }).collect();
+                let column = DataSource::get(data, name)?;
+                match column.iter() {
+                    VectorIter::Int(iterator) => {
+                        let values: Vec<i64> = iterator.filter_map(|v| {
+                            let color = self.map_value(&v);
+                            color.map(|c| i64::from(c))
+                        }).collect();
 
-                new_data.add_column(name.clone(), IntVec::from(values));
-                Some(AesValue::Column {
-                    name: name.clone(),
-                    hint: hint.clone(),
-                    original_name: original_name.clone(),
-                })
+                        new_data.add_column(name.clone(), Box::new(IntVec::from(values)));
+                        return Some(AesValue::Column {
+                            name: name.clone(),
+                            hint: hint.clone(),
+                            original_name: original_name.clone(),
+                        });
+                    },
+                    VectorIter::Float(iterator) => {
+                        let values: Vec<i64> = iterator.filter_map(|v| {
+                            let color = self.map_value(&v);
+                            color.map(|c| i64::from(c))
+                        }).collect();
+
+                        new_data.add_column(name.clone(), Box::new(IntVec::from(values)));
+                        return Some(AesValue::Column {
+                            name: name.clone(),
+                            hint: hint.clone(),
+                            original_name: original_name.clone(),
+                        });
+                    },
+                    VectorIter::Str(iterator) => {
+                        let values: Vec<i64> = iterator.filter_map(|v| {
+                            let color = self.map_value(&v.to_string());
+                            color.map(|c| i64::from(c))
+                        }).collect();
+
+                        new_data.add_column(name.clone(), Box::new(IntVec::from(values)));
+                        return Some(AesValue::Column {
+                            name: name.clone(),
+                            hint: hint.clone(),
+                            original_name: original_name.clone(),
+                        });
+                    },
+                    VectorIter::Bool(iterator) => {
+                        let values: Vec<i64> = iterator.filter_map(|v| {
+                            let color = self.map_value(&v);
+                            color.map(|c| i64::from(c))
+                        }).collect();
+
+                        new_data.add_column(name.clone(), Box::new(IntVec::from(values)));
+                        return Some(AesValue::Column {
+                            name: name.clone(),
+                            hint: hint.clone(),
+                            original_name: original_name.clone(),
+                        });
+                    },
+                }
             },
             AesValue::Constant { value, hint } =>  {
                 let mapped = self.map_primitive_value(value)?;
                 Some(AesValue::Constant {
-                    value: PrimitiveValue::Float(mapped),
+                    value: PrimitiveValue::Int(i64::from(mapped)),
                     hint: hint.clone(),
                 })
             },

@@ -15,6 +15,10 @@ impl DiscreteSet {
         }
     }
 
+    pub fn len(&self) -> usize {
+        self.ints.len() + self.strings.len() + self.bools.len()
+    }
+
     pub fn add<T: DiscreteType>(&mut self, value: &T) {
         let value = DiscreteValue::from(value.to_primitive());
         match value {

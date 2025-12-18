@@ -42,7 +42,7 @@ pub trait Stat: Send + Sync {
     /// Returns None for Identity stat (use original data/mapping).
     fn apply(
         &self,
-        data: Box<dyn DataSource>,
+        data: &Box<dyn DataSource>,
         mapping: &AesMap,
     ) -> Result<Option<(Box<dyn DataSource>, AesMap)>>;
 }
@@ -53,7 +53,7 @@ pub struct Identity;
 impl Stat for Identity {
     fn apply(
         &self,
-        _data: Box<dyn DataSource>,
+        _data: &Box<dyn DataSource>,
         _mapping: &AesMap,
     ) -> Result<Option<(Box<dyn DataSource>, AesMap)>> {
         // Identity stat returns None to indicate no transformation

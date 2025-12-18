@@ -649,7 +649,7 @@ fn predict_linear_model(
 impl Stat for Smooth {
     fn apply(
         &self,
-        data: Box<dyn DataSource>,
+        data: &Box<dyn DataSource>,
         mapping: &AesMap,
     ) -> Result<Option<(Box<dyn DataSource>, AesMap)>> {
         let x_values = mapping

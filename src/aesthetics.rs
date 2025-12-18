@@ -310,30 +310,30 @@ impl AesValue {
     pub fn duplicate(
         &self,
         data: &dyn DataSource,
-    ) -> Result<(AesValue, Option<(String, Box<dyn GenericVector>)>)> {
+    ) -> std::result::Result<(AesValue, Option<(String, Box<dyn GenericVector>)>), PlotError> {
         match self {
             AesValue::Column {
                 name,
                 hint,
                 original_name,
             } => {
-                let column = data.get(name.as_str())?;
+                let column = data.get(name.as_str()).unwrap();
                 let cloned_column: Box<dyn GenericVector> = match column.iter() {
                     data::VectorIter::Int(iter) => {
                         let vec: Vec<i64> = iter.collect();
-                        Box::new(IntVec::from_vec(vec))
+                        Box::new(IntVec(vec))
                     }
                     data::VectorIter::Float(iter) => {
                         let vec: Vec<f64> = iter.collect();
-                        Box::new(FloatVec::from_vec(vec))
+                        Box::new(FloatVec(vec))
                     }
                     data::VectorIter::Str(iter) => {
                         let vec: Vec<String> = iter.map(|s| s.to_string()).collect();
-                        Box::new(StrVec::from_vec(vec))
+                        Box::new(StrVec(vec))
                     }
                     data::VectorIter::Bool(iter) => {
                         let vec: Vec<bool> = iter.collect();
-                        Box::new(BoolVec::from_vec(vec))
+                        Box::new(BoolVec(vec))
                     }
                 };
                 Ok((
@@ -417,12 +417,6 @@ impl AesMap {
     pub fn y(&mut self, column: impl Into<String>, kind: AestheticDomain) {
         self.set_to_column(Aesthetic::Y(kind), column);
     }
-    pub fn color(&mut self, column: impl Into<String>) {
-        self.set_to_column(Aesthetic::Color, column);
-    }
-    pub fn fill(&mut self, column: impl Into<String>) {
-        self.set_to_column(Aesthetic::Fill, column);
-    }
     pub fn alpha(&mut self, column: impl Into<String>) {
         self.set_to_column(Aesthetic::Alpha, column);
     }
@@ -468,12 +462,6 @@ impl AesMap {
             AesValue::categorical_column(column),
         );
     }
-    pub fn color_categorical(&mut self, column: impl Into<String>) {
-        self.set(Aesthetic::Color, AesValue::categorical_column(column));
-    }
-    pub fn fill_categorical(&mut self, column: impl Into<String>) {
-        self.set(Aesthetic::Fill, AesValue::categorical_column(column));
-    }
     pub fn shape_categorical(&mut self, column: impl Into<String>) {
         self.set(Aesthetic::Shape, AesValue::categorical_column(column));
     }
@@ -498,36 +486,11 @@ impl AesMap {
             AesValue::continuous_column(column),
         );
     }
-    pub fn color_continuous(&mut self, column: impl Into<String>) {
-        self.set(Aesthetic::Color, AesValue::continuous_column(column));
-    }
-    pub fn fill_continuous(&mut self, column: impl Into<String>) {
-        self.set(Aesthetic::Fill, AesValue::continuous_column(column));
-    }
     pub fn size_continuous(&mut self, column: impl Into<String>) {
         self.set(Aesthetic::Size, AesValue::continuous_column(column));
     }
     pub fn alpha_continuous(&mut self, column: impl Into<String>) {
         self.set(Aesthetic::Alpha, AesValue::continuous_column(column));
-    }
-
-    // Convenience methods for constant value mappings
-    pub fn const_color(&mut self, r: u8, g: u8, b: u8, a: u8) {
-        use crate::theme::Color;
-        let rgba = Color(r, g, b, a).into();
-        self.set(
-            Aesthetic::Color,
-            AesValue::constant(PrimitiveValue::Int(rgba)),
-        );
-    }
-
-    pub fn const_fill(&mut self, r: u8, g: u8, b: u8, a: u8) {
-        use crate::theme::Color;
-        let rgba = Color(r, g, b, a).into();
-        self.set(
-            Aesthetic::Fill,
-            AesValue::constant(PrimitiveValue::Int(rgba)),
-        );
     }
 
     pub fn const_alpha(&mut self, alpha: f64) {
@@ -694,44 +657,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_aes_map() {
-        let mut aes = AesMap::new();
-        aes.x("col_x", AestheticDomain::Continuous);
-        aes.y("col_y", AestheticDomain::Continuous);
-        aes.color("group");
-
-        assert_eq!(
-            aes.get(&Aesthetic::X(AestheticDomain::Continuous)),
-            Some(&AesValue::column("col_x"))
-        );
-        assert_eq!(
-            aes.get(&Aesthetic::Y(AestheticDomain::Continuous)),
-            Some(&AesValue::column("col_y"))
-        );
-        assert_eq!(aes.get(&Aesthetic::Color), Some(&AesValue::column("group")));
-    }
-
-    #[test]
-    fn test_is_grouping() {
-        // Grouping aesthetics
-        assert!(Aesthetic::Color.is_grouping());
-        assert!(Aesthetic::Fill.is_grouping());
-        assert!(Aesthetic::Shape.is_grouping());
-        assert!(Aesthetic::Linetype.is_grouping());
-        assert!(Aesthetic::Group.is_grouping());
-
-        // Non-grouping aesthetics
-        assert!(!Aesthetic::X(AestheticDomain::Continuous).is_grouping());
-        assert!(!Aesthetic::Y(AestheticDomain::Continuous).is_grouping());
-        assert!(!Aesthetic::Alpha.is_grouping());
-        assert!(!Aesthetic::Size.is_grouping());
-        assert!(!Aesthetic::XBegin.is_grouping());
-        assert!(!Aesthetic::XEnd.is_grouping());
-        assert!(!Aesthetic::YBegin.is_grouping());
-        assert!(!Aesthetic::YEnd.is_grouping());
-    }
-
-    #[test]
     fn test_is_x_like() {
         // X-like aesthetics
         assert!(Aesthetic::X(AestheticDomain::Continuous).is_x_like());
@@ -743,8 +668,6 @@ mod tests {
 
         // Non-X-like aesthetics
         assert!(!Aesthetic::Y(AestheticDomain::Continuous).is_x_like());
-        assert!(!Aesthetic::Color.is_x_like());
-        assert!(!Aesthetic::Fill.is_x_like());
     }
 
     #[test]
@@ -761,7 +684,5 @@ mod tests {
         assert!(!Aesthetic::X(AestheticDomain::Continuous).is_y_like());
         assert!(!Aesthetic::Xmin(AestheticDomain::Continuous).is_y_like());
         assert!(!Aesthetic::Xmax(AestheticDomain::Continuous).is_y_like());
-        assert!(!Aesthetic::Color.is_y_like());
-        assert!(!Aesthetic::Fill.is_y_like());
     }
 }

@@ -146,9 +146,9 @@ impl Shape {
                 // For other shapes, draw the character at the position
                 // with the character centered on the position.
                 let text = c.to_string();
-                let extents = ctx.text_extents(&text);
-                let width = extents.width;
-                let height = extents.height;
+                let extents = ctx.text_extents(&text).unwrap();
+                let width = extents.width();
+                let height = extents.height();
                 ctx.move_to(x - width * 0.5, y + height * 0.5);
                 ctx.show_text(&text).ok();
             }

@@ -57,7 +57,7 @@ impl Layer {
         mapping: &AesMap,
     ) -> Result<(), crate::error::PlotError> {
         if let Some(stat) = &self.stat {
-            let (new_data, new_mapping) = stat.compute(data, mapping)?;
+            let (new_data, new_mapping) = stat.apply(data, mapping)?;
             self.data = Some(new_data);
             self.mapping = Some(new_mapping);
         }
@@ -70,7 +70,7 @@ impl Layer {
         mapping: &AesMap,
     ) -> Result<(), crate::error::PlotError> {
         if let Some(position) = &self.position {
-            let (new_data, new_mapping) = position.adjust(data, mapping)?;
+            let (new_data, new_mapping) = position.apply(data, mapping)?;
             self.data = Some(new_data);
             self.mapping = Some(new_mapping);
         }

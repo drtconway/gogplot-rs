@@ -216,7 +216,7 @@ impl Density {
 impl Stat for Density {
     fn apply(
         &self,
-        data: Box<dyn DataSource>,
+        data: &Box<dyn DataSource>,
         mapping: &AesMap,
     ) -> Result<Option<(Box<dyn DataSource>, AesMap)>, PlotError> {
         // Get x values

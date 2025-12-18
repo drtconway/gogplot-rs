@@ -219,7 +219,7 @@ impl Summary {
 impl Stat for Summary {
     fn apply(
         &self,
-        data: Box<dyn DataSource>,
+        data: &Box<dyn DataSource>,
         mapping: &AesMap,
     ) -> Result<Option<(Box<dyn DataSource>, AesMap)>> {
         // Determine if we should use prefixes (multiple aesthetics)
@@ -392,12 +392,13 @@ mod tests {
     fn test_summary_single_continuous() {
         let mut df = DataFrame::new();
         df.add_column("x", Box::new(FloatVec(vec![1.0, 2.0, 3.0, 4.0, 5.0])));
+        let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
         mapping.x("x", AestheticDomain::Continuous);
 
         let stat = Summary::new(vec![Aesthetic::X(AestheticDomain::Continuous)]);
-        let result = stat.apply(Box::new(df), &mapping).unwrap();
+        let result = stat.apply(&df, &mapping).unwrap();
 
         assert!(result.is_some());
         let (output, _) = result.unwrap();
@@ -434,6 +435,7 @@ mod tests {
         let mut df = DataFrame::new();
         df.add_column("x", Box::new(FloatVec(vec![1.0, 2.0, 3.0])));
         df.add_column("y", Box::new(FloatVec(vec![10.0, 20.0, 30.0])));
+        let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
         mapping.x("x", AestheticDomain::Continuous);
@@ -443,7 +445,7 @@ mod tests {
             Aesthetic::X(AestheticDomain::Continuous),
             Aesthetic::Y(AestheticDomain::Continuous),
         ]);
-        let result = stat.apply(Box::new(df), &mapping).unwrap();
+        let result = stat.apply(&df, &mapping).unwrap();
 
         assert!(result.is_some());
         let (output, _) = result.unwrap();
@@ -485,12 +487,13 @@ mod tests {
                 "c".to_string(),
             ])),
         );
+        let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
         mapping.x("group", AestheticDomain::Discrete);
 
         let stat = Summary::new(vec![Aesthetic::X(AestheticDomain::Discrete)]);
-        let result = stat.apply(Box::new(df), &mapping).unwrap();
+        let result = stat.apply(&df, &mapping).unwrap();
 
         assert!(result.is_some());
         let (output, _) = result.unwrap();

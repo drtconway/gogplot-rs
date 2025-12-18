@@ -8,7 +8,7 @@ use crate::data::DataSource;
 use crate::error::PlotError;
 use crate::geom::RenderContext;
 use crate::layer::Layer;
-use crate::plot::scale_set::ScaleSet;
+use crate::scale::ScaleSet;
 use crate::theme::Theme;
 use cairo::{Context, Format, ImageSurface};
 

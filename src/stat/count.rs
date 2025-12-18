@@ -28,7 +28,7 @@ pub struct Count;
 impl Stat for Count {
     fn apply(
         &self,
-        data: Box<dyn DataSource>,
+        data: &Box<dyn DataSource>,
         mapping: &AesMap,
     ) -> Result<Option<(Box<dyn DataSource>, AesMap)>> {
         if let Some(group_iter) = mapping.get_vector_iter(&Aesthetic::Group, data.as_ref()) {
@@ -186,12 +186,13 @@ mod tests {
         // Create test data: x values [1, 1, 2, 2, 2, 3]
         let mut df = DataFrame::new();
         df.add_column("x", Box::new(IntVec(vec![1, 1, 2, 2, 2, 3])));
+        let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
         mapping.x("x", AestheticDomain::Discrete);
 
         let count = Count;
-        let result = count.apply(Box::new(df), &mapping);
+        let result = count.apply(&df, &mapping);
         assert!(result.is_ok());
 
         let option_result = result.unwrap();
@@ -218,12 +219,13 @@ mod tests {
     fn test_count_single_value() {
         let mut df = DataFrame::new();
         df.add_column("x", Box::new(IntVec(vec![5, 5, 5, 5])));
+        let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
         mapping.x("x", AestheticDomain::Discrete);
 
         let count = Count;
-        let (data, _) = count.apply(Box::new(df), &mapping).unwrap().unwrap();
+        let (data, _) = count.apply(&df, &mapping).unwrap().unwrap();
 
         let x_col = data.get("x").unwrap();
         let x_vals: Vec<i64> = x_col.iter_int().unwrap().collect();
@@ -238,12 +240,13 @@ mod tests {
     fn test_count_all_unique() {
         let mut df = DataFrame::new();
         df.add_column("x", Box::new(IntVec(vec![1, 2, 3, 4, 5])));
+        let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
         mapping.x("x", AestheticDomain::Discrete);
 
         let count = Count;
-        let (data, _) = count.apply(Box::new(df), &mapping).unwrap().unwrap();
+        let (data, _) = count.apply(&df, &mapping).unwrap().unwrap();
 
         let count_col = data.get("count").unwrap();
         let count_vals: Vec<i64> = count_col.iter_int().unwrap().collect();
@@ -254,11 +257,12 @@ mod tests {
     fn test_count_requires_x() {
         let mut df = DataFrame::new();
         df.add_column("y", Box::new(IntVec(vec![1, 2, 3])));
+        let df: Box<dyn DataSource> = Box::new(df);
 
         let mapping = AesMap::new(); // No x mapping
 
         let count = Count;
-        let result = count.apply(Box::new(df), &mapping);
+        let result = count.apply(&df, &mapping);
         assert!(result.is_err());
     }
 
@@ -266,12 +270,13 @@ mod tests {
     fn test_count_floats() {
         let mut df = DataFrame::new();
         df.add_column("x", Box::new(FloatVec(vec![1.5, 1.5, 2.5, 2.5, 2.5, 3.5])));
+        let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
         mapping.x("x", AestheticDomain::Discrete);
 
         let count = Count;
-        let (data, _) = count.apply(Box::new(df), &mapping).unwrap().unwrap();
+        let (data, _) = count.apply(&df, &mapping).unwrap().unwrap();
 
         let x_col = data.get("x").unwrap();
         let x_vals: Vec<f64> = x_col.iter_float().unwrap().collect();
@@ -289,12 +294,13 @@ mod tests {
             "x",
             Box::new(FloatVec(vec![1.0, f64::NAN, 2.0, f64::NAN, 1.0, 2.0, 2.0])),
         );
+        let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
         mapping.x("x", AestheticDomain::Discrete);
 
         let count = Count;
-        let (data, _) = count.apply(Box::new(df), &mapping).unwrap().unwrap();
+        let (data, _) = count.apply(&df, &mapping).unwrap().unwrap();
 
         let x_col = data.get("x").unwrap();
         let x_vals: Vec<f64> = x_col.iter_float().unwrap().collect();
@@ -322,12 +328,13 @@ mod tests {
                 f64::INFINITY,
             ])),
         );
+        let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
         mapping.x("x", AestheticDomain::Discrete);
 
         let count = Count;
-        let (data, _) = count.apply(Box::new(df), &mapping).unwrap().unwrap();
+        let (data, _) = count.apply(&df, &mapping).unwrap().unwrap();
 
         let x_col = data.get("x").unwrap();
         let x_vals: Vec<f64> = x_col.iter_float().unwrap().collect();
@@ -356,12 +363,13 @@ mod tests {
                 "apple".to_string(),
             ])),
         );
+        let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
         mapping.x("x", AestheticDomain::Discrete);
 
         let count = Count;
-        let (data, _) = count.apply(Box::new(df), &mapping).unwrap().unwrap();
+        let (data, _) = count.apply(&df, &mapping).unwrap().unwrap();
 
         // String x values are kept as strings (categorical scale will handle positioning)
         let x_col = data.get("x").unwrap();
@@ -385,12 +393,13 @@ mod tests {
                 "test".to_string(),
             ])),
         );
+        let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
         mapping.x("x", AestheticDomain::Discrete);
 
         let count = Count;
-        let (data, _) = count.apply(Box::new(df), &mapping).unwrap().unwrap();
+        let (data, _) = count.apply(&df, &mapping).unwrap().unwrap();
 
         // String x values are kept as strings (categorical scale will handle positioning)
         let x_col = data.get("x").unwrap();
