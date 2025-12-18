@@ -216,7 +216,7 @@ pub trait ShapeRangeScale: ScaleBase {
     /// # Returns
     /// * `Some(shape)` - The corresponding shape
     /// * `None` - If the value is outside the scale's domain bounds (will be filtered out)
-    fn map_value<T: PrimitiveType>(&self, value: &T) -> Option<Shape>;
+    fn map_value<T: DiscreteType>(&self, value: &T) -> Option<Shape>;
 }
 
 /// Scales that map to continuous [0, 1] normalized coordinates.

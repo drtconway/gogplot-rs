@@ -1,11 +1,10 @@
 // Plot export to various file formats
 
-use crate::data::DataSource;
+use crate::{data::DataSource, scale::ScaleSet};
 use crate::error::PlotError;
 use crate::guide::Guides;
 use crate::layer::Layer;
 use crate::plot::render;
-use crate::plot::scale_set::ScaleSet;
 use crate::theme::Theme;
 use cairo::{Context, PdfSurface, SvgSurface};
 use std::path::Path;

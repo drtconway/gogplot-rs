@@ -3,7 +3,7 @@
 use crate::aesthetics::AesMap;
 use crate::data::DataSource;
 use crate::geom::Geom;
-use crate::layer::Stat;
+use crate::stat::Stat;
 
 /// A builder struct that bundles a geom with its aesthetics and stat transformation
 ///
@@ -27,7 +27,7 @@ pub struct LayerGeom<G: Geom> {
     pub aes: AesMap,
     
     /// Statistical transformation for this layer
-    pub stat: Stat,
+    pub stat: Box<dyn Stat>,
     
     /// Optional layer-specific data
     pub data: Option<Box<dyn DataSource>>,
@@ -60,7 +60,7 @@ impl<G: Geom> LayerGeom<G> {
     }
     
     /// Get the inner parts (consumes self)
-    pub(crate) fn into_parts(self) -> (G, AesMap, Stat, Option<Box<dyn DataSource>>) {
+    pub(crate) fn into_parts(self) -> (G, AesMap, Box<dyn Stat>, Option<Box<dyn DataSource>>) {
         (self.geom, self.aes, self.stat, self.data)
     }
 }

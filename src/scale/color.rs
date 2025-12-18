@@ -1,4 +1,4 @@
-use crate::data::{GenericVector, VectorIter};
+use crate::data::{GenericVector, PrimitiveType, VectorIter};
 use crate::theme::{Color, color};
 use crate::utils::set::DiscreteSet;
 use crate::visuals::palette::okabe_ito_palette;
@@ -39,7 +39,7 @@ impl super::traits::ScaleBase for DiscreteColorScale {
 }
 
 impl super::traits::ColorRangeScale for DiscreteColorScale {
-    fn map_value<T: crate::data::DiscreteType>(&self, value: &T) -> Option<Color> {
+    fn map_value<T: PrimitiveType>(&self, value: &T) -> Option<Color> {
         let ordinal = self.elements.ordinal(value)?;
         Some(self.palette[ordinal])
     }

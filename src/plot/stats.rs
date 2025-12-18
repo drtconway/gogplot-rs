@@ -1,7 +1,7 @@
 // Statistical transformations for plot layers
 
 use crate::error::PlotError;
-use crate::layer::{Layer, Stat};
+use crate::layer::Layer;
 use crate::stat::bin::Bin;
 use crate::stat::boxplot::Boxplot;
 use crate::stat::count::Count;

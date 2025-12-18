@@ -1,4 +1,4 @@
-use crate::data::{GenericVector, VectorIter};
+use crate::data::{DiscreteType, GenericVector, VectorIter};
 use crate::utils::set::DiscreteSet;
 use crate::visuals::Shape;
 
@@ -54,7 +54,7 @@ impl super::traits::DiscreteDomainScale for ShapeScale {
 }
 
 impl super::traits::ShapeRangeScale for ShapeScale {
-    fn map_value<T: crate::data::DiscreteType>(&self, value: &T) -> Option<Shape> {
+    fn map_value<T: DiscreteType>(&self, value: &T) -> Option<Shape> {
         let ordinal = self.elements.ordinal(value)?;
         let shape = self.shapes[ordinal % self.shapes.len()];
         Some(shape)

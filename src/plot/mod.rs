@@ -7,20 +7,19 @@ mod layer_geom;
 mod positions;
 mod render;
 mod scale_application;
-mod scale_set;
 mod stats;
 
 use crate::data::DataSource;
 use crate::error::PlotError;
 use crate::guide::{AxisGuide, Guides};
 use crate::layer::Layer;
-use crate::theme::{Color, Theme};
+use crate::scale::ScaleSet;
+use crate::theme::Theme;
 use cairo::ImageSurface;
 use std::path::Path;
 
 pub use geom_builder::GeomBuilder;
 pub use layer_geom::LayerGeom;
-pub use scale_set::ScaleSet;
 
 /// Main plot structure
 pub struct Plot {
@@ -101,128 +100,6 @@ impl Plot {
         F: FnOnce(&mut crate::aesthetics::AesMap),
     {
         f(&mut self.mapping);
-        self
-    }
-
-    /// Set the x scale (builder style)
-    pub fn scale_x(mut self, scale: Box<dyn ContinuousScale>) -> Self {
-        self.scales.x = Some(scale);
-        self
-    }
-
-    /// Customize the x scale using a builder function
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// plot.x_scale_with(|scale| scale.set_lower_bound(0.0))
-    /// ```
-    pub fn x_scale_with<F>(self, f: F) -> Self
-    where
-        F: FnOnce(crate::scale::continuous::Continuous) -> crate::scale::continuous::Continuous,
-    {
-        let builder = crate::scale::continuous::Continuous::new();
-        let builder = f(builder);
-        // Assume linear scale for now; could be extended
-        if let Ok(scale) = builder.linear() {
-            self.scale_x(Box::new(scale))
-        } else {
-            self
-        }
-    }
-
-    /// Set the y scale (builder style)
-    pub fn scale_y(mut self, scale: Box<dyn ContinuousScale>) -> Self {
-        self.scales.y = Some(scale);
-        self
-    }
-
-    /// Customize the y scale using a builder function
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// plot.y_scale_with(|scale| scale.set_lower_bound(0.0))
-    /// ```
-    pub fn y_scale_with<F>(self, f: F) -> Self
-    where
-        F: FnOnce(crate::scale::continuous::Continuous) -> crate::scale::continuous::Continuous,
-    {
-        let builder = crate::scale::continuous::Continuous::new();
-        let builder = f(builder);
-        // Assume linear scale for now; could be extended
-        if let Ok(scale) = builder.linear() {
-            self.scale_y(Box::new(scale))
-        } else {
-            self
-        }
-    }
-
-    /// Set the color scale (builder style)
-    pub fn scale_color(mut self, scale: Box<dyn ColorScale>) -> Self {
-        self.scales.color = Some(scale);
-        self
-    }
-
-    /// Set a continuous color scale with custom gradient colors (builder style)
-    ///
-    /// # Examples
-    ///
-    /// ```ignore
-    /// // Use default blue-to-black gradient
-    /// plot.scale_color_continuous(vec![
-    ///     Color::rgb(0, 0, 139),   // dark blue
-    ///     Color::rgb(0, 0, 0),     // black
-    /// ])
-    ///
-    /// // Use a custom three-color gradient
-    /// plot.scale_color_continuous(vec![
-    ///     Color::rgb(0, 0, 255),   // blue
-    ///     Color::rgb(255, 255, 0), // yellow
-    ///     Color::rgb(255, 0, 0),   // red
-    /// ])
-    /// ```
-    pub fn scale_color_continuous(mut self, colors: Vec<Color>) -> Self {
-        use crate::scale::color::ContinuousColorScale;
-        self.scales.color = Some(Box::new(ContinuousColorScale::new((0.0, 1.0), colors)));
-        self
-    }
-
-    /// Set the fill scale (builder style)
-    pub fn scale_fill(mut self, scale: Box<dyn ColorScale>) -> Self {
-        self.scales.fill = Some(scale);
-        self
-    }
-
-    /// Set a continuous fill scale with custom gradient colors (builder style)
-    pub fn scale_fill_continuous(mut self, colors: Vec<Color>) -> Self {
-        use crate::scale::color::ContinuousColorScale;
-        self.scales.fill = Some(Box::new(ContinuousColorScale::new((0.0, 1.0), colors)));
-        self
-    }
-
-    /// Set a discrete fill scale with custom colors (builder style)
-    pub fn scale_fill_manual(mut self, colors: Vec<Color>) -> Self {
-        use crate::scale::color::DiscreteColorScale;
-        self.scales.fill = Some(Box::new(DiscreteColorScale::new(colors)));
-        self
-    }
-
-    /// Set the size scale (builder style)
-    pub fn scale_size(mut self, scale: Box<dyn ContinuousScale>) -> Self {
-        self.scales.size = Some(scale);
-        self
-    }
-
-    /// Set the alpha scale (builder style)
-    pub fn scale_alpha(mut self, scale: Box<dyn ContinuousScale>) -> Self {
-        self.scales.alpha = Some(scale);
-        self
-    }
-
-    /// Set the shape scale (builder style)
-    pub fn scale_shape(mut self, scale: Box<dyn ShapeScale>) -> Self {
-        self.scales.shape = Some(scale);
         self
     }
 

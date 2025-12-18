@@ -1,5 +1,5 @@
 use crate::{
-    data::{ContinuousType, DiscreteType, VectorIter},
+    data::{ContinuousType, PrimitiveType, VectorIter},
     scale::transform::{IdentityTransform, Transform},
     utils::set::DiscreteSet,
 };
@@ -88,7 +88,7 @@ impl super::traits::ContinuousDomainScale for ContinuousPositionalScale {
 }
 
 impl super::traits::ContinuousRangeScale for ContinuousPositionalScale {
-    fn map_value<T: ContinuousType>(&self, value: &T) -> Option<f64> {
+    fn map_value<T: PrimitiveType>(&self, value: &T) -> Option<f64> {
         let value = value.to_f64();
         let (d0, d1) = self.domain;
         if value < d0.min(d1) || value > d0.max(d1) {
@@ -149,7 +149,7 @@ impl super::traits::DiscreteDomainScale for DiscretePositionalScale {
 }
 
 impl super::traits::ContinuousRangeScale for DiscretePositionalScale {
-    fn map_value<T: DiscreteType>(&self, value: &T) -> Option<f64> {
+    fn map_value<T: PrimitiveType>(&self, value: &T) -> Option<f64> {
         let n = self.len() as f64;
         self.ordinal(value).map(|idx| (idx as f64 + 0.5) / n)
     }

@@ -1,7 +1,8 @@
-use crate::{data::VectorIter, utils::set::DiscreteSet};
+use crate::{data::{PrimitiveType, VectorIter}, utils::set::DiscreteSet};
 
 
 
+#[derive(Debug, Clone)]
 pub struct ContinuousSizeScale {
     domain: (f64, f64),
     lower_bound: Option<f64>,
@@ -79,6 +80,7 @@ impl super::traits::ContinuousRangeScale for ContinuousSizeScale {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct DiscreteSizeScale {
     elements: DiscreteSet,
 }
@@ -115,7 +117,7 @@ impl super::traits::DiscreteDomainScale for DiscreteSizeScale {
 }
 
 impl super::traits::ContinuousRangeScale for DiscreteSizeScale {
-    fn map_value<T: crate::data::DiscreteType>(&self, value: &T) -> Option<f64> {
+    fn map_value<T: PrimitiveType>(&self, value: &T) -> Option<f64> {
         let ordinal = self.elements.ordinal(value)?;
         let size = (ordinal as f64 + 1.0) / (self.elements.len().max(1) as f64);
         Some(size)
