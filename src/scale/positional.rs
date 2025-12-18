@@ -1,12 +1,11 @@
 use crate::{
-    data::{ContinuousType, PrimitiveType, VectorIter},
-    scale::transform::{IdentityTransform, Transform},
+    data::{PrimitiveType, VectorIter},
+    scale::traits::{ContinuousDomainScale, DiscreteDomainScale},
     utils::set::DiscreteSet,
 };
 
 #[derive(Debug, Clone)]
 pub struct ContinuousPositionalScale {
-    transform: Box<dyn Transform>,
     domain: (f64, f64),
     breaks: Vec<f64>,
     labels: Vec<String>,
@@ -15,9 +14,8 @@ pub struct ContinuousPositionalScale {
 }
 
 impl ContinuousPositionalScale {
-    pub fn new(transform: Box<dyn Transform>) -> Self {
+    pub fn new() -> Self {
         Self {
-            transform,
             domain: (0.0, 1.0),
             breaks: Vec::new(),
             labels: Vec::new(),
@@ -28,7 +26,6 @@ impl ContinuousPositionalScale {
 
     pub fn with_limits(mut self, limits: (f64, f64)) -> Self {
         self.domain = limits;
-        self.trained = true;
         self
     }
 
@@ -55,7 +52,7 @@ impl ContinuousPositionalScale {
 
 impl Default for ContinuousPositionalScale {
     fn default() -> Self {
-        Self::new(Box::new(IdentityTransform))
+        Self::new()
     }
 }
 
@@ -89,21 +86,18 @@ impl super::traits::ContinuousDomainScale for ContinuousPositionalScale {
 
 impl super::traits::ContinuousRangeScale for ContinuousPositionalScale {
     fn map_value<T: PrimitiveType>(&self, value: &T) -> Option<f64> {
-        let value = value.to_f64();
+        let value = match value.to_primitive() {
+            crate::data::PrimitiveValue::Int(x) => Some(x as f64),
+            crate::data::PrimitiveValue::Float(x) => Some(x),
+            crate::data::PrimitiveValue::Str(_) => None,
+            crate::data::PrimitiveValue::Bool(_) => None,
+        }?;
         let (d0, d1) = self.domain;
         if value < d0.min(d1) || value > d0.max(d1) {
             return None;
         }
 
-        let transformed_data = self.transform.transform(value);
-        let transformed_d0 = self.transform.transform(d0);
-        let transformed_d1 = self.transform.transform(d1);
-
-        if !transformed_data.is_finite() {
-            return None;
-        }
-
-        Some((transformed_data - transformed_d0) / (transformed_d1 - transformed_d0))
+        Some((value - d0) / (d1 - d0))
     }
 }
 
@@ -150,8 +144,14 @@ impl super::traits::DiscreteDomainScale for DiscretePositionalScale {
 
 impl super::traits::ContinuousRangeScale for DiscretePositionalScale {
     fn map_value<T: PrimitiveType>(&self, value: &T) -> Option<f64> {
+        let ordinal = match value.to_primitive() {
+            crate::data::PrimitiveValue::Int(x) => Some(self.elements.ordinal(&x)?),
+            crate::data::PrimitiveValue::Float(_) => None,
+            crate::data::PrimitiveValue::Str(x) => Some(self.elements.ordinal(&x.to_string())?),
+            crate::data::PrimitiveValue::Bool(x) => Some(self.elements.ordinal(&x)?),
+        }?;
         let n = self.len() as f64;
-        self.ordinal(value).map(|idx| (idx as f64 + 0.5) / n)
+        Some((ordinal as f64 + 0.5) / n)
     }
 }
 

@@ -1,4 +1,4 @@
-use crate::{data::{PrimitiveType, VectorIter}, utils::set::DiscreteSet};
+use crate::{data::{PrimitiveType, VectorIter}, scale::traits::{ContinuousDomainScale, DiscreteDomainScale}, utils::set::DiscreteSet};
 
 
 
@@ -70,7 +70,12 @@ impl super::traits::ContinuousDomainScale for ContinuousSizeScale {
 
 impl super::traits::ContinuousRangeScale for ContinuousSizeScale {
     fn map_value<T: crate::data::PrimitiveType>(&self, value: &T) -> Option<f64> {
-        let v = value.to_f64()?;
+        let v = match value.to_primitive() {
+            crate::data::PrimitiveValue::Int(x) => Some(x as f64),
+            crate::data::PrimitiveValue::Float(x) => Some(x),
+            crate::data::PrimitiveValue::Str(_) => None,
+            crate::data::PrimitiveValue::Bool(_) => None,
+        }?;
         let (min_domain, max_domain) = self.domain;
         if v < min_domain || v > max_domain {
             return None;
@@ -118,7 +123,12 @@ impl super::traits::DiscreteDomainScale for DiscreteSizeScale {
 
 impl super::traits::ContinuousRangeScale for DiscreteSizeScale {
     fn map_value<T: PrimitiveType>(&self, value: &T) -> Option<f64> {
-        let ordinal = self.elements.ordinal(value)?;
+        let ordinal = match value.to_primitive() {
+            crate::data::PrimitiveValue::Int(x) => self.elements.ordinal(&x),
+            crate::data::PrimitiveValue::Float(_) => None,
+            crate::data::PrimitiveValue::Str(x) => self.elements.ordinal(&x),
+            crate::data::PrimitiveValue::Bool(x) => self.elements.ordinal(&x),
+        }?;
         let size = (ordinal as f64 + 1.0) / (self.elements.len().max(1) as f64);
         Some(size)
     }

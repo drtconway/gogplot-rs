@@ -88,6 +88,34 @@ pub enum Shape {
     Other(char)
 }
 
+impl From<i64> for Shape {
+    fn from(value: i64) -> Self {
+        match value {
+            0 => Shape::Circle,
+            1 => Shape::Square,
+            2 => Shape::Triangle,
+            3 => Shape::Diamond,
+            4 => Shape::Cross,
+            5 => Shape::Plus,
+            c => Shape::Other(std::char::from_u32(c as u32).unwrap_or('?')),
+        }
+    }
+}
+
+impl From<Shape> for i64 {
+    fn from(shape: Shape) -> Self {
+        match shape {
+            Shape::Circle => 0,
+            Shape::Square => 1,
+            Shape::Triangle => 2,
+            Shape::Diamond => 3,
+            Shape::Cross => 4,
+            Shape::Plus => 5,
+            Shape::Other(c) => c as i64,
+        }
+    }
+}
+
 impl Shape {
     /// Draw this shape at the given position with the given size
     ///

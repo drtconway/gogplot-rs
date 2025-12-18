@@ -195,7 +195,7 @@ pub fn split_composite_key(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::dataframe::{DataFrame, StrVec};
+    use crate::{aesthetics::AestheticDomain, utils::dataframe::{DataFrame, StrVec}};
 
     #[test]
     fn test_create_composite_keys() {
@@ -204,7 +204,7 @@ mod tests {
         df.add_column("group", Box::new(StrVec(vec!["X".to_string(), "Y".to_string(), "X".to_string()])));
         
         let group_cols = vec![
-            (Aesthetic::Fill, "category".to_string()),
+            (Aesthetic::Fill(AestheticDomain::Discrete), "category".to_string()),
             (Aesthetic::Shape, "group".to_string()),
         ];
         
@@ -231,12 +231,12 @@ mod tests {
     #[test]
     fn test_extract_aesthetic_value() {
         let group_cols = vec![
-            (Aesthetic::Fill, "category".to_string()),
+            (Aesthetic::Fill(AestheticDomain::Discrete), "category".to_string()),
             (Aesthetic::Shape, "group".to_string()),
         ];
         
         let key = "A__X";
-        assert_eq!(extract_aesthetic_value(key, &group_cols, &Aesthetic::Fill), "A");
+        assert_eq!(extract_aesthetic_value(key, &group_cols, &Aesthetic::Fill(AestheticDomain::Discrete)), "A");
         assert_eq!(extract_aesthetic_value(key, &group_cols, &Aesthetic::Shape), "X");
     }
 }

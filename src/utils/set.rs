@@ -1,5 +1,6 @@
 use crate::data::{DiscreteType, DiscreteValue};
 
+#[derive(Debug, Clone)]
 pub struct DiscreteSet {
     ints: Vec<i64>,
     strings: Vec<String>,

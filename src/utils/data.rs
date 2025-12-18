@@ -788,8 +788,8 @@ pub fn make_color_iter<'a>(
     iter: VectorIter<'a>,
 ) -> impl Iterator<Item = Result<Color, PlotError>> + 'a {
     match iter {
-        VectorIter::IntVec(int_iter) => int_iter.map(|v| Ok(Color::from(v))),
-        _ => iter.map(|_| panic!("Color must be specified as integer RGBA values")),
+        VectorIter::Int(int_iter) => int_iter.map(|v| Ok(Color::from(v))),
+        _ => panic!("Color must be specified as integer RGBA values"),
     }
 }
 
@@ -797,8 +797,8 @@ pub fn make_float_iter<'a>(
     iter: VectorIter<'a>,
 ) -> impl Iterator<Item = Result<f64, PlotError>> + 'a {
     match iter {
-        VectorIter::FloatVec(float_iter) => float_iter.map(|v| Ok(v)),
-        _ => iter.map(|_| panic!("Size must be specified as float values")),
+        VectorIter::Float(float_iter) => float_iter.map(|v| Ok(v)),
+        _ => panic!("Size must be specified as float values"),
     }
 }
 
@@ -806,7 +806,7 @@ pub fn make_shape_iter<'a>(
     iter: VectorIter<'a>,
 ) -> impl Iterator<Item = Result<Shape, PlotError>> + 'a {
     match iter {
-        VectorIter::FloatVec(float_iter) => float_iter.map(|v| Ok(Shape::from(v))),
-        _ => iter.map(|_| panic!("Size must be specified as float values")),
+        VectorIter::Int(int_iter) => int_iter.map(|v| Ok(Shape::from(v))),
+        _ => panic!("Size must be specified as int values"),
     }
 }
