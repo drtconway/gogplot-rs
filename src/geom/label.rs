@@ -155,17 +155,12 @@ impl IntoLayer for GeomLabel {
 }
 
 impl Geom for GeomLabel {
-    fn required_aesthetics(&self) -> &[Aesthetic] {
-        &[Aesthetic::X, Aesthetic::Y, Aesthetic::Label]
+    fn train_scales(&self, scales: &mut crate::scale::ScaleSet) {
+        
     }
 
-    fn setup_data(
-        &self,
-        _data: &dyn crate::data::DataSource,
-        _mapping: &crate::aesthetics::AesMap,
-    ) -> Result<(Option<Box<dyn crate::data::DataSource>>, Option<crate::aesthetics::AesMap>), PlotError> {
-        // Geom doesn't need to add any columns
-        Ok((None, None))
+    fn apply_scales(&mut self, scales: &crate::scale::ScaleSet) {
+        
     }
 
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {

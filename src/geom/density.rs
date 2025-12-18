@@ -2,6 +2,7 @@ use super::{Geom, IntoLayer, RenderContext};
 use crate::aesthetics::{AesValue, Aesthetic};
 use crate::data::PrimitiveValue;
 use crate::error::{PlotError, to_plot_error};
+use crate::layer::Layer;
 
 /// GeomDensity renders kernel density estimates
 ///
@@ -94,7 +95,6 @@ impl IntoLayer for GeomDensity {
     }
 
     fn into_layer(self) -> crate::layer::Layer {
-        use crate::layer::{Layer, Stat, Position};
         use crate::aesthetics::AesMap;
 
         let adjust = self.adjust;
@@ -111,28 +111,19 @@ impl IntoLayer for GeomDensity {
             geom: Box::new(self),
             data: None,
             mapping: Some(mapping),
-            stat: Stat::Density { adjust, n },
-            position: Position::Identity,
-            computed_data: None,
-            computed_mapping: None,
-            computed_scales: None,
+            stat: crate::stat::Stat::Density::new(adjust, n),
+            position: crate::position::Position::Identity,
         }
     }
 }
 
 impl Geom for GeomDensity {
-    fn required_aesthetics(&self) -> &[Aesthetic] {
-        // Density only requires X - Y is computed
-        &[Aesthetic::X]
+    fn train_scales(&self, _scales: &mut crate::scale::ScaleSet) {
+        
     }
 
-    fn setup_data(
-        &self,
-        _data: &dyn crate::data::DataSource,
-        _mapping: &crate::aesthetics::AesMap,
-    ) -> Result<(Option<Box<dyn crate::data::DataSource>>, Option<crate::aesthetics::AesMap>), PlotError> {
-        // Geom doesn't need to add any columns - Stat::Density creates X and Y
-        Ok((None, None))
+    fn apply_scales(&mut self, scales: &crate::scale::ScaleSet) {
+        
     }
 
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {

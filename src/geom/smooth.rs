@@ -2,7 +2,6 @@ use super::{Geom, IntoLayer, RenderContext};
 use crate::aesthetics::{AesValue, Aesthetic};
 use crate::data::PrimitiveValue;
 use crate::error::Result;
-use crate::layer::Stat;
 
 /// GeomSmooth renders fitted curves with confidence intervals
 ///
@@ -74,12 +73,6 @@ pub struct GeomSmooth {
 
     /// Whether to show confidence interval
     pub se: bool,
-
-    /// Stat to use (default is Smooth)
-    pub stat: Stat,
-
-    /// Position adjustment (typically Identity)
-    pub position: crate::layer::Position,
 }
 
 impl GeomSmooth {
@@ -95,13 +88,6 @@ impl GeomSmooth {
             alpha: Some(AesValue::constant(PrimitiveValue::Float(0.4))),
             size: Some(AesValue::constant(PrimitiveValue::Float(1.0))),
             se: true,
-            stat: Stat::Smooth {
-                method: crate::stat::smooth::Method::Loess,
-                level: 0.95,
-                n: 80,
-                span: 0.75,
-            },
-            position: crate::layer::Position::Identity,
         }
     }
 
@@ -137,34 +123,6 @@ impl GeomSmooth {
         self
     }
 
-    /// Set the smoothing method
-    pub fn method(&mut self, method: crate::stat::smooth::Method) -> &mut Self {
-        if let Stat::Smooth { method: m, .. } = &mut self.stat {
-            *m = method;
-        }
-        self
-    }
-
-    /// Set the span for LOESS smoothing (0.0 to 1.0)
-    /// Smaller values produce wigglier curves, larger values produce smoother curves
-    pub fn span(&mut self, span: f64) -> &mut Self {
-        if let Stat::Smooth { span: s, .. } = &mut self.stat {
-            *s = span.clamp(0.0, 1.0);
-        }
-        self
-    }
-
-    /// Set the stat to use
-    pub fn stat(&mut self, stat: Stat) -> &mut Self {
-        self.stat = stat;
-        self
-    }
-
-    /// Set the position adjustment
-    pub fn position(&mut self, position: crate::layer::Position) -> &mut Self {
-        self.position = position;
-        self
-    }
 }
 
 impl Default for GeomSmooth {
@@ -174,17 +132,12 @@ impl Default for GeomSmooth {
 }
 
 impl Geom for GeomSmooth {
-    fn required_aesthetics(&self) -> &[Aesthetic] {
-        &[Aesthetic::X, Aesthetic::Y]
+    fn train_scales(&self, scales: &mut crate::scale::ScaleSet) {
+        
     }
 
-    fn setup_data(
-        &self,
-        _data: &dyn crate::data::DataSource,
-        _mapping: &crate::aesthetics::AesMap,
-    ) -> std::result::Result<(Option<Box<dyn crate::data::DataSource>>, Option<crate::aesthetics::AesMap>), crate::error::PlotError> {
-        // Geom doesn't need to add any columns - Stat::Smooth creates what we need
-        Ok((None, None))
+    fn apply_scales(&mut self, scales: &crate::scale::ScaleSet) {
+        
     }
 
     fn render(&self, ctx: &mut RenderContext) -> Result<()> {
@@ -317,9 +270,6 @@ impl IntoLayer for GeomSmooth {
             mapping: Some(mapping),
             stat,
             position,
-            computed_data: None,
-            computed_mapping: None,
-            computed_scales: None,
         }
     }
 }
@@ -332,8 +282,6 @@ impl Clone for GeomSmooth {
             alpha: self.alpha.clone(),
             size: self.size.clone(),
             se: self.se,
-            stat: self.stat.clone(),
-            position: self.position.clone(),
         }
     }
 }

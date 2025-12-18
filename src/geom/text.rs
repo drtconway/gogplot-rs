@@ -29,7 +29,7 @@ impl GeomText {
     pub fn new() -> Self {
         use crate::theme::Theme;
         let theme = Theme::default();
-        
+
         Self {
             color: None,
             size: None,
@@ -87,28 +87,37 @@ impl Default for GeomText {
 
 impl IntoLayer for GeomText {
     fn default_aesthetics(&self) -> Vec<(Aesthetic, AesValue)> {
-        use crate::theme::Theme;
         use crate::data::PrimitiveValue;
-        
+        use crate::theme::Theme;
+
         let mut defaults = Vec::new();
         let theme = Theme::default();
 
         if let Some(color) = &self.color {
             defaults.push((Aesthetic::Color, color.clone()));
         } else {
-            defaults.push((Aesthetic::Color, AesValue::constant(PrimitiveValue::Int(theme.geom_text.color.into()))));
+            defaults.push((
+                Aesthetic::Color,
+                AesValue::constant(PrimitiveValue::Int(theme.geom_text.color.into())),
+            ));
         }
-        
+
         if let Some(alpha) = &self.alpha {
             defaults.push((Aesthetic::Alpha, alpha.clone()));
         } else {
-            defaults.push((Aesthetic::Alpha, AesValue::constant(PrimitiveValue::Float(theme.geom_text.alpha))));
+            defaults.push((
+                Aesthetic::Alpha,
+                AesValue::constant(PrimitiveValue::Float(theme.geom_text.alpha)),
+            ));
         }
-        
+
         if let Some(size) = &self.size {
             defaults.push((Aesthetic::Size, size.clone()));
         } else {
-            defaults.push((Aesthetic::Size, AesValue::constant(PrimitiveValue::Float(theme.geom_text.size))));
+            defaults.push((
+                Aesthetic::Size,
+                AesValue::constant(PrimitiveValue::Float(theme.geom_text.size)),
+            ));
         }
 
         defaults
@@ -116,18 +125,9 @@ impl IntoLayer for GeomText {
 }
 
 impl Geom for GeomText {
-    fn required_aesthetics(&self) -> &[Aesthetic] {
-        &[Aesthetic::X, Aesthetic::Y, Aesthetic::Label]
-    }
+    fn train_scales(&self, scales: &mut crate::scale::ScaleSet) {}
 
-    fn setup_data(
-        &self,
-        _data: &dyn crate::data::DataSource,
-        _mapping: &crate::aesthetics::AesMap,
-    ) -> Result<(Option<Box<dyn crate::data::DataSource>>, Option<crate::aesthetics::AesMap>), PlotError> {
-        // Geom doesn't need to add any columns
-        Ok((None, None))
-    }
+    fn apply_scales(&mut self, scales: &crate::scale::ScaleSet) {}
 
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
         // Get position aesthetics

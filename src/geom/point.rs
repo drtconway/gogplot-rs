@@ -44,7 +44,7 @@ impl GeomPoint {
 
     /// Set the default point shape
     pub fn shape(&mut self, shape: Shape) -> &mut Self {
-        self.shape = Some(AesValue::constant(PrimitiveValue::Int(shape as i64)));
+        self.shape = Some(AesValue::constant(PrimitiveValue::Int(i64::from(shape))));
         self
     }
 
@@ -88,17 +88,12 @@ impl IntoLayer for GeomPoint {
 }
 
 impl Geom for GeomPoint {
-    fn required_aesthetics(&self) -> &[Aesthetic] {
-        &[Aesthetic::X, Aesthetic::Y]
+    fn train_scales(&self, scales: &mut crate::scale::ScaleSet) {
+        
     }
 
-    fn setup_data(
-        &self,
-        _data: &dyn crate::data::DataSource,
-        _mapping: &crate::aesthetics::AesMap,
-    ) -> Result<(Option<Box<dyn crate::data::DataSource>>, Option<crate::aesthetics::AesMap>), PlotError> {
-        // Geom doesn't need to add any columns
-        Ok((None, None))
+    fn apply_scales(&mut self, scales: &crate::scale::ScaleSet) {
+        
     }
 
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {

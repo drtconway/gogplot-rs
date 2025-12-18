@@ -2,8 +2,7 @@ use super::{Geom, IntoLayer, RenderContext};
 use crate::aesthetics::{AesValue, Aesthetic};
 use crate::data::PrimitiveValue;
 use crate::error::PlotError;
-use crate::layer::Stat;
-use crate::scale::ScaleType;
+use crate::stat::Stat;
 
 /// GeomBoxplot renders box-and-whisker plots
 ///
@@ -55,10 +54,7 @@ pub struct GeomBoxplot {
     pub width: f64,
 
     /// Stat to use (default is Boxplot, can be Identity if data already computed)
-    pub stat: Stat,
-
-    /// Position adjustment (default is Identity, but Dodge is useful for grouped boxplots)
-    pub position: crate::layer::Position,
+    pub stat: Box<dyn Stat>,
 
     /// IQR coefficient for outlier detection (default 1.5)
     pub coef: f64,
@@ -74,7 +70,6 @@ impl GeomBoxplot {
             size: None,
             width: 0.5,
             stat: Stat::Boxplot { coef: 1.5 },
-            position: crate::layer::Position::Identity,
             coef: 1.5,
         }
     }
@@ -123,11 +118,6 @@ impl GeomBoxplot {
         self
     }
 
-    /// Set the position adjustment (default is Identity)
-    pub fn position(&mut self, position: crate::layer::Position) -> &mut Self {
-        self.position = position;
-        self
-    }
 }
 
 impl Default for GeomBoxplot {
@@ -177,55 +167,17 @@ impl IntoLayer for GeomBoxplot {
             mapping: Some(mapping),
             stat,
             position,
-            computed_data: None,
-            computed_mapping: None,
-            computed_scales: None,
         }
     }
 }
 
 impl Geom for GeomBoxplot {
-    fn required_aesthetics(&self) -> &[Aesthetic] {
-        // The stat computes Lower, Middle, Upper, Ymin, Ymax from X and Y
-        // So we only require X here - the layer will handle Y requirement for the stat
-        &[Aesthetic::X]
+    fn train_scales(&self, _scales: &mut crate::scale::ScaleSet) {
+        
     }
 
-    fn aesthetic_scale_type(&self, aesthetic: Aesthetic) -> ScaleType {
-        match aesthetic {
-            // Boxplots typically have categorical X axis (one box per category)
-            Aesthetic::X => ScaleType::Categorical,
-            // Y-axis and related aesthetics should be continuous
-            Aesthetic::Y | Aesthetic::Ymin | Aesthetic::Ymax 
-            | Aesthetic::Lower | Aesthetic::Middle | Aesthetic::Upper => ScaleType::Continuous,
-            // Other aesthetics can be either
-            _ => ScaleType::Either,
-        }
-    }
-
-    fn setup_data(
-        &self,
-        _data: &dyn crate::data::DataSource,
-        mapping: &crate::aesthetics::AesMap,
-    ) -> Result<(Option<Box<dyn crate::data::DataSource>>, Option<crate::aesthetics::AesMap>), PlotError> {
-        // If Xmin/Xmax are already in the mapping (e.g., from previous setup or position adjustment),
-        // we don't need to do anything
-        if mapping.contains(Aesthetic::Xmin) && mapping.contains(Aesthetic::Xmax) {
-            return Ok((None, None));
-        }
-
-        // For boxplot, map both Xmin and Xmax to the X aesthetic
-        // The scale application step will expand these to the appropriate bandwidth for categorical scales
-        let x_aes = match mapping.get(&Aesthetic::X) {
-            Some(aes) => aes,
-            None => return Ok((None, None)), // No X mapping, nothing to set up
-        };
-
-        let mut new_mapping = mapping.clone();
-        new_mapping.set(Aesthetic::Xmin, x_aes.clone());
-        new_mapping.set(Aesthetic::Xmax, x_aes.clone());
-
-        Ok((None, Some(new_mapping)))
+    fn apply_scales(&mut self, scales: &crate::scale::ScaleSet) {
+        
     }
 
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {

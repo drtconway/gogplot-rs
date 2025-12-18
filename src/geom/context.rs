@@ -4,6 +4,7 @@ use crate::error::{DataType, PlotError};
 use crate::layer::Layer;
 use crate::plot::ScaleSet;
 use crate::scale::ScaleType;
+use crate::scale::traits::ScaleBase;
 use crate::theme::{self, Color};
 use cairo::Context;
 use ordered_float::OrderedFloat;
@@ -226,7 +227,7 @@ impl<'a> RenderContext<'a> {
     pub fn get_aesthetic_values(
         &self,
         aesthetic: Aesthetic,
-        scale: Option<&dyn ContinuousScale>,
+        scale: Option<&dyn crate::scale::traits::ScaleBase>,
     ) -> Result<AestheticValues<'a>, PlotError> {
         use crate::aesthetics::AesValue;
         use crate::data::PrimitiveValue;
@@ -1002,7 +1003,7 @@ impl<'a> RenderContext<'a> {
     pub fn get_scaled_values(
         &self,
         aesthetic: Aesthetic,
-        scale: Option<&dyn ContinuousScale>,
+        scale: Option<&dyn ScaleBase>,
     ) -> Result<Vec<f64>, PlotError> {
         // Get the aesthetic mapping
         let mapping = self

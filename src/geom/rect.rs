@@ -73,22 +73,12 @@ impl IntoLayer for GeomRect {
 }
 
 impl Geom for GeomRect {
-    fn required_aesthetics(&self) -> &[Aesthetic] {
-        &[
-            Aesthetic::XBegin,
-            Aesthetic::XEnd,
-            Aesthetic::YBegin,
-            Aesthetic::YEnd,
-        ]
+    fn train_scales(&self, _scales: &mut crate::scale::ScaleSet) {
+        
     }
 
-    fn setup_data(
-        &self,
-        _data: &dyn crate::data::DataSource,
-        _mapping: &crate::aesthetics::AesMap,
-    ) -> Result<(Option<Box<dyn crate::data::DataSource>>, Option<crate::aesthetics::AesMap>), PlotError> {
-        // Rect geom doesn't need to add any columns - it uses XBegin, XEnd, YBegin, YEnd directly
-        Ok((None, None))
+    fn apply_scales(&mut self, scales: &crate::scale::ScaleSet) {
+        
     }
 
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
