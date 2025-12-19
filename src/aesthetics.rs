@@ -178,6 +178,20 @@ impl Aesthetic {
             Aesthetic::Label => "label",
         }
     }
+
+    pub fn is_continuous(&self) -> bool {
+        match self.domain() {
+            AestheticDomain::Continuous => true,
+            AestheticDomain::Discrete => false,
+        }
+    }
+
+    pub fn is_discrete(&self) -> bool {
+        match self.domain() {
+            AestheticDomain::Continuous => false,
+            AestheticDomain::Discrete => true,
+        }
+    }
 }
 
 // AesValue is a type that can be mapped to an aesthetic
@@ -394,7 +408,7 @@ impl AesMap {
         self.map.iter()
     }
 
-    pub fn iter_aesthetics(&self) -> impl Iterator<Item = &Aesthetic> {
+    pub fn aesthetics(&self) -> impl Iterator<Item = &Aesthetic> {
         self.map.keys()
     }
 

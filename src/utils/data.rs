@@ -786,27 +786,27 @@ fn visit3_ddc_inner2<
 
 pub fn make_color_iter<'a>(
     iter: VectorIter<'a>,
-) -> impl Iterator<Item = Result<Color, PlotError>> + 'a {
+) -> impl Iterator<Item = Color> + 'a {
     match iter {
-        VectorIter::Int(int_iter) => int_iter.map(|v| Ok(Color::from(v))),
+        VectorIter::Int(int_iter) => int_iter.map(|v| Color::from(v)),
         _ => panic!("Color must be specified as integer RGBA values"),
     }
 }
 
 pub fn make_float_iter<'a>(
     iter: VectorIter<'a>,
-) -> impl Iterator<Item = Result<f64, PlotError>> + 'a {
+) -> impl Iterator<Item = f64> + 'a {
     match iter {
-        VectorIter::Float(float_iter) => float_iter.map(|v| Ok(v)),
+        VectorIter::Float(float_iter) => float_iter.map(|v| v),
         _ => panic!("Size must be specified as float values"),
     }
 }
 
 pub fn make_shape_iter<'a>(
     iter: VectorIter<'a>,
-) -> impl Iterator<Item = Result<Shape, PlotError>> + 'a {
+) -> impl Iterator<Item = Shape> + 'a {
     match iter {
-        VectorIter::Int(int_iter) => int_iter.map(|v| Ok(Shape::from(v))),
+        VectorIter::Int(int_iter) => int_iter.map(|v| Shape::from(v)),
         _ => panic!("Size must be specified as int values"),
     }
 }

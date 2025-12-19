@@ -1,3 +1,5 @@
+use core::panic;
+
 use crate::aesthetics::AesValue;
 use crate::data::{DataSource, DiscreteType, GenericVector, PrimitiveType, PrimitiveValue, VectorIter};
 use crate::scale::{ContinuousScaleTrainer, DiscreteScaleTrainer};
@@ -27,14 +29,14 @@ pub trait ScaleBase: Default + Clone + Send + Sync {
     ///            would include both xmin and xmax to get the full range)
     fn train<'a>(&mut self, iter: VectorIter<'a>);
 
-    fn train_one(&mut self, value: PrimitiveValue) {
+    fn train_one(&mut self, value: &PrimitiveValue) {
         match value {
             PrimitiveValue::Int(x) => {
-                let xs: IntVec = IntVec::from(vec![x]);
+                let xs: IntVec = IntVec::from(vec![*x]);
                 self.train(xs.iter());
             },
             PrimitiveValue::Float(x) => {
-                let xs = FloatVec::from(vec![x]);
+                let xs = FloatVec::from(vec![*x]);
                 self.train(xs.iter());
             },
             PrimitiveValue::Str(x) => {
@@ -42,7 +44,7 @@ pub trait ScaleBase: Default + Clone + Send + Sync {
                 self.train(xs.iter());
             },
             PrimitiveValue::Bool(x) => {
-                let xs = BoolVec::from(vec![x]);
+                let xs = BoolVec::from(vec![*x]);
                 self.train(xs.iter());
             },
         }
@@ -118,7 +120,7 @@ pub trait ContinuousRangeScale: ScaleBase {
         }
     }
 
-    fn map_aesthetic_value(&self, value: &AesValue, data: &DataFrame, new_data: &mut DataFrame) -> Option<AesValue> {
+    fn map_aesthetic_value(&self, value: &AesValue, data: &dyn DataSource, new_data: &mut DataFrame) -> Option<AesValue> {
         match value {
             AesValue::Column { name, hint, original_name } => {
                 let column = DataSource::get(data, name)?;
@@ -202,7 +204,7 @@ pub trait ColorRangeScale: ScaleBase {
         }
     }
 
-    fn map_aesthetic_value(&self, value: &AesValue, data: &DataFrame, new_data: &mut DataFrame) -> Option<AesValue> {
+    fn map_aesthetic_value(&self, value: &AesValue, data: &dyn DataSource, new_data: &mut DataFrame) -> Option<AesValue> {
         match value {
             AesValue::Column { name, hint, original_name } => {
                 let column = DataSource::get(data, name)?;
@@ -262,9 +264,9 @@ pub trait ColorRangeScale: ScaleBase {
                 }
             },
             AesValue::Constant { value, hint } =>  {
-                let mapped = self.map_primitive_value(value)?;
+                let color = self.map_primitive_value(value)?;
                 Some(AesValue::Constant {
-                    value: PrimitiveValue::Int(i64::from(mapped)),
+                    value: PrimitiveValue::Int(i64::from(color)),
                     hint: hint.clone(),
                 })
             },
@@ -283,6 +285,75 @@ pub trait ShapeRangeScale: ScaleBase {
     /// * `Some(shape)` - The corresponding shape
     /// * `None` - If the value is outside the scale's domain bounds (will be filtered out)
     fn map_value<T: DiscreteType>(&self, value: &T) -> Option<Shape>;
+
+    fn map_primitive_value(&self, value: &PrimitiveValue) -> Option<Shape> {
+        match value {
+            PrimitiveValue::Int(v) => self.map_value(v),
+            PrimitiveValue::Float(v) => None,
+            PrimitiveValue::Str(v) => self.map_value(v),
+            PrimitiveValue::Bool(v) => self.map_value(v),
+        }
+    }
+
+    fn map_aesthetic_value(&self, value: &AesValue, data: &dyn DataSource, new_data: &mut DataFrame) -> Option<AesValue> {
+        match value {
+            AesValue::Column { name, hint, original_name } => {
+                let column = DataSource::get(data, name)?;
+                match column.iter() {
+                    VectorIter::Int(iterator) => {
+                        let values: Vec<i64> = iterator.filter_map(|v| {
+                            let shape = self.map_value(&v);
+                            shape.map(|c| i64::from(c))
+                        }).collect();
+
+                        new_data.add_column(name.clone(), Box::new(IntVec::from(values)));
+                        return Some(AesValue::Column {
+                            name: name.clone(),
+                            hint: hint.clone(),
+                            original_name: original_name.clone(),
+                        });
+                    },
+                    VectorIter::Float(_) => {
+                        panic!("Shape scale cannot map float values");
+                    },
+                    VectorIter::Str(iterator) => {
+                        let values: Vec<i64> = iterator.filter_map(|v| {
+                            let shape = self.map_value(&v.to_string());
+                            shape.map(|c| i64::from(c))
+                        }).collect();
+
+                        new_data.add_column(name.clone(), Box::new(IntVec::from(values)));
+                        return Some(AesValue::Column {
+                            name: name.clone(),
+                            hint: hint.clone(),
+                            original_name: original_name.clone(),
+                        });
+                    },
+                    VectorIter::Bool(iterator) => {
+                        let values: Vec<i64> = iterator.filter_map(|v| {
+                            let shape = self.map_value(&v);
+                            shape.map(|c| i64::from(c))
+                        }).collect();
+
+                        new_data.add_column(name.clone(), Box::new(IntVec::from(values)));
+                        return Some(AesValue::Column {
+                            name: name.clone(),
+                            hint: hint.clone(),
+                            original_name: original_name.clone(),
+                        });
+                    },
+                }
+            },
+            AesValue::Constant { value, hint } =>  {
+                let shape = self.map_primitive_value(value)?;
+                Some(AesValue::Constant {
+                    value: PrimitiveValue::Int(i64::from(shape)),
+                    hint: hint.clone(),
+                })
+            },
+        }
+    
+    }
 }
 
 /// Scales that map to continuous [0, 1] normalized coordinates.

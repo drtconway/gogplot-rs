@@ -33,11 +33,11 @@ impl FloatProperty {
         match &self.value {
             Either::Left(value) => Ok(Box::new(std::iter::repeat(*value))),
             Either::Right(aesthetic) => {
-                let iter = data.aesthetic_value_iter(mapping, *aesthetic).ok_or(
-                    crate::error::PlotError::MissingAesthetic {
+                let iter = mapping
+                    .get_vector_iter(aesthetic, data)
+                    .ok_or(crate::error::PlotError::MissingAesthetic {
                         aesthetic: *aesthetic,
-                    },
-                )?;
+                    })?;
                 Ok(Box::new(crate::utils::data::make_float_iter(iter)))
             }
         }
@@ -70,11 +70,11 @@ impl ColorProperty {
         match &self.color {
             Either::Left(color) => Ok(Box::new(std::iter::repeat(*color))),
             Either::Right(aesthetic) => {
-                let iter = data.aesthetic_value_iter(mapping, *aesthetic).ok_or(
-                    crate::error::PlotError::MissingAesthetic {
+                let iter = mapping
+                    .get_vector_iter(aesthetic, data)
+                    .ok_or(crate::error::PlotError::MissingAesthetic {
                         aesthetic: *aesthetic,
-                    },
-                )?;
+                    })?;
                 Ok(Box::new(crate::utils::data::make_color_iter(iter)))
             }
         }
@@ -107,11 +107,11 @@ impl ShapeProperty {
         match &self.shape {
             Either::Left(shape) => Ok(Box::new(std::iter::repeat(*shape))),
             Either::Right(aesthetic) => {
-                let iter = data.aesthetic_value_iter(mapping, *aesthetic).ok_or(
-                    crate::error::PlotError::MissingAesthetic {
+                let iter = mapping
+                    .get_vector_iter(aesthetic, data)
+                    .ok_or(crate::error::PlotError::MissingAesthetic {
                         aesthetic: *aesthetic,
-                    },
-                )?;
+                    })?;
                 Ok(Box::new(crate::utils::data::make_shape_iter(iter)))
             }
         }

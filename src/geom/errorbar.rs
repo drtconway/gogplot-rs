@@ -1,4 +1,4 @@
-use super::{Geom, IntoLayer, RenderContext};
+use super::{Geom, RenderContext};
 use crate::aesthetics::{AesValue, Aesthetic};
 use crate::data::PrimitiveValue;
 use crate::error::PlotError;
@@ -62,35 +62,6 @@ impl Default for GeomErrorbar {
     }
 }
 
-impl IntoLayer for GeomErrorbar {
-    fn default_aesthetics(&self) -> Vec<(Aesthetic, AesValue)> {
-        use crate::theme::Theme;
-        
-        let mut defaults = Vec::new();
-        let theme = Theme::default();
-
-        if let Some(color) = &self.color {
-            defaults.push((Aesthetic::Color, color.clone()));
-        } else {
-            defaults.push((Aesthetic::Color, AesValue::constant(PrimitiveValue::Int(theme.geom_line.color.into()))));
-        }
-        
-        if let Some(alpha) = &self.alpha {
-            defaults.push((Aesthetic::Alpha, alpha.clone()));
-        } else {
-            defaults.push((Aesthetic::Alpha, AesValue::constant(PrimitiveValue::Float(theme.geom_line.alpha))));
-        }
-        
-        if let Some(size) = &self.size {
-            defaults.push((Aesthetic::Size, size.clone()));
-        } else {
-            defaults.push((Aesthetic::Size, AesValue::constant(PrimitiveValue::Float(theme.geom_line.size))));
-        }
-
-        defaults
-    }
-}
-
 impl Geom for GeomErrorbar {
     fn train_scales(&self, _scales: &mut crate::scale::ScaleSet) {
         
@@ -101,58 +72,8 @@ impl Geom for GeomErrorbar {
     }
 
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
-        // Get position aesthetics (all pre-normalized to [0,1])
-        let x_normalized = ctx.get_x_aesthetic_values(Aesthetic::X)?;
-        let xmin_normalized = ctx.get_x_aesthetic_values(Aesthetic::Xmin)?;
-        let xmax_normalized = ctx.get_x_aesthetic_values(Aesthetic::Xmax)?;
-        let ymin_normalized = ctx.get_y_aesthetic_values(Aesthetic::Ymin)?;
-        let ymax_normalized = ctx.get_y_aesthetic_values(Aesthetic::Ymax)?;
-
-        // Get styling aesthetics
-        let colors = ctx.get_color_values()?;
-        let alphas = ctx.get_aesthetic_values(Aesthetic::Alpha, None)?;
-        let sizes = ctx.get_aesthetic_values(Aesthetic::Size, None)?;
-
-        // Zip all iterators together
-        let iter = x_normalized
-            .zip(xmin_normalized)
-            .zip(xmax_normalized)
-            .zip(ymin_normalized)
-            .zip(ymax_normalized)
-            .zip(colors)
-            .zip(alphas)
-            .zip(sizes);
-
-        for (((((((x_norm, xmin_norm), xmax_norm), ymin_norm), ymax_norm), color), alpha), size) in iter {
-            // Map normalized [0,1] coordinates to device coordinates
-            let x_visual = ctx.map_x(x_norm);
-            let xmin_visual = ctx.map_x(xmin_norm);
-            let xmax_visual = ctx.map_x(xmax_norm);
-            let ymin_visual = ctx.map_y(ymin_norm);
-            let ymax_visual = ctx.map_y(ymax_norm);
-
-            // Set drawing properties
-            ctx.set_color_alpha(&color, alpha);
-            ctx.cairo.set_line_width(size);
-
-            // Draw vertical line from ymin to ymax
-            ctx.cairo.move_to(x_visual, ymin_visual);
-            ctx.cairo.line_to(x_visual, ymax_visual);
-            ctx.cairo.stroke().ok();
-
-            // Draw caps if width > 0
-            if self.width > 0.0 {
-                // Draw bottom cap
-                ctx.cairo.move_to(xmin_visual, ymin_visual);
-                ctx.cairo.line_to(xmax_visual, ymin_visual);
-                ctx.cairo.stroke().ok();
-
-                // Draw top cap
-                ctx.cairo.move_to(xmin_visual, ymax_visual);
-                ctx.cairo.line_to(xmax_visual, ymax_visual);
-                ctx.cairo.stroke().ok();
-            }
-        }
+        let _data = ctx.layer.data(ctx.data());
+        let _mapping = ctx.layer.mapping(ctx.mapping());
 
         Ok(())
     }

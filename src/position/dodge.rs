@@ -31,13 +31,13 @@ impl Position for Dodge {
         data: &Box<dyn DataSource>,
         mapping: &AesMap,
     ) -> Result<Option<(Box<dyn DataSource>, AesMap)>, PlotError> {
-        if !mapping.has_aesthetic(&Aesthetic::Group) {
+        if !mapping.contains(Aesthetic::Group) {
             // No grouping aesthetic, cannot dodge
             return Err(PlotError::MissingAesthetic {
                 aesthetic: Aesthetic::Group,
             });
         }
-        if !mapping.has_aesthetic(&Aesthetic::X(AestheticDomain::Discrete)) {
+        if !mapping.contains(Aesthetic::X(AestheticDomain::Discrete)) {
             // No discrete x aesthetic, cannot dodge
             return Err(PlotError::MissingAesthetic {
                 aesthetic: Aesthetic::X(AestheticDomain::Discrete),
@@ -47,9 +47,9 @@ impl Position for Dodge {
         let mut x_like_data: HashMap<Aesthetic, Vec<f64>> = HashMap::new();
         for aes in mapping.aesthetics() {
             if aes.is_x_like() && aes.is_continuous() {
-                let x_like_values = mapping.get_iter_float(aes, data.as_ref())?;
+                let x_like_values = mapping.get_iter_float(aes, data.as_ref()).unwrap();
                 let x_like_values = x_like_values.collect();
-                x_like_data.insert(aes, x_like_values);
+                x_like_data.insert(*aes, x_like_values);
             }
         }
         todo!()
@@ -72,7 +72,7 @@ impl DiscreteDiscreteVisitor2 for GroupDodger {
         group_values: impl Iterator<Item = G>,
         x_values: impl Iterator<Item = T>,
     ) {
-        let mut group_values: Vec<G::Sortable> = group_values.map(|v| v.to_sortable()).collect();
+        let group_values: Vec<G::Sortable> = group_values.map(|v| v.to_sortable()).collect();
         let x_values: Vec<T::Sortable> = x_values.map(|v| v.to_sortable()).collect();
 
         let mut distinct_groups: HashSet<G::Sortable> = HashSet::new();

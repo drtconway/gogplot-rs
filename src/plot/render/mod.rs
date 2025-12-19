@@ -143,8 +143,8 @@ pub fn render_with_context(
     draw_grid_lines(
         ctx,
         theme,
-        scales.x.as_deref(),
-        scales.y.as_deref(),
+        &scales.x_continuous,
+        &scales.y_continuous,
         plot_x0,
         plot_x1,
         plot_y0,
@@ -164,8 +164,8 @@ pub fn render_with_context(
         theme,
         guides.x_axis.as_ref(),
         guides.y_axis.as_ref(),
-        scales.x.as_deref(),
-        scales.y.as_deref(),
+        &scales.x_continuous,
+        &scales.y_continuous,
         title,
         plot_x0,
         plot_x1,
@@ -175,10 +175,6 @@ pub fn render_with_context(
 
     // Render each layer
     for layer in layers {
-        // Check that layer has data (either computed or original, or use plot-level data)
-        if layer.computed_data.is_none() && layer.data.is_none() && data.is_none() {
-            return Err(PlotError::NoDataSource);
-        }
 
         let mut render_ctx = RenderContext::new(
             ctx,

@@ -1,11 +1,11 @@
 // Layer scaffolding for grammar of graphics
 
-use crate::aesthetics::{AesMap, AestheticDomain};
+use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain};
 use crate::data::{DataSource, VectorIter};
 use crate::geom::Geom;
 use crate::position::Position;
 use crate::scale::ScaleSet;
-use crate::scale::traits::ContinuousRangeScale;
+use crate::scale::traits::{ColorRangeScale, ContinuousRangeScale, ScaleBase, ShapeRangeScale};
 use crate::stat::Stat;
 use crate::utils::dataframe::DataFrame;
 
@@ -51,15 +51,24 @@ impl Layer {
         self
     }
 
+    pub fn data<'a>(&'a self, other_data: &'a dyn DataSource) -> &'a dyn DataSource {
+        self.data.as_ref().map(|b| b.as_ref()).unwrap_or(other_data)
+    }
+
+    pub fn mapping<'a>(&'a self, other_mapping: &'a AesMap) -> &'a AesMap {
+        self.mapping.as_ref().unwrap_or(other_mapping)
+    }
+
     pub fn apply_stat(
         &mut self,
         data: &Box<dyn DataSource>,
         mapping: &AesMap,
     ) -> Result<(), crate::error::PlotError> {
         if let Some(stat) = &self.stat {
-            let (new_data, new_mapping) = stat.apply(data, mapping)?;
-            self.data = Some(new_data);
-            self.mapping = Some(new_mapping);
+            if let Some((new_data, new_mapping)) = stat.apply(data, mapping)? {
+                self.data = Some(new_data);
+                self.mapping = Some(new_mapping);
+            }
         }
         Ok(())
     }
@@ -70,9 +79,10 @@ impl Layer {
         mapping: &AesMap,
     ) -> Result<(), crate::error::PlotError> {
         if let Some(position) = &self.position {
-            let (new_data, new_mapping) = position.apply(data, mapping)?;
-            self.data = Some(new_data);
-            self.mapping = Some(new_mapping);
+            if let Some((new_data, new_mapping)) = position.apply(data, mapping)? {
+                self.data = Some(new_data);
+                self.mapping = Some(new_mapping);
+            }
         }
         Ok(())
     }
@@ -83,17 +93,9 @@ impl Layer {
         data: &Box<dyn DataSource>,
         mapping: &AesMap,
     ) -> Result<(), crate::error::PlotError> {
-        let data = if let Some(data) = &self.data {
-            data
-        } else {
-            data
-        };
-        let mapping = if let Some(mapping) = &self.mapping {
-            mapping
-        } else {
-            mapping
-        };
-        for aes in mapping.iter_aesthetics() {
+        let data = self.data(data.as_ref());
+        let mapping = self.mapping(mapping);
+        for aes in mapping.aesthetics() {
             let iter = mapping.get_vector_iter(aes, data).unwrap();
             match aes {
                 crate::aesthetics::Aesthetic::X(AestheticDomain::Discrete)
@@ -126,8 +128,8 @@ impl Layer {
                 | crate::aesthetics::Aesthetic::Upper => {
                     scales.y_continuous.train(iter);
                 }
-                crate::aesthetics::Aesthetic::Color(aesthetic_domain) => todo!(),
-                crate::aesthetics::Aesthetic::Fill(aesthetic_domain) => todo!(),
+                crate::aesthetics::Aesthetic::Color(_) => todo!(),
+                crate::aesthetics::Aesthetic::Fill(_) => todo!(),
                 crate::aesthetics::Aesthetic::Alpha => {
                     scales.alpha_scale.train(iter);
                 }
@@ -153,16 +155,8 @@ impl Layer {
         data: &Box<dyn DataSource>,
         mapping: &AesMap,
     ) -> Result<(), crate::error::PlotError> {
-        let data = if let Some(data) = &self.data {
-            data
-        } else {
-            data
-        };
-        let mapping = if let Some(mapping) = &self.mapping {
-            mapping
-        } else {
-            mapping
-        };
+        let data = self.data(data.as_ref());
+        let mapping = self.mapping(mapping);
 
         let mut new_data = DataFrame::new();
         let mut new_mapping = AesMap::new();
@@ -172,8 +166,11 @@ impl Layer {
                 crate::aesthetics::Aesthetic::X(AestheticDomain::Discrete)
                 | crate::aesthetics::Aesthetic::Xmin(AestheticDomain::Discrete)
                 | crate::aesthetics::Aesthetic::Xmax(AestheticDomain::Discrete) => {
-                    let new_value = scales.x_discrete.map_aesthetic_value(value, data, &mut new_data).unwrap();
-                    new_mapping.insert(aes.clone(), new_value);
+                    let new_value = scales
+                        .x_discrete
+                        .map_aesthetic_value(value, data, &mut new_data)
+                        .unwrap();
+                    new_mapping.set(aes.clone(), new_value);
                 }
 
                 crate::aesthetics::Aesthetic::X(AestheticDomain::Continuous)
@@ -182,14 +179,20 @@ impl Layer {
                 | crate::aesthetics::Aesthetic::XBegin
                 | crate::aesthetics::Aesthetic::XEnd
                 | crate::aesthetics::Aesthetic::XIntercept => {
-                    let new_value = scales.x_continuous.map_aesthetic_value(value, data, &mut new_data).unwrap();
-                    new_mapping.insert(aes.clone(), new_value);
+                    let new_value = scales
+                        .x_continuous
+                        .map_aesthetic_value(value, data, &mut new_data)
+                        .unwrap();
+                    new_mapping.set(aes.clone(), new_value);
                 }
                 crate::aesthetics::Aesthetic::Y(AestheticDomain::Discrete)
                 | crate::aesthetics::Aesthetic::Ymin(AestheticDomain::Discrete)
                 | crate::aesthetics::Aesthetic::Ymax(AestheticDomain::Discrete) => {
-                    let new_value = scales.y_discrete.map_aesthetic_value(value, data, &mut new_data).unwrap();
-                    new_mapping.insert(aes.clone(), new_value);
+                    let new_value = scales
+                        .y_discrete
+                        .map_aesthetic_value(value, data, &mut new_data)
+                        .unwrap();
+                    new_mapping.set(aes.clone(), new_value);
                 }
                 crate::aesthetics::Aesthetic::Y(AestheticDomain::Continuous)
                 | crate::aesthetics::Aesthetic::Ymin(AestheticDomain::Continuous)
@@ -200,42 +203,58 @@ impl Layer {
                 | crate::aesthetics::Aesthetic::Lower
                 | crate::aesthetics::Aesthetic::Middle
                 | crate::aesthetics::Aesthetic::Upper => {
-                    let new_value = scales.y_continuous.map_aesthetic_value(value, data, &mut new_data).unwrap();
-                    new_mapping.insert(aes.clone(), new_value);
+                    let new_value = scales
+                        .y_continuous
+                        .map_aesthetic_value(value, data, &mut new_data)
+                        .unwrap();
+                    new_mapping.set(aes.clone(), new_value);
                 }
                 crate::aesthetics::Aesthetic::Color(aesthetic_domain) => {
                     let new_value = match aesthetic_domain {
-                        AestheticDomain::Continuous => {
-                            scales.color_continuous.map_aesthetic_value(value, data, &mut new_data).unwrap()
-                        }
-                        AestheticDomain::Discrete => {
-                            scales.color_discrete.map_aesthetic_value(value, data, &mut new_data).unwrap()
-                        }
+                        AestheticDomain::Continuous => scales
+                            .color_continuous
+                            .map_aesthetic_value(value, data, &mut new_data)
+                            .unwrap(),
+                        AestheticDomain::Discrete => scales
+                            .color_discrete
+                            .map_aesthetic_value(value, data, &mut new_data)
+                            .unwrap(),
                     };
-                    new_mapping.insert(aes.clone(), new_value);
-                },
+                    new_mapping.set(aes.clone(), new_value);
+                }
                 crate::aesthetics::Aesthetic::Fill(aesthetic_domain) => {
                     let new_value = match aesthetic_domain {
-                        AestheticDomain::Continuous => {
-                            scales.fill_continuous.map_aesthetic_value(value, data, &mut new_data).unwrap()
-                        }
-                        AestheticDomain::Discrete => {
-                            scales.fill_discrete.map_aesthetic_value(value, data, &mut new_data).unwrap()
-                        }
+                        AestheticDomain::Continuous => scales
+                            .fill_continuous
+                            .map_aesthetic_value(value, data, &mut new_data)
+                            .unwrap(),
+                        AestheticDomain::Discrete => scales
+                            .fill_discrete
+                            .map_aesthetic_value(value, data, &mut new_data)
+                            .unwrap(),
                     };
-                    new_mapping.insert(aes.clone(), new_value);
-                },
+                    new_mapping.set(aes.clone(), new_value);
+                }
                 crate::aesthetics::Aesthetic::Alpha => {
-                        let new_value = scales.alpha_scale.map_aesthetic_value(value, data, &mut new_data).unwrap();
-                        new_mapping.insert(aes.clone(), new_value);
+                    let new_value = scales
+                        .alpha_scale
+                        .map_aesthetic_value(value, data, &mut new_data)
+                        .unwrap();
+                    new_mapping.set(aes.clone(), new_value);
                 }
                 crate::aesthetics::Aesthetic::Size => {
-                    let new_value = scales.size_continuous.map_aesthetic_value(value, data, &mut new_data).unwrap();
-                    new_mapping.insert(aes.clone(), new_value);
+                    let new_value = scales
+                        .size_continuous
+                        .map_aesthetic_value(value, data, &mut new_data)
+                        .unwrap();
+                    new_mapping.set(aes.clone(), new_value);
                 }
                 crate::aesthetics::Aesthetic::Shape => {
-                    let new_value = scales.shape_scale.map_aesthetic_value(value, data, &mut new_data).unwrap();
-                    new_mapping.insert(aes.clone(), new_value);
+                    let new_value = scales
+                        .shape_scale
+                        .map_aesthetic_value(value, data, &mut new_data)
+                        .unwrap();
+                    new_mapping.set(aes.clone(), new_value);
                 }
                 crate::aesthetics::Aesthetic::Linetype
                 | crate::aesthetics::Aesthetic::Group
@@ -247,10 +266,13 @@ impl Layer {
         Ok(())
     }
 
-    pub fn aesthetic_value_iter<'a>(&'a self, aes: &crate::aesthetics::Aesthetic) -> Option<VectorIter<'a>> {
+    pub fn aesthetic_value_iter<'a>(
+        &'a self,
+        aes: &'a Aesthetic,
+    ) -> Option<VectorIter<'a>> {
         if let Some(mapping) = &self.mapping {
             if let Some(data) = &self.data {
-                return mapping.get_vector_iter(aes, data);
+                return mapping.get_vector_iter(aes, data.as_ref());
             }
         }
         None

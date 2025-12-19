@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
-use super::{Geom, IntoLayer, RenderContext};
+use super::{Geom, RenderContext};
 use crate::aesthetics::{AesValue, Aesthetic, AestheticDomain};
 use crate::data::{ContinuousType, DiscreteType, PrimitiveValue};
 use crate::error::PlotError;
 use crate::geom::properties::{ColorProperty, FloatProperty};
-use crate::utils::data::{DiscreteContinuousContinuousVisitor3, Vectorable};
+use crate::utils::data::{DiscreteContinuousContinuousVisitor3, Vectorable, visit3_dcc};
 
 /// GeomLine renders lines connecting points
 pub struct GeomLine {
@@ -26,9 +26,9 @@ impl GeomLine {
     /// Create a new line geom with default settings
     pub fn new() -> Self {
         Self {
-            color: None,
-            size: None,
-            alpha: None,
+            color: ColorProperty::new(),
+            size: FloatProperty::new(),
+            alpha: FloatProperty::new(),
             linetype: None,
         }
     }
@@ -64,12 +64,11 @@ impl GeomLine {
         self
     }
 
-    fn draw_lines<G: DiscreteType>(
+    fn draw_lines(
         &self,
-        ctx: &mut RenderContext,
-        x_values: impl Iterator<Item = f64>,
-        y_values: impl Iterator<Item = f64>,
-        group_value: Option<G>,
+        _ctx: &mut RenderContext,
+        _x_values: impl Iterator<Item = f64>,
+        _y_values: impl Iterator<Item = f64>,
     ) -> Result<(), PlotError>
     {
         // Implementation of drawing lines goes here
@@ -83,166 +82,49 @@ impl Default for GeomLine {
     }
 }
 
-impl IntoLayer for GeomLine {
-    fn default_aesthetics(&self) -> Vec<(Aesthetic, AesValue)> {
-        use crate::theme::Theme;
-        
-        let mut defaults = Vec::new();
-        let theme = Theme::default();
-
-        if let Some(color) = &self.color {
-            defaults.push((Aesthetic::Color, color.clone()));
-        } else {
-            defaults.push((Aesthetic::Color, AesValue::constant(PrimitiveValue::Int(theme.geom_line.color.into()))));
-        }
-        
-        if let Some(alpha) = &self.alpha {
-            defaults.push((Aesthetic::Alpha, alpha.clone()));
-        } else {
-            defaults.push((Aesthetic::Alpha, AesValue::constant(PrimitiveValue::Float(theme.geom_line.alpha))));
-        }
-        
-        if let Some(size) = &self.size {
-            defaults.push((Aesthetic::Size, size.clone()));
-        } else {
-            defaults.push((Aesthetic::Size, AesValue::constant(PrimitiveValue::Float(theme.geom_line.size))));
-        }
-        
-        if let Some(linetype) = &self.linetype {
-            defaults.push((Aesthetic::Linetype, linetype.clone()));
-        }
-        // Note: linestyle from theme is applied directly during rendering, not stored as aesthetic
-
-        defaults
-    }
-}
-
 impl Geom for GeomLine {
-    fn train_scales(&self, scales: &mut crate::scale::ScaleSet) {
+    fn train_scales(&self, _scales: &mut crate::scale::ScaleSet) {
     }
 
-    fn apply_scales(&mut self, scales: &crate::scale::ScaleSet) {
+    fn apply_scales(&mut self, _scales: &crate::scale::ScaleSet) {
     }
 
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
-        let data = ctx.layer.data.as_ref().unwrap();
-        let mapping = ctx.layer.mapping.as_ref().unwrap();
+        let data = ctx.layer.data(ctx.data());
+        let mapping = ctx.layer.mapping(ctx.mapping());
 
         if mapping.contains(Aesthetic::Group) {
             let group_values = mapping.get_vector_iter(&Aesthetic::Group, data).unwrap();
             let x_values = mapping.get_vector_iter(&Aesthetic::X(AestheticDomain::Continuous), data).unwrap();
             let y_values = mapping.get_vector_iter(&Aesthetic::Y(AestheticDomain::Continuous), data).unwrap();
 
-            let mut grouper = LineGrouper::new(self, ctx);
-            grouper.visit(group_values, x_values, y_values)?;
-        } else {
-            // Get x and y values
-            let x_values = mapping.get_iter_float(&Aesthetic::X(AestheticDomain::Continuous), data).unwrap();
-            let y_values = mapping.get_iter_float(&Aesthetic::Y(AestheticDomain::Continuous), data).unwrap();
-            self.draw_lines(ctx, x_values, y_values, None)?;
-        }
-
-        Ok(())
-    }
-}
-
-impl GeomLine {
-    /// Draw a connected line through a sequence of points
-    fn draw_line_segment(
-        &self,
-        ctx: &mut RenderContext,
-        points: &[(f64, f64, usize)],
-    ) -> Result<(), PlotError> {
-        use crate::visuals::LineStyle;
-        
-        if points.is_empty() {
-            return Ok(());
-        }
-
-        // Get color, alpha, and size for the line (use first point's values)
-        let colors = ctx.get_color_values()?;
-        let alphas = ctx.get_unscaled_aesthetic_values(Aesthetic::Alpha)?;
-        let sizes = ctx.get_unscaled_aesthetic_values(Aesthetic::Size)?;
-
-        let colors_vec: Vec<_> = colors.collect();
-        let alphas_vec: Vec<_> = alphas.collect();
-        let sizes_vec: Vec<_> = sizes.collect();
-
-        // Get linetype values if mapped
-        let linetype_style = if let Some(aes_value) = ctx.mapping().get(&Aesthetic::Linetype) {
-            match aes_value {
-                AesValue::Column { name: col, .. } => {
-                    // Get the string value from the data
-                    let linetype_vec = ctx
-                        .data()
-                        .get(col.as_str())
-                        .ok_or_else(|| PlotError::missing_column(col))?;
-                    if let Some(mut strs) = linetype_vec.iter_str() {
-                        let idx = points[0].2;
-                        strs.nth(idx).map(|s| crate::visuals::LineStyle::from(s))
-                    } else {
-                        None
-                    }
-                }
-                AesValue::Constant { value: PrimitiveValue::Str(pattern), .. } => {
-                    Some(crate::visuals::LineStyle::from(pattern.as_str()))
-                }
-                _ => None,
+            let mut grouper = LineGrouper::new();
+            let groups = visit3_dcc(group_values, x_values, y_values, &mut grouper)?;
+            for (x_values, y_values) in groups.into_iter() {
+                self.draw_lines(ctx, x_values.into_iter(), y_values.into_iter())?;
             }
         } else {
-            // Use theme default
-            Some(ctx.theme.geom_line.linestyle.clone())
-        };
-
-        // Use the first point's color/alpha/size for the entire line
-        let idx = points[0].2;
-        let color = &colors_vec[idx];
-        let alpha = alphas_vec[idx];
-        let size = sizes_vec[idx];
-
-        // Set drawing properties
-        ctx.set_color_alpha(color, alpha);
-        ctx.cairo.set_line_width(size);
-
-        // Apply line style
-        if let Some(style) = linetype_style {
-            style.apply(ctx.cairo);
-        } else {
-            LineStyle::default().apply(ctx.cairo);
+            // Get x and y values
+            let x_values: Vec<f64> = mapping.get_iter_float(&Aesthetic::X(AestheticDomain::Continuous), data).unwrap().collect();
+            let y_values: Vec<f64> = mapping.get_iter_float(&Aesthetic::Y(AestheticDomain::Continuous), data).unwrap().collect();
+            self.draw_lines(ctx, x_values.into_iter(), y_values.into_iter())?;
         }
-
-        // Start path at first point
-        let (x0, y0, _) = points[0];
-        let x0_visual = ctx.map_x(x0);
-        let y0_visual = ctx.map_y(y0);
-        ctx.cairo.move_to(x0_visual, y0_visual);
-
-        // Draw lines to subsequent points
-        for &(x, y, _) in &points[1..] {
-            let x_visual = ctx.map_x(x);
-            let y_visual = ctx.map_y(y);
-            ctx.cairo.line_to(x_visual, y_visual);
-        }
-
-        ctx.cairo.stroke().ok();
 
         Ok(())
     }
 }
 
-struct LineGrouper<'a> {
-    geom: &'a GeomLine,
-    ctx: &'a mut RenderContext<'a>,
+struct LineGrouper {
 }
 
-impl<'a> LineGrouper<'a> {
-    fn new(geom: &'a GeomLine, ctx: &'a mut RenderContext) -> Self {
-        Self { geom, ctx }
+impl LineGrouper {
+    fn new() -> Self {
+        Self { }
     }
 }
 
-impl<'a> DiscreteContinuousContinuousVisitor3 for LineGrouper<'a> {
-    type Output = ();
+impl DiscreteContinuousContinuousVisitor3 for LineGrouper {
+    type Output = Vec<(Vec<f64>, Vec<f64>)>;
 
     fn visit<G: Vectorable + DiscreteType, T: Vectorable + ContinuousType, U: Vectorable + ContinuousType>(
         &mut self,
@@ -262,10 +144,10 @@ impl<'a> DiscreteContinuousContinuousVisitor3 for LineGrouper<'a> {
         let mut groups = groups.into_iter().collect::<Vec<_>>();
         groups.sort_by(|a, b| a.0.cmp(&b.0));
 
-        for (group, (mut x_values, mut y_values)) in groups {
-            self.geom.draw_lines(self.ctx, x_values.into_iter(), y_values.into_iter(), Some(group))?;
-        }
-
-        Ok(())
+        let result = groups
+            .into_iter()
+            .map(|(_, (x_vals, y_vals))| (x_vals, y_vals))
+            .collect();
+        Ok(result)
     }
 }

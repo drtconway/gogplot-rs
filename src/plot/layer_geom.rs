@@ -39,7 +39,7 @@ impl<G: Geom> LayerGeom<G> {
         Self {
             geom,
             aes: default_aes.clone(),
-            stat: Stat::None,
+            stat: Box::new(crate::stat::Identity {}),
             data: None,
         }
     }
@@ -62,34 +62,5 @@ impl<G: Geom> LayerGeom<G> {
     /// Get the inner parts (consumes self)
     pub(crate) fn into_parts(self) -> (G, AesMap, Box<dyn Stat>, Option<Box<dyn DataSource>>) {
         (self.geom, self.aes, self.stat, self.data)
-    }
-}
-
-impl<G: Geom + crate::geom::IntoLayer + 'static> From<LayerGeom<G>> for crate::layer::Layer {
-    fn from(layer_geom: LayerGeom<G>) -> crate::layer::Layer {
-        let (geom, layer_aes, stat, data) = layer_geom.into_parts();
-        let mut layer = geom.into_layer();
-        
-        // Set layer-specific data if provided
-        if data.is_some() {
-            layer.data = data;
-        }
-        
-        // Handle stat: if it's None, use the geom's default (from into_layer)
-        // Otherwise, use the explicitly set stat (which overrides the geom's default)
-        if !matches!(stat, Stat::None) {
-            layer.stat = stat;
-        }
-        // If stat is None, layer.stat already has the geom's default from into_layer()
-        
-        // Merge layer_aes into the existing mapping (from into_layer)
-        // User aesthetics override geom defaults
-        if let Some(ref mut mapping) = layer.mapping {
-            mapping.merge(&layer_aes);
-        } else {
-            layer.mapping = Some(layer_aes);
-        }
-
-        layer
     }
 }

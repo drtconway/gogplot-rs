@@ -12,44 +12,16 @@ use super::cairo_helpers::{apply_line_style, apply_text_theme};
 pub fn draw_grid_lines(
     ctx: &mut Context,
     theme: &Theme,
-    x_scale: &ContinuousPositionalScale,
-    y_scale: &ContinuousPositionalScale,
-    plot_x0: f64,
-    plot_x1: f64,
-    plot_y0: f64,
-    plot_y1: f64,
+    _x_scale: &ContinuousPositionalScale,
+    _y_scale: &ContinuousPositionalScale,
+    _plot_x0: f64,
+    _plot_x1: f64,
+    _plot_y0: f64,
+    _plot_y1: f64,
 ) -> Result<(), PlotError> {
     // Draw minor grid lines first (if present) so major grid lines are on top
     if let Some(ref grid_minor) = theme.panel.grid_minor {
         apply_line_style(ctx, grid_minor);
-
-        // X-axis minor grid lines
-        if let Some(x_scale) = x_scale {
-            let breaks = x_scale.breaks();
-            // Generate minor breaks between major breaks
-            for i in 0..breaks.len().saturating_sub(1) {
-                let mid = (breaks[i] + breaks[i + 1]) / 2.0;
-                if let Some(normalized) = x_scale.map_value(mid) {
-                    let x = plot_x0 + normalized * (plot_x1 - plot_x0);
-                    ctx.move_to(x, plot_y0);
-                    ctx.line_to(x, plot_y1);
-                }
-            }
-        }
-
-        // Y-axis minor grid lines
-        if let Some(y_scale) = y_scale {
-            let breaks = y_scale.breaks();
-            // Generate minor breaks between major breaks
-            for i in 0..breaks.len().saturating_sub(1) {
-                let mid = (breaks[i] + breaks[i + 1]) / 2.0;
-                if let Some(normalized) = y_scale.map_value(mid) {
-                    let y = plot_y1 - normalized * (plot_y1 - plot_y0);
-                    ctx.move_to(plot_x0, y);
-                    ctx.line_to(plot_x1, y);
-                }
-            }
-        }
 
         ctx.stroke().ok();
     }
@@ -58,27 +30,6 @@ pub fn draw_grid_lines(
     if let Some(ref grid_major) = theme.panel.grid_major {
         apply_line_style(ctx, grid_major);
 
-        // X-axis major grid lines (vertical lines at tick positions)
-        if let Some(x_scale) = x_scale {
-            for &break_value in x_scale.breaks() {
-                if let Some(normalized) = x_scale.map_value(break_value) {
-                    let x = plot_x0 + normalized * (plot_x1 - plot_x0);
-                    ctx.move_to(x, plot_y0);
-                    ctx.line_to(x, plot_y1);
-                }
-            }
-        }
-
-        // Y-axis major grid lines (horizontal lines at tick positions)
-        if let Some(y_scale) = y_scale {
-            for &break_value in y_scale.breaks() {
-                if let Some(normalized) = y_scale.map_value(break_value) {
-                    let y = plot_y1 - normalized * (plot_y1 - plot_y0);
-                    ctx.move_to(plot_x0, y);
-                    ctx.line_to(plot_x1, y);
-                }
-            }
-        }
 
         ctx.stroke().ok();
     }
@@ -92,8 +43,8 @@ pub fn draw_axes(
     theme: &Theme,
     x_axis: Option<&AxisGuide>,
     y_axis: Option<&AxisGuide>,
-    x_scale: &ContinuousPositionalScale,
-    y_scale: &ContinuousPositionalScale,
+    _x_scale: &ContinuousPositionalScale,
+    _y_scale: &ContinuousPositionalScale,
     title: Option<&String>,
     x0: f64,
     x1: f64,
@@ -146,106 +97,6 @@ pub fn draw_axes(
             }
         }
         ctx.stroke().ok();
-    }
-
-    // Draw X axis ticks and labels
-    if let Some(x_scale) = x_scale {
-        let breaks = x_scale.breaks();
-        let labels = x_scale.labels();
-        let tick_length = theme.axis_x.line.tick_length as f64;
-
-        apply_text_theme(ctx, &theme.axis_x.text.text);
-
-        for (value, label) in breaks.iter().zip(labels.iter()) {
-            if let Some(normalized) = x_scale.map_value(*value) {
-                let x_pos = x0 + normalized * (x1 - x0);
-
-                // Draw tick mark
-                if let Some(ref tick_style) = theme.axis_x.line.ticks {
-                    apply_line_style(ctx, tick_style);
-                    match x_position {
-                        XAxisPosition::Bottom => {
-                            ctx.move_to(x_pos, y1);
-                            ctx.line_to(x_pos, y1 + tick_length);
-                        }
-                        XAxisPosition::Top => {
-                            ctx.move_to(x_pos, y0);
-                            ctx.line_to(x_pos, y0 - tick_length);
-                        }
-                    }
-                    ctx.stroke().ok();
-                }
-
-                // Draw label
-                apply_text_theme(ctx, &theme.axis_x.text.text);
-                let extents = ctx.text_extents(label).ok();
-                if let Some(ext) = extents {
-                    let margin = theme.axis_x.text.text.margin.top as f64;
-                    match x_position {
-                        XAxisPosition::Bottom => {
-                            ctx.move_to(
-                                x_pos - ext.width() / 2.0,
-                                y1 + tick_length + margin + ext.height(),
-                            );
-                        }
-                        XAxisPosition::Top => {
-                            ctx.move_to(x_pos - ext.width() / 2.0, y0 - tick_length - margin);
-                        }
-                    }
-                    ctx.show_text(label).ok();
-                }
-            }
-        }
-    }
-
-    // Draw Y axis ticks and labels
-    if let Some(y_scale) = y_scale {
-        let breaks = y_scale.breaks();
-        let labels = y_scale.labels();
-        let tick_length = theme.axis_y.line.tick_length as f64;
-
-        apply_text_theme(ctx, &theme.axis_y.text.text);
-
-        for (value, label) in breaks.iter().zip(labels.iter()) {
-            if let Some(normalized) = y_scale.map_value(*value) {
-                let y_pos = y1 - normalized * (y1 - y0); // Y is inverted
-
-                // Draw tick mark
-                if let Some(ref tick_style) = theme.axis_y.line.ticks {
-                    apply_line_style(ctx, tick_style);
-                    match y_position {
-                        YAxisPosition::Left => {
-                            ctx.move_to(x0 - tick_length, y_pos);
-                            ctx.line_to(x0, y_pos);
-                        }
-                        YAxisPosition::Right => {
-                            ctx.move_to(x1, y_pos);
-                            ctx.line_to(x1 + tick_length, y_pos);
-                        }
-                    }
-                    ctx.stroke().ok();
-                }
-
-                // Draw label
-                apply_text_theme(ctx, &theme.axis_y.text.text);
-                let extents = ctx.text_extents(label).ok();
-                if let Some(ext) = extents {
-                    let margin = theme.axis_y.text.text.margin.right as f64;
-                    match y_position {
-                        YAxisPosition::Left => {
-                            ctx.move_to(
-                                x0 - tick_length - margin - ext.width(),
-                                y_pos + ext.height() / 2.0,
-                            );
-                        }
-                        YAxisPosition::Right => {
-                            ctx.move_to(x1 + tick_length + margin, y_pos + ext.height() / 2.0);
-                        }
-                    }
-                    ctx.show_text(label).ok();
-                }
-            }
-        }
     }
 
     // Draw X axis title

@@ -1,10 +1,6 @@
-use crate::aesthetics::{AesMap, AesValue, Aesthetic};
 use crate::data::PrimitiveValue;
 use crate::error::PlotError;
-use crate::layer::Layer;
-use crate::position::Position;
 use crate::scale::ScaleSet;
-use crate::stat::Stat;
 
 pub mod properties;
 
@@ -73,29 +69,3 @@ pub trait Geom: Send + Sync {
     fn render<'a>(&self, ctx: &mut RenderContext<'a>) -> Result<(), PlotError>;
 }
 
-/// Trait for geoms that can be converted into layers with their default aesthetics
-pub trait IntoLayer: Sized {
-    /// Get the default aesthetic values for this geom
-    fn default_aesthetics(&self) -> Vec<(Aesthetic, AesValue)>;
-
-    /// Convert this geom into a layer, consuming self
-    fn into_layer(self) -> Layer
-    where
-        Self: Geom + 'static,
-    {
-        let mut mapping = AesMap::new();
-
-        // Set default aesthetics from geom settings if provided
-        for (aesthetic, value) in self.default_aesthetics() {
-            mapping.set(aesthetic, value);
-        }
-
-        Layer {
-            geom: Box::new(self),
-            data: None,
-            mapping: Some(mapping),
-            stat: Stat::Identity,
-            position: Position::Identity,
-        }
-    }
-}

@@ -1,7 +1,10 @@
-use super::{Geom, IntoLayer, RenderContext};
-use crate::aesthetics::{AesValue, Aesthetic};
-use crate::data::PrimitiveValue;
+use std::collections::HashMap;
+
+use super::{Geom, RenderContext};
+use crate::aesthetics::{AesValue, Aesthetic, AestheticDomain};
+use crate::data::{ContinuousType, DiscreteType, PrimitiveValue};
 use crate::error::PlotError;
+use crate::utils::data::{DiscreteContinuousContinuousVisitor3, Vectorable, visit3_dcc};
 use crate::visuals::Shape;
 
 /// GeomPoint renders points/scatterplot
@@ -55,6 +58,17 @@ impl GeomPoint {
         )));
         self
     }
+
+    fn draw_points(
+        &self,
+        _ctx: &mut RenderContext,
+        _x_values: impl Iterator<Item = f64>,
+        _y_values: impl Iterator<Item = f64>,
+    ) -> Result<(), PlotError>
+    {
+        // Implementation of drawing points goes here
+        Ok(())
+    }
 }
 
 impl Default for GeomPoint {
@@ -63,67 +77,85 @@ impl Default for GeomPoint {
     }
 }
 
-impl IntoLayer for GeomPoint {
-    fn default_aesthetics(&self) -> Vec<(Aesthetic, AesValue)> {
-        let mut defaults = Vec::new();
-
-        if let Some(color) = &self.color {
-            defaults.push((Aesthetic::Color, color.clone()));
-        }
-        
-        if let Some(alpha) = &self.alpha {
-            defaults.push((Aesthetic::Alpha, alpha.clone()));
-        }
-        
-        if let Some(size) = &self.size {
-            defaults.push((Aesthetic::Size, size.clone()));
-        }
-        
-        if let Some(shape) = &self.shape {
-            defaults.push((Aesthetic::Shape, shape.clone()));
-        }
-
-        defaults
-    }
-}
-
 impl Geom for GeomPoint {
-    fn train_scales(&self, scales: &mut crate::scale::ScaleSet) {
+    fn train_scales(&self, _scales: &mut crate::scale::ScaleSet) {
         
     }
 
-    fn apply_scales(&mut self, scales: &crate::scale::ScaleSet) {
+    fn apply_scales(&mut self, _scales: &crate::scale::ScaleSet) {
         
     }
 
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
-        // Get all aesthetic iterators (constants use lazy repeat iterators)
-        let x_normalized = ctx.get_x_aesthetic_values(Aesthetic::X)?;
-        let y_normalized = ctx.get_y_aesthetic_values(Aesthetic::Y)?;
-        let colors = ctx.get_color_values()?;
-        let alphas = ctx.get_aesthetic_values(Aesthetic::Alpha, None)?;
-        let sizes = ctx.get_aesthetic_values(Aesthetic::Size, None)?;
-        let shapes = ctx.get_shape_values()?;
+        let data = ctx.layer.data(ctx.data());
+        let mapping = ctx.layer.mapping(ctx.mapping());
 
-        // Zip all iterators together
-        let iter = x_normalized
-            .zip(y_normalized)
-            .zip(colors)
-            .zip(alphas)
-            .zip(sizes)
-            .zip(shapes);
+        if mapping.contains(Aesthetic::Group) {
+            let group_values = mapping.get_vector_iter(&Aesthetic::Group, data).unwrap();
+            let x_values = mapping.get_vector_iter(&Aesthetic::X(AestheticDomain::Continuous), data).unwrap();
+            let y_values = mapping.get_vector_iter(&Aesthetic::Y(AestheticDomain::Continuous), data).unwrap();
 
-        for (((((x_norm, y_norm), color), alpha), size), shape) in iter {
-            let x_visual = ctx.map_x(x_norm);
-            let y_visual = ctx.map_y(y_norm);
-
-            // Set drawing properties for this point
-            ctx.set_color_alpha(&color, alpha);
-
-            // Draw the shape
-            shape.draw(ctx.cairo, x_visual, y_visual, size);
+            let mut grouper = PointGrouper::new();
+            let groups = visit3_dcc(group_values, x_values, y_values, &mut grouper)?;
+            for (x_values, y_values) in groups.into_iter() {
+                self.draw_points(ctx, x_values.into_iter(), y_values.into_iter())?;
+            }
+        } else {
+            // Get x and y values
+            let x_values: Vec<f64> = mapping.get_iter_float(&Aesthetic::X(AestheticDomain::Continuous), data).unwrap().collect();
+            let y_values: Vec<f64> = mapping.get_iter_float(&Aesthetic::Y(AestheticDomain::Continuous), data).unwrap().collect();
+            self.draw_points(ctx, x_values.into_iter(), y_values.into_iter())?;
         }
+
 
         Ok(())
     }
+}
+
+struct PointGrouper {
+
+}
+
+impl PointGrouper {
+    fn new() -> Self {
+        Self {
+        }
+    }
+}
+
+impl DiscreteContinuousContinuousVisitor3 for PointGrouper {
+    type Output = Vec<(Vec<f64>, Vec<f64>)>;
+    
+    fn visit<
+        G: Vectorable + DiscreteType,
+        T: Vectorable + ContinuousType,
+        U: Vectorable + ContinuousType,
+    >(
+        &mut self,
+        group_iter: impl Iterator<Item = G>,
+        x_iter: impl Iterator<Item = T>,
+        y_iter: impl Iterator<Item = U>,
+    ) -> std::result::Result<Self::Output, PlotError> {
+
+        let mut groups: HashMap<G::Sortable, (Vec<f64>, Vec<f64>)> = HashMap::new();
+        for ((g, x), y) in group_iter.zip(x_iter).zip(y_iter) {
+            let g_key = g.to_sortable();
+            let x_f64 = x.to_f64();
+            let y_f64 = y.to_f64();
+            let entry = groups.entry(g_key).or_insert((Vec::new(), Vec::new()));
+            entry.0.push(x_f64);
+            entry.1.push(y_f64);
+        }
+        
+        let mut groups = groups.into_iter().collect::<Vec<_>>();
+        groups.sort_by(|a, b| a.0.cmp(&b.0));
+
+        let groups = groups
+            .into_iter()
+            .map(|(_, (x_vals, y_vals))| (x_vals, y_vals)).collect();
+
+        Ok(groups)
+    }
+    
+
 }

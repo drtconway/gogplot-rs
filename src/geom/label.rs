@@ -1,4 +1,4 @@
-use super::{Geom, IntoLayer, RenderContext};
+use super::{Geom, RenderContext};
 use crate::aesthetics::{AesValue, Aesthetic};
 use crate::data::PrimitiveValue;
 use crate::error::PlotError;
@@ -115,45 +115,6 @@ impl Default for GeomLabel {
     }
 }
 
-impl IntoLayer for GeomLabel {
-    fn default_aesthetics(&self) -> Vec<(Aesthetic, AesValue)> {
-        use crate::theme::Theme;
-        use crate::data::PrimitiveValue;
-        
-        let mut defaults = Vec::new();
-        let theme = Theme::default();
-
-        if let Some(color) = &self.color {
-            defaults.push((Aesthetic::Color, color.clone()));
-        } else {
-            defaults.push((Aesthetic::Color, AesValue::constant(PrimitiveValue::Int(theme.geom_text.color.into()))));
-        }
-        
-        if let Some(alpha) = &self.alpha {
-            defaults.push((Aesthetic::Alpha, alpha.clone()));
-        } else {
-            defaults.push((Aesthetic::Alpha, AesValue::constant(PrimitiveValue::Float(theme.geom_text.alpha))));
-        }
-        
-        if let Some(size) = &self.size {
-            defaults.push((Aesthetic::Size, size.clone()));
-        } else {
-            defaults.push((Aesthetic::Size, AesValue::constant(PrimitiveValue::Float(theme.geom_text.size))));
-        }
-
-        if let Some(fill) = &self.fill {
-            defaults.push((Aesthetic::Fill, fill.clone()));
-        } else {
-            // Default to white background for labels
-            defaults.push((Aesthetic::Fill, AesValue::constant(PrimitiveValue::Int(
-                crate::theme::Color(255, 255, 255, 230).into()
-            ))));
-        }
-
-        defaults
-    }
-}
-
 impl Geom for GeomLabel {
     fn train_scales(&self, scales: &mut crate::scale::ScaleSet) {
         
@@ -164,103 +125,6 @@ impl Geom for GeomLabel {
     }
 
     fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
-        // Get position aesthetics
-        let x_normalized = ctx.get_x_aesthetic_values(Aesthetic::X)?;
-        let y_normalized = ctx.get_y_aesthetic_values(Aesthetic::Y)?;
-
-        // Get label data
-        let labels = ctx.get_label_values()?;
-
-        // Get other aesthetics
-        let colors = ctx.get_color_values()?;
-        let fills = ctx.get_fill_color_values()?;
-        let alphas = ctx.get_aesthetic_values(Aesthetic::Alpha, None)?;
-        let sizes = ctx.get_aesthetic_values(Aesthetic::Size, None)?;
-
-        // Zip all iterators together
-        let iter = x_normalized
-            .zip(y_normalized)
-            .zip(labels)
-            .zip(colors)
-            .zip(fills)
-            .zip(alphas)
-            .zip(sizes);
-
-        for ((((((x_norm, y_norm), label), color), fill), alpha), size) in iter {
-            let x_visual = ctx.map_x(x_norm);
-            let y_visual = ctx.map_y(y_norm);
-
-            // Save the current transformation matrix
-            ctx.cairo.save().ok();
-
-            // Move to the position
-            ctx.cairo.translate(x_visual, y_visual);
-
-            // Rotate if needed
-            if self.angle != 0.0 {
-                ctx.cairo.rotate(self.angle.to_radians());
-            }
-
-            // Set font size for measuring
-            ctx.cairo.set_font_size(size);
-
-            // Get text extents for sizing the label box
-            if let Ok(extents) = ctx.cairo.text_extents(&label) {
-                // Get font extents for proper vertical metrics
-                let font_extents = ctx.cairo.font_extents().ok();
-                
-                // For vertical metrics, use font extents if available (includes full ascent/descent)
-                // This ensures tall characters like 'L', 'd', etc. are not clipped
-                let (effective_height, effective_y_bearing) = if let Some(fe) = font_extents {
-                    (fe.ascent() + fe.descent(), -fe.ascent())
-                } else {
-                    (extents.height(), extents.y_bearing())
-                };
-                
-                // Calculate text offset based on hjust and vjust
-                let text_x_offset = -extents.width() * self.hjust - extents.x_bearing();
-                let text_y_offset = -effective_height * self.vjust - effective_y_bearing;
-
-                // Calculate box dimensions with padding
-                let box_width = extents.width() + 2.0 * self.padding;
-                let box_height = effective_height + 2.0 * self.padding;
-                
-                // Position box to surround the text
-                let box_x = text_x_offset + extents.x_bearing() - self.padding;
-                let box_y = text_y_offset + effective_y_bearing - self.padding;
-
-                // Draw rounded rectangle background
-                if self.radius > 0.0 {
-                    let r = self.radius.min(box_width / 2.0).min(box_height / 2.0);
-                    ctx.cairo.new_path();
-                    ctx.cairo.arc(box_x + r, box_y + r, r, std::f64::consts::PI, 3.0 * std::f64::consts::PI / 2.0);
-                    ctx.cairo.arc(box_x + box_width - r, box_y + r, r, 3.0 * std::f64::consts::PI / 2.0, 0.0);
-                    ctx.cairo.arc(box_x + box_width - r, box_y + box_height - r, r, 0.0, std::f64::consts::PI / 2.0);
-                    ctx.cairo.arc(box_x + r, box_y + box_height - r, r, std::f64::consts::PI / 2.0, std::f64::consts::PI);
-                    ctx.cairo.close_path();
-                } else {
-                    ctx.cairo.rectangle(box_x, box_y, box_width, box_height);
-                }
-
-                // Fill the background
-                ctx.set_color(&fill);
-                ctx.cairo.fill_preserve().ok();
-
-                // Draw border (using text color with lower alpha)
-                ctx.set_color_alpha(&color, alpha * 0.5);
-                ctx.cairo.set_line_width(0.5);
-                ctx.cairo.stroke().ok();
-
-                // Draw the text
-                ctx.set_color_alpha(&color, alpha);
-                ctx.cairo.move_to(text_x_offset, text_y_offset);
-                ctx.cairo.show_text(&label).ok();
-            }
-
-            // Restore the transformation matrix
-            ctx.cairo.restore().ok();
-        }
-
         Ok(())
     }
 }
