@@ -1,3 +1,4 @@
+use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain};
 use crate::data::PrimitiveValue;
 use crate::error::PlotError;
 use crate::scale::ScaleSet;
@@ -39,7 +40,7 @@ pub use vline::GeomVLine;
 pub enum GeomConstant<T: Clone> {
     None,
     Scaled(PrimitiveValue),
-    Visual(T)
+    Visual(T),
 }
 
 impl<T: Clone> GeomConstant<T> {
@@ -58,6 +59,163 @@ impl<T: Clone> Default for GeomConstant<T> {
     }
 }
 
+pub trait AesMapBuilderTrait {
+    fn aes(&mut self) -> &mut AesMap;
+}
+
+pub trait XContininuousAesBuilder: AesMapBuilderTrait {
+    fn x(&mut self, column: &str) {
+        self.aes().set(
+            Aesthetic::X(AestheticDomain::Continuous),
+            AesValue::Column {
+                name: column.to_string(),
+                hint: None,
+                original_name: None,
+            },
+        );
+    }
+}
+
+pub trait XDiscreteAesBuilder: AesMapBuilderTrait {
+    fn x(&mut self, column: &str) {
+        self.aes().set(
+            Aesthetic::X(AestheticDomain::Discrete),
+            AesValue::Column {
+                name: column.to_string(),
+                hint: None,
+                original_name: None,
+            },
+        );
+    }
+}
+
+pub trait YContininuousAesBuilder: AesMapBuilderTrait {
+    fn y(&mut self, column: &str) {
+        self.aes().set(
+            Aesthetic::Y(AestheticDomain::Continuous),
+            AesValue::Column {
+                name: column.to_string(),
+                hint: None,
+                original_name: None,
+            },
+        );
+    }
+}
+
+pub trait YDiscreteAesBuilder: AesMapBuilderTrait {
+    fn y(&mut self, column: &str) {
+        self.aes().set(
+            Aesthetic::Y(AestheticDomain::Discrete),
+            AesValue::Column {
+                name: column.to_string(),
+                hint: None,
+                original_name: None,
+            },
+        );
+    }
+}
+
+pub trait ColorContinuousAesBuilder: AesMapBuilderTrait {
+    fn color_continuous(&mut self, column: &str) {
+        self.aes().set(
+            Aesthetic::Color(AestheticDomain::Continuous),
+            AesValue::Column {
+                name: column.to_string(),
+                hint: None,
+                original_name: None,
+            },
+        );
+    }
+}
+
+pub trait ColorDiscreteAesBuilder: AesMapBuilderTrait {
+    fn color_discrete(&mut self, column: &str) {
+        self.aes().set(
+            Aesthetic::Color(AestheticDomain::Discrete),
+            AesValue::Column {
+                name: column.to_string(),
+                hint: None,
+                original_name: None,
+            },
+        );
+    }
+}
+
+pub trait FillContinuousAesBuilder: AesMapBuilderTrait {
+    fn fill(&mut self, column: &str) {
+        self.aes().set(
+            Aesthetic::Fill(AestheticDomain::Continuous),
+            AesValue::Column {
+                name: column.to_string(),
+                hint: None,
+                original_name: None,
+            },
+        );
+    }
+}
+
+pub trait FillDiscreteAesBuilder: AesMapBuilderTrait {
+    fn fill_discrete(&mut self, column: &str) {
+        self.aes().set(
+            Aesthetic::Fill(AestheticDomain::Discrete),
+            AesValue::Column {
+                name: column.to_string(),
+                hint: None,
+                original_name: None,
+            },
+        );
+    }
+}
+
+pub trait GroupAesBuilder: AesMapBuilderTrait {
+    fn group(&mut self, column: &str) {
+        self.aes().set(
+            Aesthetic::Group,
+            AesValue::Column {
+                name: column.to_string(),
+                hint: None,
+                original_name: None,
+            },
+        );
+    }
+}
+
+pub struct AesMapBuilder {
+    aes_map: crate::aesthetics::AesMap,
+}
+
+impl AesMapBuilder {
+    pub fn new() -> Self {
+        Self {
+            aes_map: crate::aesthetics::AesMap::new(),
+        }
+    }
+
+    pub fn build(self) -> AesMap {
+        self.aes_map
+    }
+}
+
+impl AesMapBuilderTrait for AesMapBuilder {
+    fn aes(&mut self) -> &mut AesMap {
+        &mut self.aes_map
+    }
+}
+
+impl XContininuousAesBuilder for AesMapBuilder {}
+impl XDiscreteAesBuilder for AesMapBuilder {}
+impl YContininuousAesBuilder for AesMapBuilder {}
+impl YDiscreteAesBuilder for AesMapBuilder {}
+impl ColorContinuousAesBuilder for AesMapBuilder {}
+impl ColorDiscreteAesBuilder for AesMapBuilder {}
+impl FillContinuousAesBuilder for AesMapBuilder {}
+impl FillDiscreteAesBuilder for AesMapBuilder {}
+impl GroupAesBuilder for AesMapBuilder {}
+
+pub trait GeomBuilder {
+    fn build(self) -> Box<dyn Geom>;
+}
+
 pub trait Geom: Send + Sync {
     /// Train the provided scales based on the geom's constants where necessary
     fn train_scales(&self, scales: &mut ScaleSet);
@@ -68,4 +226,3 @@ pub trait Geom: Send + Sync {
     /// Render the geom with the provided context
     fn render<'a>(&self, ctx: &mut RenderContext<'a>) -> Result<(), PlotError>;
 }
-

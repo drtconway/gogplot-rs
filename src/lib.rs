@@ -12,3 +12,11 @@ pub mod stat;
 pub mod theme;
 pub mod utils;
 pub mod visuals;
+
+pub use plot::Plot;
+pub use error::PlotError;
+
+pub fn plot<'a>(data: &'a Box<dyn data::DataSource>) -> Plot<'a> {
+    Plot::new(data)
+}
+

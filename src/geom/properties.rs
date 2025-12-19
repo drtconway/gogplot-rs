@@ -1,5 +1,5 @@
 use crate::{
-    aesthetics::{AesMap, Aesthetic},
+    aesthetics::AesMap,
     data::DataSource,
     error::PlotError,
     theme::{Color, color::BLACK},
@@ -8,7 +8,7 @@ use crate::{
 };
 
 pub struct FloatProperty {
-    pub value: Either<f64, Aesthetic>,
+    pub value: Either<f64, String>,
 }
 
 impl FloatProperty {
@@ -28,24 +28,45 @@ impl FloatProperty {
     pub fn iter<'a>(
         &'a self,
         data: &'a dyn DataSource,
-        mapping: &'a AesMap,
+        _mapping: &'a AesMap,
     ) -> Result<Box<dyn Iterator<Item = f64> + 'a>, PlotError> {
         match &self.value {
             Either::Left(value) => Ok(Box::new(std::iter::repeat(*value))),
-            Either::Right(aesthetic) => {
-                let iter = mapping
-                    .get_vector_iter(aesthetic, data)
-                    .ok_or(crate::error::PlotError::MissingAesthetic {
-                        aesthetic: *aesthetic,
-                    })?;
-                Ok(Box::new(crate::utils::data::make_float_iter(iter)))
+            Either::Right(column) => {
+                let v = data.get(&column)
+                    .ok_or(crate::error::PlotError::MissingColumn { column: column.clone() })?;
+                Ok(Box::new(crate::utils::data::make_float_iter(v.iter())))
             }
         }
     }
 }
 
+impl Into<FloatProperty> for f64 {
+    fn into(self) -> FloatProperty {
+        let mut prop = FloatProperty::new();
+        prop.value(self);
+        prop
+    }
+}
+
+impl Into<FloatProperty> for &str {
+    fn into(self) -> FloatProperty {
+        let mut prop = FloatProperty::new();
+        prop.value = Either::Right(self.to_string());
+        prop
+    }
+}
+
+impl Into<FloatProperty> for String {
+    fn into(self) -> FloatProperty {
+        let mut prop = FloatProperty::new();
+        prop.value = Either::Right(self);
+        prop
+    }
+}
+
 pub struct ColorProperty {
-    pub color: Either<Color, Aesthetic>,
+    pub color: Either<Color, String>,
 }
 
 impl ColorProperty {
@@ -65,24 +86,45 @@ impl ColorProperty {
     pub fn iter<'a>(
         &'a self,
         data: &'a dyn DataSource,
-        mapping: &'a AesMap,
+        _mapping: &'a AesMap,
     ) -> Result<Box<dyn Iterator<Item = Color> + 'a>, PlotError> {
         match &self.color {
             Either::Left(color) => Ok(Box::new(std::iter::repeat(*color))),
-            Either::Right(aesthetic) => {
-                let iter = mapping
-                    .get_vector_iter(aesthetic, data)
-                    .ok_or(crate::error::PlotError::MissingAesthetic {
-                        aesthetic: *aesthetic,
-                    })?;
-                Ok(Box::new(crate::utils::data::make_color_iter(iter)))
+            Either::Right(column) => {
+                let v =data.get(&column)
+                    .ok_or(crate::error::PlotError::MissingColumn { column: column.clone() })?;
+                Ok(Box::new(crate::utils::data::make_color_iter(v.iter())))
             }
         }
     }
 }
 
+impl Into<ColorProperty> for Color {
+    fn into(self) -> ColorProperty {
+        let mut prop = ColorProperty::new();
+        prop.color(self);
+        prop
+    }
+}
+
+impl Into<ColorProperty> for &str {
+    fn into(self) -> ColorProperty {
+        let mut prop = ColorProperty::new();
+        prop.color = Either::Right(self.to_string());
+        prop
+    }
+}
+
+impl Into<ColorProperty> for String {
+    fn into(self) -> ColorProperty {
+        let mut prop = ColorProperty::new();
+        prop.color = Either::Right(self);
+        prop
+    }
+}
+
 pub struct ShapeProperty {
-    pub shape: Either<Shape, Aesthetic>,
+    pub shape: Either<Shape, String>,
 }
 
 impl ShapeProperty {
@@ -102,17 +144,14 @@ impl ShapeProperty {
     pub fn iter<'a>(
         &'a self,
         data: &'a dyn DataSource,
-        mapping: &'a AesMap,
+        _mapping: &'a AesMap,
     ) -> Result<Box<dyn Iterator<Item = Shape> + 'a>, PlotError> {
         match &self.shape {
             Either::Left(shape) => Ok(Box::new(std::iter::repeat(*shape))),
-            Either::Right(aesthetic) => {
-                let iter = mapping
-                    .get_vector_iter(aesthetic, data)
-                    .ok_or(crate::error::PlotError::MissingAesthetic {
-                        aesthetic: *aesthetic,
-                    })?;
-                Ok(Box::new(crate::utils::data::make_shape_iter(iter)))
+            Either::Right(column) => {
+                let v = data.get(&column)
+                    .ok_or(crate::error::PlotError::MissingColumn { column: column.clone() })?;
+                Ok(Box::new(crate::utils::data::make_shape_iter(v.iter())))
             }
         }
     }

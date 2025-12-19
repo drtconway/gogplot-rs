@@ -9,6 +9,10 @@ use crate::scale::traits::{ColorRangeScale, ContinuousRangeScale, ScaleBase, Sha
 use crate::stat::Stat;
 use crate::utils::dataframe::DataFrame;
 
+pub trait LayerBuilder {
+    fn build(self: Box<Self>) -> Layer;
+}
+
 /// Layer struct - represents one layer in a plot
 /// Each layer has its own geom, optional data, aesthetic mappings, stat, and position
 pub struct Layer {

@@ -12,15 +12,77 @@ mod stats;
 use crate::aesthetics::AesMap;
 use crate::data::DataSource;
 use crate::error::PlotError;
-use crate::guide::{AxisGuide, Guides};
-use crate::layer::Layer;
+use crate::geom::AesMapBuilder;
+use crate::guide::Guides;
+use crate::layer::{Layer, LayerBuilder};
 use crate::scale::ScaleSet;
 use crate::theme::Theme;
 use cairo::ImageSurface;
+use std::ops::Add;
 use std::path::Path;
 
 pub use geom_builder::GeomBuilder;
 pub use layer_geom::LayerGeom;
+
+pub struct PlotBuilder<'a> {
+    data: &'a Box<dyn DataSource>,
+    mapping: AesMap,
+    layers: Vec<Box<dyn LayerBuilder>>,
+}
+
+impl<'a> PlotBuilder<'a> {
+    pub fn aes(self, closure: impl FnOnce(&mut AesMapBuilder)) -> Self {
+        let mut builder = AesMapBuilder::new();
+        closure(&mut builder);
+        Self {
+            data: self.data,
+            mapping: builder.build(),
+            layers: self.layers,
+        }
+    }
+    pub fn build(self) -> Plot<'a> {
+        let layers: Vec<Layer> = self
+            .layers
+            .into_iter()
+            .map(|builder| builder.build())
+            .collect();
+        Plot {
+            data: self.data,
+            mapping: self.mapping,
+            layers,
+            scales: ScaleSet::default(),
+            theme: Theme::default(),
+            guides: Guides::default(),
+            title: None,
+        }
+    }
+}
+
+pub fn plot<'a>(data: &'a Box<dyn DataSource>) -> PlotBuilder<'a> {
+    PlotBuilder {
+        data,
+        mapping: AesMap::new(),
+        layers: Vec::new(),
+    }
+}
+
+impl<'a> Add<AesMapBuilder> for PlotBuilder<'a> {
+    type Output = Self;
+
+    fn add(mut self, rhs: AesMapBuilder) -> Self::Output {
+        self.mapping = rhs.build();
+        self
+    }
+}
+
+impl<'a, L: LayerBuilder + 'static> Add<L> for PlotBuilder<'a> {
+    type Output = Self;
+
+    fn add(mut self, rhs: L) -> Self::Output {
+        self.layers.push(Box::new(rhs));
+        self
+    }
+}
 
 /// Main plot structure
 pub struct Plot<'a> {
