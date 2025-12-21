@@ -6,7 +6,7 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct ContinuousPositionalScale {
-    domain: (f64, f64),
+    domain: Option<(f64, f64)>,
     breaks: Vec<f64>,
     labels: Vec<String>,
     lower_bound: Option<f64>,
@@ -16,37 +16,12 @@ pub struct ContinuousPositionalScale {
 impl ContinuousPositionalScale {
     pub fn new() -> Self {
         Self {
-            domain: (0.0, 1.0),
+            domain: None,
             breaks: Vec::new(),
             labels: Vec::new(),
             lower_bound: None,
             upper_bound: None,
         }
-    }
-
-    pub fn with_limits(mut self, limits: (f64, f64)) -> Self {
-        self.domain = limits;
-        self
-    }
-
-    pub fn with_breaks(mut self, breaks: Vec<f64>) -> Self {
-        self.breaks = breaks;
-        self
-    }
-
-    pub fn with_labels(mut self, labels: Vec<String>) -> Self {
-        self.labels = labels;
-        self
-    }
-
-    pub fn with_lower_bound(mut self, bound: f64) -> Self {
-        self.lower_bound = Some(bound);
-        self
-    }
-
-    pub fn with_upper_bound(mut self, bound: f64) -> Self {
-        self.upper_bound = Some(bound);
-        self
     }
 }
 
@@ -64,11 +39,11 @@ impl super::traits::ScaleBase for ContinuousPositionalScale {
 
 impl super::traits::ContinuousDomainScale for ContinuousPositionalScale {
     fn domain(&self) -> Option<(f64, f64)> {
-        Some(self.domain)
+        self.domain
     }
 
     fn set_domain(&mut self, domain: (f64, f64)) {
-        self.domain = domain;
+        self.domain = Some(domain);
     }
 
     fn limits(&self) -> (Option<f64>, Option<f64>) {
@@ -92,12 +67,14 @@ impl super::traits::ContinuousRangeScale for ContinuousPositionalScale {
             crate::data::PrimitiveValue::Str(_) => None,
             crate::data::PrimitiveValue::Bool(_) => None,
         }?;
-        let (d0, d1) = self.domain;
+        let (d0, d1) = self.domain.unwrap();
         if value < d0.min(d1) || value > d0.max(d1) {
             return None;
         }
 
-        Some((value - d0) / (d1 - d0))
+        let normalized = (value - d0) / (d1 - d0);
+        log::debug!("Mapping {} with domain ({}, {}) -> {}", value, d0, d1, normalized);
+        Some(normalized)
     }
 }
 

@@ -1,7 +1,7 @@
 use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain};
 use crate::data::PrimitiveValue;
 use crate::error::PlotError;
-use crate::scale::ScaleSet;
+use crate::scale::{ScaleIdentifier, ScaleSet};
 
 pub mod properties;
 
@@ -191,7 +191,12 @@ impl AesMapBuilder {
         }
     }
 
-    pub fn build(self) -> AesMap {
+    pub fn build(mut self, parent_mapping: &AesMap) -> AesMap {
+        for (aes, aes_value) in parent_mapping.iter() {
+            if !self.aes_map.contains(*aes) {
+                self.aes_map.set(*aes, aes_value.clone());
+            }
+        }
         self.aes_map
     }
 }
@@ -217,6 +222,11 @@ pub trait GeomBuilder {
 }
 
 pub trait Geom: Send + Sync {
+    /// Get the list of scales required by this geom
+    fn required_scales(&self) -> Vec<ScaleIdentifier> {
+        Vec::new()
+    }
+
     /// Train the provided scales based on the geom's constants where necessary
     fn train_scales(&self, scales: &mut ScaleSet);
 

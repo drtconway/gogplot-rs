@@ -77,6 +77,22 @@ impl Default for ScaleSet {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ScaleIdentifier {
+    XContinuous,
+    XDiscrete,
+    YContinuous,
+    YDiscrete,
+    ColorContinuous,
+    ColorDiscrete,
+    FillContinuous,
+    FillDiscrete,
+    Shape,
+    Alpha,
+    SizeContinuous,
+    SizeDiscrete,
+}
+
 pub(crate) struct ContinuousScaleTrainer {
     pub bounds: Option<(f64, f64)>,
 }

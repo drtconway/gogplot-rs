@@ -375,3 +375,10 @@ impl From<VectorType> for DataType {
 pub fn to_plot_error(err: cairo::Error) -> PlotError {
     PlotError::render_error("cairo operation", format!("{}", err))
 }
+
+pub fn to_io_error(err: PlotError) -> io::Error {
+    match err {
+        PlotError::IoError { source, .. } => source,
+        _ => io::Error::new(io::ErrorKind::Other, err),
+    }
+}

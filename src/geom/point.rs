@@ -1,14 +1,17 @@
 use std::collections::HashMap;
 
 use super::{Geom, RenderContext};
-use crate::aesthetics::{Aesthetic, AestheticDomain};
+use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain};
 use crate::data::{ContinuousType, DiscreteType};
 use crate::error::PlotError;
 use crate::geom::properties::{ColorProperty, FloatProperty, ShapeProperty};
 use crate::geom::{
-    AesMapBuilder, ColorContinuousAesBuilder, ColorDiscreteAesBuilder, XContininuousAesBuilder, XDiscreteAesBuilder, YContininuousAesBuilder, YDiscreteAesBuilder
+    AesMapBuilder, ColorContinuousAesBuilder, ColorDiscreteAesBuilder, XContininuousAesBuilder,
+    XDiscreteAesBuilder, YContininuousAesBuilder, YDiscreteAesBuilder,
 };
 use crate::layer::{Layer, LayerBuilder};
+use crate::scale::ScaleIdentifier;
+use crate::theme::{Color, color};
 use crate::utils::data::{DiscreteContinuousContinuousVisitor3, Vectorable, visit3_dcc};
 use crate::visuals::Shape;
 
@@ -70,7 +73,7 @@ impl GeomPointBuilder {
 }
 
 impl LayerBuilder for GeomPointBuilder {
-    fn build(self: Box<Self>) -> Layer {
+    fn build(self: Box<Self>, parent_mapping: &AesMap) -> Layer {
         let mut geom_point = GeomPoint::new();
         if let Some(size_prop) = self.size {
             geom_point.size = size_prop;
@@ -85,11 +88,11 @@ impl LayerBuilder for GeomPointBuilder {
             geom_point.alpha = alpha_prop;
         }
 
-        let mapping = self.aes_builder.build();
+        let mapping = self.aes_builder.build(parent_mapping);
 
         let mut layer = crate::layer::Layer::new(Box::new(geom_point));
         layer.mapping = Some(mapping);
-        
+
         layer
     }
 }
@@ -97,7 +100,6 @@ impl LayerBuilder for GeomPointBuilder {
 pub fn geom_point() -> GeomPointBuilder {
     GeomPointBuilder::new()
 }
-
 
 /// GeomPoint renders points/scatterplot
 pub struct GeomPoint {
@@ -151,11 +153,34 @@ impl GeomPoint {
 
     fn draw_points(
         &self,
-        _ctx: &mut RenderContext,
-        _x_values: impl Iterator<Item = f64>,
-        _y_values: impl Iterator<Item = f64>,
+        ctx: &mut RenderContext,
+        x_values: impl Iterator<Item = f64>,
+        y_values: impl Iterator<Item = f64>,
     ) -> Result<(), PlotError> {
-        // Implementation of drawing points goes here
+        // Get default point size from theme or property
+        let point_size = 4.0; // Placeholder for now
+        let point_radius = point_size / 2.0;
+
+        // Set default color
+        let Color(r, g, b, a) = color::BLACK; // Placeholder for now
+        ctx.cairo.set_source_rgba(r as f64 / 255.0, g as f64 / 255.0, b as f64 / 255.0, a as f64 / 255.0);
+
+        // Data values are already normalized [0,1] by compose()->apply_scales()
+        // Just map to viewport pixel coordinates
+        for (x_norm, y_norm) in x_values.zip(y_values) {
+            // Convert normalized [0,1] to viewport pixel coordinates
+            let x_px = ctx.map_x(x_norm);
+            let y_px = ctx.map_y(y_norm);
+
+            log::info!("Drawing point at norm({}, {}) -> px({}, {})", 
+                x_norm, y_norm, x_px, y_px);
+
+            // Draw circle
+            ctx.cairo
+                .arc(x_px, y_px, point_radius, 0.0, 2.0 * std::f64::consts::PI);
+            ctx.cairo.fill().ok();
+        }
+
         Ok(())
     }
 }
@@ -167,6 +192,10 @@ impl Default for GeomPoint {
 }
 
 impl Geom for GeomPoint {
+    fn required_scales(&self) -> Vec<ScaleIdentifier> {
+        vec![ScaleIdentifier::XContinuous, ScaleIdentifier::YContinuous]
+    }
+
     fn train_scales(&self, _scales: &mut crate::scale::ScaleSet) {}
 
     fn apply_scales(&mut self, _scales: &crate::scale::ScaleSet) {}
@@ -199,6 +228,7 @@ impl Geom for GeomPoint {
                 .get_iter_float(&Aesthetic::Y(AestheticDomain::Continuous), data)
                 .unwrap()
                 .collect();
+            log::info!("Drawing points: {:?}", x_values);
             self.draw_points(ctx, x_values.into_iter(), y_values.into_iter())?;
         }
 

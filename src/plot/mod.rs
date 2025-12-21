@@ -6,7 +6,6 @@ mod group_inference;
 mod layer_geom;
 mod positions;
 mod render;
-mod scale_application;
 mod stats;
 
 use crate::aesthetics::AesMap;
@@ -32,11 +31,12 @@ pub struct PlotBuilder<'a> {
 
 impl<'a> PlotBuilder<'a> {
     pub fn aes(self, closure: impl FnOnce(&mut AesMapBuilder)) -> Self {
+        let empty = AesMap::new();
         let mut builder = AesMapBuilder::new();
         closure(&mut builder);
         Self {
             data: self.data,
-            mapping: builder.build(),
+            mapping: builder.build(&empty),
             layers: self.layers,
         }
     }
@@ -44,7 +44,7 @@ impl<'a> PlotBuilder<'a> {
         let layers: Vec<Layer> = self
             .layers
             .into_iter()
-            .map(|builder| builder.build())
+            .map(|builder| builder.build(&self.mapping))
             .collect();
         Plot {
             data: self.data,
@@ -70,7 +70,7 @@ impl<'a> Add<AesMapBuilder> for PlotBuilder<'a> {
     type Output = Self;
 
     fn add(mut self, rhs: AesMapBuilder) -> Self::Output {
-        self.mapping = rhs.build();
+        self.mapping = rhs.build(&self.mapping);
         self
     }
 }
@@ -122,10 +122,61 @@ impl<'a> Plot<'a> {
         }
     }
 
-    /// Add a layer to the plot (builder style)
-    pub fn layer(mut self, layer: Layer) -> Self {
-        self.layers.push(layer);
-        self
+    /// Execute the plot composition pipeline
+    ///
+    /// This runs the complete ggplot2-style pipeline:
+    /// 1. Apply stat transformations to each layer
+    /// 2. Apply position adjustments to layers (stack, dodge, etc.)
+    /// 3. Train scales on all transformed data
+    /// 4. Apply scales to convert data to visual coordinates
+    ///
+    /// This should be called before rendering/saving.
+    pub fn compose(&mut self) -> Result<(), PlotError> {
+        
+        // Step 1: Apply stat transformations to each layer
+        for layer in &mut self.layers {
+            layer.apply_stat(&self.data, &self.mapping)?;
+        }
+
+        // Step 2: Apply position adjustments across layers
+        positions::apply_positions(
+            &mut self.layers,
+            Some(self.data.as_ref()),
+            &self.mapping,
+            &self.scales,
+        )?;
+
+        // Step 3: Train scales on all layer data
+        for layer in &mut self.layers {
+            layer.train_scales(&mut self.scales, &self.data, &self.mapping)?;
+        }
+
+        // Step 4: Apply scales to convert data to visual coordinates
+        for layer in &mut self.layers {
+            layer.apply_scales(&self.scales, self.data, &self.mapping)?;
+        }
+
+        let mut required_scales = Vec::new();
+        for layer in &self.layers {
+            let geom = layer.geom.as_ref();
+            required_scales.extend(geom.required_scales());
+        }
+        required_scales.sort();
+        required_scales.dedup();
+        log::info!("Required scales: {:?}", required_scales);
+
+        // Step 4: Apply scales to convert data to visual coordinates
+        // TODO: Implement scale application once scale_application module is complete
+        // for layer in &mut self.layers {
+        //     let data = layer.data(self.data.as_ref());
+        //     let mapping = layer.mapping(&self.mapping);
+        //     let (scaled_data, scaled_mapping) = 
+        //         scale_application::apply_scales(data, mapping, &self.scales)?;
+        //     layer.data = Some(Box::new(scaled_data));
+        //     layer.mapping = Some(scaled_mapping);
+        // }
+
+        Ok(())
     }
 
     /// Set the plot title (builder style)
@@ -209,12 +260,22 @@ impl<'a> Plot<'a> {
     /// plot.save("output.png", 800, 600)?;
     /// ```
     pub fn save(
-        mut self,
+        &self,
         path: impl AsRef<Path>,
         width: i32,
         height: i32,
     ) -> Result<(), PlotError> {
-
-        Ok(())
+        export::save(
+            path,
+            &self.layers,
+            &self.scales,
+            &self.theme,
+            &self.guides,
+            self.title.as_ref(),
+            Some(self.data.as_ref()),
+            &self.mapping,
+            width,
+            height,
+        )
     }
 }

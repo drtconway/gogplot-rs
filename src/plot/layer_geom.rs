@@ -59,8 +59,4 @@ impl<G: Geom> LayerGeom<G> {
         self
     }
     
-    /// Get the inner parts (consumes self)
-    pub(crate) fn into_parts(self) -> (G, AesMap, Box<dyn Stat>, Option<Box<dyn DataSource>>) {
-        (self.geom, self.aes, self.stat, self.data)
-    }
 }

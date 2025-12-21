@@ -132,6 +132,9 @@ pub fn render_with_context(
     let plot_y0 = margin_top;
     let plot_y1 = height as f64 - margin_bottom;
 
+    log::info!("Viewport bounds: x=[{}, {}], y=[{}, {}], width={}, height={}", 
+        plot_x0, plot_x1, plot_y0, plot_y1, width, height);
+
     // Draw panel background
     if let Some(ref panel_bg) = theme.panel.background {
         apply_fill_style(ctx, panel_bg);

@@ -10,7 +10,7 @@ use crate::stat::Stat;
 use crate::utils::dataframe::DataFrame;
 
 pub trait LayerBuilder {
-    fn build(self: Box<Self>) -> Layer;
+    fn build(self: Box<Self>, parent_mapping: &AesMap) -> Layer;
 }
 
 /// Layer struct - represents one layer in a plot
@@ -132,8 +132,18 @@ impl Layer {
                 | crate::aesthetics::Aesthetic::Upper => {
                     scales.y_continuous.train(iter);
                 }
-                crate::aesthetics::Aesthetic::Color(_) => todo!(),
-                crate::aesthetics::Aesthetic::Fill(_) => todo!(),
+                crate::aesthetics::Aesthetic::Color(AestheticDomain::Continuous) => {
+                    scales.color_continuous.train(iter);
+                },
+                crate::aesthetics::Aesthetic::Color(AestheticDomain::Discrete) => {
+                    scales.color_discrete.train(iter);
+                },
+                crate::aesthetics::Aesthetic::Fill(AestheticDomain::Continuous) => {
+                    scales.fill_continuous.train(iter);
+                },
+                crate::aesthetics::Aesthetic::Fill(AestheticDomain::Discrete) => {
+                    scales.fill_discrete.train(iter);
+                },
                 crate::aesthetics::Aesthetic::Alpha => {
                     scales.alpha_scale.train(iter);
                 }
@@ -150,6 +160,7 @@ impl Layer {
                 }
             }
         }
+
         Ok(())
     }
 
@@ -187,6 +198,7 @@ impl Layer {
                         .x_continuous
                         .map_aesthetic_value(value, data, &mut new_data)
                         .unwrap();
+                    log::info!("Mapped X aesthetic value: {:?}", new_value);
                     new_mapping.set(aes.clone(), new_value);
                 }
                 crate::aesthetics::Aesthetic::Y(AestheticDomain::Discrete)
@@ -267,6 +279,10 @@ impl Layer {
                 }
             }
         }
+
+        self.data = Some(Box::new(new_data));
+        self.mapping = Some(new_mapping);
+        
         Ok(())
     }
 

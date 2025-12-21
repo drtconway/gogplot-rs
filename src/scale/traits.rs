@@ -69,6 +69,13 @@ pub trait ContinuousDomainScale: ScaleBase {
             let (min_limit, max_limit) = self.limits();
             let min_value = min_limit.unwrap_or(obs_min_value);
             let max_value = max_limit.unwrap_or(obs_max_value);
+            
+            // Apply 5% expansion on each side (ggplot2 default)
+            let range = max_value - min_value;
+            let expansion = range * 0.05;
+            let min_value = min_value - expansion;
+            let max_value = max_value + expansion;
+            
             if let Some((min_existing, max_existing)) = self.domain() {
                 let min_value = min_value.min(min_existing);
                 let max_value = max_value.max(max_existing);
@@ -76,6 +83,7 @@ pub trait ContinuousDomainScale: ScaleBase {
             } else {
                 self.set_domain((min_value, max_value));
             }
+            log::info!("Trained continuous scale domain to ({}, {}) with 5% expansion", min_value, max_value);
         }
     }
 }
@@ -130,6 +138,7 @@ pub trait ContinuousRangeScale: ScaleBase {
                         let values: Vec<f64> = iterator
                             .filter_map(|v| self.map_value(&v))
                             .collect();
+                        log::info!("Mapped float values for column {}: {:?}", name, values);
                         new_data.add_column(name.clone(), Box::new(FloatVec::from(values)));
                         Some(AesValue::Column {
                             name: name.clone(),
@@ -141,6 +150,7 @@ pub trait ContinuousRangeScale: ScaleBase {
                         let values: Vec<f64> = iterator
                             .filter_map(|v| self.map_value(&v))
                             .collect();
+                        log::info!("Mapped float values for column {}: {:?}", name, values);
                         new_data.add_column(name.clone(), Box::new(FloatVec::from(values)));
                         Some(AesValue::Column {
                             name: name.clone(),
