@@ -3,6 +3,7 @@
 use crate::error::PlotError;
 use crate::guide::{AxisGuide, AxisType, XAxisPosition, YAxisPosition};
 use crate::scale::positional::ContinuousPositionalScale;
+use crate::scale::traits::{ContinuousDomainScale, ContinuousRangeScale};
 use crate::theme::Theme;
 use cairo::Context;
 
@@ -43,8 +44,8 @@ pub fn draw_axes(
     theme: &Theme,
     x_axis: Option<&AxisGuide>,
     y_axis: Option<&AxisGuide>,
-    _x_scale: &ContinuousPositionalScale,
-    _y_scale: &ContinuousPositionalScale,
+    x_scale: &ContinuousPositionalScale,
+    y_scale: &ContinuousPositionalScale,
     title: Option<&String>,
     x0: f64,
     x1: f64,
@@ -76,6 +77,50 @@ pub fn draw_axes(
         ctx.stroke().ok();
     }
 
+    // Draw X axis ticks and labels
+    let tick_length = theme.axis_x.line.tick_length as f64;
+    if let Some(ref line_style) = theme.axis_x.line.ticks {
+        apply_line_style(ctx, line_style);
+        apply_text_theme(ctx, &theme.axis_x.text.text);
+        
+        for (break_val, label) in x_scale.breaks().iter().zip(x_scale.labels().iter()) {
+            // Map break value to viewport coordinate
+            if let Some(normalized) = x_scale.map_value(break_val) {
+                let x_pos = x0 + normalized * (x1 - x0);
+                
+                // Draw tick mark
+                match x_position {
+                    XAxisPosition::Bottom => {
+                        ctx.move_to(x_pos, y1);
+                        ctx.line_to(x_pos, y1 + tick_length);
+                    }
+                    XAxisPosition::Top => {
+                        ctx.move_to(x_pos, y0);
+                        ctx.line_to(x_pos, y0 - tick_length);
+                    }
+                }
+                ctx.stroke().ok();
+                
+                // Draw label
+                let extents = ctx.text_extents(label).ok();
+                if let Some(ext) = extents {
+                    let label_margin = theme.axis_x.text.text.margin.top as f64;
+                    match x_position {
+                        XAxisPosition::Bottom => {
+                            let y_label = y1 + tick_length + label_margin + ext.height();
+                            ctx.move_to(x_pos - ext.width() / 2.0, y_label);
+                        }
+                        XAxisPosition::Top => {
+                            let y_label = y0 - tick_length - label_margin;
+                            ctx.move_to(x_pos - ext.width() / 2.0, y_label);
+                        }
+                    }
+                    ctx.show_text(label).ok();
+                }
+            }
+        }
+    }
+
     // Y axis line
     let y_position = y_axis
         .and_then(|guide| match &guide.position {
@@ -97,6 +142,51 @@ pub fn draw_axes(
             }
         }
         ctx.stroke().ok();
+    }
+
+    // Draw Y axis ticks and labels
+    let y_tick_length = theme.axis_y.line.tick_length as f64;
+    if let Some(ref line_style) = theme.axis_y.line.ticks {
+        apply_line_style(ctx, line_style);
+        apply_text_theme(ctx, &theme.axis_y.text.text);
+        
+        for (break_val, label) in y_scale.breaks().iter().zip(y_scale.labels().iter()) {
+            // Map break value to viewport coordinate
+            if let Some(normalized) = y_scale.map_value(break_val) {
+                // Note: y is inverted (y1 is bottom, y0 is top)
+                let y_pos = y1 + normalized * (y0 - y1);
+                
+                // Draw tick mark
+                match y_position {
+                    YAxisPosition::Left => {
+                        ctx.move_to(x0, y_pos);
+                        ctx.line_to(x0 - y_tick_length, y_pos);
+                    }
+                    YAxisPosition::Right => {
+                        ctx.move_to(x1, y_pos);
+                        ctx.line_to(x1 + y_tick_length, y_pos);
+                    }
+                }
+                ctx.stroke().ok();
+                
+                // Draw label
+                let extents = ctx.text_extents(label).ok();
+                if let Some(ext) = extents {
+                    let label_margin = theme.axis_y.text.text.margin.right as f64;
+                    match y_position {
+                        YAxisPosition::Left => {
+                            let x_label = x0 - y_tick_length - label_margin - ext.width();
+                            ctx.move_to(x_label, y_pos + ext.height() / 2.0);
+                        }
+                        YAxisPosition::Right => {
+                            let x_label = x1 + y_tick_length + label_margin;
+                            ctx.move_to(x_label, y_pos + ext.height() / 2.0);
+                        }
+                    }
+                    ctx.show_text(label).ok();
+                }
+            }
+        }
     }
 
     // Draw X axis title

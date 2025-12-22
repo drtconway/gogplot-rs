@@ -151,6 +151,10 @@ impl<'a> Plot<'a> {
             layer.train_scales(&mut self.scales, &self.data, &self.mapping)?;
         }
 
+        // Step 3.5: Compute breaks and labels for scales
+        self.scales.x_continuous.compute_breaks(5);
+        self.scales.y_continuous.compute_breaks(5);
+
         // Step 4: Apply scales to convert data to visual coordinates
         for layer in &mut self.layers {
             layer.apply_scales(&self.scales, self.data, &self.mapping)?;

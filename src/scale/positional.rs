@@ -23,6 +23,21 @@ impl ContinuousPositionalScale {
             upper_bound: None,
         }
     }
+
+    /// Compute breaks and labels for this scale
+    /// 
+    /// Uses the domain to generate nice break positions and format them as labels.
+    /// Should be called after training the domain.
+    pub fn compute_breaks(&mut self, n: usize) {
+        if let Some((min, max)) = self.domain {
+            self.breaks = super::positional::extended_breaks((min, max), n);
+            self.labels = self
+                .breaks
+                .iter()
+                .map(|b| format!("{:.2}", b))
+                .collect();
+        }
+    }
 }
 
 impl Default for ContinuousPositionalScale {
