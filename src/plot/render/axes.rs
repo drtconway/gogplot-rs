@@ -13,17 +13,40 @@ use super::cairo_helpers::{apply_line_style, apply_text_theme};
 pub fn draw_grid_lines(
     ctx: &mut Context,
     theme: &Theme,
-    _x_scale: &ContinuousPositionalScale,
-    _y_scale: &ContinuousPositionalScale,
-    _plot_x0: f64,
-    _plot_x1: f64,
-    _plot_y0: f64,
-    _plot_y1: f64,
+    x_scale: &ContinuousPositionalScale,
+    y_scale: &ContinuousPositionalScale,
+    plot_x0: f64,
+    plot_x1: f64,
+    plot_y0: f64,
+    plot_y1: f64,
 ) -> Result<(), PlotError> {
     // Draw minor grid lines first (if present) so major grid lines are on top
     if let Some(ref grid_minor) = theme.panel.grid_minor {
         apply_line_style(ctx, grid_minor);
-
+        
+        // Draw vertical minor grid lines between x scale breaks
+        let x_breaks = x_scale.breaks();
+        for i in 1..x_breaks.len() {
+            let midpoint = (x_breaks[i - 1] + x_breaks[i]) / 2.0;
+            if let Some(normalized) = x_scale.map_value(&midpoint) {
+                let x_pos = plot_x0 + normalized * (plot_x1 - plot_x0);
+                ctx.move_to(x_pos, plot_y0);
+                ctx.line_to(x_pos, plot_y1);
+            }
+        }
+        
+        // Draw horizontal minor grid lines between y scale breaks
+        let y_breaks = y_scale.breaks();
+        for i in 1..y_breaks.len() {
+            let midpoint = (y_breaks[i - 1] + y_breaks[i]) / 2.0;
+            if let Some(normalized) = y_scale.map_value(&midpoint) {
+                // Note: y is inverted (y1 is bottom, y0 is top)
+                let y_pos = plot_y1 + normalized * (plot_y0 - plot_y1);
+                ctx.move_to(plot_x0, y_pos);
+                ctx.line_to(plot_x1, y_pos);
+            }
+        }
+        
         ctx.stroke().ok();
     }
 
@@ -31,6 +54,24 @@ pub fn draw_grid_lines(
     if let Some(ref grid_major) = theme.panel.grid_major {
         apply_line_style(ctx, grid_major);
 
+        // Draw vertical grid lines at x scale breaks
+        for break_val in x_scale.breaks().iter() {
+            if let Some(normalized) = x_scale.map_value(break_val) {
+                let x_pos = plot_x0 + normalized * (plot_x1 - plot_x0);
+                ctx.move_to(x_pos, plot_y0);
+                ctx.line_to(x_pos, plot_y1);
+            }
+        }
+
+        // Draw horizontal grid lines at y scale breaks
+        for break_val in y_scale.breaks().iter() {
+            if let Some(normalized) = y_scale.map_value(break_val) {
+                // Note: y is inverted (y1 is bottom, y0 is top)
+                let y_pos = plot_y1 + normalized * (plot_y0 - plot_y1);
+                ctx.move_to(plot_x0, y_pos);
+                ctx.line_to(plot_x1, y_pos);
+            }
+        }
 
         ctx.stroke().ok();
     }
