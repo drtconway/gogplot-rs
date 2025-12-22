@@ -1,7 +1,8 @@
-use crate::data::{self, DataSource, GenericVector, PrimitiveValue, VectorIter};
+use crate::data::{self, DataSource, DiscreteValue, GenericVector, PrimitiveValue, VectorIter};
 use crate::error::PlotError;
 use crate::scale::ScaleType;
 use crate::utils::dataframe::{BoolVec, FloatVec, IntVec, StrVec};
+use core::panic;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -663,6 +664,107 @@ impl AesMap {
             None => {}
         }
         None
+    }
+
+    pub fn get_iter_discrete<'a>(
+        &self,
+        aes: &Aesthetic,
+        data: &'a dyn DataSource,
+    ) -> Option<Box<dyn Iterator<Item = DiscreteValue> + 'a>> {
+        match self.get(aes) {
+            Some(value) => {
+                match value {
+                    AesValue::Column { name, .. } => {
+                        // Look up the column in the data source
+                        let column = data.get(name.as_str())?;
+                        match column.iter() {
+                            data::VectorIter::Int(iter) => {
+                                let discrete_iter = iter.map(DiscreteValue::Int);
+                                return Some(Box::new(discrete_iter)
+                                    as Box<dyn Iterator<Item = DiscreteValue> + 'a>);
+                            }
+                            data::VectorIter::Float(iter) => {
+                                panic!("Float columns cannot be used as discrete values");
+                            }
+                            data::VectorIter::Str(iter) => {
+                                let discrete_iter = iter.map(|s| DiscreteValue::Str(s.to_string()));
+                                return Some(Box::new(discrete_iter)
+                                    as Box<dyn Iterator<Item = DiscreteValue> + 'a>);
+                            }
+                            data::VectorIter::Bool(iter) => {
+                                let discrete_iter = iter.map(DiscreteValue::Bool);
+                                return Some(Box::new(discrete_iter)
+                                    as Box<dyn Iterator<Item = DiscreteValue> + 'a>);
+                            }
+                        }
+                    }
+                    AesValue::Constant { value, .. } => {
+                        match value {
+                            PrimitiveValue::Int(i) => {
+                                let n = data.len();
+                                return Some(Box::new(std::iter::repeat(DiscreteValue::Int(*i)).take(n))
+                                    as Box<dyn Iterator<Item = DiscreteValue> + 'a>);
+                            }
+                            PrimitiveValue::Str(s) => {
+                                let n = data.len();
+                                return Some(Box::new(
+                                    std::iter::repeat(DiscreteValue::Str(s.to_string())).take(n),
+                                ) as Box<dyn Iterator<Item = DiscreteValue> + 'a>);
+                            }
+                            PrimitiveValue::Bool(b) => {
+                                let n = data.len();
+                                return Some(Box::new(std::iter::repeat(DiscreteValue::Bool(*b)).take(n))
+                                    as Box<dyn Iterator<Item = DiscreteValue> + 'a>);
+                            }
+                            PrimitiveValue::Float(_) => {
+                                panic!("Float constants cannot be used as discrete values");
+                            }
+                        }
+                    }
+                }
+            }
+            None => {}
+        }
+        None
+    }
+
+    fn get_iter_color<'a>(
+        &self,
+        aes: &Aesthetic,
+        data: &'a dyn DataSource,
+    ) -> Option<Box<dyn Iterator<Item = crate::theme::Color> + 'a>> {
+        match self.get(aes) {
+            Some(value) => match value {
+                AesValue::Column { name, .. } => {
+                    let column = data.get(name.as_str())?;
+                    let iter: Box<dyn Iterator<Item = crate::theme::Color> + 'a> = match column.iter()
+                    {
+                        data::VectorIter::Int(iter) => Box::new(iter.map(crate::theme::Color::from)),
+                        data::VectorIter::Float(_) => panic!("Float columns cannot be mapped to colors"),
+                        data::VectorIter::Str(_) => panic!("String columns cannot be mapped to colors"),
+                        data::VectorIter::Bool(_) => panic!("Boolean columns cannot be mapped to colors"),
+                    };
+                    Some(iter)
+                }
+                AesValue::Constant { value, .. } => match value {
+                    PrimitiveValue::Int(i) => {
+                        let n = data.len();
+                        Some(Box::new(std::iter::repeat(crate::theme::Color::from(*i)).take(n))
+                            as Box<dyn Iterator<Item = crate::theme::Color> + 'a>)
+                    }
+                    PrimitiveValue::Float(f) => {
+                        panic!("Float constants cannot be used as colors");
+                    }
+                    PrimitiveValue::Str(s) => {
+                        panic!("String constants cannot be used as colors");
+                    }
+                    PrimitiveValue::Bool(b) => {
+                        panic!("Boolean constants cannot be used as colors");
+                    }
+                },
+            },
+            None => None,
+        }
     }
 }
 

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use super::{Geom, RenderContext};
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain};
-use crate::data::{ContinuousType, DiscreteType};
+use crate::data::{ContinuousType, DiscreteType, DiscreteValue, PrimitiveType};
 use crate::error::PlotError;
 use crate::geom::properties::{ColorProperty, FloatProperty, ShapeProperty};
 use crate::geom::{
@@ -156,24 +156,54 @@ impl GeomPoint {
         ctx: &mut RenderContext,
         x_values: impl Iterator<Item = f64>,
         y_values: impl Iterator<Item = f64>,
+        color_values: impl Iterator<Item = Color>,
+        size_values: impl Iterator<Item = f64>,
+        alpha_values: impl Iterator<Item = f64>,
     ) -> Result<(), PlotError> {
-        // Get default point size from theme or property
-        let point_size = 4.0; // Placeholder for now
-        let point_radius = point_size / 2.0;
 
         // Set default color
         let Color(r, g, b, a) = color::BLACK; // Placeholder for now
-        ctx.cairo.set_source_rgba(r as f64 / 255.0, g as f64 / 255.0, b as f64 / 255.0, a as f64 / 255.0);
+        ctx.cairo.set_source_rgba(
+            r as f64 / 255.0,
+            g as f64 / 255.0,
+            b as f64 / 255.0,
+            a as f64 / 255.0,
+        );
 
         // Data values are already normalized [0,1] by compose()->apply_scales()
         // Just map to viewport pixel coordinates
-        for (x_norm, y_norm) in x_values.zip(y_values) {
+        for ((((x_norm, y_norm), color), size), alpha) in x_values
+            .zip(y_values)
+            .zip(color_values)
+            .zip(size_values)
+            .zip(alpha_values)
+        {
             // Convert normalized [0,1] to viewport pixel coordinates
             let x_px = ctx.map_x(x_norm);
             let y_px = ctx.map_y(y_norm);
 
-            log::info!("Drawing point at norm({}, {}) -> px({}, {})", 
-                x_norm, y_norm, x_px, y_px);
+            log::info!(
+                "Drawing point at data=({}, {}), norm=({}, {}), px=({}, {}), size={}, color={:?}, alpha={}",
+                x_norm,
+                y_norm,
+                x_norm,
+                y_norm,
+                x_px,
+                y_px,
+                size,
+                color,
+                alpha
+            );
+
+            let Color(r, g, b, a) = color;
+            ctx.cairo.set_source_rgba(
+                r as f64 / 255.0,
+                g as f64 / 255.0,
+                b as f64 / 255.0,
+                a as f64 / 255.0 * alpha,
+            );
+
+            let point_radius = size / 2.0;
 
             // Draw circle
             ctx.cairo
@@ -205,18 +235,52 @@ impl Geom for GeomPoint {
         let mapping = ctx.layer.mapping(ctx.mapping());
 
         if mapping.contains(Aesthetic::Group) {
-            let group_values = mapping.get_vector_iter(&Aesthetic::Group, data).unwrap();
+            let group_values = mapping.get_iter_discrete(&Aesthetic::Group, data).unwrap();
             let x_values = mapping
-                .get_vector_iter(&Aesthetic::X(AestheticDomain::Continuous), data)
+                .get_iter_float(&Aesthetic::X(AestheticDomain::Continuous), data)
                 .unwrap();
             let y_values = mapping
-                .get_vector_iter(&Aesthetic::Y(AestheticDomain::Continuous), data)
+                .get_iter_float(&Aesthetic::Y(AestheticDomain::Continuous), data)
                 .unwrap();
+            let color_values = self.color.iter(data, mapping)?;
+            let size_values = self.size.iter(data, mapping)?;
+            let alpha_values = self.alpha.iter(data, mapping)?;
 
-            let mut grouper = PointGrouper::new();
-            let groups = visit3_dcc(group_values, x_values, y_values, &mut grouper)?;
-            for (x_values, y_values) in groups.into_iter() {
-                self.draw_points(ctx, x_values.into_iter(), y_values.into_iter())?;
+            let mut groups: HashMap<
+                DiscreteValue,
+                (Vec<f64>, Vec<f64>, Vec<Color>, Vec<f64>, Vec<f64>),
+            > = HashMap::new();
+            for (((((group, x), y), color), size), alpha) in group_values
+                .zip(x_values)
+                .zip(y_values)
+                .zip(color_values.map(Color::from))
+                .zip(size_values)
+                .zip(alpha_values)
+            {
+                let entry = groups.entry(group).or_insert((
+                    Vec::new(),
+                    Vec::new(),
+                    Vec::new(),
+                    Vec::new(),
+                    Vec::new(),
+                ));
+                entry.0.push(x);
+                entry.1.push(y);
+                entry.2.push(color);
+                entry.3.push(size);
+                entry.4.push(alpha);
+            }
+            let mut groups: Vec<_> = groups.into_iter().collect();
+            groups.sort_by(|a, b| a.0.cmp(&b.0));
+            for (_, (x_vals, y_vals, color_vals, size_vals, alpha_vals)) in groups {
+                self.draw_points(
+                    ctx,
+                    x_vals.into_iter(),
+                    y_vals.into_iter(),
+                    color_vals.into_iter(),
+                    size_vals.into_iter(),
+                    alpha_vals.into_iter(),
+                )?;
             }
         } else {
             // Get x and y values
@@ -224,12 +288,22 @@ impl Geom for GeomPoint {
                 .get_iter_float(&Aesthetic::X(AestheticDomain::Continuous), data)
                 .unwrap()
                 .collect();
+            let n = x_values.len();
             let y_values: Vec<f64> = mapping
                 .get_iter_float(&Aesthetic::Y(AestheticDomain::Continuous), data)
                 .unwrap()
                 .collect();
-            log::info!("Drawing points: {:?}", x_values);
-            self.draw_points(ctx, x_values.into_iter(), y_values.into_iter())?;
+            let color_values: Vec<Color> = self.color.iter(data, mapping)?.take(n).collect();
+            let size_values: Vec<f64> = self.size.iter(data, mapping)?.take(n).collect();
+            let alpha_values: Vec<f64> = self.alpha.iter(data, mapping)?.take(n).collect();
+            self.draw_points(
+                ctx,
+                x_values.into_iter(),
+                y_values.into_iter(),
+                color_values.into_iter(),
+                size_values.into_iter(),
+                alpha_values.into_iter(),
+            )?;
         }
 
         Ok(())

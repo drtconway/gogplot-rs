@@ -40,21 +40,59 @@ impl<'a> PlotBuilder<'a> {
             layers: self.layers,
         }
     }
-    pub fn build(self) -> Plot<'a> {
-        let layers: Vec<Layer> = self
+    pub fn build(self) -> Result<Plot<'a>, PlotError> {
+        let mut layers: Vec<Layer> = self
             .layers
             .into_iter()
             .map(|builder| builder.build(&self.mapping))
             .collect();
-        Plot {
+
+        let mut scales = ScaleSet::default();
+
+        // Step 1: Apply stat transformations to each layer
+        for layer in &mut layers {
+            layer.apply_stat(&self.data, &self.mapping)?;
+        }
+
+        // Step 2: Apply position adjustments across layers
+        positions::apply_positions(
+            &mut layers,
+            Some(self.data.as_ref()),
+            &self.mapping,
+            &scales,
+        )?;
+
+        // Step 3: Train scales on all layer data
+        for layer in &mut layers {
+            layer.train_scales(&mut scales, &self.data, &self.mapping)?;
+        }
+
+        // Step 4: Apply scales to convert data to visual coordinates
+        for layer in &mut layers {
+            layer.apply_scales(&scales, self.data, &self.mapping)?;
+        }
+
+        let mut required_scales = Vec::new();
+        for layer in &layers {
+            let geom = layer.geom.as_ref();
+            required_scales.extend(geom.required_scales());
+        }
+        required_scales.sort();
+        required_scales.dedup();
+        log::info!("Required scales: {:?}", required_scales);
+
+        scales.x_continuous.compute_breaks(5);
+        scales.y_continuous.compute_breaks(5);
+
+        Ok(Plot {
             data: self.data,
             mapping: self.mapping,
             layers,
-            scales: ScaleSet::default(),
+            scales,
             theme: Theme::default(),
             guides: Guides::default(),
             title: None,
-        }
+        })
     }
 }
 
@@ -120,67 +158,6 @@ impl<'a> Plot<'a> {
             guides: Guides::default(),
             title: None,
         }
-    }
-
-    /// Execute the plot composition pipeline
-    ///
-    /// This runs the complete ggplot2-style pipeline:
-    /// 1. Apply stat transformations to each layer
-    /// 2. Apply position adjustments to layers (stack, dodge, etc.)
-    /// 3. Train scales on all transformed data
-    /// 4. Apply scales to convert data to visual coordinates
-    ///
-    /// This should be called before rendering/saving.
-    pub fn compose(&mut self) -> Result<(), PlotError> {
-        
-        // Step 1: Apply stat transformations to each layer
-        for layer in &mut self.layers {
-            layer.apply_stat(&self.data, &self.mapping)?;
-        }
-
-        // Step 2: Apply position adjustments across layers
-        positions::apply_positions(
-            &mut self.layers,
-            Some(self.data.as_ref()),
-            &self.mapping,
-            &self.scales,
-        )?;
-
-        // Step 3: Train scales on all layer data
-        for layer in &mut self.layers {
-            layer.train_scales(&mut self.scales, &self.data, &self.mapping)?;
-        }
-
-        // Step 3.5: Compute breaks and labels for scales
-        self.scales.x_continuous.compute_breaks(5);
-        self.scales.y_continuous.compute_breaks(5);
-
-        // Step 4: Apply scales to convert data to visual coordinates
-        for layer in &mut self.layers {
-            layer.apply_scales(&self.scales, self.data, &self.mapping)?;
-        }
-
-        let mut required_scales = Vec::new();
-        for layer in &self.layers {
-            let geom = layer.geom.as_ref();
-            required_scales.extend(geom.required_scales());
-        }
-        required_scales.sort();
-        required_scales.dedup();
-        log::info!("Required scales: {:?}", required_scales);
-
-        // Step 4: Apply scales to convert data to visual coordinates
-        // TODO: Implement scale application once scale_application module is complete
-        // for layer in &mut self.layers {
-        //     let data = layer.data(self.data.as_ref());
-        //     let mapping = layer.mapping(&self.mapping);
-        //     let (scaled_data, scaled_mapping) = 
-        //         scale_application::apply_scales(data, mapping, &self.scales)?;
-        //     layer.data = Some(Box::new(scaled_data));
-        //     layer.mapping = Some(scaled_mapping);
-        // }
-
-        Ok(())
     }
 
     /// Set the plot title (builder style)
@@ -263,12 +240,7 @@ impl<'a> Plot<'a> {
     /// ```ignore
     /// plot.save("output.png", 800, 600)?;
     /// ```
-    pub fn save(
-        &self,
-        path: impl AsRef<Path>,
-        width: i32,
-        height: i32,
-    ) -> Result<(), PlotError> {
+    pub fn save(&self, path: impl AsRef<Path>, width: i32, height: i32) -> Result<(), PlotError> {
         export::save(
             path,
             &self.layers,
