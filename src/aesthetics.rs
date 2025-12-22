@@ -24,9 +24,9 @@ pub enum PrimaryAesthetic {
     Y(AestheticDomain),
     Color(AestheticDomain),
     Fill(AestheticDomain),
+    Size(AestheticDomain),
+    Alpha(AestheticDomain),
     Shape,
-    Size,
-    Alpha,
     Linetype,
 }
 
@@ -40,8 +40,8 @@ impl TryFrom<Aesthetic> for PrimaryAesthetic {
             Aesthetic::Color(kind) => Ok(PrimaryAesthetic::Color(kind)),
             Aesthetic::Fill(kind) => Ok(PrimaryAesthetic::Fill(kind)),
             Aesthetic::Shape => Ok(PrimaryAesthetic::Shape),
-            Aesthetic::Size => Ok(PrimaryAesthetic::Size),
-            Aesthetic::Alpha => Ok(PrimaryAesthetic::Alpha),
+            Aesthetic::Size(kind) => Ok(PrimaryAesthetic::Size(kind)),
+            Aesthetic::Alpha(kind) => Ok(PrimaryAesthetic::Alpha(kind)),
             Aesthetic::Linetype => Ok(PrimaryAesthetic::Linetype),
             _ => Err(PlotError::InvalidAestheticConversion { from: aes }),
         }
@@ -62,8 +62,8 @@ pub enum Aesthetic {
     Upper,  // Q3 (third quartile) for boxplots
     Color(AestheticDomain),
     Fill(AestheticDomain),
-    Alpha,
-    Size,
+    Alpha(AestheticDomain),
+    Size(AestheticDomain),
     Shape,
     Linetype,
     Group,
@@ -133,11 +133,10 @@ impl Aesthetic {
             | Aesthetic::Ymin(kind)
             | Aesthetic::Ymax(kind)
             | Aesthetic::Color(kind)
-            | Aesthetic::Fill(kind) => *kind,
-            Aesthetic::Alpha | Aesthetic::Size => AestheticDomain::Continuous,
-            Aesthetic::Shape
-            | Aesthetic::Linetype
-            | Aesthetic::Group => AestheticDomain::Discrete,
+            | Aesthetic::Fill(kind)
+            | Aesthetic::Alpha(kind)
+            | Aesthetic::Size(kind) => *kind,
+            Aesthetic::Shape | Aesthetic::Linetype | Aesthetic::Group => AestheticDomain::Discrete,
             Aesthetic::XBegin
             | Aesthetic::XEnd
             | Aesthetic::XIntercept
@@ -165,8 +164,8 @@ impl Aesthetic {
             Aesthetic::Upper => "upper",
             Aesthetic::Color(_) => "color",
             Aesthetic::Fill(_) => "fill",
-            Aesthetic::Alpha => "alpha",
-            Aesthetic::Size => "size",
+            Aesthetic::Alpha(_) => "alpha",
+            Aesthetic::Size(_) => "size",
             Aesthetic::Shape => "shape",
             Aesthetic::Linetype => "linetype",
             Aesthetic::Group => "group",
@@ -432,11 +431,11 @@ impl AesMap {
     pub fn y(&mut self, column: impl Into<String>, kind: AestheticDomain) {
         self.set_to_column(Aesthetic::Y(kind), column);
     }
-    pub fn alpha(&mut self, column: impl Into<String>) {
-        self.set_to_column(Aesthetic::Alpha, column);
+    pub fn alpha(&mut self, column: impl Into<String>, kind: AestheticDomain) {
+        self.set_to_column(Aesthetic::Alpha(kind), column);
     }
-    pub fn size(&mut self, column: impl Into<String>) {
-        self.set_to_column(Aesthetic::Size, column);
+    pub fn size(&mut self, column: impl Into<String>, kind: AestheticDomain) {
+        self.set_to_column(Aesthetic::Size(kind), column);
     }
     pub fn shape(&mut self, column: impl Into<String>) {
         self.set_to_column(Aesthetic::Shape, column);
@@ -502,22 +501,22 @@ impl AesMap {
         );
     }
     pub fn size_continuous(&mut self, column: impl Into<String>) {
-        self.set(Aesthetic::Size, AesValue::continuous_column(column));
+        self.set(Aesthetic::Size(AestheticDomain::Continuous), AesValue::continuous_column(column));
     }
     pub fn alpha_continuous(&mut self, column: impl Into<String>) {
-        self.set(Aesthetic::Alpha, AesValue::continuous_column(column));
+        self.set(Aesthetic::Alpha(AestheticDomain::Continuous), AesValue::continuous_column(column));
     }
 
     pub fn const_alpha(&mut self, alpha: f64) {
         self.set(
-            Aesthetic::Alpha,
+            Aesthetic::Alpha(AestheticDomain::Continuous),
             AesValue::constant(PrimitiveValue::Float(alpha)),
         );
     }
 
     pub fn const_size(&mut self, size: f64) {
         self.set(
-            Aesthetic::Size,
+            Aesthetic::Size(AestheticDomain::Continuous),
             AesValue::constant(PrimitiveValue::Float(size)),
         );
     }
@@ -683,7 +682,7 @@ impl AesMap {
                                 return Some(Box::new(discrete_iter)
                                     as Box<dyn Iterator<Item = DiscreteValue> + 'a>);
                             }
-                            data::VectorIter::Float(iter) => {
+                            data::VectorIter::Float(_) => {
                                 panic!("Float columns cannot be used as discrete values");
                             }
                             data::VectorIter::Str(iter) => {
@@ -698,29 +697,32 @@ impl AesMap {
                             }
                         }
                     }
-                    AesValue::Constant { value, .. } => {
-                        match value {
-                            PrimitiveValue::Int(i) => {
-                                let n = data.len();
-                                return Some(Box::new(std::iter::repeat(DiscreteValue::Int(*i)).take(n))
-                                    as Box<dyn Iterator<Item = DiscreteValue> + 'a>);
-                            }
-                            PrimitiveValue::Str(s) => {
-                                let n = data.len();
-                                return Some(Box::new(
-                                    std::iter::repeat(DiscreteValue::Str(s.to_string())).take(n),
-                                ) as Box<dyn Iterator<Item = DiscreteValue> + 'a>);
-                            }
-                            PrimitiveValue::Bool(b) => {
-                                let n = data.len();
-                                return Some(Box::new(std::iter::repeat(DiscreteValue::Bool(*b)).take(n))
-                                    as Box<dyn Iterator<Item = DiscreteValue> + 'a>);
-                            }
-                            PrimitiveValue::Float(_) => {
-                                panic!("Float constants cannot be used as discrete values");
-                            }
+                    AesValue::Constant { value, .. } => match value {
+                        PrimitiveValue::Int(i) => {
+                            let n = data.len();
+                            return Some(
+                                Box::new(std::iter::repeat(DiscreteValue::Int(*i)).take(n))
+                                    as Box<dyn Iterator<Item = DiscreteValue> + 'a>,
+                            );
                         }
-                    }
+                        PrimitiveValue::Str(s) => {
+                            let n = data.len();
+                            return Some(Box::new(
+                                std::iter::repeat(DiscreteValue::Str(s.to_string())).take(n),
+                            )
+                                as Box<dyn Iterator<Item = DiscreteValue> + 'a>);
+                        }
+                        PrimitiveValue::Bool(b) => {
+                            let n = data.len();
+                            return Some(
+                                Box::new(std::iter::repeat(DiscreteValue::Bool(*b)).take(n))
+                                    as Box<dyn Iterator<Item = DiscreteValue> + 'a>,
+                            );
+                        }
+                        PrimitiveValue::Float(_) => {
+                            panic!("Float constants cannot be used as discrete values");
+                        }
+                    },
                 }
             }
             None => {}
@@ -737,28 +739,38 @@ impl AesMap {
             Some(value) => match value {
                 AesValue::Column { name, .. } => {
                     let column = data.get(name.as_str())?;
-                    let iter: Box<dyn Iterator<Item = crate::theme::Color> + 'a> = match column.iter()
-                    {
-                        data::VectorIter::Int(iter) => Box::new(iter.map(crate::theme::Color::from)),
-                        data::VectorIter::Float(_) => panic!("Float columns cannot be mapped to colors"),
-                        data::VectorIter::Str(_) => panic!("String columns cannot be mapped to colors"),
-                        data::VectorIter::Bool(_) => panic!("Boolean columns cannot be mapped to colors"),
-                    };
+                    let iter: Box<dyn Iterator<Item = crate::theme::Color> + 'a> =
+                        match column.iter() {
+                            data::VectorIter::Int(iter) => {
+                                Box::new(iter.map(crate::theme::Color::from))
+                            }
+                            data::VectorIter::Float(_) => {
+                                panic!("Float columns cannot be mapped to colors")
+                            }
+                            data::VectorIter::Str(_) => {
+                                panic!("String columns cannot be mapped to colors")
+                            }
+                            data::VectorIter::Bool(_) => {
+                                panic!("Boolean columns cannot be mapped to colors")
+                            }
+                        };
                     Some(iter)
                 }
                 AesValue::Constant { value, .. } => match value {
                     PrimitiveValue::Int(i) => {
                         let n = data.len();
-                        Some(Box::new(std::iter::repeat(crate::theme::Color::from(*i)).take(n))
-                            as Box<dyn Iterator<Item = crate::theme::Color> + 'a>)
+                        Some(
+                            Box::new(std::iter::repeat(crate::theme::Color::from(*i)).take(n))
+                                as Box<dyn Iterator<Item = crate::theme::Color> + 'a>,
+                        )
                     }
-                    PrimitiveValue::Float(f) => {
+                    PrimitiveValue::Float(_) => {
                         panic!("Float constants cannot be used as colors");
                     }
-                    PrimitiveValue::Str(s) => {
+                    PrimitiveValue::Str(_) => {
                         panic!("String constants cannot be used as colors");
                     }
-                    PrimitiveValue::Bool(b) => {
+                    PrimitiveValue::Bool(_) => {
                         panic!("Boolean constants cannot be used as colors");
                     }
                 },

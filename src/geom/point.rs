@@ -2,17 +2,17 @@ use std::collections::HashMap;
 
 use super::{Geom, RenderContext};
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain};
-use crate::data::{ContinuousType, DiscreteType, DiscreteValue, PrimitiveType};
+use crate::data::{ContinuousType, DiscreteType, DiscreteValue};
 use crate::error::PlotError;
 use crate::geom::properties::{ColorProperty, FloatProperty, ShapeProperty};
-use crate::geom::{
+use crate::geom::builder::{
     AesMapBuilder, ColorContinuousAesBuilder, ColorDiscreteAesBuilder, XContininuousAesBuilder,
-    XDiscreteAesBuilder, YContininuousAesBuilder, YDiscreteAesBuilder,
+    XDiscreteAesBuilder, YContininuousAesBuilder, YDiscreteAesBuilder, SizeContinuousAesBuilder, SizeDiscreteAesBuilder,
 };
 use crate::layer::{Layer, LayerBuilder};
 use crate::scale::ScaleIdentifier;
 use crate::theme::{Color, color};
-use crate::utils::data::{DiscreteContinuousContinuousVisitor3, Vectorable, visit3_dcc};
+use crate::utils::data::{DiscreteContinuousContinuousVisitor3, Vectorable};
 use crate::visuals::Shape;
 
 pub trait GeomPointAesBuilderTrait:
@@ -22,6 +22,8 @@ pub trait GeomPointAesBuilderTrait:
     + YDiscreteAesBuilder
     + ColorContinuousAesBuilder
     + ColorDiscreteAesBuilder
+    + SizeContinuousAesBuilder
+    + SizeDiscreteAesBuilder
 {
 }
 

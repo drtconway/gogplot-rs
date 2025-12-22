@@ -134,21 +134,27 @@ impl Layer {
                 }
                 crate::aesthetics::Aesthetic::Color(AestheticDomain::Continuous) => {
                     scales.color_continuous.train(iter);
-                },
+                }
                 crate::aesthetics::Aesthetic::Color(AestheticDomain::Discrete) => {
                     scales.color_discrete.train(iter);
-                },
+                }
                 crate::aesthetics::Aesthetic::Fill(AestheticDomain::Continuous) => {
                     scales.fill_continuous.train(iter);
-                },
+                }
                 crate::aesthetics::Aesthetic::Fill(AestheticDomain::Discrete) => {
                     scales.fill_discrete.train(iter);
-                },
-                crate::aesthetics::Aesthetic::Alpha => {
+                }
+                crate::aesthetics::Aesthetic::Alpha(AestheticDomain::Continuous) => {
                     scales.alpha_scale.train(iter);
                 }
-                crate::aesthetics::Aesthetic::Size => {
+                crate::aesthetics::Aesthetic::Alpha(AestheticDomain::Discrete) => {
+                    scales.alpha_scale.train(iter);
+                }
+                crate::aesthetics::Aesthetic::Size(AestheticDomain::Continuous) => {
                     scales.size_continuous.train(iter);
+                }
+                crate::aesthetics::Aesthetic::Size(AestheticDomain::Discrete) => {
+                    scales.size_discrete.train(iter);
                 }
                 crate::aesthetics::Aesthetic::Shape => {
                     scales.shape_scale.train(iter);
@@ -251,18 +257,30 @@ impl Layer {
                     };
                     new_mapping.set(aes.clone(), new_value);
                 }
-                crate::aesthetics::Aesthetic::Alpha => {
-                    let new_value = scales
-                        .alpha_scale
-                        .map_aesthetic_value(value, data, &mut new_data)
-                        .unwrap();
+                crate::aesthetics::Aesthetic::Alpha(aesthetic_domain) => {
+                    let new_value = match aesthetic_domain {
+                        AestheticDomain::Continuous => scales
+                            .alpha_scale
+                            .map_aesthetic_value(value, data, &mut new_data)
+                            .unwrap(),
+                        AestheticDomain::Discrete => scales
+                            .alpha_scale
+                            .map_aesthetic_value(value, data, &mut new_data)
+                            .unwrap(),
+                    };
                     new_mapping.set(aes.clone(), new_value);
                 }
-                crate::aesthetics::Aesthetic::Size => {
-                    let new_value = scales
-                        .size_continuous
-                        .map_aesthetic_value(value, data, &mut new_data)
-                        .unwrap();
+                crate::aesthetics::Aesthetic::Size(aesthetic_domain) => {
+                    let new_value = match aesthetic_domain {
+                        AestheticDomain::Continuous => scales
+                            .size_continuous
+                            .map_aesthetic_value(value, data, &mut new_data)
+                            .unwrap(),
+                        AestheticDomain::Discrete => scales
+                            .size_discrete
+                            .map_aesthetic_value(value, data, &mut new_data)
+                            .unwrap(),
+                    };
                     new_mapping.set(aes.clone(), new_value);
                 }
                 crate::aesthetics::Aesthetic::Shape => {
@@ -282,14 +300,11 @@ impl Layer {
 
         self.data = Some(Box::new(new_data));
         self.mapping = Some(new_mapping);
-        
+
         Ok(())
     }
 
-    pub fn aesthetic_value_iter<'a>(
-        &'a self,
-        aes: &'a Aesthetic,
-    ) -> Option<VectorIter<'a>> {
+    pub fn aesthetic_value_iter<'a>(&'a self, aes: &'a Aesthetic) -> Option<VectorIter<'a>> {
         if let Some(mapping) = &self.mapping {
             if let Some(data) = &self.data {
                 return mapping.get_vector_iter(aes, data.as_ref());
