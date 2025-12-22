@@ -31,13 +31,107 @@ impl ContinuousPositionalScale {
     pub fn compute_breaks(&mut self, n: usize) {
         if let Some((min, max)) = self.domain {
             self.breaks = super::positional::extended_breaks((min, max), n);
-            self.labels = self
-                .breaks
-                .iter()
-                .map(|b| format!("{:.2}", b))
-                .collect();
+            self.labels = format_axis_labels(&self.breaks);
         }
     }
+}
+
+/// Format axis labels using ggplot2-style logic
+///
+/// This implements dynamic precision based on the spacing between breaks,
+/// adds thousands separators for large numbers, and uses scientific notation
+/// for extreme values.
+fn format_axis_labels(breaks: &[f64]) -> Vec<String> {
+    if breaks.is_empty() {
+        return Vec::new();
+    }
+
+    // Calculate the minimum spacing between consecutive breaks
+    let min_diff = if breaks.len() > 1 {
+        breaks
+            .windows(2)
+            .map(|w| (w[1] - w[0]).abs())
+            .filter(|&d| d > 1e-10)
+            .min_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap_or(1.0)
+    } else {
+        1.0
+    };
+
+    // Determine decimal places needed based on minimum difference
+    // e.g., if min_diff = 0.01, we need 2 decimal places
+    let decimal_places = if min_diff >= 1.0 {
+        0
+    } else {
+        (-min_diff.log10().floor() as i32).max(0) as usize
+    };
+
+    breaks
+        .iter()
+        .map(|&b| format_number(b, decimal_places))
+        .collect()
+}
+
+/// Format a single number with the specified decimal places
+///
+/// Adds thousands separators and handles special cases like very large/small numbers.
+fn format_number(value: f64, decimal_places: usize) -> String {
+    // Handle zero
+    if value.abs() < 1e-10 {
+        return "0".to_string();
+    }
+
+    // Use scientific notation for very large or very small numbers
+    if value.abs() < 1e-4 || value.abs() >= 1e6 {
+        return format!("{:.precision$e}", value, precision = decimal_places.min(2));
+    }
+
+    // Format with appropriate decimal places
+    let formatted = if decimal_places == 0 {
+        format!("{:.0}", value)
+    } else {
+        // Format with decimals, then trim trailing zeros
+        let s = format!("{:.precision$}", value, precision = decimal_places);
+        s.trim_end_matches('0').trim_end_matches('.').to_string()
+    };
+
+    // Add thousands separators for integers
+    if decimal_places == 0 {
+        add_thousands_separator(&formatted)
+    } else {
+        // Add thousands separators to the integer part only
+        if let Some(dot_pos) = formatted.find('.') {
+            let int_part = &formatted[..dot_pos];
+            let dec_part = &formatted[dot_pos..];
+            format!("{}{}", add_thousands_separator(int_part), dec_part)
+        } else {
+            formatted
+        }
+    }
+}
+
+/// Add thousands separators to a number string
+fn add_thousands_separator(s: &str) -> String {
+    let is_negative = s.starts_with('-');
+    let digits = if is_negative { &s[1..] } else { s };
+    
+    if digits.len() <= 3 {
+        return s.to_string();
+    }
+
+    let mut result = String::new();
+    if is_negative {
+        result.push('-');
+    }
+
+    for (i, c) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i) % 3 == 0 {
+            result.push(',');
+        }
+        result.push(c);
+    }
+
+    result
 }
 
 impl Default for ContinuousPositionalScale {
