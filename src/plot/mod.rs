@@ -8,11 +8,11 @@ mod positions;
 mod render;
 mod stats;
 
-use crate::aesthetics::AesMap;
+use crate::aesthetics::{AesMap, AestheticProperty};
 use crate::data::DataSource;
 use crate::error::PlotError;
 use crate::aesthetics::builder::AesMapBuilder;
-use crate::guide::Guides;
+use crate::guide::{AxisGuide, Guides};
 use crate::layer::{Layer, LayerBuilder};
 use crate::scale::ScaleSet;
 use crate::theme::Theme;
@@ -27,6 +27,9 @@ pub struct PlotBuilder<'a> {
     data: &'a Box<dyn DataSource>,
     mapping: AesMap,
     layers: Vec<Box<dyn LayerBuilder>>,
+    guides: Guides,
+    theme: Theme,
+    title: Option<String>,
 }
 
 impl<'a> PlotBuilder<'a> {
@@ -38,8 +41,30 @@ impl<'a> PlotBuilder<'a> {
             data: self.data,
             mapping: builder.build(&empty),
             layers: self.layers,
+            guides: self.guides,
+            theme: self.theme,
+            title: self.title,
         }
     }
+
+    /// Set the plot title (builder style)
+    pub fn title(mut self, title: impl Into<String>) -> Self {
+        self.title = Some(title.into());
+        self
+    }
+
+    /// Set the theme (builder style)
+    pub fn theme(mut self, theme: Theme) -> Self {
+        self.theme = theme;
+        self
+    }
+
+    /// Set the guides configuration (builder style)
+    pub fn guides(mut self, guides: Guides) -> Self {
+        self.guides = guides;
+        self
+    }
+
     pub fn build(self) -> Result<Plot<'a>, PlotError> {
         let mut layers: Vec<Layer> = self
             .layers
@@ -84,14 +109,31 @@ impl<'a> PlotBuilder<'a> {
         scales.x_continuous.compute_breaks(5);
         scales.y_continuous.compute_breaks(5);
 
+        // Populate default axis and legend labels from aesthetic mappings
+        let mut guides = self.guides;
+        
+        // Set default X axis label if not already set by user
+        if guides.x_axis.is_none() {
+            if let Some(x_label) = self.mapping.get_label(AestheticProperty::X) {
+                guides.x_axis = Some(AxisGuide::x().title(x_label));
+            }
+        }
+        
+        // Set default Y axis label if not already set by user
+        if guides.y_axis.is_none() {
+            if let Some(y_label) = self.mapping.get_label(AestheticProperty::Y) {
+                guides.y_axis = Some(AxisGuide::y().title(y_label));
+            }
+        }
+
         Ok(Plot {
             data: self.data,
             mapping: self.mapping,
             layers,
             scales,
-            theme: Theme::default(),
-            guides: Guides::default(),
-            title: None,
+            theme: self.theme,
+            guides,
+            title: self.title,
         })
     }
 }
@@ -101,6 +143,9 @@ pub fn plot<'a>(data: &'a Box<dyn DataSource>) -> PlotBuilder<'a> {
         data,
         mapping: AesMap::new(),
         layers: Vec::new(),
+        guides: Guides::default(),
+        theme: Theme::default(),
+        title: None,
     }
 }
 

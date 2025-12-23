@@ -471,6 +471,31 @@ impl AesMap {
         }
     }
 
+    /// Get the label/title for an aesthetic based on its mapped column name
+    /// Returns the original column name if available, otherwise the current name
+    /// Returns None if the aesthetic is not mapped or is a constant
+    pub fn get_label(&self, property: AestheticProperty) -> Option<String> {
+        // Find any aesthetic with this property
+        for (aes, value) in self.iter() {
+            let matches = match (property, aes) {
+                (AestheticProperty::X, Aesthetic::X(_)) => true,
+                (AestheticProperty::Y, Aesthetic::Y(_)) => true,
+                (AestheticProperty::Color, Aesthetic::Color(_)) => true,
+                (AestheticProperty::Fill, Aesthetic::Fill(_)) => true,
+                (AestheticProperty::Size, Aesthetic::Size(_)) => true,
+                (AestheticProperty::Alpha, Aesthetic::Alpha(_)) => true,
+                (AestheticProperty::Shape, Aesthetic::Shape) => true,
+                (AestheticProperty::Linetype, Aesthetic::Linetype) => true,
+                _ => false,
+            };
+            
+            if matches {
+                return value.as_original_column_name().map(|s| s.to_string());
+            }
+        }
+        None
+    }
+
     // Convenience methods for column mappings
     pub fn x(&mut self, column: impl Into<String>, kind: AestheticDomain) {
         self.set_to_column(Aesthetic::X(kind), column);

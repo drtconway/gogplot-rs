@@ -1,6 +1,5 @@
 // Legend rendering
 
-use crate::aesthetics::{AesValue, Aesthetic, AestheticDomain};
 use crate::error::PlotError;
 use crate::guide::{Guides, LegendEntry, LegendGuide, LegendPosition, LegendType};
 use crate::layer::Layer;
@@ -87,6 +86,30 @@ pub fn generate_automatic_legends(
         }
     }
     
+    // Get default legend titles from aesthetic mappings
+    // Check plot-level mapping first, then layer mappings
+    let get_title = |property: AestheticProperty, default: &str| -> String {
+        // First check plot-level mapping
+        if let Some(title) = plot_mapping.get_label(property) {
+            return title;
+        }
+        // Then check each layer's mapping
+        for layer in layers {
+            if let Some(mapping) = &layer.mapping {
+                if let Some(title) = mapping.get_label(property) {
+                    return title;
+                }
+            }
+        }
+        default.to_string()
+    };
+    
+    let color_title = get_title(AestheticProperty::Color, "Color");
+    let fill_title = get_title(AestheticProperty::Fill, "Fill");
+    let size_title = get_title(AestheticProperty::Size, "Size");
+    let shape_title = get_title(AestheticProperty::Shape, "Shape");
+    let alpha_title = get_title(AestheticProperty::Alpha, "Alpha");
+    
     // Generate color legend if not already specified
     if has_color && guides.color.is_none() {
         let legend = match color_domain {
@@ -119,7 +142,7 @@ pub fn generate_automatic_legends(
                 }
                 
                 LegendGuide {
-                    title: Some("Color".to_string()),
+                    title: Some(color_title),
                     entries,
                     legend_type: LegendType::Discrete,
                     ..Default::default()
@@ -134,7 +157,7 @@ pub fn generate_automatic_legends(
                     ];
                     
                     LegendGuide {
-                        title: Some("Color".to_string()),
+                        title: Some(color_title),
                         legend_type: LegendType::ColorBar { 
                             domain, 
                             colors,
@@ -184,7 +207,7 @@ pub fn generate_automatic_legends(
                 }
                 
                 LegendGuide {
-                    title: Some("Size".to_string()),
+                    title: Some(size_title),
                     entries,
                     legend_type: LegendType::Discrete,
                     ..Default::default()
@@ -217,7 +240,7 @@ pub fn generate_automatic_legends(
                     }
                     
                     LegendGuide {
-                        title: Some("Size".to_string()),
+                        title: Some(size_title),
                         entries,
                         legend_type: LegendType::Discrete, // Even for continuous, show discrete samples
                         ..Default::default()
@@ -471,12 +494,7 @@ pub fn draw_legends(
                 apply_color(ctx, &theme.legend.text_color);
                 ctx.set_font_size(9.0);
 
-                for (&break_value, label) in breaks.iter().zip(labels.iter()) {
-                    // Only draw breaks that are within the domain
-                    if break_value < domain.0 || break_value > domain.1 {
-                        continue;
-                    }
-                    
+                for (i, (&break_value, label)) in breaks.iter().zip(labels.iter()).enumerate() {
                     // Calculate position on the bar (inverted: high values at top)
                     let t = (break_value - domain.0) / (domain.1 - domain.0);
                     let tick_y = bar_y + bar_height - t * bar_height;
