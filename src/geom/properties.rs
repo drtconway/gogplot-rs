@@ -28,8 +28,16 @@ impl FloatProperty {
     pub fn iter<'a>(
         &'a self,
         data: &'a dyn DataSource,
-        _mapping: &'a AesMap,
+        mapping: &'a AesMap,
+        aesthetic: crate::aesthetics::Aesthetic,
     ) -> Result<Box<dyn Iterator<Item = f64> + 'a>, PlotError> {
+        // First check if there's a mapping for this aesthetic (highest priority)
+        if mapping.contains(aesthetic) {
+            return mapping.get_iter_float(&aesthetic, data)
+                .ok_or(PlotError::MissingColumn { column: format!("{:?}", aesthetic) });
+        }
+        
+        // Otherwise use the property value
         match &self.value {
             Either::Left(value) => Ok(Box::new(std::iter::repeat(*value))),
             Either::Right(column) => {
@@ -86,8 +94,16 @@ impl ColorProperty {
     pub fn iter<'a>(
         &'a self,
         data: &'a dyn DataSource,
-        _mapping: &'a AesMap,
+        mapping: &'a AesMap,
+        aesthetic: crate::aesthetics::Aesthetic,
     ) -> Result<Box<dyn Iterator<Item = Color> + 'a>, PlotError> {
+        // First check if there's a mapping for this aesthetic (highest priority)
+        if mapping.contains(aesthetic) {
+            return mapping.get_iter_color(&aesthetic, data)
+                .ok_or(PlotError::MissingColumn { column: format!("{:?}", aesthetic) });
+        }
+        
+        // Otherwise use the property value
         match &self.color {
             Either::Left(color) => Ok(Box::new(std::iter::repeat(*color))),
             Either::Right(column) => {
@@ -144,8 +160,16 @@ impl ShapeProperty {
     pub fn iter<'a>(
         &'a self,
         data: &'a dyn DataSource,
-        _mapping: &'a AesMap,
+        mapping: &'a AesMap,
+        aesthetic: crate::aesthetics::Aesthetic,
     ) -> Result<Box<dyn Iterator<Item = Shape> + 'a>, PlotError> {
+        // First check if there's a mapping for this aesthetic (highest priority)
+        if mapping.contains(aesthetic) {
+            return mapping.get_iter_shape(&aesthetic, data)
+                .ok_or(PlotError::MissingColumn { column: format!("{:?}", aesthetic) });
+        }
+        
+        // Otherwise use the property value
         match &self.shape {
             Either::Left(shape) => Ok(Box::new(std::iter::repeat(*shape))),
             Either::Right(column) => {

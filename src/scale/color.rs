@@ -86,8 +86,8 @@ impl ContinuousColorScale {
         Self::new(
             domain,
             vec![
-                color::LIGHTBLUE3, // dark blue
-                color::BLACK,      // black
+                color::NAVYBLUE,   // dark blue (low values)
+                color::LIGHTBLUE3, // light blue (high values)
             ],
         )
     }

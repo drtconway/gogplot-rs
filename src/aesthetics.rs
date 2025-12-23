@@ -2,8 +2,11 @@ use crate::data::{self, DataSource, DiscreteValue, GenericVector, PrimitiveValue
 use crate::error::PlotError;
 use crate::scale::ScaleType;
 use crate::utils::dataframe::{BoolVec, FloatVec, IntVec, StrVec};
+use crate::visuals::Shape;
 use core::panic;
 use std::collections::HashMap;
+
+pub mod builder;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AestheticDomain {
@@ -12,10 +15,15 @@ pub enum AestheticDomain {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum AestheticRange {
-    Continuous,
-    Colour,
+pub enum AestheticProperty {
+    Color,
+    Fill,
+    Size,
     Shape,
+    Alpha,
+    Linetype,
+    X,
+    Y,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -190,6 +198,41 @@ impl Aesthetic {
         match self.domain() {
             AestheticDomain::Continuous => false,
             AestheticDomain::Discrete => true,
+        }
+    }
+
+    /// Extract the aesthetic property (without domain information)
+    /// Returns None for positional aesthetics that don't map to properties
+    pub fn to_property(&self) -> Option<AestheticProperty> {
+        match self {
+            Aesthetic::Color(_) => Some(AestheticProperty::Color),
+            Aesthetic::Fill(_) => Some(AestheticProperty::Fill),
+            Aesthetic::Size(_) => Some(AestheticProperty::Size),
+            Aesthetic::Alpha(_) => Some(AestheticProperty::Alpha),
+            Aesthetic::Shape => Some(AestheticProperty::Shape),
+            Aesthetic::Linetype => Some(AestheticProperty::Linetype),
+            Aesthetic::X(_) | Aesthetic::Xmin(_) | Aesthetic::Xmax(_) 
+            | Aesthetic::XBegin | Aesthetic::XEnd | Aesthetic::XIntercept => Some(AestheticProperty::X),
+            Aesthetic::Y(_) | Aesthetic::Ymin(_) | Aesthetic::Ymax(_)
+            | Aesthetic::YBegin | Aesthetic::YEnd | Aesthetic::YIntercept
+            | Aesthetic::Lower | Aesthetic::Middle | Aesthetic::Upper => Some(AestheticProperty::Y),
+            // Group and Label don't have corresponding properties
+            Aesthetic::Group | Aesthetic::Label => None,
+        }
+    }
+}
+
+impl From<(AestheticProperty, AestheticDomain)> for Aesthetic {
+    fn from(value: (AestheticProperty, AestheticDomain)) -> Self {
+        match value.0 {
+            AestheticProperty::X => Aesthetic::X(value.1),
+            AestheticProperty::Y => Aesthetic::Y(value.1),
+            AestheticProperty::Color => Aesthetic::Color(value.1),
+            AestheticProperty::Fill => Aesthetic::Fill(value.1),
+            AestheticProperty::Size => Aesthetic::Size(value.1),
+            AestheticProperty::Alpha => Aesthetic::Alpha(value.1),
+            AestheticProperty::Shape => Aesthetic::Shape,
+            AestheticProperty::Linetype => Aesthetic::Linetype,
         }
     }
 }
@@ -404,6 +447,10 @@ impl AesMap {
         self.map.get(aes)
     }
 
+    pub fn remove(&mut self, aes: &Aesthetic) {
+        self.map.remove(aes);
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = (&Aesthetic, &AesValue)> {
         self.map.iter()
     }
@@ -501,10 +548,16 @@ impl AesMap {
         );
     }
     pub fn size_continuous(&mut self, column: impl Into<String>) {
-        self.set(Aesthetic::Size(AestheticDomain::Continuous), AesValue::continuous_column(column));
+        self.set(
+            Aesthetic::Size(AestheticDomain::Continuous),
+            AesValue::continuous_column(column),
+        );
     }
     pub fn alpha_continuous(&mut self, column: impl Into<String>) {
-        self.set(Aesthetic::Alpha(AestheticDomain::Continuous), AesValue::continuous_column(column));
+        self.set(
+            Aesthetic::Alpha(AestheticDomain::Continuous),
+            AesValue::continuous_column(column),
+        );
     }
 
     pub fn const_alpha(&mut self, alpha: f64) {
@@ -730,7 +783,7 @@ impl AesMap {
         None
     }
 
-    fn get_iter_color<'a>(
+    pub fn get_iter_color<'a>(
         &self,
         aes: &Aesthetic,
         data: &'a dyn DataSource,
@@ -772,6 +825,44 @@ impl AesMap {
                     }
                     PrimitiveValue::Bool(_) => {
                         panic!("Boolean constants cannot be used as colors");
+                    }
+                },
+            },
+            None => None,
+        }
+    }
+
+    pub fn get_iter_shape<'a>(
+        &self,
+        aes: &Aesthetic,
+        data: &'a dyn DataSource,
+    ) -> Option<Box<dyn Iterator<Item = Shape> + 'a>> {
+        match self.get(aes) {
+            Some(value) => match value {
+                AesValue::Column { name, .. } => {
+                    let column = data.get(name.as_str())?;
+                    let iter: Box<dyn Iterator<Item = Shape> + 'a> = match column.iter() {
+                        data::VectorIter::Int(iter) => Box::new(iter.map(|v| Shape::from(v))),
+                        data::VectorIter::Float(_) => {
+                            panic!("Float columns cannot be mapped to shapes")
+                        }
+                        data::VectorIter::Str(_) => {
+                            panic!("String columns cannot be mapped to shapes")
+                        }
+                        data::VectorIter::Bool(_) => {
+                            panic!("Boolean columns cannot be mapped to shapes")
+                        }
+                    };
+                    Some(iter)
+                }
+                AesValue::Constant { value, .. } => match value {
+                    PrimitiveValue::Int(i) => {
+                        let n = data.len();
+                        Some(Box::new(std::iter::repeat(Shape::from(*i)).take(n))
+                            as Box<dyn Iterator<Item = Shape> + 'a>)
+                    }
+                    _ => {
+                        panic!("Only integer constants can be used as shapes");
                     }
                 },
             },

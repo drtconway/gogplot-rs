@@ -1,4 +1,4 @@
-use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain};
+use crate::aesthetics::{AestheticDomain, AestheticProperty};
 use crate::data::PrimitiveValue;
 use crate::error::PlotError;
 use crate::scale::{ScaleIdentifier, ScaleSet};
@@ -59,13 +59,28 @@ impl<T: Clone> Default for GeomConstant<T> {
     }
 }
 
-pub mod builder;
+// Define what domains a geom accepts for an aesthetic
+pub enum DomainConstraint {
+    Any,
+    MustBe(AestheticDomain),
+}
+
+pub struct AestheticRequirement {
+    pub property: AestheticProperty,
+    pub required: bool,                 // true = required, false = optional
+    pub constraint: DomainConstraint,
+}
 
 pub trait GeomBuilder {
     fn build(self) -> Box<dyn Geom>;
 }
 
 pub trait Geom: Send + Sync {
+    /// Get the list of aesthetic requirements for this geom
+    fn aesthetic_requirements(&self) -> &'static [AestheticRequirement] {
+        &[]
+    }
+
     /// Get the list of scales required by this geom
     fn required_scales(&self) -> Vec<ScaleIdentifier> {
         Vec::new()

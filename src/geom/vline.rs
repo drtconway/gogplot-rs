@@ -92,9 +92,9 @@ impl Geom for GeomVLine {
         let data = ctx.layer.data(ctx.data());
         let mapping = ctx.layer.mapping(ctx.mapping());
         let x_intercepts = self.get_x_intercept(&ctx.layer)?;
-        let colors = self.color.iter(data, mapping)?;
-        let alphas = self.alpha.iter(data, mapping)?;
-        let sizes = self.size.iter(data, mapping)?;
+        let colors = self.color.iter(data, mapping, crate::aesthetics::Aesthetic::Color(crate::aesthetics::AestheticDomain::Discrete))?;
+        let alphas = self.alpha.iter(data, mapping, crate::aesthetics::Aesthetic::Alpha(crate::aesthetics::AestheticDomain::Discrete))?;
+        let sizes = self.size.iter(data, mapping, crate::aesthetics::Aesthetic::Size(crate::aesthetics::AestheticDomain::Continuous))?;
         
         // Get linetype if specified
         let linetype_pattern = if let Some(AesValue::Constant {

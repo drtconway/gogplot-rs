@@ -1,18 +1,19 @@
 use std::collections::HashMap;
 
 use super::{Geom, RenderContext};
-use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain};
-use crate::data::{ContinuousType, DiscreteType, DiscreteValue};
+use crate::aesthetics::builder::{
+    AesMapBuilder, ColorContinuousAesBuilder, ColorDiscreteAesBuilder, SizeContinuousAesBuilder,
+    SizeDiscreteAesBuilder, XContininuousAesBuilder, XDiscreteAesBuilder, YContininuousAesBuilder,
+    YDiscreteAesBuilder,
+};
+use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
+use crate::data::DiscreteValue;
 use crate::error::PlotError;
 use crate::geom::properties::{ColorProperty, FloatProperty, ShapeProperty};
-use crate::geom::builder::{
-    AesMapBuilder, ColorContinuousAesBuilder, ColorDiscreteAesBuilder, XContininuousAesBuilder,
-    XDiscreteAesBuilder, YContininuousAesBuilder, YDiscreteAesBuilder, SizeContinuousAesBuilder, SizeDiscreteAesBuilder,
-};
+use crate::geom::{AestheticRequirement, DomainConstraint};
 use crate::layer::{Layer, LayerBuilder};
 use crate::scale::ScaleIdentifier;
 use crate::theme::{Color, color};
-use crate::utils::data::{DiscreteContinuousContinuousVisitor3, Vectorable};
 use crate::visuals::Shape;
 
 pub trait GeomPointAesBuilderTrait:
@@ -77,23 +78,40 @@ impl GeomPointBuilder {
 impl LayerBuilder for GeomPointBuilder {
     fn build(self: Box<Self>, parent_mapping: &AesMap) -> Layer {
         let mut geom_point = GeomPoint::new();
+
+        // Build the mapping (merging layer + parent)
+        let mut mapping = self.aes_builder.build(parent_mapping);
+
+        // Set fixed property values and remove from inherited mapping
         if let Some(size_prop) = self.size {
             geom_point.size = size_prop;
+            mapping.remove(&Aesthetic::Size(AestheticDomain::Continuous));
+            mapping.remove(&Aesthetic::Size(AestheticDomain::Discrete));
         }
         if let Some(color_prop) = self.color {
             geom_point.color = color_prop;
+            mapping.remove(&Aesthetic::Color(AestheticDomain::Continuous));
+            mapping.remove(&Aesthetic::Color(AestheticDomain::Discrete));
         }
         if let Some(shape_prop) = self.shape {
             geom_point.shape = shape_prop;
+            mapping.remove(&Aesthetic::Shape);
         }
         if let Some(alpha_prop) = self.alpha {
             geom_point.alpha = alpha_prop;
+            mapping.remove(&Aesthetic::Alpha(AestheticDomain::Continuous));
+            mapping.remove(&Aesthetic::Alpha(AestheticDomain::Discrete));
         }
 
-        let mapping = self.aes_builder.build(parent_mapping);
+        // Determine and validate aesthetic domains
+        let requirements = geom_point.aesthetic_requirements();
+        let aesthetic_domains = crate::layer::determine_aesthetic_domains(&mapping, requirements)
+            .expect("Invalid aesthetic configuration for geom_point");
 
+        // Create the layer
         let mut layer = crate::layer::Layer::new(Box::new(geom_point));
         layer.mapping = Some(mapping);
+        layer.aesthetic_domains = aesthetic_domains;
 
         layer
     }
@@ -162,7 +180,6 @@ impl GeomPoint {
         size_values: impl Iterator<Item = f64>,
         alpha_values: impl Iterator<Item = f64>,
     ) -> Result<(), PlotError> {
-
         // Set default color
         let Color(r, g, b, a) = color::BLACK; // Placeholder for now
         ctx.cairo.set_source_rgba(
@@ -205,7 +222,8 @@ impl GeomPoint {
                 a as f64 / 255.0 * alpha,
             );
 
-            let point_radius = size / 2.0;
+            // Size is already a radius value from the scale (default range 1.0-6.0)
+            let point_radius = size;
 
             // Draw circle
             ctx.cairo
@@ -223,7 +241,39 @@ impl Default for GeomPoint {
     }
 }
 
+const AESTHETIC_REQUIREMENTS: [AestheticRequirement; 5] = [
+    AestheticRequirement {
+        property: AestheticProperty::X,
+        required: true,
+        constraint: DomainConstraint::Any,
+    },
+    AestheticRequirement {
+        property: AestheticProperty::Y,
+        required: true,
+        constraint: DomainConstraint::Any,
+    },
+    AestheticRequirement {
+        property: AestheticProperty::Color,
+        required: false,
+        constraint: DomainConstraint::Any,
+    },
+    AestheticRequirement {
+        property: AestheticProperty::Size,
+        required: false,
+        constraint: DomainConstraint::Any,
+    },
+    AestheticRequirement {
+        property: AestheticProperty::Alpha,
+        required: false,
+        constraint: DomainConstraint::Any,
+    },
+];
+
 impl Geom for GeomPoint {
+    fn aesthetic_requirements(&self) -> &'static [AestheticRequirement] {
+        &AESTHETIC_REQUIREMENTS
+    }
+
     fn required_scales(&self) -> Vec<ScaleIdentifier> {
         vec![ScaleIdentifier::XContinuous, ScaleIdentifier::YContinuous]
     }
@@ -244,9 +294,15 @@ impl Geom for GeomPoint {
             let y_values = mapping
                 .get_iter_float(&Aesthetic::Y(AestheticDomain::Continuous), data)
                 .unwrap();
-            let color_values = self.color.iter(data, mapping)?;
-            let size_values = self.size.iter(data, mapping)?;
-            let alpha_values = self.alpha.iter(data, mapping)?;
+            let color_values =
+                self.color
+                    .iter(data, mapping, Aesthetic::Color(AestheticDomain::Discrete))?;
+            let size_values =
+                self.size
+                    .iter(data, mapping, Aesthetic::Size(AestheticDomain::Continuous))?;
+            let alpha_values =
+                self.alpha
+                    .iter(data, mapping, Aesthetic::Alpha(AestheticDomain::Continuous))?;
 
             let mut groups: HashMap<
                 DiscreteValue,
@@ -295,9 +351,21 @@ impl Geom for GeomPoint {
                 .get_iter_float(&Aesthetic::Y(AestheticDomain::Continuous), data)
                 .unwrap()
                 .collect();
-            let color_values: Vec<Color> = self.color.iter(data, mapping)?.take(n).collect();
-            let size_values: Vec<f64> = self.size.iter(data, mapping)?.take(n).collect();
-            let alpha_values: Vec<f64> = self.alpha.iter(data, mapping)?.take(n).collect();
+            let color_values: Vec<Color> = self
+                .color
+                .iter(data, mapping, Aesthetic::Color(AestheticDomain::Continuous))?
+                .take(n)
+                .collect();
+            let size_values: Vec<f64> = self
+                .size
+                .iter(data, mapping, Aesthetic::Size(AestheticDomain::Continuous))?
+                .take(n)
+                .collect();
+            let alpha_values: Vec<f64> = self
+                .alpha
+                .iter(data, mapping, Aesthetic::Alpha(AestheticDomain::Continuous))?
+                .take(n)
+                .collect();
             self.draw_points(
                 ctx,
                 x_values.into_iter(),
@@ -309,48 +377,5 @@ impl Geom for GeomPoint {
         }
 
         Ok(())
-    }
-}
-
-struct PointGrouper {}
-
-impl PointGrouper {
-    fn new() -> Self {
-        Self {}
-    }
-}
-
-impl DiscreteContinuousContinuousVisitor3 for PointGrouper {
-    type Output = Vec<(Vec<f64>, Vec<f64>)>;
-
-    fn visit<
-        G: Vectorable + DiscreteType,
-        T: Vectorable + ContinuousType,
-        U: Vectorable + ContinuousType,
-    >(
-        &mut self,
-        group_iter: impl Iterator<Item = G>,
-        x_iter: impl Iterator<Item = T>,
-        y_iter: impl Iterator<Item = U>,
-    ) -> std::result::Result<Self::Output, PlotError> {
-        let mut groups: HashMap<G::Sortable, (Vec<f64>, Vec<f64>)> = HashMap::new();
-        for ((g, x), y) in group_iter.zip(x_iter).zip(y_iter) {
-            let g_key = g.to_sortable();
-            let x_f64 = x.to_f64();
-            let y_f64 = y.to_f64();
-            let entry = groups.entry(g_key).or_insert((Vec::new(), Vec::new()));
-            entry.0.push(x_f64);
-            entry.1.push(y_f64);
-        }
-
-        let mut groups = groups.into_iter().collect::<Vec<_>>();
-        groups.sort_by(|a, b| a.0.cmp(&b.0));
-
-        let groups = groups
-            .into_iter()
-            .map(|(_, (x_vals, y_vals))| (x_vals, y_vals))
-            .collect();
-
-        Ok(groups)
     }
 }

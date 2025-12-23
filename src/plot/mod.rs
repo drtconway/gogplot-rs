@@ -11,7 +11,7 @@ mod stats;
 use crate::aesthetics::AesMap;
 use crate::data::DataSource;
 use crate::error::PlotError;
-use crate::geom::builder::AesMapBuilder;
+use crate::aesthetics::builder::AesMapBuilder;
 use crate::guide::Guides;
 use crate::layer::{Layer, LayerBuilder};
 use crate::scale::ScaleSet;

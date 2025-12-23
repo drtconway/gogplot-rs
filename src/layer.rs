@@ -1,13 +1,14 @@
 // Layer scaffolding for grammar of graphics
 
-use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain};
+use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::data::{DataSource, VectorIter};
-use crate::geom::Geom;
+use crate::geom::{Geom, AestheticRequirement, DomainConstraint};
 use crate::position::Position;
 use crate::scale::ScaleSet;
 use crate::scale::traits::{ColorRangeScale, ContinuousRangeScale, ScaleBase, ShapeRangeScale};
 use crate::stat::Stat;
 use crate::utils::dataframe::DataFrame;
+use std::collections::HashMap;
 
 pub trait LayerBuilder {
     fn build(self: Box<Self>, parent_mapping: &AesMap) -> Layer;
@@ -21,6 +22,9 @@ pub struct Layer {
     pub geom: Box<dyn Geom>,
     pub data: Option<Box<dyn DataSource>>,
     pub mapping: Option<AesMap>,
+    
+    /// Track which domain each aesthetic property uses in this layer
+    pub aesthetic_domains: HashMap<AestheticProperty, AestheticDomain>,
 }
 
 impl Layer {
@@ -32,6 +36,7 @@ impl Layer {
             geom,
             data: None,
             mapping: None,
+            aesthetic_domains: HashMap::new(),
         }
     }
 
@@ -101,68 +106,51 @@ impl Layer {
         let mapping = self.mapping(mapping);
         for aes in mapping.aesthetics() {
             let iter = mapping.get_vector_iter(aes, data).unwrap();
-            match aes {
-                crate::aesthetics::Aesthetic::X(AestheticDomain::Discrete)
-                | crate::aesthetics::Aesthetic::Xmin(AestheticDomain::Discrete)
-                | crate::aesthetics::Aesthetic::Xmax(AestheticDomain::Discrete) => {
-                    scales.x_discrete.train(iter);
-                }
-
-                crate::aesthetics::Aesthetic::X(AestheticDomain::Continuous)
-                | crate::aesthetics::Aesthetic::Xmin(AestheticDomain::Continuous)
-                | crate::aesthetics::Aesthetic::Xmax(AestheticDomain::Continuous)
-                | crate::aesthetics::Aesthetic::XBegin
-                | crate::aesthetics::Aesthetic::XEnd
-                | crate::aesthetics::Aesthetic::XIntercept => {
-                    scales.x_continuous.train(iter);
-                }
-                crate::aesthetics::Aesthetic::Y(AestheticDomain::Discrete)
-                | crate::aesthetics::Aesthetic::Ymin(AestheticDomain::Discrete)
-                | crate::aesthetics::Aesthetic::Ymax(AestheticDomain::Discrete) => {
-                    scales.y_discrete.train(iter);
-                }
-                crate::aesthetics::Aesthetic::Y(AestheticDomain::Continuous)
-                | crate::aesthetics::Aesthetic::Ymin(AestheticDomain::Continuous)
-                | crate::aesthetics::Aesthetic::Ymax(AestheticDomain::Continuous)
-                | crate::aesthetics::Aesthetic::YBegin
-                | crate::aesthetics::Aesthetic::YEnd
-                | crate::aesthetics::Aesthetic::YIntercept
-                | crate::aesthetics::Aesthetic::Lower
-                | crate::aesthetics::Aesthetic::Middle
-                | crate::aesthetics::Aesthetic::Upper => {
-                    scales.y_continuous.train(iter);
-                }
-                crate::aesthetics::Aesthetic::Color(AestheticDomain::Continuous) => {
-                    scales.color_continuous.train(iter);
-                }
-                crate::aesthetics::Aesthetic::Color(AestheticDomain::Discrete) => {
-                    scales.color_discrete.train(iter);
-                }
-                crate::aesthetics::Aesthetic::Fill(AestheticDomain::Continuous) => {
-                    scales.fill_continuous.train(iter);
-                }
-                crate::aesthetics::Aesthetic::Fill(AestheticDomain::Discrete) => {
-                    scales.fill_discrete.train(iter);
-                }
-                crate::aesthetics::Aesthetic::Alpha(AestheticDomain::Continuous) => {
-                    scales.alpha_scale.train(iter);
-                }
-                crate::aesthetics::Aesthetic::Alpha(AestheticDomain::Discrete) => {
-                    scales.alpha_scale.train(iter);
-                }
-                crate::aesthetics::Aesthetic::Size(AestheticDomain::Continuous) => {
-                    scales.size_continuous.train(iter);
-                }
-                crate::aesthetics::Aesthetic::Size(AestheticDomain::Discrete) => {
-                    scales.size_discrete.train(iter);
-                }
-                crate::aesthetics::Aesthetic::Shape => {
-                    scales.shape_scale.train(iter);
-                }
-                crate::aesthetics::Aesthetic::Linetype
-                | crate::aesthetics::Aesthetic::Group
-                | crate::aesthetics::Aesthetic::Label => {
-                    // do nothing
+            
+            // Extract the property and look up the domain from aesthetic_domains
+            if let Some(property) = aes.to_property() {
+                if let Some(domain) = self.aesthetic_domains.get(&property) {
+                    match (property, domain) {
+                        (AestheticProperty::X, AestheticDomain::Discrete) => {
+                            scales.x_discrete.train(iter);
+                        }
+                        (AestheticProperty::X, AestheticDomain::Continuous) => {
+                            scales.x_continuous.train(iter);
+                        }
+                        (AestheticProperty::Y, AestheticDomain::Discrete) => {
+                            scales.y_discrete.train(iter);
+                        }
+                        (AestheticProperty::Y, AestheticDomain::Continuous) => {
+                            scales.y_continuous.train(iter);
+                        }
+                        (AestheticProperty::Color, AestheticDomain::Continuous) => {
+                            scales.color_continuous.train(iter);
+                        }
+                        (AestheticProperty::Color, AestheticDomain::Discrete) => {
+                            scales.color_discrete.train(iter);
+                        }
+                        (AestheticProperty::Fill, AestheticDomain::Continuous) => {
+                            scales.fill_continuous.train(iter);
+                        }
+                        (AestheticProperty::Fill, AestheticDomain::Discrete) => {
+                            scales.fill_discrete.train(iter);
+                        }
+                        (AestheticProperty::Alpha, _) => {
+                            scales.alpha_scale.train(iter);
+                        }
+                        (AestheticProperty::Size, AestheticDomain::Continuous) => {
+                            scales.size_continuous.train(iter);
+                        }
+                        (AestheticProperty::Size, AestheticDomain::Discrete) => {
+                            scales.size_discrete.train(iter);
+                        }
+                        (AestheticProperty::Shape, _) => {
+                            scales.shape_scale.train(iter);
+                        }
+                        (AestheticProperty::Linetype, _) => {
+                            // do nothing
+                        }
+                    }
                 }
             }
         }
@@ -183,118 +171,72 @@ impl Layer {
         let mut new_mapping = AesMap::new();
 
         for (aes, value) in mapping.iter() {
-            match aes {
-                crate::aesthetics::Aesthetic::X(AestheticDomain::Discrete)
-                | crate::aesthetics::Aesthetic::Xmin(AestheticDomain::Discrete)
-                | crate::aesthetics::Aesthetic::Xmax(AestheticDomain::Discrete) => {
-                    let new_value = scales
-                        .x_discrete
-                        .map_aesthetic_value(value, data, &mut new_data)
-                        .unwrap();
-                    new_mapping.set(aes.clone(), new_value);
-                }
-
-                crate::aesthetics::Aesthetic::X(AestheticDomain::Continuous)
-                | crate::aesthetics::Aesthetic::Xmin(AestheticDomain::Continuous)
-                | crate::aesthetics::Aesthetic::Xmax(AestheticDomain::Continuous)
-                | crate::aesthetics::Aesthetic::XBegin
-                | crate::aesthetics::Aesthetic::XEnd
-                | crate::aesthetics::Aesthetic::XIntercept => {
-                    let new_value = scales
-                        .x_continuous
-                        .map_aesthetic_value(value, data, &mut new_data)
-                        .unwrap();
-                    log::info!("Mapped X aesthetic value: {:?}", new_value);
-                    new_mapping.set(aes.clone(), new_value);
-                }
-                crate::aesthetics::Aesthetic::Y(AestheticDomain::Discrete)
-                | crate::aesthetics::Aesthetic::Ymin(AestheticDomain::Discrete)
-                | crate::aesthetics::Aesthetic::Ymax(AestheticDomain::Discrete) => {
-                    let new_value = scales
-                        .y_discrete
-                        .map_aesthetic_value(value, data, &mut new_data)
-                        .unwrap();
-                    new_mapping.set(aes.clone(), new_value);
-                }
-                crate::aesthetics::Aesthetic::Y(AestheticDomain::Continuous)
-                | crate::aesthetics::Aesthetic::Ymin(AestheticDomain::Continuous)
-                | crate::aesthetics::Aesthetic::Ymax(AestheticDomain::Continuous)
-                | crate::aesthetics::Aesthetic::YBegin
-                | crate::aesthetics::Aesthetic::YEnd
-                | crate::aesthetics::Aesthetic::YIntercept
-                | crate::aesthetics::Aesthetic::Lower
-                | crate::aesthetics::Aesthetic::Middle
-                | crate::aesthetics::Aesthetic::Upper => {
-                    let new_value = scales
-                        .y_continuous
-                        .map_aesthetic_value(value, data, &mut new_data)
-                        .unwrap();
-                    new_mapping.set(aes.clone(), new_value);
-                }
-                crate::aesthetics::Aesthetic::Color(aesthetic_domain) => {
-                    let new_value = match aesthetic_domain {
-                        AestheticDomain::Continuous => scales
-                            .color_continuous
-                            .map_aesthetic_value(value, data, &mut new_data)
-                            .unwrap(),
-                        AestheticDomain::Discrete => scales
-                            .color_discrete
-                            .map_aesthetic_value(value, data, &mut new_data)
-                            .unwrap(),
+            // Extract the property and look up the domain from aesthetic_domains
+            if let Some(property) = aes.to_property() {
+                if let Some(domain) = self.aesthetic_domains.get(&property) {
+                    let new_value = match (property, domain) {
+                        (AestheticProperty::X, AestheticDomain::Discrete) => {
+                            scales.x_discrete.map_aesthetic_value(value, data, &mut new_data).unwrap()
+                        }
+                        (AestheticProperty::X, AestheticDomain::Continuous) => {
+                            let v = scales.x_continuous.map_aesthetic_value(value, data, &mut new_data).unwrap();
+                            log::info!("Mapped X aesthetic value: {:?}", v);
+                            v
+                        }
+                        (AestheticProperty::Y, AestheticDomain::Discrete) => {
+                            scales.y_discrete.map_aesthetic_value(value, data, &mut new_data).unwrap()
+                        }
+                        (AestheticProperty::Y, AestheticDomain::Continuous) => {
+                            scales.y_continuous.map_aesthetic_value(value, data, &mut new_data).unwrap()
+                        }
+                        (AestheticProperty::Color, AestheticDomain::Continuous) => {
+                            scales.color_continuous.map_aesthetic_value(value, data, &mut new_data).unwrap()
+                        }
+                        (AestheticProperty::Color, AestheticDomain::Discrete) => {
+                            scales.color_discrete.map_aesthetic_value(value, data, &mut new_data).unwrap()
+                        }
+                        (AestheticProperty::Fill, AestheticDomain::Continuous) => {
+                            scales.fill_continuous.map_aesthetic_value(value, data, &mut new_data).unwrap()
+                        }
+                        (AestheticProperty::Fill, AestheticDomain::Discrete) => {
+                            scales.fill_discrete.map_aesthetic_value(value, data, &mut new_data).unwrap()
+                        }
+                        (AestheticProperty::Alpha, _) => {
+                            scales.alpha_scale.map_aesthetic_value(value, data, &mut new_data).unwrap()
+                        }
+                        (AestheticProperty::Size, AestheticDomain::Continuous) => {
+                            scales.size_continuous.map_aesthetic_value(value, data, &mut new_data).unwrap()
+                        }
+                        (AestheticProperty::Size, AestheticDomain::Discrete) => {
+                            scales.size_discrete.map_aesthetic_value(value, data, &mut new_data).unwrap()
+                        }
+                        (AestheticProperty::Shape, _) => {
+                            scales.shape_scale.map_aesthetic_value(value, data, &mut new_data).unwrap()
+                        }
+                        (AestheticProperty::Linetype, _) => {
+                            // Copy through without scaling
+                            value.clone()
+                        }
                     };
-                    new_mapping.set(aes.clone(), new_value);
-                }
-                crate::aesthetics::Aesthetic::Fill(aesthetic_domain) => {
-                    let new_value = match aesthetic_domain {
-                        AestheticDomain::Continuous => scales
-                            .fill_continuous
-                            .map_aesthetic_value(value, data, &mut new_data)
-                            .unwrap(),
-                        AestheticDomain::Discrete => scales
-                            .fill_discrete
-                            .map_aesthetic_value(value, data, &mut new_data)
-                            .unwrap(),
+                    // Write back using canonical domain (Continuous for most, Shape/Linetype have no domain)
+                    let canonical_aes = match property {
+                        AestheticProperty::X => Aesthetic::X(AestheticDomain::Continuous),
+                        AestheticProperty::Y => Aesthetic::Y(AestheticDomain::Continuous),
+                        AestheticProperty::Color => Aesthetic::Color(AestheticDomain::Continuous),
+                        AestheticProperty::Fill => Aesthetic::Fill(AestheticDomain::Continuous),
+                        AestheticProperty::Size => Aesthetic::Size(AestheticDomain::Continuous),
+                        AestheticProperty::Alpha => Aesthetic::Alpha(AestheticDomain::Continuous),
+                        AestheticProperty::Shape => Aesthetic::Shape,
+                        AestheticProperty::Linetype => Aesthetic::Linetype,
                     };
-                    new_mapping.set(aes.clone(), new_value);
+                    new_mapping.set(canonical_aes, new_value);
+                } else {
+                    // No domain specified for this property, copy through
+                    new_mapping.set(aes.clone(), value.clone());
                 }
-                crate::aesthetics::Aesthetic::Alpha(aesthetic_domain) => {
-                    let new_value = match aesthetic_domain {
-                        AestheticDomain::Continuous => scales
-                            .alpha_scale
-                            .map_aesthetic_value(value, data, &mut new_data)
-                            .unwrap(),
-                        AestheticDomain::Discrete => scales
-                            .alpha_scale
-                            .map_aesthetic_value(value, data, &mut new_data)
-                            .unwrap(),
-                    };
-                    new_mapping.set(aes.clone(), new_value);
-                }
-                crate::aesthetics::Aesthetic::Size(aesthetic_domain) => {
-                    let new_value = match aesthetic_domain {
-                        AestheticDomain::Continuous => scales
-                            .size_continuous
-                            .map_aesthetic_value(value, data, &mut new_data)
-                            .unwrap(),
-                        AestheticDomain::Discrete => scales
-                            .size_discrete
-                            .map_aesthetic_value(value, data, &mut new_data)
-                            .unwrap(),
-                    };
-                    new_mapping.set(aes.clone(), new_value);
-                }
-                crate::aesthetics::Aesthetic::Shape => {
-                    let new_value = scales
-                        .shape_scale
-                        .map_aesthetic_value(value, data, &mut new_data)
-                        .unwrap();
-                    new_mapping.set(aes.clone(), new_value);
-                }
-                crate::aesthetics::Aesthetic::Linetype
-                | crate::aesthetics::Aesthetic::Group
-                | crate::aesthetics::Aesthetic::Label => {
-                    // do nothing
-                }
+            } else {
+                // Group and Label aesthetics don't have properties, copy through
+                new_mapping.set(aes.clone(), value.clone());
             }
         }
 
@@ -312,4 +254,62 @@ impl Layer {
         }
         None
     }
+}
+
+/// Determine aesthetic domains from the mapping and validate against geom requirements
+pub fn determine_aesthetic_domains(
+    mapping: &AesMap,
+    requirements: &[AestheticRequirement],
+) -> Result<HashMap<AestheticProperty, AestheticDomain>, crate::error::PlotError> {
+    let mut domains = HashMap::new();
+    
+    // First pass: extract domains from mapping
+    for (aesthetic, _value) in mapping.iter() {
+        if let Some(property) = aesthetic.to_property() {
+            let domain = aesthetic.domain();
+            
+            // Check for conflicts with existing domain for this property
+            if let Some(existing_domain) = domains.get(&property) {
+                if existing_domain != &domain {
+                    return Err(crate::error::PlotError::AestheticDomainConflict {
+                        property,
+                        domain1: *existing_domain,
+                        domain2: domain,
+                    });
+                }
+            }
+            
+            // Find the requirement for this property (if any)
+            if let Some(req) = requirements.iter().find(|r| r.property == property) {
+                // Validate against constraint
+                match &req.constraint {
+                    DomainConstraint::MustBe(required_domain) => {
+                        if &domain != required_domain {
+                            return Err(crate::error::PlotError::IncompatibleDomain {
+                                property,
+                                required: *required_domain,
+                                actual: domain,
+                            });
+                        }
+                    }
+                    DomainConstraint::Any => {
+                        // No constraint, accept any domain
+                    }
+                }
+            }
+            
+            domains.insert(property, domain);
+        }
+    }
+    
+    // Second pass: check required aesthetics are present
+    for req in requirements {
+        if req.required && !domains.contains_key(&req.property) {
+            return Err(crate::error::PlotError::MissingRequiredAesthetic {
+                property: req.property,
+            });
+        }
+    }
+    
+    Ok(domains)
 }

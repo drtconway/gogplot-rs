@@ -4,7 +4,7 @@ use std::{
     io,
 };
 
-use crate::aesthetics::{Aesthetic, AestheticDomain};
+use crate::aesthetics::{Aesthetic, AestheticDomain, AestheticProperty};
 use crate::data::VectorType;
 
 pub type Result<T> = std::result::Result<T, PlotError>;
@@ -146,6 +146,25 @@ pub enum PlotError {
         details: String,
     },
 
+    /// A required aesthetic property is missing from the layer
+    MissingRequiredAesthetic {
+        property: AestheticProperty,
+    },
+
+    /// Aesthetic domain conflicts - same property mapped with different domains
+    AestheticDomainConflict {
+        property: AestheticProperty,
+        domain1: AestheticDomain,
+        domain2: AestheticDomain,
+    },
+
+    /// Aesthetic domain incompatible with geom requirements
+    IncompatibleDomain {
+        property: AestheticProperty,
+        required: AestheticDomain,
+        actual: AestheticDomain,
+    },
+
     Other {
         details: String,
     },
@@ -247,6 +266,23 @@ impl Display for PlotError {
             }
             PlotError::StatError { stat, details } => {
                 write!(f, "Stat '{}' error: {}", stat, details)
+            }
+            PlotError::MissingRequiredAesthetic { property } => {
+                write!(f, "Missing required aesthetic property: {:?}", property)
+            }
+            PlotError::AestheticDomainConflict { property, domain1, domain2 } => {
+                write!(
+                    f,
+                    "Aesthetic property {:?} has conflicting domains: {:?} vs {:?}",
+                    property, domain1, domain2
+                )
+            }
+            PlotError::IncompatibleDomain { property, required, actual } => {
+                write!(
+                    f,
+                    "Aesthetic property {:?} requires {:?} domain, but {:?} was provided",
+                    property, required, actual
+                )
             }
             PlotError::Other { details } => {
                 write!(f, "Plot error: {}", details)

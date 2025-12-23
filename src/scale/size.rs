@@ -131,6 +131,9 @@ impl super::traits::ContinuousRangeScale for ContinuousSizeScale {
 #[derive(Clone, Debug)]
 pub struct DiscreteSizeScale {
     elements: DiscreteSet,
+    /// Output size range (min_size, max_size) in visual units (e.g., pixels)
+    /// Default is (2.0, 6.0) to match ggplot2's discrete size scale
+    range: (f64, f64),
 }
 
 impl DiscreteSizeScale {
@@ -138,7 +141,14 @@ impl DiscreteSizeScale {
     pub fn new() -> Self {
         Self {
             elements: DiscreteSet::new(),
+            range: (2.0, 6.0),
         }
+    }
+
+    /// Set the output size range (min, max) in visual units
+    pub fn with_range(mut self, range: (f64, f64)) -> Self {
+        self.range = range;
+        self
     }
 }
 
@@ -172,7 +182,13 @@ impl super::traits::ContinuousRangeScale for DiscreteSizeScale {
             crate::data::PrimitiveValue::Str(x) => self.elements.ordinal(&x),
             crate::data::PrimitiveValue::Bool(x) => self.elements.ordinal(&x),
         }?;
-        let size = (ordinal as f64 + 1.0) / (self.elements.len().max(1) as f64);
+        
+        // Map ordinal position to size range
+        let n_categories = self.elements.len().max(1);
+        let t = (ordinal as f64) / ((n_categories - 1).max(1) as f64);
+        let (min_size, max_size) = self.range;
+        let size = min_size + t * (max_size - min_size);
+        
         Some(size)
     }
 }
