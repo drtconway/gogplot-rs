@@ -66,6 +66,8 @@ impl super::traits::ColorRangeScale for DiscreteColorScale {
 pub struct ContinuousColorScale {
     domain: (f64, f64),
     colors: Vec<Color>,
+    breaks: Vec<f64>,
+    labels: Vec<String>,
 }
 
 impl ContinuousColorScale {
@@ -73,7 +75,14 @@ impl ContinuousColorScale {
     /// Colors are interpolated evenly across the domain.
     pub fn new(domain: (f64, f64), colors: Vec<Color>) -> Self {
         assert!(!colors.is_empty(), "Must provide at least one color");
-        Self { domain, colors }
+        let mut scale = Self { 
+            domain, 
+            colors,
+            breaks: Vec::new(),
+            labels: Vec::new(),
+        };
+        scale.compute_breaks(3); // Default 3 breaks for legends
+        scale
     }
 
     /// Create a two-color gradient (for backwards compatibility).
@@ -90,6 +99,24 @@ impl ContinuousColorScale {
                 color::LIGHTBLUE3, // light blue (high values)
             ],
         )
+    }
+
+    /// Compute breaks and labels for this scale
+    pub fn compute_breaks(&mut self, n: usize) {
+        // Use high density weight (5.0) to strongly prefer exactly n breaks for compact legends
+        // Clamp breaks to domain to ensure color bar doesn't show values outside the data range
+        self.breaks = super::utils::extended_breaks_weighted_clamped(self.domain, n, 5.0, true);
+        self.labels = super::utils::format_breaks(&self.breaks);
+    }
+
+    /// Get the computed breaks
+    pub fn breaks(&self) -> &[f64] {
+        &self.breaks
+    }
+
+    /// Get the computed labels
+    pub fn labels(&self) -> &[String] {
+        &self.labels
     }
 
     /// Interpolate between colors in the palette.
@@ -138,6 +165,7 @@ impl super::traits::ContinuousDomainScale for ContinuousColorScale {
 
     fn set_domain(&mut self, domain: (f64, f64)) {
         self.domain = domain;
+        self.compute_breaks(3); // Recompute breaks when domain changes (3 for legends)
     }
 
     fn limits(&self) -> (Option<f64>, Option<f64>) {
@@ -145,11 +173,11 @@ impl super::traits::ContinuousDomainScale for ContinuousColorScale {
     }
 
     fn breaks(&self) -> &[f64] {
-        &[]
+        &self.breaks
     }
 
     fn labels(&self) -> &[String] {
-        &[]
+        &self.labels
     }
 }
 

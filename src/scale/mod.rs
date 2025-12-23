@@ -36,6 +36,7 @@ pub struct CategoricalInfo {
 }
 
 pub mod traits;
+pub mod utils;
 
 pub mod color;
 pub mod positional;

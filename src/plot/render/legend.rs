@@ -18,7 +18,218 @@ pub fn generate_automatic_legends(
     guides: &Guides,
     plot_mapping: &crate::aesthetics::AesMap,
 ) -> Guides {
+    use crate::aesthetics::{AestheticProperty, AestheticDomain};
+    use crate::scale::traits::{DiscreteDomainScale, ContinuousDomainScale, ColorRangeScale, ContinuousRangeScale};
+    
     let mut guides = guides.clone();
+
+    // Collect which aesthetics are mapped across all layers
+    let mut has_color = false;
+    let mut has_fill = false;
+    let mut has_size = false;
+    let mut has_shape = false;
+    let mut has_alpha = false;
+    
+    let mut color_domain: Option<AestheticDomain> = None;
+    let mut fill_domain: Option<AestheticDomain> = None;
+    let mut size_domain: Option<AestheticDomain> = None;
+    let mut alpha_domain: Option<AestheticDomain> = None;
+    
+    // Check plot-level mappings
+    for aesthetic in plot_mapping.aesthetics() {
+        if let Some(property) = aesthetic.to_property() {
+            match property {
+                AestheticProperty::Color => {
+                    has_color = true;
+                    color_domain = Some(aesthetic.domain());
+                }
+                AestheticProperty::Fill => {
+                    has_fill = true;
+                    fill_domain = Some(aesthetic.domain());
+                }
+                AestheticProperty::Size => {
+                    has_size = true;
+                    size_domain = Some(aesthetic.domain());
+                }
+                AestheticProperty::Shape => has_shape = true,
+                AestheticProperty::Alpha => {
+                    has_alpha = true;
+                    alpha_domain = Some(aesthetic.domain());
+                }
+                _ => {}
+            }
+        }
+    }
+    
+    // Check layer-level aesthetic_domains
+    for layer in layers {
+        for (property, domain) in &layer.aesthetic_domains {
+            match property {
+                AestheticProperty::Color => {
+                    has_color = true;
+                    color_domain = Some(*domain);
+                }
+                AestheticProperty::Fill => {
+                    has_fill = true;
+                    fill_domain = Some(*domain);
+                }
+                AestheticProperty::Size => {
+                    has_size = true;
+                    size_domain = Some(*domain);
+                }
+                AestheticProperty::Shape => has_shape = true,
+                AestheticProperty::Alpha => {
+                    has_alpha = true;
+                    alpha_domain = Some(*domain);
+                }
+                _ => {}
+            }
+        }
+    }
+    
+    // Generate color legend if not already specified
+    if has_color && guides.color.is_none() {
+        let legend = match color_domain {
+            Some(AestheticDomain::Discrete) => {
+                let mut entries = Vec::new();
+                let categories = scales.color_discrete.categories();
+                
+                for i in 0..categories.len() {
+                    if let Some(value) = categories.get_at(i) {
+                        let label = match &value {
+                            crate::data::DiscreteValue::Int(x) => x.to_string(),
+                            crate::data::DiscreteValue::Str(x) => x.clone(),
+                            crate::data::DiscreteValue::Bool(x) => x.to_string(),
+                        };
+                        
+                        let color = match &value {
+                            crate::data::DiscreteValue::Int(x) => scales.color_discrete.map_value(x),
+                            crate::data::DiscreteValue::Str(x) => scales.color_discrete.map_value(x),
+                            crate::data::DiscreteValue::Bool(x) => scales.color_discrete.map_value(x),
+                        };
+                        
+                        if let Some(color) = color {
+                            entries.push(
+                                LegendEntry::new(label)
+                                    .color(color)
+                                    .size(5.0)
+                            );
+                        }
+                    }
+                }
+                
+                LegendGuide {
+                    title: Some("Color".to_string()),
+                    entries,
+                    legend_type: LegendType::Discrete,
+                    ..Default::default()
+                }
+            }
+            Some(AestheticDomain::Continuous) => {
+                if let Some(domain) = scales.color_continuous.domain() {
+                    // Get the gradient colors from the scale
+                    let colors = vec![
+                        scales.color_continuous.map_value(&domain.0).unwrap_or(crate::theme::color::BLACK),
+                        scales.color_continuous.map_value(&domain.1).unwrap_or(crate::theme::color::WHITE),
+                    ];
+                    
+                    LegendGuide {
+                        title: Some("Color".to_string()),
+                        legend_type: LegendType::ColorBar { 
+                            domain, 
+                            colors,
+                            breaks: scales.color_continuous.breaks().to_vec(),
+                            labels: scales.color_continuous.labels().to_vec(),
+                        },
+                        ..Default::default()
+                    }
+                } else {
+                    LegendGuide::default()
+                }
+            }
+            None => LegendGuide::default(),
+        };
+        guides.color = Some(legend);
+    }
+    
+    // Generate size legend if not already specified
+    if has_size && guides.size.is_none() {
+        let legend = match size_domain {
+            Some(AestheticDomain::Discrete) => {
+                let mut entries = Vec::new();
+                let categories = scales.size_discrete.categories();
+                
+                for i in 0..categories.len() {
+                    if let Some(value) = categories.get_at(i) {
+                        let label = match &value {
+                            crate::data::DiscreteValue::Int(x) => x.to_string(),
+                            crate::data::DiscreteValue::Str(x) => x.clone(),
+                            crate::data::DiscreteValue::Bool(x) => x.to_string(),
+                        };
+                        
+                        let size = match &value {
+                            crate::data::DiscreteValue::Int(x) => scales.size_discrete.map_value(x),
+                            crate::data::DiscreteValue::Str(x) => scales.size_discrete.map_value(x),
+                            crate::data::DiscreteValue::Bool(x) => scales.size_discrete.map_value(x),
+                        };
+                        
+                        if let Some(size) = size {
+                            entries.push(
+                                LegendEntry::new(label)
+                                    .color(crate::theme::color::BLACK)
+                                    .size(size)
+                            );
+                        }
+                    }
+                }
+                
+                LegendGuide {
+                    title: Some("Size".to_string()),
+                    entries,
+                    legend_type: LegendType::Discrete,
+                    ..Default::default()
+                }
+            }
+            Some(AestheticDomain::Continuous) => {
+                // For continuous size, show a few representative sizes
+                if let Some(domain) = scales.size_continuous.domain() {
+                    let mut entries = Vec::new();
+                    let num_breaks = 4;
+                    
+                    for i in 0..num_breaks {
+                        let t = i as f64 / (num_breaks - 1) as f64;
+                        let value = domain.0 + t * (domain.1 - domain.0);
+                        let size = scales.size_continuous.map_value(&value);
+                        
+                        if let Some(size) = size {
+                            let label = if (value - value.round()).abs() < 0.01 {
+                                format!("{}", value.round() as i64)
+                            } else {
+                                format!("{:.1}", value)
+                            };
+                            
+                            entries.push(
+                                LegendEntry::new(label)
+                                    .color(crate::theme::color::BLACK)
+                                    .size(size)
+                            );
+                        }
+                    }
+                    
+                    LegendGuide {
+                        title: Some("Size".to_string()),
+                        entries,
+                        legend_type: LegendType::Discrete, // Even for continuous, show discrete samples
+                        ..Default::default()
+                    }
+                } else {
+                    LegendGuide::default()
+                }
+            }
+            None => LegendGuide::default(),
+        };
+        guides.size = Some(legend);
+    }
 
     guides
 }
@@ -208,7 +419,7 @@ pub fn draw_legends(
                     item_y += item_height;
                 }
             }
-            LegendType::ColorBar { domain, colors } => {
+            LegendType::ColorBar { domain, colors, breaks, labels } => {
                 // Draw continuous color bar
                 let bar_x = legend_x + padding + 10.0;
                 let bar_width = 20.0;
@@ -253,19 +464,21 @@ pub fn draw_legends(
                 ctx.rectangle(bar_x, bar_y, bar_width, bar_height);
                 ctx.stroke().ok();
 
-                // Draw tick marks and labels with 5 evenly spaced breaks
+                // Draw tick marks and labels using breaks from the scale
                 let label_x = bar_x + bar_width + 5.0;
-                let num_breaks = 5;
 
                 apply_font(ctx, &theme.legend.text_font);
                 apply_color(ctx, &theme.legend.text_color);
                 ctx.set_font_size(9.0);
 
-                for i in 0..num_breaks {
-                    let t = i as f64 / (num_breaks - 1) as f64;
-                    let value = domain.0 + t * (domain.1 - domain.0);
-                    // Calculate position on the bar
-                    let t = (value - domain.0) / (domain.1 - domain.0);
+                for (&break_value, label) in breaks.iter().zip(labels.iter()) {
+                    // Only draw breaks that are within the domain
+                    if break_value < domain.0 || break_value > domain.1 {
+                        continue;
+                    }
+                    
+                    // Calculate position on the bar (inverted: high values at top)
+                    let t = (break_value - domain.0) / (domain.1 - domain.0);
                     let tick_y = bar_y + bar_height - t * bar_height;
 
                     // Draw tick mark
@@ -273,20 +486,9 @@ pub fn draw_legends(
                     ctx.line_to(bar_x + bar_width + 3.0, tick_y);
                     ctx.stroke().ok();
 
-                    // Draw label - format intelligently
+                    // Draw label
                     ctx.move_to(label_x + 3.0, tick_y + 3.0);
-                    let label = if value.abs() < 1e-10 {
-                        // Treat very small values as zero
-                        "0".to_string()
-                    } else if (value - value.round()).abs() < 0.01 {
-                        // Value is close to an integer - show it as an integer
-                        format!("{}", value.round() as i64)
-                    } else if value.abs() < 0.01 || value.abs() > 10000.0 {
-                        format!("{:.2e}", value)
-                    } else {
-                        format!("{:.2}", value)
-                    };
-                    ctx.show_text(&label).ok();
+                    ctx.show_text(label).ok();
                 }
             }
         }

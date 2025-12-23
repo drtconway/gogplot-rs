@@ -114,6 +114,10 @@ pub enum LegendType {
         domain: (f64, f64),
         /// Colors to interpolate
         colors: Vec<Color>,
+        /// Break positions for tick marks
+        breaks: Vec<f64>,
+        /// Labels for the breaks
+        labels: Vec<String>,
     },
 }
 

@@ -119,6 +119,19 @@ impl DiscreteSet {
             .chain(self.bools.iter().cloned().map(DiscreteValue::Bool))
     }
 
+    /// Get the value at a specific ordinal position (0-indexed)
+    pub fn get_at(&self, index: usize) -> Option<DiscreteValue> {
+        if index < self.ints.len() {
+            Some(DiscreteValue::Int(self.ints[index]))
+        } else if index < self.ints.len() + self.strings.len() {
+            Some(DiscreteValue::Str(self.strings[index - self.ints.len()].clone()))
+        } else if index < self.len() {
+            Some(DiscreteValue::Bool(self.bools[index - self.ints.len() - self.strings.len()]))
+        } else {
+            None
+        }
+    }
+
     fn lower_bound<T: Eq + Ord>(slice: &[T], value: &T) -> usize {
         let mut low = 0;
         let mut high = slice.len();
