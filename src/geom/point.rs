@@ -7,13 +7,12 @@ use crate::aesthetics::builder::{
     YDiscreteAesBuilder,
 };
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
-use crate::data::DiscreteValue;
 use crate::error::PlotError;
-use crate::geom::properties::{ColorProperty, FloatProperty, ShapeProperty};
+use crate::geom::properties::{ColorProperty, FloatProperty, PropertyValue, PropertyVector, ShapeProperty};
 use crate::geom::{AestheticRequirement, DomainConstraint};
 use crate::layer::{Layer, LayerBuilder};
 use crate::scale::ScaleIdentifier;
-use crate::theme::{Color, color};
+use crate::theme::{Color, Theme, color};
 use crate::visuals::Shape;
 
 pub trait GeomPointAesBuilderTrait:
@@ -83,22 +82,22 @@ impl LayerBuilder for GeomPointBuilder {
         let mut mapping = self.aes_builder.build(parent_mapping);
 
         // Set fixed property values and remove from inherited mapping
-        if let Some(size_prop) = self.size {
-            geom_point.size = size_prop;
+        if self.size.is_some() {
+            geom_point.size = self.size;
             mapping.remove(&Aesthetic::Size(AestheticDomain::Continuous));
             mapping.remove(&Aesthetic::Size(AestheticDomain::Discrete));
         }
-        if let Some(color_prop) = self.color {
-            geom_point.color = color_prop;
+        if self.color.is_some() {
+            geom_point.color = self.color;
             mapping.remove(&Aesthetic::Color(AestheticDomain::Continuous));
             mapping.remove(&Aesthetic::Color(AestheticDomain::Discrete));
         }
-        if let Some(shape_prop) = self.shape {
-            geom_point.shape = shape_prop;
+        if self.shape.is_some() {
+            geom_point.shape = self.shape;
             mapping.remove(&Aesthetic::Shape);
         }
-        if let Some(alpha_prop) = self.alpha {
-            geom_point.alpha = alpha_prop;
+        if self.alpha.is_some() {
+            geom_point.alpha = self.alpha;
             mapping.remove(&Aesthetic::Alpha(AestheticDomain::Continuous));
             mapping.remove(&Aesthetic::Alpha(AestheticDomain::Discrete));
         }
@@ -123,51 +122,44 @@ pub fn geom_point() -> GeomPointBuilder {
 
 /// GeomPoint renders points/scatterplot
 pub struct GeomPoint {
-    /// Default point size (if not mapped)
-    pub size: FloatProperty,
-
-    /// Default point color (if not mapped)
-    pub color: ColorProperty,
-
-    /// Default point shape (if not mapped)
-    pub shape: ShapeProperty,
-
-    /// Default alpha/opacity (if not mapped)
-    pub alpha: FloatProperty,
+    size: Option<FloatProperty>,
+    color: Option<ColorProperty>,
+    shape: Option<ShapeProperty>,
+    alpha: Option<FloatProperty>,
 }
 
 impl GeomPoint {
     /// Create a new point geom with default settings from theme
     pub fn new() -> Self {
         Self {
-            size: FloatProperty::new(),
-            color: ColorProperty::new(),
-            shape: ShapeProperty::new(),
-            alpha: FloatProperty::new(),
+            size: None,
+            color: None,
+            shape: None,
+            alpha: None,
         }
     }
 
     /// Set the default point size
     pub fn size(&mut self, size: f64) -> &mut Self {
-        self.size.value(size);
+        self.size = Some(FloatProperty::new().value(size).clone());
         self
     }
 
     /// Set the default point color
     pub fn color(&mut self, color: crate::theme::Color) -> &mut Self {
-        self.color.color(color);
+        self.color = Some(ColorProperty::new().color(color).clone());
         self
     }
 
     /// Set the default point shape
     pub fn shape(&mut self, shape: Shape) -> &mut Self {
-        self.shape.shape(shape);
+        self.shape = Some(ShapeProperty::new().shape(shape).clone());
         self
     }
 
     /// Set the default alpha/opacity
     pub fn alpha(&mut self, alpha: f64) -> &mut Self {
-        self.alpha.value(alpha.clamp(0.0, 1.0));
+        self.alpha = Some(FloatProperty::new().value(alpha.clamp(0.0, 1.0)).clone());
         self
     }
 
@@ -274,6 +266,64 @@ impl Geom for GeomPoint {
         &AESTHETIC_REQUIREMENTS
     }
 
+    fn properties(&self) -> HashMap<AestheticProperty, super::properties::Property> {
+        let mut props = HashMap::new();
+        if let Some(size_prop) = &self.size {
+            props.insert(
+                AestheticProperty::Size,
+                super::properties::Property::Float(size_prop.clone()),
+            );
+        }
+        if let Some(color_prop) = &self.color {
+            props.insert(
+                AestheticProperty::Color,
+                super::properties::Property::Color(color_prop.clone()),
+            );
+        }
+        if let Some(shape_prop) = &self.shape {
+            props.insert(
+                AestheticProperty::Shape,
+                super::properties::Property::Shape(shape_prop.clone()),
+            );
+        }
+        if let Some(alpha_prop) = &self.alpha {
+            props.insert(
+                AestheticProperty::Alpha,
+                super::properties::Property::Float(alpha_prop.clone()),
+            );
+        }
+        props
+    }
+
+    fn property_defaults(&self, _theme: &Theme) -> HashMap<AestheticProperty, PropertyValue> {
+        let mut defaults = HashMap::new();
+        if self.size.is_none() {
+            defaults.insert(
+                AestheticProperty::Size,
+                PropertyValue::Float(3.0)
+            );
+        }
+        if self.color.is_none() {
+            defaults.insert(
+                AestheticProperty::Color,
+                PropertyValue::Color(color::BLACK)
+            );
+        }
+        if self.shape.is_none() {
+            defaults.insert(
+                AestheticProperty::Shape,
+                PropertyValue::Shape(Shape::Circle)
+            );
+        }
+        if self.alpha.is_none() {
+            defaults.insert(
+                AestheticProperty::Alpha,
+                PropertyValue::Float(1.0),
+            );
+        }
+        defaults
+    }
+
     fn required_scales(&self) -> Vec<ScaleIdentifier> {
         vec![ScaleIdentifier::XContinuous, ScaleIdentifier::YContinuous]
     }
@@ -282,100 +332,41 @@ impl Geom for GeomPoint {
 
     fn apply_scales(&mut self, _scales: &crate::scale::ScaleSet) {}
 
-    fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
-        let data = ctx.layer.data(ctx.data());
-        let mapping = ctx.layer.mapping(ctx.mapping());
-
-        if mapping.contains(Aesthetic::Group) {
-            let group_values = mapping.get_iter_discrete(&Aesthetic::Group, data).unwrap();
-            let x_values = mapping
-                .get_iter_float(&Aesthetic::X(AestheticDomain::Continuous), data)
-                .unwrap();
-            let y_values = mapping
-                .get_iter_float(&Aesthetic::Y(AestheticDomain::Continuous), data)
-                .unwrap();
-            let color_values =
-                self.color
-                    .iter(data, mapping, Aesthetic::Color(AestheticDomain::Discrete))?;
-            let size_values =
-                self.size
-                    .iter(data, mapping, Aesthetic::Size(AestheticDomain::Continuous))?;
-            let alpha_values =
-                self.alpha
-                    .iter(data, mapping, Aesthetic::Alpha(AestheticDomain::Continuous))?;
-
-            let mut groups: HashMap<
-                DiscreteValue,
-                (Vec<f64>, Vec<f64>, Vec<Color>, Vec<f64>, Vec<f64>),
-            > = HashMap::new();
-            for (((((group, x), y), color), size), alpha) in group_values
-                .zip(x_values)
-                .zip(y_values)
-                .zip(color_values.map(Color::from))
-                .zip(size_values)
-                .zip(alpha_values)
-            {
-                let entry = groups.entry(group).or_insert((
-                    Vec::new(),
-                    Vec::new(),
-                    Vec::new(),
-                    Vec::new(),
-                    Vec::new(),
-                ));
-                entry.0.push(x);
-                entry.1.push(y);
-                entry.2.push(color);
-                entry.3.push(size);
-                entry.4.push(alpha);
-            }
-            let mut groups: Vec<_> = groups.into_iter().collect();
-            groups.sort_by(|a, b| a.0.cmp(&b.0));
-            for (_, (x_vals, y_vals, color_vals, size_vals, alpha_vals)) in groups {
-                self.draw_points(
-                    ctx,
-                    x_vals.into_iter(),
-                    y_vals.into_iter(),
-                    color_vals.into_iter(),
-                    size_vals.into_iter(),
-                    alpha_vals.into_iter(),
-                )?;
-            }
-        } else {
-            // Get x and y values
-            let x_values: Vec<f64> = mapping
-                .get_iter_float(&Aesthetic::X(AestheticDomain::Continuous), data)
-                .unwrap()
-                .collect();
-            let n = x_values.len();
-            let y_values: Vec<f64> = mapping
-                .get_iter_float(&Aesthetic::Y(AestheticDomain::Continuous), data)
-                .unwrap()
-                .collect();
-            let color_values: Vec<Color> = self
-                .color
-                .iter(data, mapping, Aesthetic::Color(AestheticDomain::Continuous))?
-                .take(n)
-                .collect();
-            let size_values: Vec<f64> = self
-                .size
-                .iter(data, mapping, Aesthetic::Size(AestheticDomain::Continuous))?
-                .take(n)
-                .collect();
-            let alpha_values: Vec<f64> = self
-                .alpha
-                .iter(data, mapping, Aesthetic::Alpha(AestheticDomain::Continuous))?
-                .take(n)
-                .collect();
-            self.draw_points(
-                ctx,
-                x_values.into_iter(),
-                y_values.into_iter(),
-                color_values.into_iter(),
-                size_values.into_iter(),
-                alpha_values.into_iter(),
-            )?;
-        }
-
+    fn render(
+        &self,
+        ctx: &mut RenderContext,
+        mut properties: HashMap<AestheticProperty, PropertyVector>,
+    ) -> Result<(), PlotError> {
+        let props = properties.keys().cloned().collect::<Vec<_>>();
+        log::info!("GeomPoint render with properties: {:?}", props);
+        let x_values = properties
+            .remove(&AestheticProperty::X)
+            .unwrap()
+            .as_floats();
+        let y_values = properties
+            .remove(&AestheticProperty::Y)
+            .unwrap()
+            .as_floats();
+        let color_values = properties
+            .remove(&AestheticProperty::Color)
+            .unwrap()
+            .as_colors();
+        let size_values = properties
+            .remove(&AestheticProperty::Size)
+            .unwrap()
+            .as_floats();
+        let alpha_values = properties
+            .remove(&AestheticProperty::Alpha)
+            .unwrap()
+            .as_floats();
+        self.draw_points(
+            ctx,
+            x_values.into_iter(),
+            y_values.into_iter(),
+            color_values.into_iter(),
+            size_values.into_iter(),
+            alpha_values.into_iter(),
+        )?;
         Ok(())
     }
 }

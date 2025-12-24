@@ -1,7 +1,10 @@
+use std::collections::HashMap;
+
 use super::{Geom, RenderContext};
-use crate::aesthetics::AesValue;
+use crate::aesthetics::{AesValue, AestheticProperty};
 use crate::data::PrimitiveValue;
 use crate::error::PlotError;
+use crate::geom::properties::PropertyVector;
 
 /// GeomHistogram renders a histogram by binning continuous data
 /// By default, it uses Stat::Bin to divide the data into bins
@@ -62,9 +65,7 @@ impl Geom for GeomHistogram {
         
     }
 
-    fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
-        let _data = ctx.layer.data(ctx.data());
-        let _mapping = ctx.layer.mapping(ctx.mapping());
+    fn render(&self, ctx: &mut RenderContext, _properties: HashMap<AestheticProperty, PropertyVector>) -> Result<(), PlotError> {
 
         Ok(())
     }

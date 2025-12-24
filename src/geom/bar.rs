@@ -1,9 +1,12 @@
 
 
+use std::collections::HashMap;
+
 use super::{Geom, RenderContext};
-use crate::aesthetics::{AesValue};
+use crate::aesthetics::{AesValue, AestheticProperty};
 use crate::data::PrimitiveValue;
 use crate::error::PlotError;
+use crate::geom::properties::PropertyVector;
 
 /// GeomBar renders bars from y=0 to y=value
 /// By default, it uses Stat::Count to count occurrences at each x position
@@ -74,7 +77,7 @@ impl Geom for GeomBar {
         
     }
 
-    fn render(&self, _ctx: &mut RenderContext) -> Result<(), PlotError> {
+    fn render(&self, _ctx: &mut RenderContext, _properties: HashMap<AestheticProperty, PropertyVector>) -> Result<(), PlotError> {
         
         Ok(())
     }

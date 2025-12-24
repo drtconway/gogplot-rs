@@ -14,6 +14,14 @@ pub enum AestheticDomain {
     Discrete,
 }
 
+pub enum AestheticPropertyType {
+    Int,
+    Float,
+    String,
+    Color,
+    Shape,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AestheticProperty {
     Color,
@@ -24,6 +32,21 @@ pub enum AestheticProperty {
     Linetype,
     X,
     Y,
+}
+
+impl AestheticProperty {
+    pub fn property_type(&self) -> AestheticPropertyType {
+        match self {
+            AestheticProperty::Color => AestheticPropertyType::Int,
+            AestheticProperty::Fill => AestheticPropertyType::Int,
+            AestheticProperty::Size => AestheticPropertyType::Float,
+            AestheticProperty::Shape => AestheticPropertyType::Int,
+            AestheticProperty::Alpha => AestheticPropertyType::Float,
+            AestheticProperty::Linetype => AestheticPropertyType::String,
+            AestheticProperty::X => AestheticPropertyType::Float,
+            AestheticProperty::Y => AestheticPropertyType::Float,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -736,6 +759,76 @@ impl AesMap {
                                 as Box<dyn Iterator<Item = f64> + 'a>);
                         }
                     }
+                }
+            }
+            None => {}
+        }
+        None
+    }
+
+    pub fn get_iter_int<'a>(
+        &self,
+        aes: &Aesthetic,
+        data: &'a dyn DataSource,
+    ) -> Option<Box<dyn Iterator<Item = i64> + 'a>> {
+        match self.get(aes) {
+            Some(value) => {
+                match value {
+                    AesValue::Column { name, .. } => {
+                        // Look up the column in the data source
+                        let column = data.get(name.as_str())?;
+                        if let Some(iter) = column.iter_int() {
+                            return Some(Box::new(iter) as Box<dyn Iterator<Item = i64> + 'a>);
+                        }
+                    }
+                    AesValue::Constant { value, .. } => {
+                        if let PrimitiveValue::Int(i) = value {
+                            let n = data.len();
+                            return Some(Box::new(std::iter::repeat(*i).take(n))
+                                as Box<dyn Iterator<Item = i64> + 'a>);
+                        }
+                    }
+                }
+            }
+            None => {}
+        }
+        None
+    }
+
+    pub fn get_iter_string<'a>(
+        &self,
+        aes: &Aesthetic,
+        data: &'a dyn DataSource,
+    ) -> Option<Box<dyn Iterator<Item = String> + 'a>> {
+        match self.get(aes) {
+            Some(value) => {
+                match value {
+                    AesValue::Column { name, .. } => {
+                        // Look up the column in the data source
+                        let column = data.get(name.as_str())?;
+                        match column.iter() {
+                            data::VectorIter::Str(iter) => {
+                                let string_iter = iter.map(|s| s.to_string());
+                                return Some(Box::new(string_iter)
+                                    as Box<dyn Iterator<Item = String> + 'a>);
+                            }
+                            _ => {
+                                panic!("Only string columns can be used as string values");
+                            }
+                        }
+                    }
+                    AesValue::Constant { value, .. } => match value {
+                        PrimitiveValue::Str(s) => {
+                            let n = data.len();
+                            return Some(Box::new(
+                                std::iter::repeat(s.to_string()).take(n),
+                            )
+                                as Box<dyn Iterator<Item = String> + 'a>);
+                        }
+                        _ => {
+                            panic!("Only string constants can be used as string values");
+                        }
+                    },
                 }
             }
             None => {}

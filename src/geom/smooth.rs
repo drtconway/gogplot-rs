@@ -1,7 +1,10 @@
+use std::collections::HashMap;
+
 use super::{Geom, RenderContext};
-use crate::aesthetics::{AesValue, Aesthetic};
+use crate::aesthetics::{AesValue, Aesthetic, AestheticProperty};
 use crate::data::PrimitiveValue;
 use crate::error::Result;
+use crate::geom::properties::PropertyVector;
 
 /// GeomSmooth renders fitted curves with confidence intervals
 ///
@@ -140,7 +143,7 @@ impl Geom for GeomSmooth {
         
     }
 
-    fn render(&self, ctx: &mut RenderContext) -> Result<()> {
+    fn render(&self, ctx: &mut RenderContext, _properties: HashMap<AestheticProperty, PropertyVector>) -> Result<()> {
         Ok(())
     }
 }

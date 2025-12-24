@@ -178,19 +178,14 @@ pub fn render_with_context(
 
     // Render each layer
     for layer in layers {
-
         let mut render_ctx = RenderContext::new(
             ctx,
-            layer,
-            data,
-            plot_mapping,
-            scales,
             theme,
             (plot_x0, plot_x1),
             (plot_y1, plot_y0),
         );
 
-        layer.geom.render(&mut render_ctx)?;
+        layer.render(&mut render_ctx, data.unwrap(), plot_mapping)?;
     }
 
     // Draw legends

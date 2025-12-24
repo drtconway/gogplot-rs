@@ -1,8 +1,10 @@
+use std::collections::HashMap;
+
 use super::{Geom, RenderContext};
-use crate::aesthetics::{AesValue, Aesthetic};
+use crate::aesthetics::{AesValue, Aesthetic, AestheticProperty};
 use crate::data::PrimitiveValue;
 use crate::error::PlotError;
-use crate::geom::properties::{ColorProperty, FloatProperty};
+use crate::geom::properties::{ColorProperty, FloatProperty, PropertyVector};
 use crate::layer::Layer;
 use crate::scale::traits::{ContinuousRangeScale, ScaleBase};
 use crate::utils::data::make_float_iter;
@@ -88,39 +90,8 @@ impl Geom for GeomVLine {
         }
     }
 
-    fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
-        let data = ctx.layer.data(ctx.data());
-        let mapping = ctx.layer.mapping(ctx.mapping());
-        let x_intercepts = self.get_x_intercept(&ctx.layer)?;
-        let colors = self.color.iter(data, mapping, crate::aesthetics::Aesthetic::Color(crate::aesthetics::AestheticDomain::Discrete))?;
-        let alphas = self.alpha.iter(data, mapping, crate::aesthetics::Aesthetic::Alpha(crate::aesthetics::AestheticDomain::Discrete))?;
-        let sizes = self.size.iter(data, mapping, crate::aesthetics::Aesthetic::Size(crate::aesthetics::AestheticDomain::Continuous))?;
-        
-        // Get linetype if specified
-        let linetype_pattern = if let Some(AesValue::Constant {
-            value: PrimitiveValue::Str(pattern),
-            ..
-        }) = ctx.mapping().get(&Aesthetic::Linetype)
-        {
-            Some(pattern.clone())
-        } else {
-            None
-        };
+    fn render(&self, ctx: &mut RenderContext, _properties: HashMap<AestheticProperty, PropertyVector>) -> Result<(), PlotError> {
 
-        // Draw horizontal line(s) across the full width of the plot
-        let (y0, y1) = ctx.y_range;
-
-        for (((x_intercept, color), alpha), size) in x_intercepts.zip(colors).zip(alphas).zip(sizes) {
-            let x_visual = ctx.map_x(x_intercept);
-
-            // Set drawing properties for this line
-            ctx.cairo.set_line_width(size);
-
-            // Draw line from left to right edge of plot area
-            ctx.cairo.move_to(x_visual, y0);
-            ctx.cairo.line_to(x_visual, y1);
-            ctx.cairo.stroke().ok();
-        }
 
         Ok(())
     }

@@ -1,7 +1,10 @@
+use std::collections::HashMap;
+
 use crate::aesthetics::{AestheticDomain, AestheticProperty};
-use crate::data::PrimitiveValue;
 use crate::error::PlotError;
+use crate::geom::properties::{Property, PropertyValue, PropertyVector};
 use crate::scale::{ScaleIdentifier, ScaleSet};
+use crate::theme::Theme;
 
 pub mod properties;
 
@@ -37,28 +40,6 @@ pub use smooth::GeomSmooth;
 pub use text::GeomText;
 pub use vline::GeomVLine;
 
-pub enum GeomConstant<T: Clone> {
-    None,
-    Scaled(PrimitiveValue),
-    Visual(T),
-}
-
-impl<T: Clone> GeomConstant<T> {
-    pub fn or_value(&self, value: T) -> T {
-        match self {
-            GeomConstant::None => value,
-            GeomConstant::Scaled(_) => value,
-            GeomConstant::Visual(v) => v.clone(),
-        }
-    }
-}
-
-impl<T: Clone> Default for GeomConstant<T> {
-    fn default() -> Self {
-        GeomConstant::None
-    }
-}
-
 // Define what domains a geom accepts for an aesthetic
 pub enum DomainConstraint {
     Any,
@@ -67,7 +48,7 @@ pub enum DomainConstraint {
 
 pub struct AestheticRequirement {
     pub property: AestheticProperty,
-    pub required: bool,                 // true = required, false = optional
+    pub required: bool,
     pub constraint: DomainConstraint,
 }
 
@@ -81,6 +62,14 @@ pub trait Geom: Send + Sync {
         &[]
     }
 
+    fn properties(&self) -> HashMap<AestheticProperty, Property> {
+        HashMap::new()
+    }
+
+    fn property_defaults(&self, theme: &Theme) -> HashMap<AestheticProperty, PropertyValue> {
+        HashMap::new()
+    }
+
     /// Get the list of scales required by this geom
     fn required_scales(&self) -> Vec<ScaleIdentifier> {
         Vec::new()
@@ -92,6 +81,6 @@ pub trait Geom: Send + Sync {
     /// Apply the provided scales to the geom's aesthetic constants where necessary
     fn apply_scales(&mut self, scales: &ScaleSet);
 
-    /// Render the geom with the provided context
-    fn render<'a>(&self, ctx: &mut RenderContext<'a>) -> Result<(), PlotError>;
+    /// Render the geom with the provided context, data, and aesthetic properties for a single group.
+    fn render<'a>(&self, ctx: &mut RenderContext<'a>, data: HashMap<AestheticProperty, PropertyVector>) -> Result<(), PlotError>;
 }

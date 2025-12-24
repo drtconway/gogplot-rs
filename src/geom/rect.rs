@@ -1,7 +1,10 @@
+use std::collections::HashMap;
+
 use super::{Geom, RenderContext};
-use crate::aesthetics::{AesValue, Aesthetic};
+use crate::aesthetics::{AesValue, Aesthetic, AestheticProperty};
 use crate::data::PrimitiveValue;
 use crate::error::PlotError;
+use crate::geom::properties::PropertyVector;
 
 /// GeomRect renders rectangles defined by xmin, xmax, ymin, ymax
 pub struct GeomRect {
@@ -63,7 +66,7 @@ impl Geom for GeomRect {
         
     }
 
-    fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
+    fn render(&self, ctx: &mut RenderContext, _properties: HashMap<AestheticProperty, PropertyVector>) -> Result<(), PlotError> {
         Ok(())
     }
 }

@@ -1,7 +1,10 @@
+use std::collections::HashMap;
+
 use super::{Geom, RenderContext};
-use crate::aesthetics::{AesValue, Aesthetic};
+use crate::aesthetics::{AesValue, Aesthetic, AestheticProperty};
 use crate::data::PrimitiveValue;
 use crate::error::{PlotError, to_plot_error};
+use crate::geom::properties::PropertyVector;
 
 /// GeomDensity renders kernel density estimates
 ///
@@ -85,9 +88,7 @@ impl Geom for GeomDensity {
         
     }
 
-    fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
-        let _data = ctx.layer.data(ctx.data());
-        let _mapping = ctx.layer.mapping(ctx.mapping());
+    fn render(&self, ctx: &mut RenderContext, _properties: HashMap<AestheticProperty, PropertyVector>) -> Result<(), PlotError> {
 
         Ok(())
     }

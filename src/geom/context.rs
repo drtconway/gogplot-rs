@@ -107,22 +107,11 @@ impl Iterator for ShapeValues {
     }
 }
 
-/// Encapsulates all the context needed for rendering a geom
+/// Encapsulates the rendering context needed by geoms
+/// Layer handles data/mapping/grouping, geom just renders with this context
 pub struct RenderContext<'a> {
     /// Cairo drawing context
     pub cairo: &'a mut Context,
-
-    /// The layer being rendered (contains data, mapping, stat, position, etc.)
-    pub layer: &'a Layer,
-
-    /// Plot-level data (fallback if layer has no data)
-    pub plot_data: Option<&'a dyn DataSource>,
-
-    /// Plot-level aesthetic mapping (fallback if layer has no mapping)
-    pub plot_mapping: &'a AesMap,
-
-    /// Scales for transforming data to visual space
-    pub scales: &'a ScaleSet,
 
     /// Theme for styling
     pub theme: &'a theme::Theme,
@@ -137,40 +126,16 @@ pub struct RenderContext<'a> {
 impl<'a> RenderContext<'a> {
     pub fn new(
         cairo: &'a mut Context,
-        layer: &'a Layer,
-        plot_data: Option<&'a dyn DataSource>,
-        plot_mapping: &'a AesMap,
-        scales: &'a ScaleSet,
         theme: &'a theme::Theme,
         x_range: (f64, f64),
         y_range: (f64, f64),
     ) -> Self {
         Self {
             cairo,
-            layer,
-            plot_data,
-            plot_mapping,
-            scales,
             theme,
             x_range,
             y_range,
         }
-    }
-
-    /// Get the active data source (computed data if available, otherwise layer or plot-level data)
-    pub fn data(&self) -> &dyn DataSource {
-        self.plot_data.unwrap()
-    }
-
-    /// Get the active aesthetic mapping (computed if available, otherwise original)
-    pub fn mapping(&self) -> &AesMap {
-        self.plot_mapping
-    }
-
-    /// Get the original layer data (useful for drawing outliers, raw points, etc.)
-    /// Returns None if the layer has no original data
-    pub fn original_data(&self) -> Option<&dyn DataSource> {
-        self.layer.data.as_ref().map(|d| d.as_ref())
     }
 
     /// Map normalized [0, 1] x-coordinate to viewport coordinate

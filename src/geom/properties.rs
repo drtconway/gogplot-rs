@@ -1,12 +1,100 @@
 use crate::{
-    aesthetics::AesMap,
-    data::DataSource,
+    data::{DataSource, VectorIter},
     error::PlotError,
     theme::{Color, color::BLACK},
     utils::Either,
     visuals::Shape,
 };
 
+pub enum Property {
+    Float(FloatProperty),
+    String(StringProperty),
+    Color(ColorProperty),
+    Shape(ShapeProperty),
+}
+
+    #[derive(Debug, Clone)]
+pub enum PropertyValue {
+    Int(i64),
+    Float(f64),
+    String(String),
+    Color(Color),
+    Shape(Shape),    
+}
+
+#[derive(Debug, Clone)]
+pub enum PropertyVector {
+    Int(Vec<i64>),
+    Float(Vec<f64>),
+    String(Vec<String>),
+    Color(Vec<Color>),
+    Shape(Vec<Shape>),
+}
+
+impl PropertyVector {
+    pub fn to_color(self) -> PropertyVector {
+        match self {
+            PropertyVector::Int(v) => {
+                let colors: Vec<Color> = v.into_iter().map(|c| Color::from(c)).collect();
+                PropertyVector::Color(colors)
+            }
+            PropertyVector::Color(_) => self.clone(),
+            _ => panic!("Cannot convert to Color PropertyVector"),
+        }
+    }
+
+    pub fn to_shape(self) -> PropertyVector {
+        match self {
+            PropertyVector::Int(v) => {
+                let shapes: Vec<Shape> = v.into_iter().map(|s| Shape::from(s)).collect();
+                PropertyVector::Shape(shapes)
+            }
+            PropertyVector::Shape(_) => self.clone(),
+            _ => panic!("Cannot convert to Shape PropertyVector"),
+        }
+    }
+
+    pub fn as_floats(self) -> Vec<f64> {
+        match self {
+            PropertyVector::Float(v) => v,
+            _ => panic!("Not a Float PropertyVector"),
+        }
+    }
+
+    pub fn as_strings(self) -> Vec<String> {
+        match self {
+            PropertyVector::String(v) => v,
+            _ => panic!("Not a String PropertyVector"),
+        }
+    }
+
+    pub fn as_colors(self) -> Vec<Color> {
+        match self.to_color() {
+            PropertyVector::Color(v) => v,
+            _ => panic!("Not a Color PropertyVector"),
+        }
+    }
+
+    pub fn as_shapes(self) -> Vec<Shape> {
+        match self.to_shape() {
+            PropertyVector::Shape(v) => v,
+            _ => panic!("Not a Shape PropertyVector"),
+        }
+    }
+}
+
+impl<'a> From<VectorIter<'a>> for PropertyVector {
+    fn from(iter: VectorIter<'a>) -> Self {
+        match iter {
+            VectorIter::Int(iter) => PropertyVector::Int(iter.collect()),
+            VectorIter::Float(iter) => PropertyVector::Float(iter.collect()),
+            VectorIter::Str(iter) => PropertyVector::String(iter.map(|s| s.to_string()).collect()),
+            VectorIter::Bool(_) => panic!("invalid property vector"),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct FloatProperty {
     pub value: Either<f64, String>,
 }
@@ -28,21 +116,15 @@ impl FloatProperty {
     pub fn iter<'a>(
         &'a self,
         data: &'a dyn DataSource,
-        mapping: &'a AesMap,
-        aesthetic: crate::aesthetics::Aesthetic,
     ) -> Result<Box<dyn Iterator<Item = f64> + 'a>, PlotError> {
-        // First check if there's a mapping for this aesthetic (highest priority)
-        if mapping.contains(aesthetic) {
-            return mapping.get_iter_float(&aesthetic, data)
-                .ok_or(PlotError::MissingColumn { column: format!("{:?}", aesthetic) });
-        }
-        
-        // Otherwise use the property value
         match &self.value {
             Either::Left(value) => Ok(Box::new(std::iter::repeat(*value))),
             Either::Right(column) => {
-                let v = data.get(&column)
-                    .ok_or(crate::error::PlotError::MissingColumn { column: column.clone() })?;
+                let v = data
+                    .get(&column)
+                    .ok_or(crate::error::PlotError::MissingColumn {
+                        column: column.clone(),
+                    })?;
                 Ok(Box::new(crate::utils::data::make_float_iter(v.iter())))
             }
         }
@@ -73,6 +155,60 @@ impl Into<FloatProperty> for String {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct StringProperty {
+    pub value: Either<String, String>,
+}
+
+impl StringProperty {
+    pub fn new() -> Self {
+        Self {
+            value: Either::Left(String::new()),
+        }
+    }
+
+    /// Set the string property
+    pub fn value(&mut self, value: String) -> &mut Self {
+        self.value = Either::Left(value);
+        self
+    }
+
+    /// Get a string iterator
+    pub fn iter<'a>(
+        &'a self,
+        data: &'a dyn DataSource,
+    ) -> Result<Box<dyn Iterator<Item = String> + 'a>, PlotError> {
+        match &self.value {
+            Either::Left(value) => Ok(Box::new(std::iter::repeat(value.clone()))),
+            Either::Right(column) => {
+                let v = data
+                    .get(&column)
+                    .ok_or(crate::error::PlotError::MissingColumn {
+                        column: column.clone(),
+                    })?;
+                Ok(Box::new(crate::utils::data::make_string_iter(v.iter())))
+            }
+        }
+    }
+}
+
+impl Into<StringProperty> for &str {
+    fn into(self) -> StringProperty {
+        let mut prop = StringProperty::new();
+        prop.value(self.to_string());
+        prop
+    }
+}
+
+impl Into<StringProperty> for String {
+    fn into(self) -> StringProperty {
+        let mut prop = StringProperty::new();
+        prop.value(self);
+        prop
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct ColorProperty {
     pub color: Either<Color, String>,
 }
@@ -94,21 +230,15 @@ impl ColorProperty {
     pub fn iter<'a>(
         &'a self,
         data: &'a dyn DataSource,
-        mapping: &'a AesMap,
-        aesthetic: crate::aesthetics::Aesthetic,
     ) -> Result<Box<dyn Iterator<Item = Color> + 'a>, PlotError> {
-        // First check if there's a mapping for this aesthetic (highest priority)
-        if mapping.contains(aesthetic) {
-            return mapping.get_iter_color(&aesthetic, data)
-                .ok_or(PlotError::MissingColumn { column: format!("{:?}", aesthetic) });
-        }
-        
-        // Otherwise use the property value
         match &self.color {
             Either::Left(color) => Ok(Box::new(std::iter::repeat(*color))),
             Either::Right(column) => {
-                let v =data.get(&column)
-                    .ok_or(crate::error::PlotError::MissingColumn { column: column.clone() })?;
+                let v = data
+                    .get(&column)
+                    .ok_or(crate::error::PlotError::MissingColumn {
+                        column: column.clone(),
+                    })?;
                 Ok(Box::new(crate::utils::data::make_color_iter(v.iter())))
             }
         }
@@ -139,6 +269,7 @@ impl Into<ColorProperty> for String {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct ShapeProperty {
     pub shape: Either<Shape, String>,
 }
@@ -160,21 +291,15 @@ impl ShapeProperty {
     pub fn iter<'a>(
         &'a self,
         data: &'a dyn DataSource,
-        mapping: &'a AesMap,
-        aesthetic: crate::aesthetics::Aesthetic,
     ) -> Result<Box<dyn Iterator<Item = Shape> + 'a>, PlotError> {
-        // First check if there's a mapping for this aesthetic (highest priority)
-        if mapping.contains(aesthetic) {
-            return mapping.get_iter_shape(&aesthetic, data)
-                .ok_or(PlotError::MissingColumn { column: format!("{:?}", aesthetic) });
-        }
-        
-        // Otherwise use the property value
         match &self.shape {
             Either::Left(shape) => Ok(Box::new(std::iter::repeat(*shape))),
             Either::Right(column) => {
-                let v = data.get(&column)
-                    .ok_or(crate::error::PlotError::MissingColumn { column: column.clone() })?;
+                let v = data
+                    .get(&column)
+                    .ok_or(crate::error::PlotError::MissingColumn {
+                        column: column.clone(),
+                    })?;
                 Ok(Box::new(crate::utils::data::make_shape_iter(v.iter())))
             }
         }

@@ -1,8 +1,10 @@
 // Layer scaffolding for grammar of graphics
 
+use crate::PlotError;
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
-use crate::data::{DataSource, VectorIter};
-use crate::geom::{Geom, AestheticRequirement, DomainConstraint};
+use crate::data::{DataSource, DiscreteValue, VectorIter};
+use crate::geom::properties::{Property, PropertyValue, PropertyVector};
+use crate::geom::{AestheticRequirement, DomainConstraint, Geom};
 use crate::position::Position;
 use crate::scale::ScaleSet;
 use crate::scale::traits::{ColorRangeScale, ContinuousRangeScale, ScaleBase, ShapeRangeScale};
@@ -22,7 +24,7 @@ pub struct Layer {
     pub geom: Box<dyn Geom>,
     pub data: Option<Box<dyn DataSource>>,
     pub mapping: Option<AesMap>,
-    
+
     /// Track which domain each aesthetic property uses in this layer
     pub aesthetic_domains: HashMap<AestheticProperty, AestheticDomain>,
 }
@@ -68,6 +70,165 @@ impl Layer {
         self.mapping.as_ref().unwrap_or(other_mapping)
     }
 
+    /// Render this layer by materializing groups and calling the geom
+    pub fn render(
+        &self,
+        ctx: &mut crate::geom::RenderContext,
+        plot_data: &dyn DataSource,
+        plot_mapping: &AesMap,
+    ) -> Result<(), PlotError> {
+        let data = self.data(plot_data);
+        let mapping = self.mapping(plot_mapping);
+        let n = data.len();
+
+        // Get aesthetic requirements and properties from geom
+        let requirements = self.geom.aesthetic_requirements();
+        let properties = self.geom.properties();
+        let defaults = self.geom.property_defaults(&ctx.theme);
+
+        // Build index: property -> (aesthetic, domain) from the mapping
+        let mut index: HashMap<AestheticProperty, Aesthetic> = HashMap::new();
+        for aesthetic in mapping.aesthetics() {
+            if let Some(property) = aesthetic.to_property() {
+                index.insert(property, aesthetic.clone());
+            }
+        }
+
+        // Materialize PropertyVectors for all required aesthetics
+        let mut all_vectors = HashMap::new();
+
+        for req in requirements {
+            let property = req.property;
+
+            // Priority 1: Check if geom has an explicit property set
+            if let Some(prop_value) = properties.get(&property) {
+                // Use property (prioritize set values over inherited mappings)
+                let vector = self.materialize_constant_aesthetic(prop_value, n);
+                all_vectors.insert(property, vector);
+            } else if let Some(aesthetic) = index.get(&property) {
+                // Priority 2: Use mapping
+                let vector: PropertyVector =
+                    PropertyVector::from(mapping.get_vector_iter(aesthetic, data).unwrap());
+                all_vectors.insert(property, vector);
+            } else if let Some(default_value) = defaults.get(&property) {
+                // Priority 3: get the default value
+                let vector = self.make_property_value_vector(&default_value, n);
+                all_vectors.insert(property, vector);
+            }
+        }
+
+        // Check for grouping
+        if mapping.contains(Aesthetic::Group) {
+            // Materialize group values
+            let group_iter = mapping.get_iter_discrete(&Aesthetic::Group, data).ok_or(
+                crate::error::PlotError::MissingColumn {
+                    column: "Group".to_string(),
+                },
+            )?;
+            let group_values: Vec<DiscreteValue> = group_iter.collect();
+
+            // Split into groups: HashMap<DiscreteValue, Vec<usize>>
+            let mut groups: HashMap<DiscreteValue, Vec<usize>> = HashMap::new();
+            for (i, group) in group_values.iter().enumerate() {
+                groups.entry(group.clone()).or_insert_with(Vec::new).push(i);
+            }
+
+            // Sort groups for consistent rendering order
+            let mut sorted_groups: Vec<_> = groups.into_iter().collect();
+            sorted_groups.sort_by(|a, b| a.0.cmp(&b.0));
+
+            // Render each group
+            for (_group_value, indices) in sorted_groups {
+                // Create subset PropertyVectors for this group
+                let group_data = self.subset_vectors(&all_vectors, &indices);
+                self.geom.render(ctx, group_data)?;
+            }
+        } else {
+            // No grouping - render all data at once
+            self.geom.render(ctx, all_vectors)?;
+        }
+
+        Ok(())
+    }
+
+    /// Materialize a constant aesthetic from property default
+    fn materialize_constant_aesthetic(
+        &self,
+        prop_value: &Property,
+        n: usize,
+    ) -> PropertyVector {
+        match prop_value {
+            Property::Float(fp) => {
+                // Extract constant value and repeat n times
+                match &fp.value {
+                    crate::utils::Either::Left(val) => PropertyVector::Float(vec![*val; n]),
+                    crate::utils::Either::Right(_) => {
+                        // Column reference in property - shouldn't happen for constants
+                        PropertyVector::Float(vec![1.0; n])
+                    }
+                }
+            }
+            Property::Color(cp) => match &cp.color {
+                crate::utils::Either::Left(color) => PropertyVector::Color(vec![*color; n]),
+                crate::utils::Either::Right(_) => {
+                    PropertyVector::Color(vec![crate::theme::color::BLACK; n])
+                }
+            },
+            Property::Shape(sp) => match &sp.shape {
+                crate::utils::Either::Left(shape) => PropertyVector::Shape(vec![*shape; n]),
+                crate::utils::Either::Right(_) => {
+                    PropertyVector::Shape(vec![crate::visuals::Shape::Circle; n])
+                }
+            },
+            Property::String(sp) => match &sp.value {
+                crate::utils::Either::Left(s) => PropertyVector::String(vec![s.clone(); n]),
+                crate::utils::Either::Right(_) => PropertyVector::String(vec![String::new(); n]),
+            },
+        }
+    }
+
+    fn make_property_value_vector(&self, value: &PropertyValue, n: usize) -> PropertyVector {
+        match value {
+            PropertyValue::Int(val) => PropertyVector::Int(vec![*val; n]),
+            PropertyValue::Float(val) => PropertyVector::Float(vec![*val; n]),
+            PropertyValue::Color(color) => PropertyVector::Color(vec![*color; n]),
+            PropertyValue::Shape(shape) => PropertyVector::Shape(vec![*shape; n]),
+            PropertyValue::String(s) => PropertyVector::String(vec![s.clone(); n]),
+        }
+    }
+
+    /// Create subset PropertyVectors for a specific group using indices
+    fn subset_vectors(
+        &self,
+        all_vectors: &HashMap<AestheticProperty, PropertyVector>,
+        indices: &[usize],
+    ) -> HashMap<AestheticProperty, PropertyVector> {
+        let mut subset = HashMap::new();
+
+        for (property, vector) in all_vectors {
+            let subset_vector = match vector {
+                PropertyVector::Int(v) => {
+                    PropertyVector::Int(indices.iter().map(|&i| v[i]).collect())
+                }
+                PropertyVector::Float(v) => {
+                    PropertyVector::Float(indices.iter().map(|&i| v[i]).collect())
+                }
+                PropertyVector::Color(v) => {
+                    PropertyVector::Color(indices.iter().map(|&i| v[i]).collect())
+                }
+                PropertyVector::Shape(v) => {
+                    PropertyVector::Shape(indices.iter().map(|&i| v[i]).collect())
+                }
+                PropertyVector::String(v) => {
+                    PropertyVector::String(indices.iter().map(|&i| v[i].clone()).collect())
+                }
+            };
+            subset.insert(*property, subset_vector);
+        }
+
+        subset
+    }
+
     pub fn apply_stat(
         &mut self,
         data: &Box<dyn DataSource>,
@@ -106,7 +267,7 @@ impl Layer {
         let mapping = self.mapping(mapping);
         for aes in mapping.aesthetics() {
             let iter = mapping.get_vector_iter(aes, data).unwrap();
-            
+
             // Extract the property and look up the domain from aesthetic_domains
             if let Some(property) = aes.to_property() {
                 if let Some(domain) = self.aesthetic_domains.get(&property) {
@@ -175,44 +336,58 @@ impl Layer {
             if let Some(property) = aes.to_property() {
                 if let Some(domain) = self.aesthetic_domains.get(&property) {
                     let new_value = match (property, domain) {
-                        (AestheticProperty::X, AestheticDomain::Discrete) => {
-                            scales.x_discrete.map_aesthetic_value(value, data, &mut new_data).unwrap()
-                        }
+                        (AestheticProperty::X, AestheticDomain::Discrete) => scales
+                            .x_discrete
+                            .map_aesthetic_value(value, data, &mut new_data)
+                            .unwrap(),
                         (AestheticProperty::X, AestheticDomain::Continuous) => {
-                            let v = scales.x_continuous.map_aesthetic_value(value, data, &mut new_data).unwrap();
+                            let v = scales
+                                .x_continuous
+                                .map_aesthetic_value(value, data, &mut new_data)
+                                .unwrap();
                             log::info!("Mapped X aesthetic value: {:?}", v);
                             v
                         }
-                        (AestheticProperty::Y, AestheticDomain::Discrete) => {
-                            scales.y_discrete.map_aesthetic_value(value, data, &mut new_data).unwrap()
-                        }
-                        (AestheticProperty::Y, AestheticDomain::Continuous) => {
-                            scales.y_continuous.map_aesthetic_value(value, data, &mut new_data).unwrap()
-                        }
-                        (AestheticProperty::Color, AestheticDomain::Continuous) => {
-                            scales.color_continuous.map_aesthetic_value(value, data, &mut new_data).unwrap()
-                        }
-                        (AestheticProperty::Color, AestheticDomain::Discrete) => {
-                            scales.color_discrete.map_aesthetic_value(value, data, &mut new_data).unwrap()
-                        }
-                        (AestheticProperty::Fill, AestheticDomain::Continuous) => {
-                            scales.fill_continuous.map_aesthetic_value(value, data, &mut new_data).unwrap()
-                        }
-                        (AestheticProperty::Fill, AestheticDomain::Discrete) => {
-                            scales.fill_discrete.map_aesthetic_value(value, data, &mut new_data).unwrap()
-                        }
-                        (AestheticProperty::Alpha, _) => {
-                            scales.alpha_scale.map_aesthetic_value(value, data, &mut new_data).unwrap()
-                        }
-                        (AestheticProperty::Size, AestheticDomain::Continuous) => {
-                            scales.size_continuous.map_aesthetic_value(value, data, &mut new_data).unwrap()
-                        }
-                        (AestheticProperty::Size, AestheticDomain::Discrete) => {
-                            scales.size_discrete.map_aesthetic_value(value, data, &mut new_data).unwrap()
-                        }
-                        (AestheticProperty::Shape, _) => {
-                            scales.shape_scale.map_aesthetic_value(value, data, &mut new_data).unwrap()
-                        }
+                        (AestheticProperty::Y, AestheticDomain::Discrete) => scales
+                            .y_discrete
+                            .map_aesthetic_value(value, data, &mut new_data)
+                            .unwrap(),
+                        (AestheticProperty::Y, AestheticDomain::Continuous) => scales
+                            .y_continuous
+                            .map_aesthetic_value(value, data, &mut new_data)
+                            .unwrap(),
+                        (AestheticProperty::Color, AestheticDomain::Continuous) => scales
+                            .color_continuous
+                            .map_aesthetic_value(value, data, &mut new_data)
+                            .unwrap(),
+                        (AestheticProperty::Color, AestheticDomain::Discrete) => scales
+                            .color_discrete
+                            .map_aesthetic_value(value, data, &mut new_data)
+                            .unwrap(),
+                        (AestheticProperty::Fill, AestheticDomain::Continuous) => scales
+                            .fill_continuous
+                            .map_aesthetic_value(value, data, &mut new_data)
+                            .unwrap(),
+                        (AestheticProperty::Fill, AestheticDomain::Discrete) => scales
+                            .fill_discrete
+                            .map_aesthetic_value(value, data, &mut new_data)
+                            .unwrap(),
+                        (AestheticProperty::Alpha, _) => scales
+                            .alpha_scale
+                            .map_aesthetic_value(value, data, &mut new_data)
+                            .unwrap(),
+                        (AestheticProperty::Size, AestheticDomain::Continuous) => scales
+                            .size_continuous
+                            .map_aesthetic_value(value, data, &mut new_data)
+                            .unwrap(),
+                        (AestheticProperty::Size, AestheticDomain::Discrete) => scales
+                            .size_discrete
+                            .map_aesthetic_value(value, data, &mut new_data)
+                            .unwrap(),
+                        (AestheticProperty::Shape, _) => scales
+                            .shape_scale
+                            .map_aesthetic_value(value, data, &mut new_data)
+                            .unwrap(),
                         (AestheticProperty::Linetype, _) => {
                             // Copy through without scaling
                             value.clone()
@@ -262,12 +437,12 @@ pub fn determine_aesthetic_domains(
     requirements: &[AestheticRequirement],
 ) -> Result<HashMap<AestheticProperty, AestheticDomain>, crate::error::PlotError> {
     let mut domains = HashMap::new();
-    
+
     // First pass: extract domains from mapping
     for (aesthetic, _value) in mapping.iter() {
         if let Some(property) = aesthetic.to_property() {
             let domain = aesthetic.domain();
-            
+
             // Check for conflicts with existing domain for this property
             if let Some(existing_domain) = domains.get(&property) {
                 if existing_domain != &domain {
@@ -278,7 +453,7 @@ pub fn determine_aesthetic_domains(
                     });
                 }
             }
-            
+
             // Find the requirement for this property (if any)
             if let Some(req) = requirements.iter().find(|r| r.property == property) {
                 // Validate against constraint
@@ -297,11 +472,11 @@ pub fn determine_aesthetic_domains(
                     }
                 }
             }
-            
+
             domains.insert(property, domain);
         }
     }
-    
+
     // Second pass: check required aesthetics are present
     for req in requirements {
         if req.required && !domains.contains_key(&req.property) {
@@ -310,6 +485,6 @@ pub fn determine_aesthetic_domains(
             });
         }
     }
-    
+
     Ok(domains)
 }

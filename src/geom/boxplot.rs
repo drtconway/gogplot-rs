@@ -1,7 +1,10 @@
 
+use std::collections::HashMap;
+
 use super::{Geom, RenderContext};
+use crate::aesthetics::AestheticProperty;
 use crate::error::PlotError;
-use crate::geom::properties::{ColorProperty, FloatProperty};
+use crate::geom::properties::{ColorProperty, FloatProperty, PropertyVector};
 
 /// GeomBoxplot renders box-and-whisker plots
 ///
@@ -85,9 +88,7 @@ impl Geom for GeomBoxplot {
         
     }
 
-    fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
-        let _data = ctx.layer.data(ctx.data());
-        let _mapping = ctx.layer.mapping(ctx.mapping());
+    fn render(&self, ctx: &mut RenderContext, _properties: HashMap<AestheticProperty, PropertyVector>) -> Result<(), PlotError> {
 
         Ok(())
     }

@@ -1,5 +1,10 @@
 use gogplot::{
-    aesthetics::builder::{XContininuousAesBuilder, YContininuousAesBuilder}, error::to_io_error, geom::point::geom_point, plot::plot, theme::color, utils::mtcars::mtcars
+    aesthetics::builder::{XContininuousAesBuilder, YContininuousAesBuilder},
+    error::to_io_error,
+    geom::point::geom_point,
+    plot::plot,
+    theme::color,
+    utils::mtcars::mtcars,
 };
 
 fn basic_points() -> std::io::Result<()> {
@@ -24,7 +29,8 @@ fn basic_points_with_color() -> std::io::Result<()> {
     }) + geom_point().size(5.0).color(color::BLUEVIOLET);
 
     let p = builder.build().map_err(to_io_error)?;
-    p.save("basic_points_with_color.png", 800, 600).map_err(to_io_error)?;
+    p.save("basic_points_with_color.png", 800, 600)
+        .map_err(to_io_error)?;
     Ok(())
 }
 
@@ -40,20 +46,21 @@ fn basic_points_with_color_and_size() -> std::io::Result<()> {
     });
 
     let p = builder.build().map_err(to_io_error)?;
-    p.save("basic_points_with_color_and_size.png", 800, 600).map_err(to_io_error)?;
+    p.save("basic_points_with_color_and_size.png", 800, 600)
+        .map_err(to_io_error)?;
     Ok(())
 }
 
 fn main() -> std::io::Result<()> {
     env_logger::builder()
-    .filter_level(log::LevelFilter::Info)
-    .init();
+        .filter_level(log::LevelFilter::Info)
+        .init();
 
     basic_points()?;
 
     basic_points_with_color()?;
 
     basic_points_with_color_and_size()?;
-    
+
     Ok(())
 }

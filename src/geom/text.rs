@@ -1,7 +1,10 @@
+use std::collections::HashMap;
+
 use super::{Geom, RenderContext};
-use crate::aesthetics::{AesValue, Aesthetic};
+use crate::aesthetics::{AesValue, Aesthetic, AestheticProperty};
 use crate::data::PrimitiveValue;
 use crate::error::PlotError;
+use crate::geom::properties::PropertyVector;
 
 /// GeomText renders text labels at specified positions
 pub struct GeomText {
@@ -90,7 +93,7 @@ impl Geom for GeomText {
 
     fn apply_scales(&mut self, scales: &crate::scale::ScaleSet) {}
 
-    fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
+    fn render(&self, ctx: &mut RenderContext, _properties: HashMap<AestheticProperty, PropertyVector>) -> Result<(), PlotError> {
         Ok(())
     }
 }

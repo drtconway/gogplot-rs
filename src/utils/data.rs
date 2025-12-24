@@ -592,6 +592,15 @@ pub fn make_float_iter<'a>(
     }
 }
 
+pub fn make_string_iter<'a>(
+    iter: VectorIter<'a>,
+) -> impl Iterator<Item = String> + 'a {
+    match iter {
+        VectorIter::Str(str_iter) => str_iter.map(|v| v.to_string()),
+        _ => panic!("Shape must be specified as string values"),
+    }
+}
+
 pub fn make_shape_iter<'a>(
     iter: VectorIter<'a>,
 ) -> impl Iterator<Item = Shape> + 'a {

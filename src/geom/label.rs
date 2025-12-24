@@ -1,7 +1,10 @@
+use std::collections::HashMap;
+
 use super::{Geom, RenderContext};
-use crate::aesthetics::{AesValue, Aesthetic};
+use crate::aesthetics::{AesValue, Aesthetic, AestheticProperty};
 use crate::data::PrimitiveValue;
 use crate::error::PlotError;
+use crate::geom::properties::PropertyVector;
 
 /// GeomLabel renders text labels with a background box at specified positions
 pub struct GeomLabel {
@@ -124,7 +127,7 @@ impl Geom for GeomLabel {
         
     }
 
-    fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
+    fn render(&self, ctx: &mut RenderContext, _properties: HashMap<AestheticProperty, PropertyVector>) -> Result<(), PlotError> {
         Ok(())
     }
 }

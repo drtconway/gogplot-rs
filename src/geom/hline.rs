@@ -1,10 +1,11 @@
 use core::panic;
+use std::collections::HashMap;
 
 use super::{Geom, RenderContext};
-use crate::aesthetics::{AesValue, Aesthetic, AestheticDomain};
+use crate::aesthetics::{AesValue, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::data::PrimitiveValue;
 use crate::error::PlotError;
-use crate::geom::properties::{ColorProperty, FloatProperty};
+use crate::geom::properties::{ColorProperty, FloatProperty, PropertyVector};
 use crate::layer::Layer;
 use crate::scale::traits::{ContinuousRangeScale, ScaleBase};
 use crate::utils::data::make_float_iter;
@@ -112,28 +113,7 @@ impl Geom for GeomHLine {
         }
     }
 
-    fn render(&self, ctx: &mut RenderContext) -> Result<(), PlotError> {
-        let data = ctx.layer.data(ctx.data());
-        let mapping = ctx.layer.mapping(ctx.mapping());
-        let y_intercepts = self.get_y_intercept(&ctx.layer)?;
-        let colors = self.color.iter(data, mapping, crate::aesthetics::Aesthetic::Color(crate::aesthetics::AestheticDomain::Discrete))?;
-        let alphas = self.alpha.iter(data, mapping, crate::aesthetics::Aesthetic::Alpha(AestheticDomain::Discrete))?;
-        let sizes = self.size.iter(data, mapping, crate::aesthetics::Aesthetic::Size(crate::aesthetics::AestheticDomain::Continuous))?;
-
-        // Get linetype if specified
-        let linetype_pattern = if let Some(AesValue::Constant {
-            value: PrimitiveValue::Str(pattern),
-            ..
-        }) = mapping.get(&Aesthetic::Linetype)
-        {
-            Some(pattern.clone())
-        } else {
-            None
-        };
-
-        // Draw horizontal line(s) across the full width of the plot
-        let (x0, x1) = ctx.x_range;
-
+    fn render(&self, ctx: &mut RenderContext, _properties: HashMap<AestheticProperty, PropertyVector>) -> Result<(), PlotError> {
 
         Ok(())
     }
