@@ -118,27 +118,8 @@ impl Layer {
         }
 
         // Check for grouping
-        if mapping.contains(Aesthetic::Group) {
-            // Materialize group values
-            let group_iter = mapping.get_iter_discrete(&Aesthetic::Group, data).ok_or(
-                crate::error::PlotError::MissingColumn {
-                    column: "Group".to_string(),
-                },
-            )?;
-            let group_values: Vec<DiscreteValue> = group_iter.collect();
-
-            // Split into groups: HashMap<DiscreteValue, Vec<usize>>
-            let mut groups: HashMap<DiscreteValue, Vec<usize>> = HashMap::new();
-            for (i, group) in group_values.iter().enumerate() {
-                groups.entry(group.clone()).or_insert_with(Vec::new).push(i);
-            }
-
-            // Sort groups for consistent rendering order
-            let mut sorted_groups: Vec<_> = groups.into_iter().collect();
-            sorted_groups.sort_by(|a, b| a.0.cmp(&b.0));
-
-            // Render each group
-            for (_group_value, indices) in sorted_groups {
+        if let Some(grouping_vector) = self.get_grouping_vector(data, mapping) {
+            for indices in grouping_vector.into_iter() {
                 // Create subset PropertyVectors for this group
                 let group_data = self.subset_vectors(&all_vectors, &indices);
                 self.geom.render(ctx, group_data)?;
@@ -152,11 +133,7 @@ impl Layer {
     }
 
     /// Materialize a constant aesthetic from property default
-    fn materialize_constant_aesthetic(
-        &self,
-        prop_value: &Property,
-        n: usize,
-    ) -> PropertyVector {
+    fn materialize_constant_aesthetic(&self, prop_value: &Property, n: usize) -> PropertyVector {
         match prop_value {
             Property::Float(fp) => {
                 // Extract constant value and repeat n times
@@ -428,6 +405,100 @@ impl Layer {
             }
         }
         None
+    }
+
+    /// Get the permutation vector for the grouping aesthetic, if any.
+    /// Returns the permutation grouped by group value.
+    fn get_grouping_vector(
+        &self,
+        data: &dyn DataSource,
+        mapping: &AesMap,
+    ) -> Option<Vec<Vec<usize>>> {
+        if mapping.contains(Aesthetic::Group) {
+            let group_iter = mapping.get_iter_discrete(&Aesthetic::Group, data).unwrap();
+            let group_values: Vec<DiscreteValue> = group_iter.collect();
+
+            let mut permutation: Vec<usize> = (0..group_values.len()).collect();
+            permutation.sort_by_key(|&i| &group_values[i]);
+
+            let mut group_index = 0;
+            let mut grouping_vector = Vec::new();
+            for &i in &permutation {
+                if i > 0 && group_values[i] != group_values[i - 1] {
+                    group_index += 1;
+                }
+                if grouping_vector.len() <= group_index {
+                    grouping_vector.push(Vec::new());
+                }
+                grouping_vector[group_index].push(i);
+            }
+
+            return Some(grouping_vector);
+        }
+
+        let mut grouping_aesthetics = Vec::new();
+        for (aes, _value) in mapping.iter() {
+            if aes.is_grouping() {
+                grouping_aesthetics.push(*aes);
+            }
+        }
+        grouping_aesthetics.sort();
+
+        if grouping_aesthetics.is_empty() {
+            return None;
+        }
+
+        if grouping_aesthetics.len() == 1 {
+            let group_iter = mapping
+                .get_iter_discrete(&grouping_aesthetics[0], data)
+                .unwrap();
+            let group_values: Vec<DiscreteValue> = group_iter.collect();
+
+            let mut permutation: Vec<usize> = (0..group_values.len()).collect();
+            permutation.sort_by_key(|&i| &group_values[i]);
+
+            let mut group_index = 0;
+            let mut grouping_vector = Vec::new();
+            for &i in &permutation {
+                if i > 0 && group_values[i] != group_values[i - 1] {
+                    group_index += 1;
+                }
+                if grouping_vector.len() <= group_index {
+                    grouping_vector.push(Vec::new());
+                }
+                grouping_vector[group_index].push(i);
+            }
+
+            return Some(grouping_vector);
+        }
+
+        let mut group_values: Vec<Vec<DiscreteValue>> = mapping
+            .get_iter_discrete(&grouping_aesthetics[0], data)
+            .unwrap()
+            .map(|v| vec![v])
+            .collect();
+        for aes in &grouping_aesthetics[1..] {
+            for (i, v) in mapping.get_iter_discrete(aes, data).unwrap().enumerate() {
+                group_values[i].push(v);
+            }
+        }
+
+        let mut permutation: Vec<usize> = (0..group_values.len()).collect();
+        permutation.sort_by_key(|&i| &group_values[i]);
+
+        let mut group_index = 0;
+        let mut grouping_vector = Vec::new();
+        for &i in &permutation {
+            if i > 0 && group_values[i] != group_values[i - 1] {
+                group_index += 1;
+            }
+            if grouping_vector.len() <= group_index {
+                grouping_vector.push(Vec::new());
+            }
+            grouping_vector[group_index].push(i);
+        }
+
+        Some(grouping_vector)
     }
 }
 

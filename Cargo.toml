@@ -17,3 +17,11 @@ ordered-float = "5.1.0"
 splines = "5.0.0"
 log = "0.4.29"
 env_logger = "0.11.8"
+
+[dev-dependencies]
+strum = "0.27.2"
+strum_macros = "0.27.2"
+clap = { version = "4.5", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.148"
+serde_yaml = "0.9"

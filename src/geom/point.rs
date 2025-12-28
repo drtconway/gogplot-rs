@@ -2,9 +2,7 @@ use std::collections::HashMap;
 
 use super::{Geom, RenderContext};
 use crate::aesthetics::builder::{
-    AesMapBuilder, ColorContinuousAesBuilder, ColorDiscreteAesBuilder, SizeContinuousAesBuilder,
-    SizeDiscreteAesBuilder, XContininuousAesBuilder, XDiscreteAesBuilder, YContininuousAesBuilder,
-    YDiscreteAesBuilder,
+    AesMapBuilder, AlphaContinuousAesBuilder, AlphaDiscreteAesBuilder, ColorContinuousAesBuilder, ColorDiscreteAesBuilder, ShapeAesBuilder, SizeContinuousAesBuilder, SizeDiscreteAesBuilder, XContininuousAesBuilder, XDiscreteAesBuilder, YContininuousAesBuilder, YDiscreteAesBuilder
 };
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::error::PlotError;
@@ -22,8 +20,11 @@ pub trait GeomPointAesBuilderTrait:
     + YDiscreteAesBuilder
     + ColorContinuousAesBuilder
     + ColorDiscreteAesBuilder
+    + AlphaContinuousAesBuilder
+    + AlphaDiscreteAesBuilder
     + SizeContinuousAesBuilder
     + SizeDiscreteAesBuilder
+    + ShapeAesBuilder
 {
 }
 

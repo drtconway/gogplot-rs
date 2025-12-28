@@ -274,6 +274,14 @@ pub struct ShapeProperty {
     pub shape: Either<Shape, String>,
 }
 
+impl Into<ShapeProperty> for Shape {
+    fn into(self) -> ShapeProperty {
+        let mut prop = ShapeProperty::new();
+        prop.shape(self);
+        prop
+    }
+}
+
 impl ShapeProperty {
     pub fn new() -> Self {
         Self {

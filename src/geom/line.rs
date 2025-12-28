@@ -2,18 +2,17 @@ use std::collections::HashMap;
 
 use super::{Geom, RenderContext};
 use crate::aesthetics::builder::{
-    AesMapBuilder, ColorContinuousAesBuilder, ColorDiscreteAesBuilder, SizeContinuousAesBuilder,
-    SizeDiscreteAesBuilder, XContininuousAesBuilder, XDiscreteAesBuilder, YContininuousAesBuilder,
-    YDiscreteAesBuilder,
+    AesMapBuilder, AlphaContinuousAesBuilder, AlphaDiscreteAesBuilder, ColorContinuousAesBuilder,
+    ColorDiscreteAesBuilder, SizeContinuousAesBuilder, SizeDiscreteAesBuilder,
+    XContininuousAesBuilder, XDiscreteAesBuilder, YContininuousAesBuilder, YDiscreteAesBuilder,
 };
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::error::PlotError;
-use crate::geom::properties::{ColorProperty, FloatProperty, PropertyVector, ShapeProperty};
+use crate::geom::properties::{ColorProperty, FloatProperty, PropertyVector};
 use crate::geom::{AestheticRequirement, DomainConstraint};
 use crate::layer::{Layer, LayerBuilder};
 use crate::scale::ScaleIdentifier;
-use crate::theme::Color;
-use crate::visuals::Shape;
+use crate::theme::{Color, color};
 
 pub trait GeomLineAesBuilderTrait:
     XContininuousAesBuilder
@@ -22,6 +21,8 @@ pub trait GeomLineAesBuilderTrait:
     + YDiscreteAesBuilder
     + ColorContinuousAesBuilder
     + ColorDiscreteAesBuilder
+    + AlphaContinuousAesBuilder
+    + AlphaDiscreteAesBuilder
     + SizeContinuousAesBuilder
     + SizeDiscreteAesBuilder
 {
@@ -32,7 +33,6 @@ impl GeomLineAesBuilderTrait for AesMapBuilder {}
 pub struct GeomLineBuilder {
     size: Option<FloatProperty>,
     color: Option<ColorProperty>,
-    shape: Option<ShapeProperty>,
     alpha: Option<FloatProperty>,
     aes_builder: AesMapBuilder,
 }
@@ -42,7 +42,6 @@ impl GeomLineBuilder {
         Self {
             size: None,
             color: None,
-            shape: None,
             alpha: None,
             aes_builder: AesMapBuilder::new(),
         }
@@ -55,11 +54,6 @@ impl GeomLineBuilder {
 
     pub fn color<Color: Into<ColorProperty>>(mut self, color: Color) -> Self {
         self.color = Some(color.into());
-        self
-    }
-
-    pub fn shape<Shape: Into<ShapeProperty>>(mut self, shape: Shape) -> Self {
-        self.shape = Some(shape.into());
         self
     }
 
@@ -76,39 +70,35 @@ impl GeomLineBuilder {
 
 impl LayerBuilder for GeomLineBuilder {
     fn build(self: Box<Self>, parent_mapping: &AesMap) -> Layer {
-        let mut geom_point = GeomLine::new();
+        let mut geom_line = GeomLine::new();
 
         // Build the mapping (merging layer + parent)
         let mut mapping = self.aes_builder.build(parent_mapping);
 
         // Set fixed property values and remove from inherited mapping
-        if let Some(size_prop) = self.size {
-            geom_point.size = size_prop;
+        if self.size.is_some() {
+            geom_line.size = self.size;
             mapping.remove(&Aesthetic::Size(AestheticDomain::Continuous));
             mapping.remove(&Aesthetic::Size(AestheticDomain::Discrete));
         }
-        if let Some(color_prop) = self.color {
-            geom_point.color = color_prop;
+        if self.color.is_some() {
+            geom_line.color = self.color;
             mapping.remove(&Aesthetic::Color(AestheticDomain::Continuous));
             mapping.remove(&Aesthetic::Color(AestheticDomain::Discrete));
         }
-        if let Some(shape_prop) = self.shape {
-            geom_point.shape = shape_prop;
-            mapping.remove(&Aesthetic::Shape);
-        }
-        if let Some(alpha_prop) = self.alpha {
-            geom_point.alpha = alpha_prop;
+        if self.alpha.is_some() {
+            geom_line.alpha = self.alpha;
             mapping.remove(&Aesthetic::Alpha(AestheticDomain::Continuous));
             mapping.remove(&Aesthetic::Alpha(AestheticDomain::Discrete));
         }
 
         // Determine and validate aesthetic domains
-        let requirements = geom_point.aesthetic_requirements();
+        let requirements = geom_line.aesthetic_requirements();
         let aesthetic_domains = crate::layer::determine_aesthetic_domains(&mapping, requirements)
-            .expect("Invalid aesthetic configuration for geom_point");
+            .expect("Invalid aesthetic configuration for geom_line");
 
         // Create the layer
-        let mut layer = crate::layer::Layer::new(Box::new(geom_point));
+        let mut layer = crate::layer::Layer::new(Box::new(geom_line));
         layer.mapping = Some(mapping);
         layer.aesthetic_domains = aesthetic_domains;
 
@@ -116,57 +106,42 @@ impl LayerBuilder for GeomLineBuilder {
     }
 }
 
-pub fn geom_point() -> GeomLineBuilder {
+pub fn geom_line() -> GeomLineBuilder {
     GeomLineBuilder::new()
 }
 
 /// GeomLine renders points/scatterplot
 pub struct GeomLine {
-    /// Default point size (if not mapped)
-    pub size: FloatProperty,
-
-    /// Default point color (if not mapped)
-    pub color: ColorProperty,
-
-    /// Default point shape (if not mapped)
-    pub shape: ShapeProperty,
-
-    /// Default alpha/opacity (if not mapped)
-    pub alpha: FloatProperty,
+    size: Option<FloatProperty>,
+    color: Option<ColorProperty>,
+    alpha: Option<FloatProperty>,
 }
 
 impl GeomLine {
     /// Create a new point geom with default settings from theme
     pub fn new() -> Self {
         Self {
-            size: FloatProperty::new(),
-            color: ColorProperty::new(),
-            shape: ShapeProperty::new(),
-            alpha: FloatProperty::new(),
+            size: None,
+            color: None,
+            alpha: None,
         }
     }
 
     /// Set the default point size
     pub fn size(&mut self, size: f64) -> &mut Self {
-        self.size.value(size);
+        self.size = Some(FloatProperty::new().value(size).clone());
         self
     }
 
     /// Set the default point color
     pub fn color(&mut self, color: crate::theme::Color) -> &mut Self {
-        self.color.color(color);
-        self
-    }
-
-    /// Set the default point shape
-    pub fn shape(&mut self, shape: Shape) -> &mut Self {
-        self.shape.shape(shape);
+        self.color = Some(ColorProperty::new().color(color).clone());
         self
     }
 
     /// Set the default alpha/opacity
     pub fn alpha(&mut self, alpha: f64) -> &mut Self {
-        self.alpha.value(alpha.clamp(0.0, 1.0));
+        self.alpha = Some(FloatProperty::new().value(alpha.clamp(0.0, 1.0)).clone());
         self
     }
 
@@ -263,6 +238,55 @@ const AESTHETIC_REQUIREMENTS: [AestheticRequirement; 5] = [
 impl Geom for GeomLine {
     fn aesthetic_requirements(&self) -> &'static [AestheticRequirement] {
         &AESTHETIC_REQUIREMENTS
+    }
+
+    fn properties(&self) -> HashMap<AestheticProperty, super::properties::Property> {
+        let mut props = HashMap::new();
+        if let Some(size_prop) = &self.size {
+            props.insert(
+                AestheticProperty::Size,
+                super::properties::Property::Float(size_prop.clone()),
+            );
+        }
+        if let Some(color_prop) = &self.color {
+            props.insert(
+                AestheticProperty::Color,
+                super::properties::Property::Color(color_prop.clone()),
+            );
+        }
+        if let Some(alpha_prop) = &self.alpha {
+            props.insert(
+                AestheticProperty::Alpha,
+                super::properties::Property::Float(alpha_prop.clone()),
+            );
+        }
+        props
+    }
+
+    fn property_defaults(
+        &self,
+        _theme: &crate::prelude::Theme,
+    ) -> HashMap<AestheticProperty, super::properties::PropertyValue> {
+        let mut defaults = HashMap::new();
+        if self.size.is_none() {
+            defaults.insert(
+                AestheticProperty::Size,
+                super::properties::PropertyValue::Float(1.0),
+            );
+        }
+        if self.color.is_none() {
+            defaults.insert(
+                AestheticProperty::Color,
+                super::properties::PropertyValue::Color(color::BLACK),
+            );
+        }
+        if self.alpha.is_none() {
+            defaults.insert(
+                AestheticProperty::Alpha,
+                super::properties::PropertyValue::Float(1.0),
+            );
+        }
+        defaults
     }
 
     fn required_scales(&self) -> Vec<ScaleIdentifier> {

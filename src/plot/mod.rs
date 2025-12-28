@@ -285,7 +285,7 @@ impl<'a> Plot<'a> {
     /// ```ignore
     /// plot.save("output.png", 800, 600)?;
     /// ```
-    pub fn save(&self, path: impl AsRef<Path>, width: i32, height: i32) -> Result<(), PlotError> {
+    pub fn save(&self, path: impl AsRef<Path>, width: u32, height: u32) -> Result<(), PlotError> {
         export::save(
             path,
             &self.layers,
@@ -295,8 +295,8 @@ impl<'a> Plot<'a> {
             self.title.as_ref(),
             Some(self.data.as_ref()),
             &self.mapping,
-            width,
-            height,
+            width as i32,
+            height as i32,
         )
     }
 }

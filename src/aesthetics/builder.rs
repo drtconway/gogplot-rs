@@ -108,6 +108,32 @@ pub trait FillDiscreteAesBuilder: AesMapBuilderTrait {
     }
 }
 
+pub trait AlphaContinuousAesBuilder: AesMapBuilderTrait {
+    fn alpha_continuous(&mut self, column: &str) {
+        self.aes().set(
+            Aesthetic::Alpha(AestheticDomain::Continuous),
+            AesValue::Column {
+                name: column.to_string(),
+                hint: None,
+                original_name: None,
+            },
+        );
+    }
+}
+
+pub trait AlphaDiscreteAesBuilder: AesMapBuilderTrait {
+    fn alpha_discrete(&mut self, column: &str) {
+        self.aes().set(
+            Aesthetic::Alpha(AestheticDomain::Discrete),
+            AesValue::Column {
+                name: column.to_string(),
+                hint: None,
+                original_name: None,
+            },
+        );
+    }
+}
+
 pub trait SizeContinuousAesBuilder: AesMapBuilderTrait {
     fn size_continuous(&mut self, column: &str) {
         self.aes().set(
@@ -125,6 +151,19 @@ pub trait SizeDiscreteAesBuilder: AesMapBuilderTrait {
     fn size_discrete(&mut self, column: &str) {
         self.aes().set(
             Aesthetic::Size(AestheticDomain::Discrete),
+            AesValue::Column {
+                name: column.to_string(),
+                hint: None,
+                original_name: None,
+            },
+        );
+    }
+}
+
+pub trait ShapeAesBuilder: AesMapBuilderTrait {
+    fn shape(&mut self, column: &str) {
+        self.aes().set(
+            Aesthetic::Shape,
             AesValue::Column {
                 name: column.to_string(),
                 hint: None,
@@ -182,7 +221,10 @@ impl ColorContinuousAesBuilder for AesMapBuilder {}
 impl ColorDiscreteAesBuilder for AesMapBuilder {}
 impl FillContinuousAesBuilder for AesMapBuilder {}
 impl FillDiscreteAesBuilder for AesMapBuilder {}
+impl AlphaContinuousAesBuilder for AesMapBuilder {}
+impl AlphaDiscreteAesBuilder for AesMapBuilder {}
 impl SizeContinuousAesBuilder for AesMapBuilder {}
 impl SizeDiscreteAesBuilder for AesMapBuilder {}
+impl ShapeAesBuilder for AesMapBuilder {}
 impl GroupAesBuilder for AesMapBuilder {}
 
