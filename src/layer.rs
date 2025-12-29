@@ -101,8 +101,11 @@ impl Layer {
 
             // Priority 1: Check if geom has an explicit property set
             if let Some(prop_value) = properties.get(&property) {
-                // Use property (prioritize set values over inherited mappings)
-                let vector = self.materialize_constant_aesthetic(prop_value, n);
+                // For required properties provided as constants, only materialize once
+                // (e.g., yintercept for hline). Optional properties get repeated n times.
+                // When zipped together, the shortest iterator controls iteration count.
+                let length = if req.required { 1 } else { n };
+                let vector = self.materialize_constant_aesthetic(prop_value, length);
                 all_vectors.insert(property, vector);
             } else if let Some(aesthetic) = index.get(&property) {
                 // Priority 2: Use mapping
@@ -283,6 +286,9 @@ impl Layer {
                         (AestheticProperty::X, AestheticDomain::Continuous) => {
                             scales.x_continuous.train(iter);
                         }
+                        (AestheticProperty::XIntercept, _) => {
+                            scales.x_continuous.train(iter);
+                        }
                         (AestheticProperty::Y, AestheticDomain::Discrete) => {
                             scales.y_discrete.train(iter);
                         }
@@ -355,6 +361,10 @@ impl Layer {
                             log::info!("Mapped X aesthetic value: {:?}", v);
                             v
                         }
+                        (AestheticProperty::XIntercept, _) => scales
+                            .x_continuous
+                            .map_aesthetic_value(value, data)
+                            .unwrap(),
                         (AestheticProperty::Y, AestheticDomain::Discrete) => scales
                             .y_discrete
                             .map_aesthetic_value(value, data)
@@ -407,6 +417,7 @@ impl Layer {
                     // Write back using canonical domain (Continuous for most, Shape/Linetype have no domain)
                     let canonical_aes = match property {
                         AestheticProperty::X => Aesthetic::X(AestheticDomain::Continuous),
+                        AestheticProperty::XIntercept => Aesthetic::XIntercept,
                         AestheticProperty::Y => Aesthetic::Y(AestheticDomain::Continuous),
                         AestheticProperty::YIntercept => Aesthetic::YIntercept,
                         AestheticProperty::Color => Aesthetic::Color(AestheticDomain::Continuous),

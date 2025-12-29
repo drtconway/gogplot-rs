@@ -77,6 +77,10 @@ pub struct MappingDefinition {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub linetype: Option<String>,
 
+    /// X-intercept mapping for vertical lines
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub xintercept: Option<String>,
+
     /// Y-intercept mapping for horizontal lines
     #[serde(skip_serializing_if = "Option::is_none")]
     pub yintercept: Option<String>,
@@ -116,6 +120,7 @@ pub enum GeomType {
     Point,
     Line,
     HLine,
+    VLine,
 }
 
 /// Statistical transformations
@@ -164,6 +169,10 @@ pub struct GeomParams {
     /// Point shape
     #[serde(skip_serializing_if = "Option::is_none")]
     pub shape: Option<String>,
+
+    /// Fixed x-intercept value for vertical lines
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub xintercept: Option<f64>,
 
     /// Fixed y-intercept value for horizontal lines
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -437,6 +446,26 @@ fn add_layer<'a>(
             // Apply fixed parameters
             if let Some(yintercept) = layer.params.yintercept {
                 geom = geom.yintercept(yintercept);
+            }
+            if let Some(color_str) = &layer.params.color {
+                let color = string_to_color(color_str)?;
+                geom = geom.color(color);
+            }
+            if let Some(size) = layer.params.size {
+                geom = geom.size(size);
+            }
+            if let Some(alpha) = layer.params.alpha {
+                geom = geom.alpha(alpha);
+            }
+
+            builder + geom
+        }
+        GeomType::VLine => {
+            let mut geom = gogplot::geom::vline::geom_vline();
+
+            // Apply fixed parameters
+            if let Some(xintercept) = layer.params.xintercept {
+                geom = geom.xintercept(xintercept);
             }
             if let Some(color_str) = &layer.params.color {
                 let color = string_to_color(color_str)?;
