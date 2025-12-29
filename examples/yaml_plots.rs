@@ -6,7 +6,7 @@ use gogplot::{
         },
     },
     error::to_io_error,
-    geom::{line::geom_line, point::geom_point},
+    geom::{hline::geom_hline, line::geom_line, point::geom_point},
     plot::{PlotBuilder, plot},
     utils::mtcars::mtcars,
 };
@@ -77,6 +77,10 @@ pub struct MappingDefinition {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub linetype: Option<String>,
 
+    /// Y-intercept mapping for horizontal lines
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub yintercept: Option<String>,
+
     /// Additional custom mappings
     #[serde(flatten)]
     pub extra: HashMap<String, String>,
@@ -111,6 +115,7 @@ pub struct LayerDefinition {
 pub enum GeomType {
     Point,
     Line,
+    HLine,
 }
 
 /// Statistical transformations
@@ -159,6 +164,10 @@ pub struct GeomParams {
     /// Point shape
     #[serde(skip_serializing_if = "Option::is_none")]
     pub shape: Option<String>,
+
+    /// Fixed y-intercept value for horizontal lines
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub yintercept: Option<f64>,
 
     /// Additional custom parameters
     #[serde(flatten)]
@@ -422,6 +431,26 @@ fn add_layer<'a>(
 
             builder + geom
         }
+        GeomType::HLine => {
+            let mut geom = geom_hline();
+
+            // Apply fixed parameters
+            if let Some(yintercept) = layer.params.yintercept {
+                geom = geom.yintercept(yintercept);
+            }
+            if let Some(color_str) = &layer.params.color {
+                let color = string_to_color(color_str)?;
+                geom = geom.color(color);
+            }
+            if let Some(size) = layer.params.size {
+                geom = geom.size(size);
+            }
+            if let Some(alpha) = layer.params.alpha {
+                geom = geom.alpha(alpha);
+            }
+
+            builder + geom
+        }
     };
 
     Ok(result)
@@ -448,6 +477,20 @@ fn string_to_shape(shape_str: &str) -> std::io::Result<gogplot::visuals::Shape> 
             format!("Unknown shape: {}", shape_str),
         )),
     }
+}
+
+fn string_to_color(color_str: &str) -> std::io::Result<gogplot::theme::Color> {
+    let color_map = gogplot::theme::color::color_map();
+    let color_lower = color_str.to_lowercase();
+    for (name, color) in color_map.iter() {
+        if *name == color_lower {
+            return Ok(*color);
+        }
+    }
+    Err(std::io::Error::new(
+        std::io::ErrorKind::InvalidInput,
+        format!("Unknown color: {}", color_str),
+    ))
 }
 
 fn decode_column_reference(column: &str) -> (String, Option<AestheticDomain>) {

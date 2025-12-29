@@ -30,7 +30,7 @@ pub use context::RenderContext;
 pub use density::GeomDensity;
 pub use errorbar::GeomErrorbar;
 pub use histogram::GeomHistogram;
-pub use hline::GeomHLine;
+pub use hline::{geom_hline, GeomHLine, GeomHLineBuilder};
 pub use label::GeomLabel;
 pub use line::GeomLine;
 pub use point::GeomPoint;

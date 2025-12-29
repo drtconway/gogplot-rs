@@ -105,7 +105,7 @@ impl LayerBuilder for GeomPointBuilder {
 
         // Determine and validate aesthetic domains
         let requirements = geom_point.aesthetic_requirements();
-        let aesthetic_domains = crate::layer::determine_aesthetic_domains(&mapping, requirements)
+        let aesthetic_domains = crate::layer::determine_aesthetic_domains(&mapping, requirements, HashMap::new())
             .expect("Invalid aesthetic configuration for geom_point");
 
         // Create the layer

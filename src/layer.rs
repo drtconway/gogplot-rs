@@ -289,6 +289,9 @@ impl Layer {
                         (AestheticProperty::Y, AestheticDomain::Continuous) => {
                             scales.y_continuous.train(iter);
                         }
+                        (AestheticProperty::YIntercept, _) => {
+                            scales.y_continuous.train(iter);
+                        }
                         (AestheticProperty::Color, AestheticDomain::Continuous) => {
                             scales.color_continuous.train(iter);
                         }
@@ -360,6 +363,10 @@ impl Layer {
                             .y_continuous
                             .map_aesthetic_value(value, data)
                             .unwrap(),
+                        (AestheticProperty::YIntercept, _) => scales
+                            .y_continuous
+                            .map_aesthetic_value(value, data)
+                            .unwrap(),
                         (AestheticProperty::Color, AestheticDomain::Continuous) => scales
                             .color_continuous
                             .map_aesthetic_value(value, data)
@@ -401,6 +408,7 @@ impl Layer {
                     let canonical_aes = match property {
                         AestheticProperty::X => Aesthetic::X(AestheticDomain::Continuous),
                         AestheticProperty::Y => Aesthetic::Y(AestheticDomain::Continuous),
+                        AestheticProperty::YIntercept => Aesthetic::YIntercept,
                         AestheticProperty::Color => Aesthetic::Color(AestheticDomain::Continuous),
                         AestheticProperty::Fill => Aesthetic::Fill(AestheticDomain::Continuous),
                         AestheticProperty::Size => Aesthetic::Size(AestheticDomain::Continuous),
@@ -420,6 +428,9 @@ impl Layer {
         }
 
         self.mapping = Some(new_mapping);
+
+        // Apply scales to the geom itself (for properties that aren't in the mapping)
+        self.geom.apply_scales(scales);
 
         Ok(())
     }
@@ -538,8 +549,9 @@ impl Layer {
 pub fn determine_aesthetic_domains(
     mapping: &AesMap,
     requirements: &[AestheticRequirement],
+    initial_domains: HashMap<AestheticProperty, AestheticDomain>,
 ) -> Result<HashMap<AestheticProperty, AestheticDomain>, crate::error::PlotError> {
-    let mut domains = HashMap::new();
+    let mut domains = initial_domains;
 
     // First pass: extract domains from mapping
     for (aesthetic, _value) in mapping.iter() {

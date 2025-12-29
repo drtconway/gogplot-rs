@@ -117,6 +117,21 @@ impl FloatProperty {
         self
     }
 
+    /// Get the constant value if this is a constant property (not a column reference)
+    pub fn get_value(&self) -> Option<f64> {
+        match &self.value {
+            Either::Left(v) => Some(*v),
+            Either::Right(_) => None,
+        }
+    }
+
+    /// Set the constant value (only works if this is already a constant property)
+    pub fn set_value(&mut self, value: f64) {
+        if matches!(self.value, Either::Left(_)) {
+            self.value = Either::Left(value);
+        }
+    }
+
     /// Get a float iterator
     pub fn iter<'a>(
         &'a self,

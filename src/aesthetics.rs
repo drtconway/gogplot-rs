@@ -32,6 +32,7 @@ pub enum AestheticProperty {
     Linetype,
     X,
     Y,
+    YIntercept,
 }
 
 impl AestheticProperty {
@@ -45,6 +46,7 @@ impl AestheticProperty {
             AestheticProperty::Linetype => AestheticPropertyType::String,
             AestheticProperty::X => AestheticPropertyType::Float,
             AestheticProperty::Y => AestheticPropertyType::Float,
+            AestheticProperty::YIntercept => AestheticPropertyType::Float,
         }
     }
 }
@@ -260,6 +262,7 @@ impl From<(AestheticProperty, AestheticDomain)> for Aesthetic {
         match value.0 {
             AestheticProperty::X => Aesthetic::X(value.1),
             AestheticProperty::Y => Aesthetic::Y(value.1),
+            AestheticProperty::YIntercept => Aesthetic::YIntercept,
             AestheticProperty::Color => Aesthetic::Color(value.1),
             AestheticProperty::Fill => Aesthetic::Fill(value.1),
             AestheticProperty::Size => Aesthetic::Size(value.1),
