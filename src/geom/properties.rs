@@ -46,7 +46,12 @@ impl PropertyVector {
     pub fn to_shape(self) -> PropertyVector {
         match self {
             PropertyVector::Int(v) => {
-                let shapes: Vec<Shape> = v.into_iter().map(|s| Shape::from(s)).collect();
+                log::info!("Converting int vector to shapes: {:?}", v);
+                let shapes: Vec<Shape> = v.into_iter().map(|s| {
+                    let shape = Shape::from(s);
+                    log::info!("  {} -> {:?}", s, shape);
+                    shape
+                }).collect();
                 PropertyVector::Shape(shapes)
             }
             PropertyVector::Shape(_) => self.clone(),

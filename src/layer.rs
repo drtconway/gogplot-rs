@@ -9,7 +9,6 @@ use crate::position::Position;
 use crate::scale::ScaleSet;
 use crate::scale::traits::{ColorRangeScale, ContinuousRangeScale, ScaleBase, ShapeRangeScale};
 use crate::stat::Stat;
-use crate::utils::dataframe::DataFrame;
 use std::collections::HashMap;
 
 pub trait LayerBuilder {
@@ -107,8 +106,14 @@ impl Layer {
                 all_vectors.insert(property, vector);
             } else if let Some(aesthetic) = index.get(&property) {
                 // Priority 2: Use mapping
+                if property == AestheticProperty::Shape {
+                    log::info!("Loading shape property from aesthetic: {:?}", aesthetic);
+                }
                 let vector: PropertyVector =
                     PropertyVector::from(mapping.get_vector_iter(aesthetic, data).unwrap());
+                if property == AestheticProperty::Shape {
+                    log::info!("Loaded shape vector from mapping: {:?}", vector);
+                }
                 all_vectors.insert(property, vector);
             } else if let Some(default_value) = defaults.get(&property) {
                 // Priority 3: get the default value
@@ -118,8 +123,19 @@ impl Layer {
         }
 
         // Check for grouping
+        if let Some(ref shape_vec) = all_vectors.get(&AestheticProperty::Shape) {
+            log::info!("Before grouping, Shape vector is: {:?}", shape_vec);
+        }
         if let Some(grouping_vector) = self.get_grouping_vector(data, mapping) {
-            for indices in grouping_vector.into_iter() {
+            log::info!("Have {} groups", grouping_vector.len());
+            for (group_idx, indices) in grouping_vector.into_iter().enumerate() {
+                log::info!("Processing group {}", group_idx);
+                if let Some(ref shape_vec) = all_vectors.get(&AestheticProperty::Shape) {
+                    match shape_vec {
+                        PropertyVector::Int(v) => log::info!("  all_vectors Shape before subset: Int with first few: {:?}", &v[..v.len().min(5)]),
+                        _ => log::info!("  all_vectors Shape before subset: other type"),
+                    }
+                }
                 // Create subset PropertyVectors for this group
                 let group_data = self.subset_vectors(&all_vectors, &indices);
                 self.geom.render(ctx, group_data)?;
@@ -183,6 +199,15 @@ impl Layer {
         let mut subset = HashMap::new();
 
         for (property, vector) in all_vectors {
+            if *property == AestheticProperty::Shape {
+                match vector {
+                    PropertyVector::Int(v) => log::info!("Subsetting shape Int vector with {} values, first few: {:?}", v.len(), &v[..v.len().min(5)]),
+                    PropertyVector::Shape(v) => log::info!("Subsetting shape Shape vector with {} values", v.len()),
+                    PropertyVector::Color(_) => log::info!("ERROR: Shape property has Color vector!"),
+                    _ => log::info!("Subsetting shape with unexpected type"),
+                }
+                log::info!("  indices: {:?}", indices);
+            }
             let subset_vector = match vector {
                 PropertyVector::Int(v) => {
                     PropertyVector::Int(indices.iter().map(|&i| v[i]).collect())
@@ -200,6 +225,9 @@ impl Layer {
                     PropertyVector::String(indices.iter().map(|&i| v[i].clone()).collect())
                 }
             };
+            if *property == AestheticProperty::Shape {
+                log::info!("Shape subset result: {:?}", subset_vector);
+            }
             subset.insert(*property, subset_vector);
         }
 
@@ -305,7 +333,6 @@ impl Layer {
         let data = self.data(data.as_ref());
         let mapping = self.mapping(mapping);
 
-        let mut new_data = DataFrame::new();
         let mut new_mapping = AesMap::new();
 
         for (aes, value) in mapping.iter() {
@@ -315,55 +342,55 @@ impl Layer {
                     let new_value = match (property, domain) {
                         (AestheticProperty::X, AestheticDomain::Discrete) => scales
                             .x_discrete
-                            .map_aesthetic_value(value, data, &mut new_data)
+                            .map_aesthetic_value(value, data)
                             .unwrap(),
                         (AestheticProperty::X, AestheticDomain::Continuous) => {
                             let v = scales
                                 .x_continuous
-                                .map_aesthetic_value(value, data, &mut new_data)
+                                .map_aesthetic_value(value, data)
                                 .unwrap();
                             log::info!("Mapped X aesthetic value: {:?}", v);
                             v
                         }
                         (AestheticProperty::Y, AestheticDomain::Discrete) => scales
                             .y_discrete
-                            .map_aesthetic_value(value, data, &mut new_data)
+                            .map_aesthetic_value(value, data)
                             .unwrap(),
                         (AestheticProperty::Y, AestheticDomain::Continuous) => scales
                             .y_continuous
-                            .map_aesthetic_value(value, data, &mut new_data)
+                            .map_aesthetic_value(value, data)
                             .unwrap(),
                         (AestheticProperty::Color, AestheticDomain::Continuous) => scales
                             .color_continuous
-                            .map_aesthetic_value(value, data, &mut new_data)
+                            .map_aesthetic_value(value, data)
                             .unwrap(),
                         (AestheticProperty::Color, AestheticDomain::Discrete) => scales
                             .color_discrete
-                            .map_aesthetic_value(value, data, &mut new_data)
+                            .map_aesthetic_value(value, data)
                             .unwrap(),
                         (AestheticProperty::Fill, AestheticDomain::Continuous) => scales
                             .fill_continuous
-                            .map_aesthetic_value(value, data, &mut new_data)
+                            .map_aesthetic_value(value, data)
                             .unwrap(),
                         (AestheticProperty::Fill, AestheticDomain::Discrete) => scales
                             .fill_discrete
-                            .map_aesthetic_value(value, data, &mut new_data)
+                            .map_aesthetic_value(value, data)
                             .unwrap(),
                         (AestheticProperty::Alpha, _) => scales
                             .alpha_scale
-                            .map_aesthetic_value(value, data, &mut new_data)
+                            .map_aesthetic_value(value, data)
                             .unwrap(),
                         (AestheticProperty::Size, AestheticDomain::Continuous) => scales
                             .size_continuous
-                            .map_aesthetic_value(value, data, &mut new_data)
+                            .map_aesthetic_value(value, data)
                             .unwrap(),
                         (AestheticProperty::Size, AestheticDomain::Discrete) => scales
                             .size_discrete
-                            .map_aesthetic_value(value, data, &mut new_data)
+                            .map_aesthetic_value(value, data)
                             .unwrap(),
                         (AestheticProperty::Shape, _) => scales
                             .shape_scale
-                            .map_aesthetic_value(value, data, &mut new_data)
+                            .map_aesthetic_value(value, data)
                             .unwrap(),
                         (AestheticProperty::Linetype, _) => {
                             // Copy through without scaling
@@ -392,7 +419,6 @@ impl Layer {
             }
         }
 
-        self.data = Some(Box::new(new_data));
         self.mapping = Some(new_mapping);
 
         Ok(())
@@ -459,14 +485,17 @@ impl Layer {
 
             let mut group_index = 0;
             let mut grouping_vector = Vec::new();
-            for &i in &permutation {
-                if i > 0 && group_values[i] != group_values[i - 1] {
-                    group_index += 1;
+            for (i, &j) in permutation.iter().enumerate() {
+                if i > 0 {
+                    let prev_j = *permutation.get(i - 1).unwrap();
+                    if group_values[j] != group_values[prev_j] {
+                        group_index += 1;
+                    }
                 }
                 if grouping_vector.len() <= group_index {
                     grouping_vector.push(Vec::new());
                 }
-                grouping_vector[group_index].push(i);
+                grouping_vector[group_index].push(j);
             }
 
             return Some(grouping_vector);
@@ -488,14 +517,17 @@ impl Layer {
 
         let mut group_index = 0;
         let mut grouping_vector = Vec::new();
-        for &i in &permutation {
-            if i > 0 && group_values[i] != group_values[i - 1] {
-                group_index += 1;
+        for (i, &j) in permutation.iter().enumerate() {
+            if i > 0 {
+                let prev_j = *permutation.get(i - 1).unwrap();
+                if group_values[j] != group_values[prev_j] {
+                    group_index += 1;
+                }
             }
             if grouping_vector.len() <= group_index {
                 grouping_vector.push(Vec::new());
             }
-            grouping_vector[group_index].push(i);
+            grouping_vector[group_index].push(j);
         }
 
         Some(grouping_vector)

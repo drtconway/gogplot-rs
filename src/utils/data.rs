@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     data::{ContinuousType, DiscreteType, GenericVector, PrimitiveType, VectorIter, VectorType},
     error::{DataType, PlotError},
@@ -7,30 +9,30 @@ use crate::{
 };
 
 pub trait Vectorable: PrimitiveType {
-    fn make_vector(vector: Vec<Self>) -> Box<dyn GenericVector>;
+    fn make_vector(vector: Vec<Self>) -> Arc<dyn GenericVector>;
 }
 
 impl Vectorable for i64 {
-    fn make_vector(vector: Vec<Self>) -> Box<dyn GenericVector> {
-        Box::new(IntVec::from(vector))
+    fn make_vector(vector: Vec<Self>) -> Arc<dyn GenericVector> {
+        Arc::new(IntVec::from(vector))
     }
 }
 
 impl Vectorable for f64 {
-    fn make_vector(vector: Vec<Self>) -> Box<dyn GenericVector> {
-        Box::new(FloatVec::from(vector))
+    fn make_vector(vector: Vec<Self>) -> Arc<dyn GenericVector> {
+        Arc::new(FloatVec::from(vector))
     }
 }
 
 impl Vectorable for String {
-    fn make_vector(vector: Vec<Self>) -> Box<dyn GenericVector> {
-        Box::new(StrVec::from(vector))
+    fn make_vector(vector: Vec<Self>) -> Arc<dyn GenericVector> {
+        Arc::new(StrVec::from(vector))
     }
 }
 
 impl Vectorable for bool {
-    fn make_vector(vector: Vec<Self>) -> Box<dyn GenericVector> {
-        Box::new(BoolVec::from(vector))
+    fn make_vector(vector: Vec<Self>) -> Arc<dyn GenericVector> {
+        Arc::new(BoolVec::from(vector))
     }
 }
 

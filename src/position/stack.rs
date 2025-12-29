@@ -3,10 +3,11 @@
 use super::Position;
 use crate::aesthetics::{AesMap, AesValue, Aesthetic};
 use crate::data::{DataSource, DiscreteType};
-use crate::error::{DataType, PlotError};
+use crate::error::PlotError;
 use crate::utils::data::{DiscreteVectorVisitor, Vectorable, visit_d};
 use crate::utils::dataframe::{DataFrame, FloatVec};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Stack position adjustment
 ///
@@ -46,22 +47,14 @@ impl Position for Stack {
         let mut y_like_data = grouped_stacker.y_like_data;
 
         // Create new dataframe with all original columns, replacing y-like aesthetics with stacked versions
-        let mut new_data: DataFrame = DataFrame::new();
+        let new_data: DataFrame = DataFrame::new();
         let mut new_mapping = AesMap::new();
         for (aes, aes_value) in mapping.iter() {
             if let Some(stacked_values) = y_like_data.remove(aes) {
-                let name = get_or_invent_column_name(&aes_value, &data, &new_data, &aes);
-                new_data.add_column(
-                    &name,
-                    Box::new(FloatVec(stacked_values.clone())),
-                );
-                new_mapping.set(*aes, AesValue::column(name));
+                let original_name = mapping.get(aes).and_then(|v| v.as_column_name()).map(|s| s.to_string());
+                new_mapping.set(*aes, AesValue::vector(Arc::new( FloatVec(stacked_values)), original_name));
             } else {
-                let (new_aes_value, opt_name_and_vector) = aes_value.duplicate(data.as_ref())?;
-                if let Some((name, vector)) = opt_name_and_vector {
-                    new_data.add_column(&name, vector);
-                }
-                new_mapping.set(*aes, new_aes_value);
+                new_mapping.set(*aes, aes_value.clone());
             }
         }
         
@@ -122,26 +115,5 @@ impl DiscreteVectorVisitor for GroupStacker {
         }
 
         Ok(cumulative)
-    }
-}
-
-fn get_or_invent_column_name(
-    aes_value: &AesValue,
-    original_data: &Box<dyn DataSource>,
-    new_data: &DataFrame,
-    aes: &Aesthetic,
-) -> String {
-    if let Some(name) = aes_value.as_column_name() {
-        name.to_string()
-    } else {
-        // Invent a new column name
-        let aes_name = aes.to_str();
-        let mut proposed_name = format!("stacked_{}", aes_name).to_lowercase();
-        let mut counter = 1;
-        while original_data.get(&proposed_name).is_some() || new_data.get(&proposed_name).is_some() {
-            proposed_name = format!("stacked_{}_{}", aes_name, counter).to_lowercase();
-            counter += 1;
-        }
-        proposed_name
     }
 }

@@ -1,12 +1,12 @@
 // Statistical summary transformation
 
 use crate::aesthetics::{AesMap, Aesthetic};
-use crate::data::{ContinuousType, DataSource, DiscreteType, GenericVector, VectorType};
+use crate::data::{DataSource, GenericVector, VectorType};
 use crate::error::{PlotError, Result};
 use crate::stat::Stat;
-use crate::utils::data::{ContinuousVectorVisitor, DiscreteContinuousVisitor2, Vectorable};
 use crate::utils::dataframe::{DataFrame, FloatVec, IntVec, StrVec};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Summary stat - computes scalar summary statistics for specified aesthetics
 ///
@@ -32,7 +32,7 @@ impl Summary {
         aesthetic: Aesthetic,
         column_name: &str,
         use_prefix: bool,
-    ) -> Result<HashMap<String, Box<dyn GenericVector>>> {
+    ) -> Result<HashMap<String, Arc<dyn GenericVector>>> {
         let column = data
             .get(column_name)
             .ok_or_else(|| PlotError::missing_column(column_name))?;
@@ -43,7 +43,7 @@ impl Summary {
             String::new()
         };
 
-        let mut result = HashMap::new();
+        let mut result: HashMap<String, Arc<dyn GenericVector>> = HashMap::new();
 
         match column.vtype() {
             VectorType::Int | VectorType::Float => {
@@ -73,23 +73,23 @@ impl Summary {
                     // All values were invalid - return NaN for all stats
                     result.insert(
                         format!("{}min", prefix),
-                        Box::new(FloatVec(vec![f64::NAN])) as Box<dyn GenericVector>,
+                        Arc::new(FloatVec(vec![f64::NAN])) as Arc<dyn GenericVector>,
                     );
                     result.insert(
                         format!("{}max", prefix),
-                        Box::new(FloatVec(vec![f64::NAN])) as Box<dyn GenericVector>,
+                        Arc::new(FloatVec(vec![f64::NAN])) as Arc<dyn GenericVector>,
                     );
                     result.insert(
                         format!("{}mean", prefix),
-                        Box::new(FloatVec(vec![f64::NAN])) as Box<dyn GenericVector>,
+                        Arc::new(FloatVec(vec![f64::NAN])) as Arc<dyn GenericVector>,
                     );
                     result.insert(
                         format!("{}median", prefix),
-                        Box::new(FloatVec(vec![f64::NAN])) as Box<dyn GenericVector>,
+                        Arc::new(FloatVec(vec![f64::NAN])) as Arc<dyn GenericVector>,
                     );
                     result.insert(
                         format!("{}sd", prefix),
-                        Box::new(FloatVec(vec![f64::NAN])) as Box<dyn GenericVector>,
+                        Arc::new(FloatVec(vec![f64::NAN])) as Arc<dyn GenericVector>,
                     );
                 } else {
                     let min = valid_values.iter().copied().fold(f64::INFINITY, f64::min);
@@ -116,23 +116,23 @@ impl Summary {
 
                     result.insert(
                         format!("{}min", prefix),
-                        Box::new(FloatVec(vec![min])) as Box<dyn GenericVector>,
+                        Arc::new(FloatVec(vec![min])) as Arc<dyn GenericVector>,
                     );
                     result.insert(
                         format!("{}max", prefix),
-                        Box::new(FloatVec(vec![max])) as Box<dyn GenericVector>,
+                        Arc::new(FloatVec(vec![max])) as Arc<dyn GenericVector>,
                     );
                     result.insert(
                         format!("{}mean", prefix),
-                        Box::new(FloatVec(vec![mean])) as Box<dyn GenericVector>,
+                        Arc::new(FloatVec(vec![mean])) as Arc<dyn GenericVector>,
                     );
                     result.insert(
                         format!("{}median", prefix),
-                        Box::new(FloatVec(vec![median])) as Box<dyn GenericVector>,
+                        Arc::new(FloatVec(vec![median])) as Arc<dyn GenericVector>,
                     );
                     result.insert(
                         format!("{}sd", prefix),
-                        Box::new(FloatVec(vec![sd])) as Box<dyn GenericVector>,
+                        Arc::new(FloatVec(vec![sd])) as Arc<dyn GenericVector>,
                     );
                 }
             }
@@ -159,19 +159,19 @@ impl Summary {
                 if values.is_empty() {
                     result.insert(
                         format!("{}min", prefix),
-                        Box::new(StrVec(vec![String::new()])) as Box<dyn GenericVector>,
+                        Arc::new(StrVec(vec![String::new()])) as Arc<dyn GenericVector>,
                     );
                     result.insert(
                         format!("{}max", prefix),
-                        Box::new(StrVec(vec![String::new()])) as Box<dyn GenericVector>,
+                        Arc::new(StrVec(vec![String::new()])) as Arc<dyn GenericVector>,
                     );
                     result.insert(
                         format!("{}mode", prefix),
-                        Box::new(StrVec(vec![String::new()])) as Box<dyn GenericVector>,
+                        Arc::new(StrVec(vec![String::new()])) as Arc<dyn GenericVector>,
                     );
                     result.insert(
                         format!("{}n_unique", prefix),
-                        Box::new(IntVec(vec![0])) as Box<dyn GenericVector>,
+                        Arc::new(IntVec(vec![0])) as Arc<dyn GenericVector>,
                     );
                 } else {
                     // Min/max - lexicographic ordering
@@ -194,19 +194,19 @@ impl Summary {
 
                     result.insert(
                         format!("{}min", prefix),
-                        Box::new(StrVec(vec![min])) as Box<dyn GenericVector>,
+                        Arc::new(StrVec(vec![min])) as Arc<dyn GenericVector>,
                     );
                     result.insert(
                         format!("{}max", prefix),
-                        Box::new(StrVec(vec![max])) as Box<dyn GenericVector>,
+                        Arc::new(StrVec(vec![max])) as Arc<dyn GenericVector>,
                     );
                     result.insert(
                         format!("{}mode", prefix),
-                        Box::new(StrVec(vec![mode])) as Box<dyn GenericVector>,
+                        Arc::new(StrVec(vec![mode])) as Arc<dyn GenericVector>,
                     );
                     result.insert(
                         format!("{}n_unique", prefix),
-                        Box::new(IntVec(vec![n_unique])) as Box<dyn GenericVector>,
+                        Arc::new(IntVec(vec![n_unique])) as Arc<dyn GenericVector>,
                     );
                 }
             }
@@ -225,7 +225,7 @@ impl Stat for Summary {
         // Determine if we should use prefixes (multiple aesthetics)
         let use_prefix = self.aesthetics.len() > 1;
 
-        let mut all_columns: HashMap<String, Box<dyn GenericVector>> = HashMap::new();
+        let mut all_columns: HashMap<String, Arc<dyn GenericVector>> = HashMap::new();
 
         // Compute summaries for each aesthetic
         for aesthetic in &self.aesthetics {
@@ -261,127 +261,10 @@ impl Stat for Summary {
     }
 }
 
-struct Summarizer {
-    aesthetic: Aesthetic,
-}
-
-impl Summarizer {
-    fn new(aesthetic: Aesthetic) -> Self {
-        Self { aesthetic }
-    }
-
-    fn summarize<T: Vectorable + ContinuousType>(&self, xs: &[T::Sortable]) -> (i64, T, T, f64, T, f64) {
-        let n = xs.len();
-        let min = T::from_sortable(xs.first().cloned().unwrap());
-        let max = T::from_sortable(xs.last().cloned().unwrap());
-        let mean = xs
-            .iter()
-            .map(|v| T::from_sortable(v.clone()).to_f64())
-            .sum::<f64>()
-            / n as f64;
-        let median = T::from_sortable(xs[n / 2].clone());
-        let sd = {
-            let variance = xs
-                .iter()
-                .map(|v| {
-                    let d = T::from_sortable(v.clone()).to_f64() - mean;
-                    d * d
-                })
-                .sum::<f64>()
-                / n as f64;
-            variance.sqrt()
-        };
-        (n as i64, min, max, mean, median, sd)
-    }
-}
-
-impl ContinuousVectorVisitor for Summarizer {
-    type Output = (DataFrame, AesMap);
-
-    fn visit<T: Vectorable + ContinuousType>(
-        &mut self,
-        x_values: impl Iterator<Item = T>,
-    ) -> std::result::Result<Self::Output, PlotError> {
-        let mut xs: Vec<T::Sortable> = x_values.map(|v| v.to_sortable()).collect();
-        xs.sort();
-
-        let (n, min, max, mean, median, sd) = self.summarize(&xs);
-
-        let mut data = DataFrame::new();
-        data.add_column("n", Box::new(IntVec(vec![n])));
-        data.add_column("min", T::make_vector(vec![min]));
-        data.add_column("max", T::make_vector(vec![max]));
-        data.add_column("mean", Box::new(FloatVec(vec![mean])));
-        data.add_column("median", T::make_vector(vec![median]));
-        data.add_column("sd", Box::new(FloatVec(vec![sd])));
-
-        let mapping = AesMap::new();
-
-        Ok((data, mapping))
-    }
-}
-
-impl DiscreteContinuousVisitor2 for Summarizer {
-    type Output = (DataFrame, AesMap);
-    
-    fn visit<G: Vectorable + DiscreteType, T: Vectorable + ContinuousType>(
-        &mut self,
-        group_values: impl Iterator<Item = G>,
-        x_values: impl Iterator<Item = T>,
-    ) -> std::result::Result<Self::Output, PlotError> {
-        let mut groups: HashMap<G::Sortable, Vec<T>> = HashMap::new();
-        for (g, x) in group_values.zip(x_values) {
-            groups
-                .entry(g.to_sortable())
-                .or_insert_with(Vec::new)
-                .push(x);
-        }
-
-        let mut pairs : Vec<(G::Sortable, Vec<T>)> = groups.into_iter().collect();
-        pairs.sort_by(|(g1, _), (g2, _)| g1.cmp(g2));
-
-        let mut n_values = Vec::new();
-        let mut min_values = Vec::new();
-        let mut max_values = Vec::new();
-        let mut mean_values = Vec::new();
-        let mut median_values = Vec::new();
-        let mut sd_values = Vec::new();
-        let mut group_keys = Vec::new();
-
-        for (group_key, xs) in pairs.into_iter() {
-            let mut xs_sortable: Vec<T::Sortable> = xs.into_iter().map(|v| v.to_sortable()).collect();
-            xs_sortable.sort();
-
-            let (n, min, max, mean, median, sd) = self.summarize(&xs_sortable);
-
-            group_keys.push(G::from_sortable(group_key));
-            n_values.push(n);
-            min_values.push(min);
-            max_values.push(max);
-            mean_values.push(mean);
-            median_values.push(median);
-            sd_values.push(sd);
-        }
-
-        let mut data = DataFrame::new();
-        data.add_column("group", G::make_vector(group_keys));
-        data.add_column("n", Box::new(IntVec(n_values)));
-        data.add_column("min", T::make_vector(min_values));
-        data.add_column("max", T::make_vector(max_values));
-        data.add_column("mean", Box::new(FloatVec(mean_values)));
-        data.add_column("median", T::make_vector(median_values));
-        data.add_column("sd", Box::new(FloatVec(sd_values)));
-
-        let mapping = AesMap::new();
-
-        Ok((data, mapping))
-    }
-
-    
-}
-
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::*;
     use crate::{
         aesthetics::AestheticDomain,
@@ -391,7 +274,7 @@ mod tests {
     #[test]
     fn test_summary_single_continuous() {
         let mut df = DataFrame::new();
-        df.add_column("x", Box::new(FloatVec(vec![1.0, 2.0, 3.0, 4.0, 5.0])));
+        df.add_column("x", Arc::new(FloatVec(vec![1.0, 2.0, 3.0, 4.0, 5.0])));
         let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
@@ -433,8 +316,8 @@ mod tests {
     #[test]
     fn test_summary_multiple_continuous() {
         let mut df = DataFrame::new();
-        df.add_column("x", Box::new(FloatVec(vec![1.0, 2.0, 3.0])));
-        df.add_column("y", Box::new(FloatVec(vec![10.0, 20.0, 30.0])));
+        df.add_column("x", Arc::new(FloatVec(vec![1.0, 2.0, 3.0])));
+        df.add_column("y", Arc::new(FloatVec(vec![10.0, 20.0, 30.0])));
         let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
@@ -478,15 +361,7 @@ mod tests {
     #[test]
     fn test_summary_categorical() {
         let mut df = DataFrame::new();
-        df.add_column(
-            "group",
-            Box::new(StrVec(vec![
-                "a".to_string(),
-                "b".to_string(),
-                "a".to_string(),
-                "c".to_string(),
-            ])),
-        );
+        df.add_column("group", Arc::new(StrVec::from(vec!["a", "b", "a", "c"])));
         let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();

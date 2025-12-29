@@ -172,6 +172,7 @@ impl GeomPoint {
         color_values: impl Iterator<Item = Color>,
         size_values: impl Iterator<Item = f64>,
         alpha_values: impl Iterator<Item = f64>,
+        shape_values: impl Iterator<Item = Shape>,
     ) -> Result<(), PlotError> {
         // Set default color
         let Color(r, g, b, a) = color::BLACK; // Placeholder for now
@@ -184,18 +185,19 @@ impl GeomPoint {
 
         // Data values are already normalized [0,1] by compose()->apply_scales()
         // Just map to viewport pixel coordinates
-        for ((((x_norm, y_norm), color), size), alpha) in x_values
+        for (((((x_norm, y_norm), color), size), alpha), shape) in x_values
             .zip(y_values)
             .zip(color_values)
             .zip(size_values)
             .zip(alpha_values)
+            .zip(shape_values)
         {
             // Convert normalized [0,1] to viewport pixel coordinates
             let x_px = ctx.map_x(x_norm);
             let y_px = ctx.map_y(y_norm);
 
-            log::debug!(
-                "Drawing point at data=({}, {}), norm=({}, {}), px=({}, {}), size={}, color={:?}, alpha={}",
+            log::info!(
+                "Drawing point at data=({}, {}), norm=({}, {}), px=({}, {}), size={}, color={:?}, alpha={}, shape={:?}",
                 x_norm,
                 y_norm,
                 x_norm,
@@ -204,7 +206,8 @@ impl GeomPoint {
                 y_px,
                 size,
                 color,
-                alpha
+                alpha,
+                shape
             );
 
             let Color(r, g, b, a) = color;
@@ -218,10 +221,8 @@ impl GeomPoint {
             // Size is already a radius value from the scale (default range 1.0-6.0)
             let point_radius = size;
 
-            // Draw circle
-            ctx.cairo
-                .arc(x_px, y_px, point_radius, 0.0, 2.0 * std::f64::consts::PI);
-            ctx.cairo.fill().ok();
+            // Draw shape at position
+            shape.draw(&mut ctx.cairo, x_px, y_px, point_radius);
         }
 
         Ok(())
@@ -234,7 +235,7 @@ impl Default for GeomPoint {
     }
 }
 
-const AESTHETIC_REQUIREMENTS: [AestheticRequirement; 5] = [
+const AESTHETIC_REQUIREMENTS: [AestheticRequirement; 6] = [
     AestheticRequirement {
         property: AestheticProperty::X,
         required: true,
@@ -259,6 +260,11 @@ const AESTHETIC_REQUIREMENTS: [AestheticRequirement; 5] = [
         property: AestheticProperty::Alpha,
         required: false,
         constraint: DomainConstraint::Any,
+    },
+    AestheticRequirement {
+        property: AestheticProperty::Shape,
+        required: false,
+        constraint: DomainConstraint::MustBe(AestheticDomain::Discrete),
     },
 ];
 
@@ -348,10 +354,13 @@ impl Geom for GeomPoint {
             .remove(&AestheticProperty::Y)
             .unwrap()
             .as_floats();
-        let color_values = properties
-            .remove(&AestheticProperty::Color)
-            .unwrap()
-            .as_colors();
+        
+        // Extract color - need to convert Int to Color ONLY for color property
+        let color_prop = properties.remove(&AestheticProperty::Color).unwrap();
+        log::info!("Color property before conversion: {:?}", color_prop);
+        let color_values = color_prop.to_color().as_colors();
+        log::info!("Color values after conversion: {} values", color_values.len());
+        
         let size_values = properties
             .remove(&AestheticProperty::Size)
             .unwrap()
@@ -360,6 +369,13 @@ impl Geom for GeomPoint {
             .remove(&AestheticProperty::Alpha)
             .unwrap()
             .as_floats();
+        
+        // Extract shape - need to convert Int to Shape ONLY for shape property
+        let shape_prop = properties.remove(&AestheticProperty::Shape).unwrap();
+        log::info!("Shape property before conversion: {:?}", shape_prop);
+        let shape_values = shape_prop.to_shape().as_shapes();
+        log::info!("Shape values after conversion: {} values", shape_values.len());
+        
         self.draw_points(
             ctx,
             x_values.into_iter(),
@@ -367,6 +383,7 @@ impl Geom for GeomPoint {
             color_values.into_iter(),
             size_values.into_iter(),
             alpha_values.into_iter(),
+            shape_values.into_iter(),
         )?;
         Ok(())
     }

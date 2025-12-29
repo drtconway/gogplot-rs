@@ -2,16 +2,12 @@ use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain};
 use crate::data::{DataSource, DiscreteType};
 use crate::error::{PlotError, Result};
 use crate::stat::Stat;
-use crate::utils::data::{DiscreteDiscreteVisitor2, DiscreteVectorVisitor, Vectorable, visit_d, visit2_dd};
+use crate::utils::data::{
+    DiscreteDiscreteVisitor2, DiscreteVectorVisitor, Vectorable, visit_d, visit2_dd,
+};
 use crate::utils::dataframe::{DataFrame, IntVec};
 use std::collections::HashMap;
-
-/// Enum to handle integer, float, and string x values
-enum XValues {
-    Int(Vec<i64>),
-    Float(Vec<f64>),
-    Str(Vec<String>),
-}
+use std::sync::Arc;
 
 /// Count statistical transformation
 ///
@@ -86,7 +82,10 @@ impl UngroupedValueCounter {
 
 impl DiscreteVectorVisitor for UngroupedValueCounter {
     type Output = ();
-    fn visit<T: Vectorable + DiscreteType>(&mut self, values: impl Iterator<Item = T>) -> std::result::Result<Self::Output, PlotError> {
+    fn visit<T: Vectorable + DiscreteType>(
+        &mut self,
+        values: impl Iterator<Item = T>,
+    ) -> std::result::Result<Self::Output, PlotError> {
         let counts: HashMap<T::Sortable, i64> = {
             let mut map = HashMap::new();
             for val in values {
@@ -105,7 +104,8 @@ impl DiscreteVectorVisitor for UngroupedValueCounter {
             count_values.push(c);
         }
         self.data.add_column("x", T::make_vector(x_values));
-        self.data.add_column("count", Box::new(IntVec(count_values)));
+        self.data
+            .add_column("count", Arc::new(IntVec(count_values)));
 
         self.mapping.set(
             Aesthetic::X(AestheticDomain::Discrete),
@@ -161,7 +161,8 @@ impl DiscreteDiscreteVisitor2 for GroupedValueCounter {
 
         self.data.add_column("x", T::make_vector(x_values));
         self.data.add_column("group", G::make_vector(group_values));
-        self.data.add_column("count", Box::new(IntVec(count_values)));
+        self.data
+            .add_column("count", Arc::new(IntVec(count_values)));
 
         self.mapping.set(
             Aesthetic::X(AestheticDomain::Discrete),
@@ -178,6 +179,8 @@ impl DiscreteDiscreteVisitor2 for GroupedValueCounter {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::*;
     use crate::utils::dataframe::{DataFrame, FloatVec, StrVec};
 
@@ -185,7 +188,7 @@ mod tests {
     fn test_count_basic() {
         // Create test data: x values [1, 1, 2, 2, 2, 3]
         let mut df = DataFrame::new();
-        df.add_column("x", Box::new(IntVec(vec![1, 1, 2, 2, 2, 3])));
+        df.add_column("x", Arc::new(IntVec(vec![1, 1, 2, 2, 2, 3])));
         let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
@@ -218,7 +221,7 @@ mod tests {
     #[test]
     fn test_count_single_value() {
         let mut df = DataFrame::new();
-        df.add_column("x", Box::new(IntVec(vec![5, 5, 5, 5])));
+        df.add_column("x", Arc::new(IntVec(vec![5, 5, 5, 5])));
         let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
@@ -239,7 +242,7 @@ mod tests {
     #[test]
     fn test_count_all_unique() {
         let mut df = DataFrame::new();
-        df.add_column("x", Box::new(IntVec(vec![1, 2, 3, 4, 5])));
+        df.add_column("x", Arc::new(IntVec(vec![1, 2, 3, 4, 5])));
         let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
@@ -256,7 +259,7 @@ mod tests {
     #[test]
     fn test_count_requires_x() {
         let mut df = DataFrame::new();
-        df.add_column("y", Box::new(IntVec(vec![1, 2, 3])));
+        df.add_column("y", Arc::new(IntVec(vec![1, 2, 3])));
         let df: Box<dyn DataSource> = Box::new(df);
 
         let mapping = AesMap::new(); // No x mapping
@@ -269,7 +272,7 @@ mod tests {
     #[test]
     fn test_count_floats() {
         let mut df = DataFrame::new();
-        df.add_column("x", Box::new(FloatVec(vec![1.5, 1.5, 2.5, 2.5, 2.5, 3.5])));
+        df.add_column("x", Arc::new(FloatVec(vec![1.5, 1.5, 2.5, 2.5, 2.5, 3.5])));
         let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
@@ -292,7 +295,7 @@ mod tests {
         let mut df = DataFrame::new();
         df.add_column(
             "x",
-            Box::new(FloatVec(vec![1.0, f64::NAN, 2.0, f64::NAN, 1.0, 2.0, 2.0])),
+            Arc::new(FloatVec(vec![1.0, f64::NAN, 2.0, f64::NAN, 1.0, 2.0, 2.0])),
         );
         let df: Box<dyn DataSource> = Box::new(df);
 
@@ -319,7 +322,7 @@ mod tests {
         let mut df = DataFrame::new();
         df.add_column(
             "x",
-            Box::new(FloatVec(vec![
+            Arc::new(FloatVec(vec![
                 1.0,
                 f64::INFINITY,
                 2.0,
@@ -354,13 +357,8 @@ mod tests {
         let mut df = DataFrame::new();
         df.add_column(
             "x",
-            Box::new(StrVec(vec![
-                "apple".to_string(),
-                "banana".to_string(),
-                "apple".to_string(),
-                "cherry".to_string(),
-                "banana".to_string(),
-                "apple".to_string(),
+            Arc::new(StrVec::from(vec![
+                "apple", "banana", "apple", "cherry", "banana", "apple",
             ])),
         );
         let df: Box<dyn DataSource> = Box::new(df);
@@ -385,14 +383,7 @@ mod tests {
     #[test]
     fn test_count_strings_single() {
         let mut df = DataFrame::new();
-        df.add_column(
-            "x",
-            Box::new(StrVec(vec![
-                "test".to_string(),
-                "test".to_string(),
-                "test".to_string(),
-            ])),
-        );
+        df.add_column("x", Arc::new(StrVec::from(vec!["test", "test", "test"])));
         let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();

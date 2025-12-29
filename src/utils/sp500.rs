@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 /// The sp500 dataset - S&P 500 Index Historical Data from 2007
 ///
 /// This dataset contains daily data for the S&P 500 stock market index for the year 2007,
@@ -233,13 +235,13 @@ pub fn sp500() -> Box<dyn DataSource> {
     
     let adj_close = close.clone(); // For 2007, adjusted close == close
     
-    df.add_column("date", Box::new(StrVec(dates.into_iter().map(|s| s.to_string()).collect())));
-    df.add_column("open", Box::new(FloatVec(open)));
-    df.add_column("high", Box::new(FloatVec(high)));
-    df.add_column("low", Box::new(FloatVec(low)));
-    df.add_column("close", Box::new(FloatVec(close)));
-    df.add_column("volume", Box::new(IntVec(volume)));
-    df.add_column("adj_close", Box::new(FloatVec(adj_close)));
+    df.add_column("date", Arc::new(StrVec(dates.into_iter().map(|s| s.to_string()).collect())));
+    df.add_column("open", Arc::new(FloatVec(open)));
+    df.add_column("high", Arc::new(FloatVec(high)));
+    df.add_column("low", Arc::new(FloatVec(low)));
+    df.add_column("close", Arc::new(FloatVec(close)));
+    df.add_column("volume", Arc::new(IntVec(volume)));
+    df.add_column("adj_close", Arc::new(FloatVec(adj_close)));
     
     Box::new(df)
 }

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain};
 use crate::data::{ContinuousType, DataSource, DiscreteType, PrimitiveType, VectorIter};
@@ -58,23 +59,23 @@ impl Density {
 
         let (x_vals, density_vals, count_vals, scaled_vals) = self.compute_inner(&clean_data);
 
-        new_data.add_column("x", Box::new(FloatVec(x_vals)));
+        new_data.add_column("x", Arc::new(FloatVec(x_vals)));
         new_mapping.set(
             Aesthetic::X(AestheticDomain::Continuous),
             AesValue::column("x"),
         );
 
-        new_data.add_column("density", Box::new(FloatVec(density_vals)));
+        new_data.add_column("density", Arc::new(FloatVec(density_vals)));
         new_mapping.set(
             Aesthetic::Y(AestheticDomain::Continuous),
             AesValue::column("density"),
         );
 
-        new_data.add_column("count", Box::new(FloatVec(count_vals)));
-        new_data.add_column("scaled", Box::new(FloatVec(scaled_vals)));
+        new_data.add_column("count", Arc::new(FloatVec(count_vals)));
+        new_data.add_column("scaled", Arc::new(FloatVec(scaled_vals)));
         new_data.add_column(
             "n",
-            Box::new(FloatVec(vec![clean_data.len() as f64; self.n])),
+            Arc::new(FloatVec(vec![clean_data.len() as f64; self.n])),
         );
 
         Ok(())
@@ -90,20 +91,20 @@ impl Density {
         match group_values {
             VectorIter::Int(iter) => {
                 let group_values = self.compute_grouped_inner(values, iter, new_data);
-                new_data.add_column("group", Box::new(IntVec(group_values)));
+                new_data.add_column("group", Arc::new(IntVec(group_values)));
             }
             VectorIter::Float(iter) => {
                 let group_values = self.compute_grouped_inner(values, iter, new_data);
-                new_data.add_column("group", Box::new(FloatVec(group_values)));
+                new_data.add_column("group", Arc::new(FloatVec(group_values)));
             }
             VectorIter::Str(iter) => {
                 let iter = iter.map(|v| v.to_string());
                 let group_values = self.compute_grouped_inner(values, iter, new_data);
-                new_data.add_column("group", Box::new(StrVec(group_values)));
+                new_data.add_column("group", Arc::new(StrVec(group_values)));
             }
             VectorIter::Bool(iter) => {
                 let group_values = self.compute_grouped_inner(values, iter, new_data);
-                new_data.add_column("group", Box::new(BoolVec(group_values)));
+                new_data.add_column("group", Arc::new(BoolVec(group_values)));
             }
         }
 
@@ -153,10 +154,10 @@ impl Density {
             scaled_values.extend(scaled_vals);
             group_values.extend(std::iter::repeat(group_key.clone()).take(n_points));
         }
-        data.add_column("x", Box::new(FloatVec(x_values)));
-        data.add_column("density", Box::new(FloatVec(density_values)));
-        data.add_column("count", Box::new(FloatVec(count_values)));
-        data.add_column("scaled", Box::new(FloatVec(scaled_values)));
+        data.add_column("x", Arc::new(FloatVec(x_values)));
+        data.add_column("density", Arc::new(FloatVec(density_values)));
+        data.add_column("count", Arc::new(FloatVec(count_values)));
+        data.add_column("scaled", Arc::new(FloatVec(scaled_values)));
         group_values
     }
 
@@ -337,23 +338,23 @@ impl ContinuousVectorVisitor for DensityVisitor {
         let mut data = DataFrame::new();
         let mut mapping = AesMap::new();
 
-        data.add_column("x", Box::new(FloatVec(x_vals)));
+        data.add_column("x", Arc::new(FloatVec(x_vals)));
         mapping.set(
             Aesthetic::X(AestheticDomain::Continuous),
             AesValue::column("x"),
         );
 
-        data.add_column("density", Box::new(FloatVec(density_vals)));
+        data.add_column("density", Arc::new(FloatVec(density_vals)));
         mapping.set(
             Aesthetic::Y(AestheticDomain::Continuous),
             AesValue::column("density"),
         );
 
-        data.add_column("count", Box::new(FloatVec(count_vals)));
-        data.add_column("scaled", Box::new(FloatVec(scaled_vals)));
+        data.add_column("count", Arc::new(FloatVec(count_vals)));
+        data.add_column("scaled", Arc::new(FloatVec(scaled_vals)));
         data.add_column(
             "n",
-            Box::new(FloatVec(vec![clean_data.len() as f64; self.n])),
+            Arc::new(FloatVec(vec![clean_data.len() as f64; self.n])),
         );
 
         Ok((data, mapping))
@@ -400,10 +401,10 @@ impl DiscreteContinuousVisitor2 for DensityVisitor {
         let mut data = DataFrame::new();
         let mut mapping = AesMap::new();
 
-        data.add_column("x", Box::new(FloatVec(x_values)));
-        data.add_column("density", Box::new(FloatVec(density_values)));
-        data.add_column("count", Box::new(FloatVec(count_values)));
-        data.add_column("scaled", Box::new(FloatVec(scaled_values)));
+        data.add_column("x", Arc::new(FloatVec(x_values)));
+        data.add_column("density", Arc::new(FloatVec(density_values)));
+        data.add_column("count", Arc::new(FloatVec(count_values)));
+        data.add_column("scaled", Arc::new(FloatVec(scaled_values)));
         data.add_column("group", G::make_vector(group_values));
 
         mapping.set(

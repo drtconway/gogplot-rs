@@ -3,6 +3,7 @@
 //! Computes fitted values and confidence intervals using various smoothing methods.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain};
 use crate::data::{ContinuousType, DataSource};
@@ -728,12 +729,11 @@ impl ContinuousContinuousVisitor2 for SmoothVisitor {
 
         // Create output dataframe
         let mut data = DataFrame::new();
-        data.add_column("x", Box::new(FloatVec(x_pred)));
-        data.add_column("y", Box::new(FloatVec(y_pred)));
-        data.add_column("ymin", Box::new(FloatVec(ymin_pred)));
-        data.add_column("ymax", Box::new(FloatVec(ymax_pred)));
-        data.add_column("se", Box::new(FloatVec(se_pred)));
-
+        data.add_column("x", Arc::new(FloatVec(x_pred)));
+        data.add_column("y", Arc::new(FloatVec(y_pred)));
+        data.add_column("ymin", Arc::new(FloatVec(ymin_pred)));
+        data.add_column("ymax", Arc::new(FloatVec(ymax_pred)));
+        data.add_column("se", Arc::new(FloatVec(se_pred)));
         // Create mapping
         let mut mapping = AesMap::new();
         mapping.set(
@@ -844,11 +844,11 @@ impl DiscreteContinuousContinuousVisitor3 for SmoothVisitor {
 
         // Create output dataframe
         let mut data = DataFrame::new();
-        data.add_column("x", Box::new(FloatVec(result_x)));
-        data.add_column("y", Box::new(FloatVec(result_y)));
-        data.add_column("ymin", Box::new(FloatVec(result_ymin)));
-        data.add_column("ymax", Box::new(FloatVec(result_ymax)));
-        data.add_column("se", Box::new(FloatVec(result_se)));
+        data.add_column("x", Arc::new(FloatVec(result_x)));
+        data.add_column("y", Arc::new(FloatVec(result_y)));
+        data.add_column("ymin", Arc::new(FloatVec(result_ymin)));
+        data.add_column("ymax", Arc::new(FloatVec(result_ymax)));
+        data.add_column("se", Arc::new(FloatVec(result_se)));
         data.add_column("group", G::make_vector(result_group));
 
         // Create mapping

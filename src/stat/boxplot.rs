@@ -4,6 +4,7 @@
 //! and identifies outliers for creating box-and-whisker plots.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use ordered_float::OrderedFloat;
 
@@ -213,12 +214,12 @@ impl DiscreteContinuousVisitor2 for UngroupedBoxplotCounter {
         let mut mapping = AesMap::new();
 
         data.add_column("x", T::make_vector(result_x));
-        data.add_column("y", Box::new(FloatVec(result_y)));
-        data.add_column("ymin", Box::new(FloatVec(result_ymin)));
-        data.add_column("lower", Box::new(FloatVec(result_lower)));
-        data.add_column("middle", Box::new(FloatVec(result_middle)));
-        data.add_column("upper", Box::new(FloatVec(result_upper)));
-        data.add_column("ymax", Box::new(FloatVec(result_ymax)));
+        data.add_column("y", Arc::new(FloatVec(result_y)));
+        data.add_column("ymin", Arc::new(FloatVec(result_ymin)));
+        data.add_column("lower", Arc::new(FloatVec(result_lower)));
+        data.add_column("middle", Arc::new(FloatVec(result_middle)));
+        data.add_column("upper", Arc::new(FloatVec(result_upper)));
+        data.add_column("ymax", Arc::new(FloatVec(result_ymax)));
 
         // Update mapping
         mapping.set(
@@ -340,12 +341,12 @@ impl DiscreteDiscreteContinuousVisitor3 for GroupedBoxplotCounter {
 
         data.add_column("group", G::make_vector(result_group));
         data.add_column("x", T::make_vector(result_x));
-        data.add_column("y", Box::new(FloatVec(result_y)));
-        data.add_column("ymin", Box::new(FloatVec(result_ymin)));
-        data.add_column("lower", Box::new(FloatVec(result_lower)));
-        data.add_column("middle", Box::new(FloatVec(result_middle)));
-        data.add_column("upper", Box::new(FloatVec(result_upper)));
-        data.add_column("ymax", Box::new(FloatVec(result_ymax)));
+        data.add_column("y", Arc::new(FloatVec(result_y)));
+        data.add_column("ymin", Arc::new(FloatVec(result_ymin)));
+        data.add_column("lower", Arc::new(FloatVec(result_lower)));
+        data.add_column("middle", Arc::new(FloatVec(result_middle)));
+        data.add_column("upper", Arc::new(FloatVec(result_upper)));
+        data.add_column("ymax", Arc::new(FloatVec(result_ymax)));
 
         // Update mapping
         mapping.set(Aesthetic::Group, AesValue::column("group"));
@@ -428,6 +429,8 @@ fn compute_five_number_summary(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::*;
 
     #[test]
@@ -480,10 +483,9 @@ mod tests {
 
         // Create simple test data: x = [1, 1, 2, 2], y = [10, 20, 30, 40]
         let mut df = DataFrame::new();
-        df.add_column("x", Box::new(IntVec(vec![1, 1, 2, 2])));
-        df.add_column("y", Box::new(FloatVec(vec![10.0, 20.0, 30.0, 40.0])));
+        df.add_column("x", Arc::new(IntVec(vec![1, 1, 2, 2])));
+        df.add_column("y", Arc::new(FloatVec(vec![10.0, 20.0, 30.0, 40.0])));
         let df: Box<dyn DataSource> = Box::new(df);
-
 
         let mut mapping = AesMap::new();
         mapping.set(
@@ -538,8 +540,8 @@ mod tests {
         // Q1=10, Q3=12, IQR=2, fences at 7 and 15
         // 1 and 100 should be outliers
         let mut df = DataFrame::new();
-        df.add_column("x", Box::new(IntVec(vec![1, 1, 1, 1, 1])));
-        df.add_column("y", Box::new(FloatVec(vec![1.0, 10.0, 11.0, 12.0, 100.0])));
+        df.add_column("x", Arc::new(IntVec(vec![1, 1, 1, 1, 1])));
+        df.add_column("y", Arc::new(FloatVec(vec![1.0, 10.0, 11.0, 12.0, 100.0])));
         let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
@@ -586,8 +588,8 @@ mod tests {
         use crate::utils::dataframe::{DataFrame, FloatVec, IntVec};
 
         let mut df = DataFrame::new();
-        df.add_column("x", Box::new(IntVec(vec![4, 4, 6, 6])));
-        df.add_column("y", Box::new(FloatVec(vec![10.0, 20.0, 30.0, 40.0])));
+        df.add_column("x", Arc::new(IntVec(vec![4, 4, 6, 6])));
+        df.add_column("y", Arc::new(FloatVec(vec![10.0, 20.0, 30.0, 40.0])));
         let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
@@ -623,8 +625,8 @@ mod tests {
         use crate::utils::dataframe::{DataFrame, FloatVec};
 
         let mut df = DataFrame::new();
-        df.add_column("x", Box::new(FloatVec(vec![1.5, 1.5, 2.5, 2.5])));
-        df.add_column("y", Box::new(FloatVec(vec![10.0, 20.0, 30.0, 40.0])));
+        df.add_column("x", Arc::new(FloatVec(vec![1.5, 1.5, 2.5, 2.5])));
+        df.add_column("y", Arc::new(FloatVec(vec![10.0, 20.0, 30.0, 40.0])));
         let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
@@ -660,16 +662,8 @@ mod tests {
         use crate::utils::dataframe::{DataFrame, FloatVec, StrVec};
 
         let mut df = DataFrame::new();
-        df.add_column(
-            "x",
-            Box::new(StrVec(vec![
-                "A".to_string(),
-                "A".to_string(),
-                "B".to_string(),
-                "B".to_string(),
-            ])),
-        );
-        df.add_column("y", Box::new(FloatVec(vec![10.0, 20.0, 30.0, 40.0])));
+        df.add_column("x", Arc::new(StrVec::from(vec!["A", "A", "B", "B"])));
+        df.add_column("y", Arc::new(FloatVec(vec![10.0, 20.0, 30.0, 40.0])));
         let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();

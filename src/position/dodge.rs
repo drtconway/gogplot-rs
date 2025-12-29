@@ -1,9 +1,9 @@
+use std::collections::HashMap;
+
 use super::Position;
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain};
-use crate::data::{DataSource, DiscreteType};
+use crate::data::DataSource;
 use crate::error::PlotError;
-use crate::utils::data::{DiscreteDiscreteVisitor2, Vectorable};
-use std::collections::{HashMap, HashSet};
 
 /// Dodge position adjustment
 ///
@@ -53,75 +53,5 @@ impl Position for Dodge {
             }
         }
         todo!()
-    }
-}
-
-struct GroupDodger {
-    x_like_data: HashMap<Aesthetic, Vec<f64>>,
-}
-
-impl GroupDodger {
-    fn new(x_like_data: HashMap<Aesthetic, Vec<f64>>) -> Self {
-        Self { x_like_data }
-    }
-}
-
-impl DiscreteDiscreteVisitor2 for GroupDodger {
-    fn visit<G: Vectorable + DiscreteType, T: Vectorable + DiscreteType>(
-        &mut self,
-        group_values: impl Iterator<Item = G>,
-        x_values: impl Iterator<Item = T>,
-    ) {
-        let group_values: Vec<G::Sortable> = group_values.map(|v| v.to_sortable()).collect();
-        let x_values: Vec<T::Sortable> = x_values.map(|v| v.to_sortable()).collect();
-
-        let mut distinct_groups: HashSet<G::Sortable> = HashSet::new();
-        let mut ranges = HashMap::new();
-        for (i, group) in group_values.iter().enumerate() {
-            distinct_groups.insert(group.clone());
-            let x = &x_values[i];
-            let key = (group.clone(), x.clone());
-            let entry = ranges.entry(key).or_insert((f64::INFINITY, f64::NEG_INFINITY));
-            let (min, max) = entry;
-            for values in self.x_like_data.values() {
-                let x0 = values[i];
-                if x0 < *min {
-                    *min = x0;
-                }
-                if x0 > *max {
-                    *max = x0;
-                }
-            }
-        }
-
-        // Make a little index numbering the distinct groups
-        // so we can map x-like values to dodged positions
-        let mut distinct_groups: Vec<G::Sortable> = distinct_groups.into_iter().collect();
-        distinct_groups.sort();
-
-        let group_indexs: HashMap<G::Sortable, usize> = distinct_groups
-            .iter()
-            .enumerate()
-            .map(|(i, g)| (g.clone(), i))
-            .collect();
-
-        let n_groups = distinct_groups.len() as f64;
-
-        for (i, (group, x)) in group_values.iter().zip(x_values.iter()).enumerate() {
-            let key = (group.clone(), x.clone());
-            let (min, max) = ranges.get(&key).unwrap();
-            let r = max - min;
-            let w = r / n_groups;
-            let group_idx = group_indexs.get(group).unwrap();
-            let group_pos = *group_idx as f64;
-
-            for values in self.x_like_data.values_mut() {
-                let x0 = values[i];
-                // Map x0 from [min, max] to dodged position
-                let dodged_x = min + (x0 - min) / r * w
-                    + (group_pos + 0.5) * w;
-                values[i] = dodged_x;
-            }
-        }
     }
 }

@@ -1,5 +1,5 @@
 use crate::data::{DataSource, GenericVector, StrVector, VectorIter, VectorType};
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 // Concrete vector implementations
 pub struct IntVec(pub Vec<i64>);
@@ -75,8 +75,11 @@ impl GenericVector for StrVec {
 }
 
 impl StrVector for StrVec {
-    type Iter<'a> = std::iter::Map<std::slice::Iter<'a, String>, fn(&'a String) -> &'a str> where Self: 'a;
-    
+    type Iter<'a>
+        = std::iter::Map<std::slice::Iter<'a, String>, fn(&'a String) -> &'a str>
+    where
+        Self: 'a;
+
     fn iter(&self) -> Self::Iter<'_> {
         self.0.iter().map(|s| s.as_str())
     }
@@ -131,11 +134,12 @@ impl GenericVector for BoolVec {
 /// use gogplot::utils::dataframe::{DataFrame, IntVec, FloatVec};
 ///
 /// let mut df = DataFrame::new();
-/// df.add_column("x", Box::new(IntVec(vec![1, 2, 3, 4, 5])));
-/// df.add_column("y", Box::new(FloatVec(vec![2.0, 4.0, 6.0, 8.0, 10.0])));
+/// df.add_column("x", Arc::new(IntVec(vec![1, 2, 3, 4, 5])));
+/// df.add_column("y", Arc::new(FloatVec(vec![2.0, 4.0, 6.0, 8.0, 10.0])));
 /// ```
+#[derive(Clone)]
 pub struct DataFrame {
-    columns: HashMap<String, Box<dyn GenericVector>>,
+    columns: HashMap<String, Arc<dyn GenericVector>>,
     len: usize,
 }
 
@@ -153,7 +157,7 @@ impl DataFrame {
     /// # Panics
     ///
     /// Panics if the column length doesn't match existing columns
-    pub fn add_column(&mut self, name: impl Into<String>, column: Box<dyn GenericVector>) {
+    pub fn add_column(&mut self, name: impl Into<String>, column: Arc<dyn GenericVector>) {
         let name = name.into();
         let col_len = column.len();
 
@@ -178,11 +182,11 @@ impl DataFrame {
     ///
     /// Panics if the column length doesn't match existing columns
     pub fn add_column_from_iter(&mut self, name: impl Into<String>, iter: VectorIter<'_>) {
-        let column: Box<dyn GenericVector> = match iter {
-            VectorIter::Int(iter) => Box::new(IntVec(iter.collect())),
-            VectorIter::Float(iter) => Box::new(FloatVec(iter.collect())),
-            VectorIter::Str(iter) => Box::new(StrVec(iter.map(|s| s.to_string()).collect())),
-            VectorIter::Bool(iter) => Box::new(BoolVec(iter.collect())),
+        let column: Arc<dyn GenericVector> = match iter {
+            VectorIter::Int(iter) => Arc::new(IntVec(iter.collect())),
+            VectorIter::Float(iter) => Arc::new(FloatVec(iter.collect())),
+            VectorIter::Str(iter) => Arc::new(StrVec(iter.map(|s| s.to_string()).collect())),
+            VectorIter::Bool(iter) => Arc::new(BoolVec(iter.collect())),
         };
         self.add_column(name, column);
     }
@@ -192,7 +196,7 @@ impl DataFrame {
     /// # Panics
     ///
     /// Panics if columns have different lengths
-    pub fn from_columns(columns: Vec<(impl Into<String>, Box<dyn GenericVector>)>) -> Self {
+    pub fn from_columns(columns: Vec<(impl Into<String>, Arc<dyn GenericVector>)>) -> Self {
         let mut df = Self::new();
         for (name, column) in columns {
             df.add_column(name, column);
@@ -204,26 +208,6 @@ impl DataFrame {
 impl Default for DataFrame {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl Clone for DataFrame {
-    fn clone(&self) -> Self {
-        let mut new_columns = HashMap::new();
-        for (name, col) in &self.columns {
-            // Reconstruct each column vector using discriminated union
-            let new_col: Box<dyn GenericVector> = match col.iter() {
-                VectorIter::Int(iter) => Box::new(IntVec(iter.collect())),
-                VectorIter::Float(iter) => Box::new(FloatVec(iter.collect())),
-                VectorIter::Str(iter) => Box::new(StrVec(iter.map(|s| s.to_string()).collect())),
-                VectorIter::Bool(iter) => Box::new(BoolVec(iter.collect())),
-            };
-            new_columns.insert(name.clone(), new_col);
-        }
-        DataFrame {
-            columns: new_columns,
-            len: self.len,
-        }
     }
 }
 
@@ -239,7 +223,11 @@ impl DataSource for DataFrame {
     fn len(&self) -> usize {
         self.len
     }
-    
+
+    fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
     fn clone_box(&self) -> Box<dyn DataSource> {
         Box::new(self.clone())
     }
@@ -261,11 +249,13 @@ impl From<&dyn DataSource> for DataFrame {
         for col_name in data_source.column_names() {
             if let Some(col) = data_source.get(&col_name) {
                 // Reconstruct each column vector using discriminated union
-                let new_col: Box<dyn GenericVector> = match col.iter() {
-                    VectorIter::Int(iter) => Box::new(IntVec(iter.collect())),
-                    VectorIter::Float(iter) => Box::new(FloatVec(iter.collect())),
-                    VectorIter::Str(iter) => Box::new(StrVec(iter.map(|s| s.to_string()).collect())),
-                    VectorIter::Bool(iter) => Box::new(BoolVec(iter.collect())),
+                let new_col: Arc<dyn GenericVector> = match col.iter() {
+                    VectorIter::Int(iter) => Arc::new(IntVec(iter.collect())),
+                    VectorIter::Float(iter) => Arc::new(FloatVec(iter.collect())),
+                    VectorIter::Str(iter) => {
+                        Arc::new(StrVec(iter.map(|s| s.to_string()).collect()))
+                    }
+                    VectorIter::Bool(iter) => Arc::new(BoolVec(iter.collect())),
                 };
                 df.add_column(col_name, new_col);
             }
@@ -352,7 +342,7 @@ mod tests {
     #[test]
     fn test_dataframe_add_column() {
         let mut df = DataFrame::new();
-        df.add_column("x", Box::new(IntVec(vec![1, 2, 3])));
+        df.add_column("x", Arc::new(IntVec(vec![1, 2, 3])));
 
         assert_eq!(df.len(), 3);
         assert!(!df.is_empty());
@@ -363,11 +353,11 @@ mod tests {
     #[test]
     fn test_dataframe_multiple_columns() {
         let mut df = DataFrame::new();
-        df.add_column("x", Box::new(IntVec(vec![1, 2, 3])));
-        df.add_column("y", Box::new(FloatVec(vec![1.0, 2.0, 3.0])));
+        df.add_column("x", Arc::new(IntVec(vec![1, 2, 3])));
+        df.add_column("y", Arc::new(FloatVec(vec![1.0, 2.0, 3.0])));
         df.add_column(
             "label",
-            Box::new(StrVec(vec![
+            Arc::new(StrVec(vec![
                 "a".to_string(),
                 "b".to_string(),
                 "c".to_string(),
@@ -381,7 +371,7 @@ mod tests {
     #[test]
     fn test_dataframe_get_column() {
         let mut df = DataFrame::new();
-        df.add_column("x", Box::new(IntVec(vec![1, 2, 3])));
+        df.add_column("x", Arc::new(IntVec(vec![1, 2, 3])));
 
         let col = df.get("x");
         assert!(col.is_some());
@@ -394,7 +384,7 @@ mod tests {
     #[test]
     fn test_dataframe_get_column_as_int() {
         let mut df = DataFrame::new();
-        df.add_column("x", Box::new(IntVec(vec![10, 20, 30])));
+        df.add_column("x", Arc::new(IntVec(vec![10, 20, 30])));
 
         let col = df.get("x").unwrap();
         let int_iter = col.iter_int().unwrap();
@@ -405,7 +395,7 @@ mod tests {
     #[test]
     fn test_dataframe_get_column_as_float() {
         let mut df = DataFrame::new();
-        df.add_column("y", Box::new(FloatVec(vec![1.5, 2.5, 3.5])));
+        df.add_column("y", Arc::new(FloatVec(vec![1.5, 2.5, 3.5])));
 
         let col = df.get("y").unwrap();
         let float_iter = col.iter_float().unwrap();
@@ -418,7 +408,7 @@ mod tests {
         let mut df = DataFrame::new();
         df.add_column(
             "label",
-            Box::new(StrVec(vec!["a".to_string(), "b".to_string()])),
+            Arc::new(StrVec(vec!["a".to_string(), "b".to_string()])),
         );
 
         let col = df.get("label").unwrap();
@@ -431,8 +421,8 @@ mod tests {
     #[should_panic(expected = "Column 'y' has length 2 but DataFrame has length 3")]
     fn test_dataframe_mismatched_length() {
         let mut df = DataFrame::new();
-        df.add_column("x", Box::new(IntVec(vec![1, 2, 3])));
-        df.add_column("y", Box::new(FloatVec(vec![1.0, 2.0]))); // Wrong length!
+        df.add_column("x", Arc::new(IntVec(vec![1, 2, 3])));
+        df.add_column("y", Arc::new(FloatVec(vec![1.0, 2.0]))); // Wrong length!
     }
 
     #[test]
@@ -440,11 +430,11 @@ mod tests {
         let df = DataFrame::from_columns(vec![
             (
                 "x",
-                Box::new(IntVec(vec![1, 2, 3])) as Box<dyn GenericVector>,
+                Arc::new(IntVec(vec![1, 2, 3])) as Arc<dyn GenericVector>,
             ),
             (
                 "y",
-                Box::new(FloatVec(vec![4.0, 5.0, 6.0])) as Box<dyn GenericVector>,
+                Arc::new(FloatVec(vec![4.0, 5.0, 6.0])) as Arc<dyn GenericVector>,
             ),
         ]);
 

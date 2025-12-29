@@ -7,6 +7,7 @@ use crate::utils::data::{
 };
 use crate::utils::dataframe::{DataFrame, FloatVec, IntVec};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Bin configuration strategy
 #[derive(Debug, Clone)]
@@ -225,8 +226,6 @@ fn get_data_range_inner<T: ContinuousType>(
 struct UngroupedValueBinner {
     binner: Binner,
     cumulative: bool,
-    data: DataFrame,
-    mapping: AesMap,
 }
 
 impl UngroupedValueBinner {
@@ -234,8 +233,6 @@ impl UngroupedValueBinner {
         Self {
             binner,
             cumulative,
-            data: DataFrame::new(),
-            mapping: AesMap::new(),
         }
     }
 }
@@ -276,10 +273,10 @@ impl ContinuousVectorVisitor for UngroupedValueBinner {
         let mut data = DataFrame::new();
         let mut mapping = AesMap::new();
 
-        data.add_column("xmin", Box::new(FloatVec(mins)));
-        data.add_column("x", Box::new(FloatVec(centers)));
-        data.add_column("xmax", Box::new(FloatVec(maxs)));
-        data.add_column("count", Box::new(IntVec(counts)));
+        data.add_column("xmin", Arc::new(FloatVec(mins)));
+        data.add_column("x", Arc::new(FloatVec(centers)));
+        data.add_column("xmax", Arc::new(FloatVec(maxs)));
+        data.add_column("count", Arc::new(IntVec(counts)));
 
         mapping.set(
             Aesthetic::X(AestheticDomain::Continuous),
@@ -362,11 +359,11 @@ impl DiscreteContinuousVisitor2 for GroupedValueBinner {
         let mut data = DataFrame::new();
         let mut mapping = AesMap::new();
 
-        data.add_column("bin", Box::new(IntVec(bins)));
-        data.add_column("xmin", Box::new(FloatVec(mins)));
-        data.add_column("x", Box::new(FloatVec(centers)));
-        data.add_column("xmax", Box::new(FloatVec(maxs)));
-        data.add_column("count", Box::new(IntVec(counts)));
+        data.add_column("bin", Arc::new(IntVec(bins)));
+        data.add_column("xmin", Arc::new(FloatVec(mins)));
+        data.add_column("x", Arc::new(FloatVec(centers)));
+        data.add_column("xmax", Arc::new(FloatVec(maxs)));
+        data.add_column("count", Arc::new(IntVec(counts)));
         data.add_column("group", G::make_vector(group_values));
 
         mapping.set(
@@ -397,13 +394,15 @@ impl DiscreteContinuousVisitor2 for GroupedValueBinner {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::*;
     use crate::utils::dataframe::DataFrame;
 
     #[test]
     fn test_bin_basic() {
         let mut df = DataFrame::new();
-        df.add_column("x", Box::new(FloatVec(vec![1.0, 1.5, 2.0, 2.5, 3.0, 3.5])));
+        df.add_column("x", Arc::new(FloatVec(vec![1.0, 1.5, 2.0, 2.5, 3.0, 3.5])));
         let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
@@ -431,9 +430,8 @@ mod tests {
     #[test]
     fn test_bin_with_integers() {
         let mut df = DataFrame::new();
-        df.add_column("x", Box::new(IntVec(vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10])));
+        df.add_column("x", Arc::new(IntVec(vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10])));
         let df: Box<dyn DataSource> = Box::new(df);
-
 
         let mut mapping = AesMap::new();
         mapping.x("x", AestheticDomain::Continuous);
@@ -452,10 +450,9 @@ mod tests {
         let mut df = DataFrame::new();
         df.add_column(
             "x",
-            Box::new(FloatVec(vec![0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0])),
+            Arc::new(FloatVec(vec![0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0])),
         );
         let df: Box<dyn DataSource> = Box::new(df);
-
 
         let mut mapping = AesMap::new();
         mapping.x("x", AestheticDomain::Continuous);
@@ -480,7 +477,7 @@ mod tests {
     #[test]
     fn test_bin_single_value() {
         let mut df = DataFrame::new();
-        df.add_column("x", Box::new(FloatVec(vec![5.0, 5.0, 5.0, 5.0])));
+        df.add_column("x", Arc::new(FloatVec(vec![5.0, 5.0, 5.0, 5.0])));
         let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
@@ -502,7 +499,7 @@ mod tests {
     #[test]
     fn test_bin_requires_x() {
         let mut df = DataFrame::new();
-        df.add_column("y", Box::new(FloatVec(vec![1.0, 2.0, 3.0])));
+        df.add_column("y", Arc::new(FloatVec(vec![1.0, 2.0, 3.0])));
         let df: Box<dyn DataSource> = Box::new(df);
 
         let mapping = AesMap::new(); // No x mapping
@@ -517,7 +514,7 @@ mod tests {
         let mut df = DataFrame::new();
         df.add_column(
             "x",
-            Box::new(FloatVec(vec![1.0, f64::NAN, 2.0, 3.0, f64::NAN, 4.0, 5.0])),
+            Arc::new(FloatVec(vec![1.0, f64::NAN, 2.0, 3.0, f64::NAN, 4.0, 5.0])),
         );
         let df: Box<dyn DataSource> = Box::new(df);
 
@@ -539,12 +536,11 @@ mod tests {
         let mut df = DataFrame::new();
         df.add_column(
             "x",
-            Box::new(FloatVec(vec![
+            Arc::new(FloatVec(vec![
                 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0,
             ])),
         );
         let df: Box<dyn DataSource> = Box::new(df);
-
 
         let mut mapping = AesMap::new();
         mapping.x("x", AestheticDomain::Continuous);
@@ -591,31 +587,25 @@ mod tests {
         let mut df = DataFrame::new();
         df.add_column(
             "x",
-            Box::new(FloatVec(vec![
+            Arc::new(FloatVec(vec![
                 1.0, 1.5, 2.0, 2.5, 3.0, // Group A
                 2.0, 2.5, 3.0, 3.5, 4.0, // Group B
             ])),
         );
         df.add_column(
             "group",
-            Box::new(StrVec(vec![
-                "A".to_string(),
-                "A".to_string(),
-                "A".to_string(),
-                "A".to_string(),
-                "A".to_string(),
-                "B".to_string(),
-                "B".to_string(),
-                "B".to_string(),
-                "B".to_string(),
-                "B".to_string(),
+            Arc::new(StrVec::from(vec![
+                "A", "A", "A", "A", "A", "B", "B", "B", "B", "B",
             ])),
         );
         let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
         mapping.x("x", AestheticDomain::Continuous);
-        mapping.set(Aesthetic::Fill(AestheticDomain::Continuous), AesValue::column("group"));
+        mapping.set(
+            Aesthetic::Fill(AestheticDomain::Continuous),
+            AesValue::column("group"),
+        );
 
         let bin = Bin::with_count(3);
         let (data, new_mapping) = bin.apply(&df, &mapping).unwrap().unwrap();
@@ -669,7 +659,7 @@ mod tests {
         let mut df = DataFrame::new();
         df.add_column(
             "x",
-            Box::new(FloatVec(vec![
+            Arc::new(FloatVec(vec![
                 1.0, 2.0, // Color A, Shape X
                 3.0, 4.0, // Color A, Shape Y
                 1.5, 2.5, // Color B, Shape X
@@ -678,35 +668,20 @@ mod tests {
         );
         df.add_column(
             "color",
-            Box::new(StrVec(vec![
-                "A".to_string(),
-                "A".to_string(),
-                "A".to_string(),
-                "A".to_string(),
-                "B".to_string(),
-                "B".to_string(),
-                "B".to_string(),
-                "B".to_string(),
-            ])),
+            Arc::new(StrVec::from(vec!["A", "A", "A", "A", "B", "B", "B", "B"])),
         );
         df.add_column(
             "shape",
-            Box::new(StrVec(vec![
-                "X".to_string(),
-                "X".to_string(),
-                "Y".to_string(),
-                "Y".to_string(),
-                "X".to_string(),
-                "X".to_string(),
-                "Y".to_string(),
-                "Y".to_string(),
-            ])),
+            Arc::new(StrVec::from(vec!["X", "X", "Y", "Y", "X", "X", "Y", "Y"])),
         );
         let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
         mapping.x("x", AestheticDomain::Continuous);
-        mapping.set(Aesthetic::Fill(AestheticDomain::Continuous), AesValue::column("color"));
+        mapping.set(
+            Aesthetic::Fill(AestheticDomain::Continuous),
+            AesValue::column("color"),
+        );
         mapping.set(Aesthetic::Shape, AesValue::column("shape"));
 
         let bin = Bin::with_count(3);

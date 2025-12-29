@@ -25,7 +25,7 @@ impl ContinuousPositionalScale {
     }
 
     /// Compute breaks and labels for this scale
-    /// 
+    ///
     /// Uses the domain to generate nice break positions and format them as labels.
     /// Should be called after training the domain.
     pub fn compute_breaks(&mut self, n: usize) {
@@ -84,7 +84,13 @@ impl super::traits::ContinuousRangeScale for ContinuousPositionalScale {
         }
 
         let normalized = (value - d0) / (d1 - d0);
-        log::debug!("Mapping {} with domain ({}, {}) -> {}", value, d0, d1, normalized);
+        log::debug!(
+            "Mapping {} with domain ({}, {}) -> {}",
+            value,
+            d0,
+            d1,
+            normalized
+        );
         Some(normalized)
     }
 }
@@ -94,16 +100,12 @@ impl super::traits::ContinuousPositionalScale for ContinuousPositionalScale {}
 #[derive(Debug, Clone)]
 pub struct DiscretePositionalScale {
     elements: DiscreteSet,
-    breaks: Vec<f64>,
-    labels: Vec<String>,
 }
 
 impl DiscretePositionalScale {
     pub fn new() -> Self {
         Self {
             elements: DiscreteSet::new(),
-            breaks: Vec::new(),
-            labels: Vec::new(),
         }
     }
 }

@@ -185,6 +185,8 @@ impl std::fmt::Display for VectorType {
 
 pub trait GenericVector: Send + Sync {
     fn len(&self) -> usize;
+
+    /// Get the vector's data type
     fn vtype(&self) -> VectorType;
 
     /// Get a discriminated union iterator over the vector's data.
@@ -217,9 +219,16 @@ pub trait StrVector: GenericVector + Send + Sync {
 
 // DataSource trait
 pub trait DataSource: Send + Sync {
+    /// Get a column by name
     fn get(&self, name: &str) -> Option<&dyn GenericVector>;
+
+    /// Get all column names
     fn column_names(&self) -> Vec<String>;
+
+    /// Get the number of rows in the data source
     fn len(&self) -> usize;
+
+    /// Check if the data source is empty
     fn is_empty(&self) -> bool {
         self.len() == 0
     }

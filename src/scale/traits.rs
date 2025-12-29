@@ -1,12 +1,15 @@
 use core::panic;
+use std::sync::Arc;
 
 use crate::aesthetics::AesValue;
-use crate::data::{DataSource, DiscreteType, GenericVector, PrimitiveType, PrimitiveValue, VectorIter};
+use crate::data::{
+    DataSource, DiscreteType, GenericVector, PrimitiveType, PrimitiveValue, VectorIter,
+};
 use crate::scale::{ContinuousScaleTrainer, DiscreteScaleTrainer};
 use crate::theme::Color;
 
 use crate::utils::data::{visit_c, visit_d};
-use crate::utils::dataframe::{BoolVec, DataFrame, FloatVec, IntVec, StrVec};
+use crate::utils::dataframe::{BoolVec, FloatVec, IntVec, StrVec};
 use crate::utils::set::DiscreteSet;
 use crate::visuals::Shape;
 
@@ -34,19 +37,19 @@ pub trait ScaleBase: Default + Clone + Send + Sync {
             PrimitiveValue::Int(x) => {
                 let xs: IntVec = IntVec::from(vec![*x]);
                 self.train(xs.iter());
-            },
+            }
             PrimitiveValue::Float(x) => {
                 let xs = FloatVec::from(vec![*x]);
                 self.train(xs.iter());
-            },
+            }
             PrimitiveValue::Str(x) => {
                 let xs = StrVec::from(vec![x.clone()]);
                 self.train(xs.iter());
-            },
+            }
             PrimitiveValue::Bool(x) => {
                 let xs = BoolVec::from(vec![*x]);
                 self.train(xs.iter());
-            },
+            }
         }
     }
 }
@@ -69,13 +72,13 @@ pub trait ContinuousDomainScale: ScaleBase {
             let (min_limit, max_limit) = self.limits();
             let min_value = min_limit.unwrap_or(obs_min_value);
             let max_value = max_limit.unwrap_or(obs_max_value);
-            
+
             // Apply 5% expansion on each side (ggplot2 default)
             let range = max_value - min_value;
             let expansion = range * 0.05;
             let min_value = min_value - expansion;
             let max_value = max_value + expansion;
-            
+
             if let Some((min_existing, max_existing)) = self.domain() {
                 let min_value = min_value.min(min_existing);
                 let max_value = max_value.max(max_existing);
@@ -83,7 +86,11 @@ pub trait ContinuousDomainScale: ScaleBase {
             } else {
                 self.set_domain((min_value, max_value));
             }
-            log::info!("Trained continuous scale domain to ({}, {}) with 5% expansion", min_value, max_value);
+            log::info!(
+                "Trained continuous scale domain to ({}, {}) with 5% expansion",
+                min_value,
+                max_value
+            );
         }
     }
 }
@@ -128,69 +135,77 @@ pub trait ContinuousRangeScale: ScaleBase {
         }
     }
 
-    fn map_aesthetic_value(&self, value: &AesValue, data: &dyn DataSource, new_data: &mut DataFrame) -> Option<AesValue> {
-        match value {
-            AesValue::Column { name, hint, original_name } => {
-                let column = DataSource::get(data, name)?;
-                
-                match column.iter() {
-                    VectorIter::Int(iterator) => {
-                        let values: Vec<f64> = iterator
-                            .filter_map(|v| self.map_value(&v))
-                            .collect();
-                        log::info!("Mapped float values for column {}: {:?}", name, values);
-                        new_data.add_column(name.clone(), Box::new(FloatVec::from(values)));
-                        Some(AesValue::Column {
-                            name: name.clone(),
-                            hint: hint.clone(),
-                            original_name: original_name.clone(),
-                        })
-                    },
-                    VectorIter::Float(iterator) => {
-                        let values: Vec<f64> = iterator
-                            .filter_map(|v| self.map_value(&v))
-                            .collect();
-                        log::info!("Mapped float values for column {}: {:?}", name, values);
-                        new_data.add_column(name.clone(), Box::new(FloatVec::from(values)));
-                        Some(AesValue::Column {
-                            name: name.clone(),
-                            hint: hint.clone(),
-                            original_name: original_name.clone(),
-                        })
-                    },
-                    VectorIter::Str(iterator) => {
-                        let values: Vec<f64> = iterator
-                            .filter_map(|v| self.map_value(&v.to_string()))
-                            .collect();
-                        new_data.add_column(name.clone(), Box::new(FloatVec::from(values)));
-                        Some(AesValue::Column {
-                            name: name.clone(),
-                            hint: hint.clone(),
-                            original_name: original_name.clone(),
-                        })
-                    },
-                    VectorIter::Bool(iterator) => {
-                        let values: Vec<f64> = iterator
-                            .filter_map(|v| self.map_value(&v))
-                            .collect();
-                        new_data.add_column(name.clone(), Box::new(FloatVec::from(values)));
-                        Some(AesValue::Column {
-                            name: name.clone(),
-                            hint: hint.clone(),
-                            original_name: original_name.clone(),
-                        })
-                    },
+    fn map_vector_iter<'a>(&self, iter: VectorIter<'a>) -> Vec<f64> {
+        let mut mapped_values: Vec<f64> = Vec::new();
+        match iter {
+            VectorIter::Int(iterator) => {
+                for v in iterator {
+                    if let Some(mapped) = self.map_value(&v) {
+                        mapped_values.push(mapped);
+                    }
                 }
-            },
-            AesValue::Constant { value, hint } =>  {
+            }
+            VectorIter::Float(iterator) => {
+                for v in iterator {
+                    if let Some(mapped) = self.map_value(&v) {
+                        mapped_values.push(mapped);
+                    }
+                }
+            }
+            VectorIter::Str(iterator) => {
+                for v in iterator {
+                    if let Some(mapped) = self.map_value(&v.to_string()) {
+                        mapped_values.push(mapped);
+                    }
+                }
+            }
+            VectorIter::Bool(iterator) => {
+                for v in iterator {
+                    if let Some(mapped) = self.map_value(&v) {
+                        mapped_values.push(mapped);
+                    }
+                }
+            }
+        }
+        mapped_values
+    }
+
+    fn map_aesthetic_value(
+        &self,
+        value: &AesValue,
+        data: &dyn DataSource,
+    ) -> Option<AesValue> {
+        match value {
+            AesValue::Column {
+                name,
+                hint: _,
+                original_name,
+            } => {
+                let column = DataSource::get(data, name)?;
+                let values = self.map_vector_iter(column.iter());
+                return Some(AesValue::vector(
+                    Arc::new(FloatVec::from(values)),
+                    original_name.clone(),
+                ));
+            }
+            AesValue::Constant { value, hint } => {
                 let mapped = self.map_primitive_value(value)?;
                 Some(AesValue::Constant {
                     value: PrimitiveValue::Float(mapped),
                     hint: hint.clone(),
                 })
-            },
+            }
+            AesValue::Vector {
+                values,
+                original_name,
+            } => {
+                let mapped_values = self.map_vector_iter(values.iter());
+                Some(AesValue::vector(
+                    Arc::new(FloatVec::from(mapped_values)),
+                    original_name.clone(),
+                ))
+            }
         }
-    
     }
 }
 
@@ -214,74 +229,79 @@ pub trait ColorRangeScale: ScaleBase {
         }
     }
 
-    fn map_aesthetic_value(&self, value: &AesValue, data: &dyn DataSource, new_data: &mut DataFrame) -> Option<AesValue> {
-        match value {
-            AesValue::Column { name, hint, original_name } => {
-                let column = DataSource::get(data, name)?;
-                match column.iter() {
-                    VectorIter::Int(iterator) => {
-                        let values: Vec<i64> = iterator.filter_map(|v| {
-                            let color = self.map_value(&v);
-                            color.map(|c| i64::from(c))
-                        }).collect();
-
-                        new_data.add_column(name.clone(), Box::new(IntVec::from(values)));
-                        return Some(AesValue::Column {
-                            name: name.clone(),
-                            hint: hint.clone(),
-                            original_name: original_name.clone(),
-                        });
-                    },
-                    VectorIter::Float(iterator) => {
-                        let values: Vec<i64> = iterator.filter_map(|v| {
-                            let color = self.map_value(&v);
-                            color.map(|c| i64::from(c))
-                        }).collect();
-
-                        new_data.add_column(name.clone(), Box::new(IntVec::from(values)));
-                        return Some(AesValue::Column {
-                            name: name.clone(),
-                            hint: hint.clone(),
-                            original_name: original_name.clone(),
-                        });
-                    },
-                    VectorIter::Str(iterator) => {
-                        let values: Vec<i64> = iterator.filter_map(|v| {
-                            let color = self.map_value(&v.to_string());
-                            color.map(|c| i64::from(c))
-                        }).collect();
-
-                        new_data.add_column(name.clone(), Box::new(IntVec::from(values)));
-                        return Some(AesValue::Column {
-                            name: name.clone(),
-                            hint: hint.clone(),
-                            original_name: original_name.clone(),
-                        });
-                    },
-                    VectorIter::Bool(iterator) => {
-                        let values: Vec<i64> = iterator.filter_map(|v| {
-                            let color = self.map_value(&v);
-                            color.map(|c| i64::from(c))
-                        }).collect();
-
-                        new_data.add_column(name.clone(), Box::new(IntVec::from(values)));
-                        return Some(AesValue::Column {
-                            name: name.clone(),
-                            hint: hint.clone(),
-                            original_name: original_name.clone(),
-                        });
-                    },
+    fn map_vector_iter<'a>(&self, iter: VectorIter<'a>) -> Vec<Color> {
+        let mut colors: Vec<Color> = Vec::new();
+        match iter {
+            VectorIter::Int(iterator) => {
+                for v in iterator {
+                    if let Some(color) = self.map_value(&v) {
+                        colors.push(color);
+                    }
                 }
-            },
-            AesValue::Constant { value, hint } =>  {
+            }
+            VectorIter::Float(iterator) => {
+                for v in iterator {
+                    if let Some(color) = self.map_value(&v) {
+                        colors.push(color);
+                    }
+                }
+            }
+            VectorIter::Str(iterator) => {
+                for v in iterator {
+                    if let Some(color) = self.map_value(&v.to_string()) {
+                        colors.push(color);
+                    }
+                }
+            }
+            VectorIter::Bool(iterator) => {
+                for v in iterator {
+                    if let Some(color) = self.map_value(&v) {
+                        colors.push(color);
+                    }
+                }
+            }
+        }
+        colors
+    }
+
+    fn map_aesthetic_value(
+        &self,
+        value: &AesValue,
+        data: &dyn DataSource,
+    ) -> Option<AesValue> {
+        match value {
+            AesValue::Column {
+                name,
+                hint: _,
+                original_name,
+            } => {
+                let column = DataSource::get(data, name)?;
+                let colors: Vec<Color> = self.map_vector_iter(column.iter());
+                let color_values: Vec<i64> = colors.iter().map(|c| i64::from(*c)).collect();
+                Some(AesValue::vector(
+                    Arc::new(IntVec::from(color_values)),
+                    original_name.clone(),
+                ))
+            }
+            AesValue::Constant { value, hint } => {
                 let color = self.map_primitive_value(value)?;
                 Some(AesValue::Constant {
                     value: PrimitiveValue::Int(i64::from(color)),
                     hint: hint.clone(),
                 })
-            },
+            }
+            AesValue::Vector {
+                values,
+                original_name,
+            } => {
+                let colors = self.map_vector_iter(values.iter());
+                let color_values: Vec<i64> = colors.iter().map(|c| i64::from(*c)).collect();
+                Some(AesValue::vector(
+                    Arc::new(IntVec::from(color_values)),
+                    original_name.clone(),
+                ))
+            }
         }
-    
     }
 }
 
@@ -299,70 +319,81 @@ pub trait ShapeRangeScale: ScaleBase {
     fn map_primitive_value(&self, value: &PrimitiveValue) -> Option<Shape> {
         match value {
             PrimitiveValue::Int(v) => self.map_value(v),
-            PrimitiveValue::Float(v) => None,
+            PrimitiveValue::Float(_) => None,
             PrimitiveValue::Str(v) => self.map_value(v),
             PrimitiveValue::Bool(v) => self.map_value(v),
         }
     }
 
-    fn map_aesthetic_value(&self, value: &AesValue, data: &dyn DataSource, new_data: &mut DataFrame) -> Option<AesValue> {
-        match value {
-            AesValue::Column { name, hint, original_name } => {
-                let column = DataSource::get(data, name)?;
-                match column.iter() {
-                    VectorIter::Int(iterator) => {
-                        let values: Vec<i64> = iterator.filter_map(|v| {
-                            let shape = self.map_value(&v);
-                            shape.map(|c| i64::from(c))
-                        }).collect();
-
-                        new_data.add_column(name.clone(), Box::new(IntVec::from(values)));
-                        return Some(AesValue::Column {
-                            name: name.clone(),
-                            hint: hint.clone(),
-                            original_name: original_name.clone(),
-                        });
-                    },
-                    VectorIter::Float(_) => {
-                        panic!("Shape scale cannot map float values");
-                    },
-                    VectorIter::Str(iterator) => {
-                        let values: Vec<i64> = iterator.filter_map(|v| {
-                            let shape = self.map_value(&v.to_string());
-                            shape.map(|c| i64::from(c))
-                        }).collect();
-
-                        new_data.add_column(name.clone(), Box::new(IntVec::from(values)));
-                        return Some(AesValue::Column {
-                            name: name.clone(),
-                            hint: hint.clone(),
-                            original_name: original_name.clone(),
-                        });
-                    },
-                    VectorIter::Bool(iterator) => {
-                        let values: Vec<i64> = iterator.filter_map(|v| {
-                            let shape = self.map_value(&v);
-                            shape.map(|c| i64::from(c))
-                        }).collect();
-
-                        new_data.add_column(name.clone(), Box::new(IntVec::from(values)));
-                        return Some(AesValue::Column {
-                            name: name.clone(),
-                            hint: hint.clone(),
-                            original_name: original_name.clone(),
-                        });
-                    },
+    fn map_vector_iter<'a>(&self, iter: VectorIter<'a>) -> Vec<Shape> {
+        let mut shapes: Vec<Shape> = Vec::new();
+        match iter {
+            VectorIter::Int(iterator) => {
+                for v in iterator {
+                    if let Some(shape) = self.map_value(&v) {
+                        shapes.push(shape);
+                    }
                 }
-            },
-            AesValue::Constant { value, hint } =>  {
+            }
+            VectorIter::Float(_) => {
+                panic!("Shape scale cannot map float values");
+            }
+            VectorIter::Str(iterator) => {
+                for v in iterator {
+                    if let Some(shape) = self.map_value(&v.to_string()) {
+                        shapes.push(shape);
+                    }
+                }
+            }
+            VectorIter::Bool(iterator) => {
+                for v in iterator {
+                    if let Some(shape) = self.map_value(&v) {
+                        shapes.push(shape);
+                    }
+                }
+            }
+        }
+        shapes
+    }
+
+    fn map_aesthetic_value(
+        &self,
+        value: &AesValue,
+        data: &dyn DataSource,
+    ) -> Option<AesValue> {
+        match value {
+            AesValue::Column {
+                name,
+                hint: _,
+                original_name,
+            } => {
+                let column = DataSource::get(data, name)?;
+                let shapes: Vec<Shape> = self.map_vector_iter(column.iter());
+                let shape_values: Vec<i64> = shapes.iter().map(|s| i64::from(*s)).collect();
+                Some(AesValue::vector(
+                    Arc::new(IntVec::from(shape_values)),
+                    original_name.clone(),
+                ))
+            }
+            AesValue::Constant { value, hint } => {
                 let shape = self.map_primitive_value(value)?;
                 Some(AesValue::Constant {
                     value: PrimitiveValue::Int(i64::from(shape)),
                     hint: hint.clone(),
                 })
-            },
+            }
+            AesValue::Vector {
+                values,
+                original_name,
+            } => {
+                let shapes = self.map_vector_iter(values.iter());
+                let shape_values: Vec<i64> = shapes.iter().map(|s| i64::from(*s)).collect();
+                Some(AesValue::vector(
+                    Arc::new(IntVec::from(shape_values)),
+                    original_name.clone(),
+                ))
+            }
         }
-    
     }
 }
 

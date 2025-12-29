@@ -1,10 +1,10 @@
-use crate::data::{self, DataSource, DiscreteValue, GenericVector, PrimitiveValue, VectorIter};
+use crate::data::{DataSource, DiscreteValue, GenericVector, PrimitiveValue, VectorIter};
 use crate::error::PlotError;
 use crate::scale::ScaleType;
-use crate::utils::dataframe::{BoolVec, FloatVec, IntVec, StrVec};
+use crate::theme::Color;
 use crate::visuals::Shape;
-use core::panic;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 pub mod builder;
 
@@ -234,11 +234,21 @@ impl Aesthetic {
             Aesthetic::Alpha(_) => Some(AestheticProperty::Alpha),
             Aesthetic::Shape => Some(AestheticProperty::Shape),
             Aesthetic::Linetype => Some(AestheticProperty::Linetype),
-            Aesthetic::X(_) | Aesthetic::Xmin(_) | Aesthetic::Xmax(_) 
-            | Aesthetic::XBegin | Aesthetic::XEnd | Aesthetic::XIntercept => Some(AestheticProperty::X),
-            Aesthetic::Y(_) | Aesthetic::Ymin(_) | Aesthetic::Ymax(_)
-            | Aesthetic::YBegin | Aesthetic::YEnd | Aesthetic::YIntercept
-            | Aesthetic::Lower | Aesthetic::Middle | Aesthetic::Upper => Some(AestheticProperty::Y),
+            Aesthetic::X(_)
+            | Aesthetic::Xmin(_)
+            | Aesthetic::Xmax(_)
+            | Aesthetic::XBegin
+            | Aesthetic::XEnd
+            | Aesthetic::XIntercept => Some(AestheticProperty::X),
+            Aesthetic::Y(_)
+            | Aesthetic::Ymin(_)
+            | Aesthetic::Ymax(_)
+            | Aesthetic::YBegin
+            | Aesthetic::YEnd
+            | Aesthetic::YIntercept
+            | Aesthetic::Lower
+            | Aesthetic::Middle
+            | Aesthetic::Upper => Some(AestheticProperty::Y),
             // Group and Label don't have corresponding properties
             Aesthetic::Group | Aesthetic::Label => None,
         }
@@ -263,7 +273,7 @@ impl From<(AestheticProperty, AestheticDomain)> for Aesthetic {
 // AesValue is a type that can be mapped to an aesthetic
 // It can be a column name, a constant value, or a computed value
 // Each can optionally carry a hint about whether it should be treated as continuous or categorical
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone)]
 pub enum AesValue {
     /// Column name from data with optional scale type hint
     Column {
@@ -278,6 +288,83 @@ pub enum AesValue {
         value: PrimitiveValue,
         hint: Option<ScaleType>,
     },
+    /// Materialized vector of values (result of scale/stat/position transformation)
+    Vector {
+        values: Arc<dyn GenericVector>,
+        /// Original column name before transformation (for legend titles)
+        original_name: Option<String>,
+    },
+}
+
+impl std::fmt::Debug for AesValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AesValue::Column {
+                name,
+                hint,
+                original_name,
+            } => f
+                .debug_struct("Column")
+                .field("name", name)
+                .field("hint", hint)
+                .field("original_name", original_name)
+                .finish(),
+            AesValue::Constant { value, hint } => f
+                .debug_struct("Constant")
+                .field("value", value)
+                .field("hint", hint)
+                .finish(),
+            AesValue::Vector {
+                values: _,
+                original_name,
+            } => f
+                .debug_struct("Vector")
+                .field("original_name", original_name)
+                .field("values", &"<GenericVector>")
+                .finish(),
+        }
+    }
+}
+
+impl PartialEq for AesValue {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (
+                AesValue::Column {
+                    name: n1,
+                    hint: h1,
+                    original_name: o1,
+                },
+                AesValue::Column {
+                    name: n2,
+                    hint: h2,
+                    original_name: o2,
+                },
+            ) => n1 == n2 && h1 == h2 && o1 == o2,
+            (
+                AesValue::Constant {
+                    value: v1,
+                    hint: h1,
+                },
+                AesValue::Constant {
+                    value: v2,
+                    hint: h2,
+                },
+            ) => v1 == v2 && h1 == h2,
+            (
+                AesValue::Vector {
+                    original_name: o1, ..
+                },
+                AesValue::Vector {
+                    original_name: o2, ..
+                },
+            ) => {
+                // Note: We can't compare GenericVector values, so just compare metadata
+                o1 == o2
+            }
+            _ => false,
+        }
+    }
 }
 
 impl AesValue {
@@ -338,12 +425,21 @@ impl AesValue {
         }
     }
 
+    /// Create a Vector variant from materialized values
+    pub fn vector(values: Arc<dyn GenericVector>, original_name: Option<String>) -> Self {
+        AesValue::Vector {
+            values,
+            original_name,
+        }
+    }
+
     /// Extract the column name from Column variants
     /// Returns None for Constant values
     pub fn as_column_name(&self) -> Option<&str> {
         match self {
             AesValue::Column { name, .. } => Some(name.as_str()),
             AesValue::Constant { .. } => None,
+            AesValue::Vector { .. } => None,
         }
     }
 
@@ -358,25 +454,8 @@ impl AesValue {
                 ..
             } => Some(original_name.as_ref().unwrap_or(name).as_str()),
             AesValue::Constant { .. } => None,
+            AesValue::Vector { original_name, .. } => original_name.as_ref().map(|s| s.as_str()),
         }
-    }
-
-    /// Get the user's scale type hint if one was provided
-    pub fn user_hint(&self) -> Option<ScaleType> {
-        match self {
-            AesValue::Column { hint, .. } => *hint,
-            AesValue::Constant { hint, .. } => *hint,
-        }
-    }
-
-    /// Returns true if this value has an explicit categorical hint
-    pub fn is_categorical(&self) -> bool {
-        self.user_hint() == Some(ScaleType::Categorical)
-    }
-
-    /// Returns true if this value has an explicit continuous hint
-    pub fn is_continuous(&self) -> bool {
-        self.user_hint() == Some(ScaleType::Continuous)
     }
 
     /// Get the constant value if this is a Constant variant
@@ -387,51 +466,99 @@ impl AesValue {
         }
     }
 
-    pub fn duplicate(
-        &self,
-        data: &dyn DataSource,
-    ) -> std::result::Result<(AesValue, Option<(String, Box<dyn GenericVector>)>), PlotError> {
+    /// Get the vector if this is a Vector variant
+    pub fn as_vector(&self) -> Option<&dyn GenericVector> {
         match self {
-            AesValue::Column {
-                name,
-                hint,
-                original_name,
-            } => {
-                let column = data.get(name.as_str()).unwrap();
-                let cloned_column: Box<dyn GenericVector> = match column.iter() {
-                    data::VectorIter::Int(iter) => {
-                        let vec: Vec<i64> = iter.collect();
-                        Box::new(IntVec(vec))
-                    }
-                    data::VectorIter::Float(iter) => {
-                        let vec: Vec<f64> = iter.collect();
-                        Box::new(FloatVec(vec))
-                    }
-                    data::VectorIter::Str(iter) => {
-                        let vec: Vec<String> = iter.map(|s| s.to_string()).collect();
-                        Box::new(StrVec(vec))
-                    }
-                    data::VectorIter::Bool(iter) => {
-                        let vec: Vec<bool> = iter.collect();
-                        Box::new(BoolVec(vec))
-                    }
-                };
-                Ok((
-                    AesValue::Column {
-                        name: name.clone(),
-                        hint: *hint,
-                        original_name: original_name.clone(),
-                    },
-                    Some((name.clone(), cloned_column)),
-                ))
+            AesValue::Vector { values, .. } => Some(values.as_ref()),
+            _ => None,
+        }
+    }
+
+    fn as_vector_iter<'a>(&'a self, data: &'a dyn DataSource) -> Option<VectorIter<'a>> {
+        match self {
+            AesValue::Column { name, .. } => {
+                let column = data.get(name.as_str())?;
+                Some(column.iter())
             }
-            AesValue::Constant { value, hint } => Ok((
-                AesValue::Constant {
-                    value: value.clone(),
-                    hint: *hint,
-                },
-                None,
-            )),
+            AesValue::Constant { value, .. } => {
+                let n = data.len();
+                match value {
+                    PrimitiveValue::Int(i) => {
+                        Some(VectorIter::Int(Box::new(std::iter::repeat(*i).take(n))))
+                    }
+                    PrimitiveValue::Float(f) => {
+                        Some(VectorIter::Float(Box::new(std::iter::repeat(*f).take(n))))
+                    }
+                    PrimitiveValue::Str(s) => Some(VectorIter::Str(Box::new(
+                        std::iter::repeat(s.as_str()).take(n),
+                    ))),
+                    PrimitiveValue::Bool(b) => {
+                        Some(VectorIter::Bool(Box::new(std::iter::repeat(*b).take(n))))
+                    }
+                }
+            }
+            AesValue::Vector { values, .. } => Some(values.iter()),
+        }
+    }
+
+    fn as_int_vector_iter<'a>(
+        &'a self,
+        data: &'a dyn DataSource,
+    ) -> Option<Box<dyn Iterator<Item = i64> + 'a>> {
+        match self.as_vector_iter(data)? {
+            VectorIter::Int(iter) => Some(iter),
+            _ => None,
+        }
+    }
+
+    fn as_float_vector_iter<'a>(
+        &'a self,
+        data: &'a dyn DataSource,
+    ) -> Option<Box<dyn Iterator<Item = f64> + 'a>> {
+        match self.as_vector_iter(data)? {
+            VectorIter::Float(iter) => Some(iter),
+            VectorIter::Int(iter) => Some(Box::new(iter.map(|v| v as f64))),
+            _ => None,
+        }
+    }
+
+    fn as_str_vector_iter<'a>(
+        &'a self,
+        data: &'a dyn DataSource,
+    ) -> Option<Box<dyn Iterator<Item = String> + 'a>> {
+        match self.as_vector_iter(data)? {
+            VectorIter::Str(iter) => Some(Box::new(iter.map(|s| s.to_string()))),
+            _ => None,
+        }
+    }
+
+    fn as_discrete_vector_iter<'a>(
+        &'a self,
+        data: &'a dyn DataSource,
+    ) -> Option<Box<dyn Iterator<Item = DiscreteValue> + 'a>> {
+        match self.as_vector_iter(data)? {
+            VectorIter::Int(iter) => Some(Box::new(iter.map(DiscreteValue::Int))),
+            VectorIter::Str(iter) => Some(Box::new(iter.map(|s| DiscreteValue::Str(s.to_string())))),
+            VectorIter::Bool(iter) => Some(Box::new(iter.map(DiscreteValue::Bool))),
+            _ => None,
+        }
+    }
+
+    fn as_color_vector_iter<'a>(
+        &'a self,
+        data: &'a dyn DataSource,
+    ) -> Option<Box<dyn Iterator<Item = Color> + 'a>> {
+        match self.as_int_vector_iter(data)? {
+            iter => Some(Box::new(iter.map(|i| Color::from(i)))),
+        }
+    }
+
+    fn as_shape_vector_iter<'a>(
+        &'a self,
+        data: &'a dyn DataSource,
+    ) -> Option<Box<dyn Iterator<Item = Shape> + 'a>> {
+        match self.as_int_vector_iter(data)? {
+            iter => Some(Box::new(iter.map(|i| Shape::from(i)))),
         }
     }
 }
@@ -511,7 +638,7 @@ impl AesMap {
                 (AestheticProperty::Linetype, Aesthetic::Linetype) => true,
                 _ => false,
             };
-            
+
             if matches {
                 return value.as_original_column_name().map(|s| s.to_string());
             }
@@ -650,342 +777,60 @@ impl AesMap {
         );
     }
 
-    pub fn get_iter<'a>(
-        &self,
-        aes: &Aesthetic,
-        data: &'a dyn DataSource,
-    ) -> Option<Box<dyn Iterator<Item = PrimitiveValue> + 'a>> {
-        match self.get(aes) {
-            Some(value) => {
-                match value {
-                    AesValue::Column { name, .. } => {
-                        // Look up the column in the data source
-                        let column = data.get(name.as_str())?;
-                        // Return an iterator over the column's values as PrimitiveValue
-                        let iter: Box<dyn Iterator<Item = PrimitiveValue> + 'a> = match column
-                            .iter()
-                        {
-                            data::VectorIter::Int(iter) => Box::new(iter.map(PrimitiveValue::Int)),
-                            data::VectorIter::Float(iter) => {
-                                Box::new(iter.map(PrimitiveValue::Float))
-                            }
-                            data::VectorIter::Str(iter) => {
-                                Box::new(iter.map(|s| PrimitiveValue::Str(s.to_string())))
-                            }
-                            data::VectorIter::Bool(iter) => {
-                                Box::new(iter.map(PrimitiveValue::Bool))
-                            }
-                        };
-                        Some(iter)
-                    }
-                    AesValue::Constant { value, .. } => {
-                        let n = data.len();
-                        Some(Box::new(std::iter::repeat(value.clone()).take(n))
-                            as Box<dyn Iterator<Item = PrimitiveValue> + 'a>)
-                    }
-                }
-            }
-            _ => None,
-        }
-    }
-
     pub fn get_vector_iter<'a>(
         &'a self,
         aes: &'a Aesthetic,
         data: &'a dyn DataSource,
     ) -> Option<VectorIter<'a>> {
-        match self.get(aes) {
-            Some(value) => match value {
-                AesValue::Column { name, .. } => {
-                    let column = data.get(name.as_str())?;
-                    Some(column.iter())
-                }
-                AesValue::Constant { value, .. } => match value {
-                    PrimitiveValue::Int(i) => {
-                        let n = data.len();
-                        Some(VectorIter::Int(Box::new(std::iter::repeat(*i).take(n))))
-                    }
-                    PrimitiveValue::Float(f) => {
-                        let n = data.len();
-                        Some(VectorIter::Float(Box::new(std::iter::repeat(*f).take(n))))
-                    }
-                    PrimitiveValue::Str(s) => {
-                        let n = data.len();
-                        Some(VectorIter::Str(Box::new(
-                            std::iter::repeat(s.as_str()).take(n),
-                        )))
-                    }
-                    PrimitiveValue::Bool(b) => {
-                        let n = data.len();
-                        Some(VectorIter::Bool(Box::new(std::iter::repeat(*b).take(n))))
-                    }
-                },
-            },
-            None => None,
-        }
+        self.get(aes)?.as_vector_iter(data)
     }
 
     pub fn get_iter_float<'a>(
-        &self,
+        &'a self,
         aes: &Aesthetic,
         data: &'a dyn DataSource,
     ) -> Option<Box<dyn Iterator<Item = f64> + 'a>> {
-        match self.get(aes) {
-            Some(value) => {
-                match value {
-                    AesValue::Column { name, .. } => {
-                        // Look up the column in the data source
-                        let column = data.get(name.as_str())?;
-                        // Return an iterator over the column's values as f64
-                        if let Some(iter) = column.iter_float() {
-                            return Some(iter);
-                        }
-                        if let Some(iter) = column.iter_int() {
-                            // Convert int to float
-                            let float_iter = iter.map(|v| v as f64);
-                            return Some(Box::new(float_iter) as Box<dyn Iterator<Item = f64> + 'a>);
-                        }
-                    }
-                    AesValue::Constant { value, .. } => {
-                        if let PrimitiveValue::Float(f) = value {
-                            let n = data.len();
-                            return Some(Box::new(std::iter::repeat(*f).take(n))
-                                as Box<dyn Iterator<Item = f64> + 'a>);
-                        }
-                        if let PrimitiveValue::Int(i) = value {
-                            let f = *i as f64;
-                            let n = data.len();
-                            return Some(Box::new(std::iter::repeat(f).take(n))
-                                as Box<dyn Iterator<Item = f64> + 'a>);
-                        }
-                    }
-                }
-            }
-            None => {}
-        }
-        None
+        self.get(aes)?.as_float_vector_iter(data)
     }
 
     pub fn get_iter_int<'a>(
-        &self,
+        &'a self,
         aes: &Aesthetic,
         data: &'a dyn DataSource,
     ) -> Option<Box<dyn Iterator<Item = i64> + 'a>> {
-        match self.get(aes) {
-            Some(value) => {
-                match value {
-                    AesValue::Column { name, .. } => {
-                        // Look up the column in the data source
-                        let column = data.get(name.as_str())?;
-                        if let Some(iter) = column.iter_int() {
-                            return Some(Box::new(iter) as Box<dyn Iterator<Item = i64> + 'a>);
-                        }
-                    }
-                    AesValue::Constant { value, .. } => {
-                        if let PrimitiveValue::Int(i) = value {
-                            let n = data.len();
-                            return Some(Box::new(std::iter::repeat(*i).take(n))
-                                as Box<dyn Iterator<Item = i64> + 'a>);
-                        }
-                    }
-                }
-            }
-            None => {}
-        }
-        None
+        self.get(aes)?.as_int_vector_iter(data)
     }
 
     pub fn get_iter_string<'a>(
-        &self,
+        &'a self,
         aes: &Aesthetic,
         data: &'a dyn DataSource,
     ) -> Option<Box<dyn Iterator<Item = String> + 'a>> {
-        match self.get(aes) {
-            Some(value) => {
-                match value {
-                    AesValue::Column { name, .. } => {
-                        // Look up the column in the data source
-                        let column = data.get(name.as_str())?;
-                        match column.iter() {
-                            data::VectorIter::Str(iter) => {
-                                let string_iter = iter.map(|s| s.to_string());
-                                return Some(Box::new(string_iter)
-                                    as Box<dyn Iterator<Item = String> + 'a>);
-                            }
-                            _ => {
-                                panic!("Only string columns can be used as string values");
-                            }
-                        }
-                    }
-                    AesValue::Constant { value, .. } => match value {
-                        PrimitiveValue::Str(s) => {
-                            let n = data.len();
-                            return Some(Box::new(
-                                std::iter::repeat(s.to_string()).take(n),
-                            )
-                                as Box<dyn Iterator<Item = String> + 'a>);
-                        }
-                        _ => {
-                            panic!("Only string constants can be used as string values");
-                        }
-                    },
-                }
-            }
-            None => {}
-        }
-        None
+        self.get(aes)?.as_str_vector_iter(data)
     }
 
     pub fn get_iter_discrete<'a>(
-        &self,
+        &'a self,
         aes: &Aesthetic,
         data: &'a dyn DataSource,
     ) -> Option<Box<dyn Iterator<Item = DiscreteValue> + 'a>> {
-        match self.get(aes) {
-            Some(value) => {
-                match value {
-                    AesValue::Column { name, .. } => {
-                        // Look up the column in the data source
-                        let column = data.get(name.as_str())?;
-                        match column.iter() {
-                            data::VectorIter::Int(iter) => {
-                                let discrete_iter = iter.map(DiscreteValue::Int);
-                                return Some(Box::new(discrete_iter)
-                                    as Box<dyn Iterator<Item = DiscreteValue> + 'a>);
-                            }
-                            data::VectorIter::Float(_) => {
-                                panic!("Float columns cannot be used as discrete values");
-                            }
-                            data::VectorIter::Str(iter) => {
-                                let discrete_iter = iter.map(|s| DiscreteValue::Str(s.to_string()));
-                                return Some(Box::new(discrete_iter)
-                                    as Box<dyn Iterator<Item = DiscreteValue> + 'a>);
-                            }
-                            data::VectorIter::Bool(iter) => {
-                                let discrete_iter = iter.map(DiscreteValue::Bool);
-                                return Some(Box::new(discrete_iter)
-                                    as Box<dyn Iterator<Item = DiscreteValue> + 'a>);
-                            }
-                        }
-                    }
-                    AesValue::Constant { value, .. } => match value {
-                        PrimitiveValue::Int(i) => {
-                            let n = data.len();
-                            return Some(
-                                Box::new(std::iter::repeat(DiscreteValue::Int(*i)).take(n))
-                                    as Box<dyn Iterator<Item = DiscreteValue> + 'a>,
-                            );
-                        }
-                        PrimitiveValue::Str(s) => {
-                            let n = data.len();
-                            return Some(Box::new(
-                                std::iter::repeat(DiscreteValue::Str(s.to_string())).take(n),
-                            )
-                                as Box<dyn Iterator<Item = DiscreteValue> + 'a>);
-                        }
-                        PrimitiveValue::Bool(b) => {
-                            let n = data.len();
-                            return Some(
-                                Box::new(std::iter::repeat(DiscreteValue::Bool(*b)).take(n))
-                                    as Box<dyn Iterator<Item = DiscreteValue> + 'a>,
-                            );
-                        }
-                        PrimitiveValue::Float(_) => {
-                            panic!("Float constants cannot be used as discrete values");
-                        }
-                    },
-                }
-            }
-            None => {}
-        }
-        None
+        self.get(aes)?.as_discrete_vector_iter(data)
     }
 
     pub fn get_iter_color<'a>(
-        &self,
+        &'a self,
         aes: &Aesthetic,
         data: &'a dyn DataSource,
-    ) -> Option<Box<dyn Iterator<Item = crate::theme::Color> + 'a>> {
-        match self.get(aes) {
-            Some(value) => match value {
-                AesValue::Column { name, .. } => {
-                    let column = data.get(name.as_str())?;
-                    let iter: Box<dyn Iterator<Item = crate::theme::Color> + 'a> =
-                        match column.iter() {
-                            data::VectorIter::Int(iter) => {
-                                Box::new(iter.map(crate::theme::Color::from))
-                            }
-                            data::VectorIter::Float(_) => {
-                                panic!("Float columns cannot be mapped to colors")
-                            }
-                            data::VectorIter::Str(_) => {
-                                panic!("String columns cannot be mapped to colors")
-                            }
-                            data::VectorIter::Bool(_) => {
-                                panic!("Boolean columns cannot be mapped to colors")
-                            }
-                        };
-                    Some(iter)
-                }
-                AesValue::Constant { value, .. } => match value {
-                    PrimitiveValue::Int(i) => {
-                        let n = data.len();
-                        Some(
-                            Box::new(std::iter::repeat(crate::theme::Color::from(*i)).take(n))
-                                as Box<dyn Iterator<Item = crate::theme::Color> + 'a>,
-                        )
-                    }
-                    PrimitiveValue::Float(_) => {
-                        panic!("Float constants cannot be used as colors");
-                    }
-                    PrimitiveValue::Str(_) => {
-                        panic!("String constants cannot be used as colors");
-                    }
-                    PrimitiveValue::Bool(_) => {
-                        panic!("Boolean constants cannot be used as colors");
-                    }
-                },
-            },
-            None => None,
-        }
+    ) -> Option<Box<dyn Iterator<Item = Color> + 'a>> {
+        self.get(aes)?.as_color_vector_iter(data)
     }
 
     pub fn get_iter_shape<'a>(
-        &self,
+        &'a self,
         aes: &Aesthetic,
         data: &'a dyn DataSource,
     ) -> Option<Box<dyn Iterator<Item = Shape> + 'a>> {
-        match self.get(aes) {
-            Some(value) => match value {
-                AesValue::Column { name, .. } => {
-                    let column = data.get(name.as_str())?;
-                    let iter: Box<dyn Iterator<Item = Shape> + 'a> = match column.iter() {
-                        data::VectorIter::Int(iter) => Box::new(iter.map(|v| Shape::from(v))),
-                        data::VectorIter::Float(_) => {
-                            panic!("Float columns cannot be mapped to shapes")
-                        }
-                        data::VectorIter::Str(_) => {
-                            panic!("String columns cannot be mapped to shapes")
-                        }
-                        data::VectorIter::Bool(_) => {
-                            panic!("Boolean columns cannot be mapped to shapes")
-                        }
-                    };
-                    Some(iter)
-                }
-                AesValue::Constant { value, .. } => match value {
-                    PrimitiveValue::Int(i) => {
-                        let n = data.len();
-                        Some(Box::new(std::iter::repeat(Shape::from(*i)).take(n))
-                            as Box<dyn Iterator<Item = Shape> + 'a>)
-                    }
-                    _ => {
-                        panic!("Only integer constants can be used as shapes");
-                    }
-                },
-            },
-            None => None,
-        }
+        self.get(aes)?.as_shape_vector_iter(data)
     }
 }
 
