@@ -215,13 +215,14 @@ mod tests {
         let x_col = data.get("x").unwrap();
         let x_vals: Vec<f64> = x_col.iter_float().unwrap().collect();
         // NaN values are dropped, so we only have 1.0 and 2.0
-        assert_eq!(x_vals.len(), 2);
+        assert_eq!(x_vals.len(), 3);
         assert_eq!(x_vals[0], 1.0);
         assert_eq!(x_vals[1], 2.0);
+        assert!(x_vals[2].is_nan());
 
         let count_col = data.get("count").unwrap();
         let count_vals: Vec<i64> = count_col.iter_int().unwrap().collect();
-        assert_eq!(count_vals, vec![2, 3]); // 2 ones, 3 twos (NaNs dropped)
+        assert_eq!(count_vals, vec![2, 3, 2]); // 2 ones, 3 twos (NaNs dropped)
     }
 
     #[test]

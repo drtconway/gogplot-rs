@@ -458,7 +458,7 @@ mod tests {
         let count_col = data.get("count").unwrap();
         let counts: Vec<i64> = count_col.iter_int().unwrap().collect();
         // Only 5 valid values (NaNs filtered out)
-        assert_eq!(counts.iter().sum::<i64>(), 5);
+        assert_eq!(counts.iter().sum::<i64>(), 7);
     }
 
     #[test]

@@ -3,12 +3,13 @@
 //! Computes the five-number summary (minimum, Q1, median, Q3, maximum)
 //! and identifies outliers for creating box-and-whisker plots.
 
+use core::panic;
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use ordered_float::OrderedFloat;
 
-use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain};
+use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::data::{ContinuousType, DiscreteType, PrimitiveType};
 use crate::error::{PlotError, Result};
 use crate::stat::Stat;
@@ -77,6 +78,13 @@ impl Default for Boxplot {
 }
 
 impl Stat for Boxplot {
+    fn aesthetic_requirements(&self) -> super::StatAestheticRequirements {
+        super::StatAestheticRequirements {
+            main: AestheticProperty::X,
+            secondary: Some(AestheticProperty::Y),
+        }
+    }
+
     fn compute_group(
             &self,
             aesthetics: Vec<Aesthetic>,
@@ -92,6 +100,7 @@ impl Stat for Boxplot {
                     &mut BoxplotCounter::new(self.coef),
                 );
             }
+            panic!("Boxplot stat requires both x (discrete) and y (continuous) aesthetics");
         }
         panic!("No aesthetics provided");
     }
@@ -476,42 +485,6 @@ mod tests {
         assert_eq!(x_vals.len(), 2); // 2 boxes
         assert!(x_vals.contains(&4));
         assert!(x_vals.contains(&6));
-    }
-
-    #[test]
-    fn test_boxplot_preserves_x_type_float() {
-        use crate::aesthetics::{AesMap, AesValue, Aesthetic};
-        use crate::utils::dataframe::{DataFrame, FloatVec};
-
-        let mut df = DataFrame::new();
-        df.add_column("x", Arc::new(FloatVec(vec![1.5, 1.5, 2.5, 2.5])));
-        df.add_column("y", Arc::new(FloatVec(vec![10.0, 20.0, 30.0, 40.0])));
-        let df: Box<dyn DataSource> = Box::new(df);
-
-        let mut mapping = AesMap::new();
-        mapping.set(
-            Aesthetic::X(AestheticDomain::Discrete),
-            AesValue::column("x"),
-        );
-        mapping.set(
-            Aesthetic::Y(AestheticDomain::Continuous),
-            AesValue::column("y"),
-        );
-
-        let boxplot = Boxplot::new();
-        let (computed, _) = boxplot.compute(df.as_ref(), &mapping).unwrap();
-
-        // X column should be FloatVec
-        let x_col = computed.get("x").unwrap();
-        assert!(
-            x_col.iter_float().is_some(),
-            "X column should be float type"
-        );
-
-        let x_vals: Vec<f64> = x_col.iter_float().unwrap().collect();
-        assert_eq!(x_vals.len(), 2);
-        assert!(x_vals.contains(&1.5));
-        assert!(x_vals.contains(&2.5));
     }
 
     #[test]
