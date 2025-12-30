@@ -37,10 +37,12 @@ impl Vectorable for bool {
 }
 
 pub trait VectorVisitor {
-    fn visit<T: Vectorable>(&mut self, value: impl Iterator<Item = T>);
+    type Output;
+
+    fn visit<T: Vectorable>(&mut self, value: impl Iterator<Item = T>) -> std::result::Result<Self::Output, PlotError>;
 }
 
-pub fn visit<'a, V: VectorVisitor>(iter: VectorIter<'a>, visitor: &mut V) {
+pub fn visit<'a, V: VectorVisitor>(iter: VectorIter<'a>, visitor: &mut V) -> Result<V::Output, PlotError> {
     match iter {
         VectorIter::Int(it) => visitor.visit(it),
         VectorIter::Float(it) => visitor.visit(it),

@@ -32,6 +32,10 @@ pub enum AestheticProperty {
     Linetype,
     X,
     Y,
+    XMin,
+    XMax,
+    YMin,
+    YMax,
     XIntercept,
     YIntercept,
 }
@@ -46,9 +50,66 @@ impl AestheticProperty {
             AestheticProperty::Alpha => AestheticPropertyType::Float,
             AestheticProperty::Linetype => AestheticPropertyType::String,
             AestheticProperty::X => AestheticPropertyType::Float,
-            AestheticProperty::XIntercept => AestheticPropertyType::Float,
             AestheticProperty::Y => AestheticPropertyType::Float,
+            AestheticProperty::XMin => AestheticPropertyType::Float,
+            AestheticProperty::XMax => AestheticPropertyType::Float,
+            AestheticProperty::YMin => AestheticPropertyType::Float,
+            AestheticProperty::YMax => AestheticPropertyType::Float,
+            AestheticProperty::XIntercept => AestheticPropertyType::Float,
             AestheticProperty::YIntercept => AestheticPropertyType::Float,
+        }
+    }
+
+    pub fn aesthetics(&self) -> &[Aesthetic] {
+        use AestheticDomain::*;
+        match self {
+            AestheticProperty::Color => &[Aesthetic::Color(Continuous), Aesthetic::Color(Discrete)],
+            AestheticProperty::Fill => &[Aesthetic::Fill(Continuous), Aesthetic::Fill(Discrete)],
+            AestheticProperty::Size => &[Aesthetic::Size(Continuous), Aesthetic::Size(Discrete)],
+            AestheticProperty::Shape => &[Aesthetic::Shape],
+            AestheticProperty::Alpha => &[Aesthetic::Alpha(Continuous), Aesthetic::Alpha(Discrete)],
+            AestheticProperty::Linetype => &[Aesthetic::Linetype],
+            AestheticProperty::X => &[Aesthetic::X(Continuous), Aesthetic::X(Discrete)],
+            AestheticProperty::Y => &[Aesthetic::Y(Continuous), Aesthetic::Y(Discrete)],
+            AestheticProperty::XMin => &[Aesthetic::Xmin(Continuous), Aesthetic::Xmin(Discrete)],
+            AestheticProperty::XMax => &[Aesthetic::Xmax(Continuous), Aesthetic::Xmax(Discrete)],
+            AestheticProperty::YMin => &[Aesthetic::Ymin(Continuous), Aesthetic::Ymin(Discrete)],
+            AestheticProperty::YMax => &[Aesthetic::Ymax(Continuous), Aesthetic::Ymax(Discrete)],
+            AestheticProperty::XIntercept => &[Aesthetic::XIntercept],
+            AestheticProperty::YIntercept => &[Aesthetic::YIntercept],
+        }
+    }
+
+    pub fn perpendicular(&self) -> AestheticProperty {
+        match self {
+            AestheticProperty::X => AestheticProperty::Y,
+            AestheticProperty::Y => AestheticProperty::X,
+            AestheticProperty::XMin => AestheticProperty::YMin,
+            AestheticProperty::YMin => AestheticProperty::XMin,
+            AestheticProperty::XMax => AestheticProperty::YMax,
+            AestheticProperty::YMax => AestheticProperty::XMax,
+            AestheticProperty::XIntercept => AestheticProperty::YIntercept,
+            AestheticProperty::YIntercept => AestheticProperty::XIntercept,
+            other => *other,
+        }
+    }
+
+    pub fn to_str(&self) -> &'static str {
+        match self {
+            AestheticProperty::Color => "color",
+            AestheticProperty::Fill => "fill",
+            AestheticProperty::Size => "size",
+            AestheticProperty::Shape => "shape",
+            AestheticProperty::Alpha => "alpha",
+            AestheticProperty::Linetype => "linetype",
+            AestheticProperty::X => "x",
+            AestheticProperty::Y => "y",
+            AestheticProperty::XMin => "xmin",
+            AestheticProperty::XMax => "xmax",
+            AestheticProperty::YMin => "ymin",
+            AestheticProperty::YMax => "ymax",
+            AestheticProperty::XIntercept => "xintercept",
+            AestheticProperty::YIntercept => "yintercept",
         }
     }
 }
@@ -238,21 +299,19 @@ impl Aesthetic {
             Aesthetic::Alpha(_) => Some(AestheticProperty::Alpha),
             Aesthetic::Shape => Some(AestheticProperty::Shape),
             Aesthetic::Linetype => Some(AestheticProperty::Linetype),
-            Aesthetic::X(_)
-            | Aesthetic::Xmin(_)
-            | Aesthetic::Xmax(_)
-            | Aesthetic::XBegin
-            | Aesthetic::XEnd
-            | Aesthetic::XIntercept => Some(AestheticProperty::X),
+            Aesthetic::X(_) | Aesthetic::XBegin | Aesthetic::XEnd => Some(AestheticProperty::X),
+            Aesthetic::Xmin(_) => Some(AestheticProperty::XMin),
+            Aesthetic::Xmax(_) => Some(AestheticProperty::XMax),
+            Aesthetic::XIntercept => Some(AestheticProperty::XIntercept),
             Aesthetic::Y(_)
-            | Aesthetic::Ymin(_)
-            | Aesthetic::Ymax(_)
             | Aesthetic::YBegin
             | Aesthetic::YEnd
-            | Aesthetic::YIntercept
             | Aesthetic::Lower
             | Aesthetic::Middle
             | Aesthetic::Upper => Some(AestheticProperty::Y),
+            Aesthetic::Ymin(_) => Some(AestheticProperty::YMin),
+            Aesthetic::Ymax(_) => Some(AestheticProperty::YMax),
+            Aesthetic::YIntercept => Some(AestheticProperty::YIntercept),
             // Group and Label don't have corresponding properties
             Aesthetic::Group | Aesthetic::Label => None,
         }
@@ -263,8 +322,12 @@ impl From<(AestheticProperty, AestheticDomain)> for Aesthetic {
     fn from(value: (AestheticProperty, AestheticDomain)) -> Self {
         match value.0 {
             AestheticProperty::X => Aesthetic::X(value.1),
-            AestheticProperty::XIntercept => Aesthetic::XIntercept,
             AestheticProperty::Y => Aesthetic::Y(value.1),
+            AestheticProperty::XMin => Aesthetic::Xmin(value.1),
+            AestheticProperty::XMax => Aesthetic::Xmax(value.1),
+            AestheticProperty::YMin => Aesthetic::Ymin(value.1),
+            AestheticProperty::YMax => Aesthetic::Ymax(value.1),
+            AestheticProperty::XIntercept => Aesthetic::XIntercept,
             AestheticProperty::YIntercept => Aesthetic::YIntercept,
             AestheticProperty::Color => Aesthetic::Color(value.1),
             AestheticProperty::Fill => Aesthetic::Fill(value.1),
@@ -544,7 +607,9 @@ impl AesValue {
     ) -> Option<Box<dyn Iterator<Item = DiscreteValue> + 'a>> {
         match self.as_vector_iter(data)? {
             VectorIter::Int(iter) => Some(Box::new(iter.map(DiscreteValue::Int))),
-            VectorIter::Str(iter) => Some(Box::new(iter.map(|s| DiscreteValue::Str(s.to_string())))),
+            VectorIter::Str(iter) => {
+                Some(Box::new(iter.map(|s| DiscreteValue::Str(s.to_string()))))
+            }
             VectorIter::Bool(iter) => Some(Box::new(iter.map(DiscreteValue::Bool))),
             _ => None,
         }
@@ -785,7 +850,7 @@ impl AesMap {
 
     pub fn get_vector_iter<'a>(
         &'a self,
-        aes: &'a Aesthetic,
+        aes: &'_ Aesthetic,
         data: &'a dyn DataSource,
     ) -> Option<VectorIter<'a>> {
         self.get(aes)?.as_vector_iter(data)

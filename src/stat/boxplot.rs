@@ -9,11 +9,11 @@ use std::sync::Arc;
 use ordered_float::OrderedFloat;
 
 use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain};
-use crate::data::{ContinuousType, DataSource, DiscreteType, PrimitiveType};
+use crate::data::{ContinuousType, DiscreteType, PrimitiveType};
 use crate::error::{PlotError, Result};
 use crate::stat::Stat;
 use crate::utils::data::{
-    DiscreteContinuousVisitor2, DiscreteDiscreteContinuousVisitor3, visit2_dc, visit3_ddc,
+    DiscreteContinuousVisitor2, visit2_dc,
 };
 use crate::utils::dataframe::{DataFrame, FloatVec};
 
@@ -77,31 +77,23 @@ impl Default for Boxplot {
 }
 
 impl Stat for Boxplot {
-    fn apply(
-        &self,
-        data: &Box<dyn DataSource>,
-        mapping: &AesMap,
-    ) -> Result<Option<(Box<dyn DataSource>, AesMap)>> {
-        let x_values = mapping
-            .get_vector_iter(&Aesthetic::X(AestheticDomain::Discrete), data.as_ref())
-            .ok_or_else(|| PlotError::MissingAesthetic {
-                aesthetic: Aesthetic::X(AestheticDomain::Discrete),
-            })?;
-        let y_values = mapping
-            .get_vector_iter(&Aesthetic::Y(AestheticDomain::Continuous), data.as_ref())
-            .ok_or_else(|| PlotError::MissingAesthetic {
-                aesthetic: Aesthetic::Y(AestheticDomain::Continuous),
-            })?;
-
-        if let Some(group_values) = mapping.get_vector_iter(&Aesthetic::Group, data.as_ref()) {
-            let mut counter = GroupedBoxplotCounter::new(self.coef);
-            visit3_ddc(group_values, x_values, y_values, &mut counter)
-                .map(|(data, mapping)| Some((Box::new(data) as Box<dyn DataSource>, mapping)))
-        } else {
-            let mut counter = UngroupedBoxplotCounter::new(self.coef);
-            visit2_dc(x_values, y_values, &mut counter)
-                .map(|(data, mapping)| Some((Box::new(data) as Box<dyn DataSource>, mapping)))
+    fn compute_group(
+            &self,
+            aesthetics: Vec<Aesthetic>,
+            iters: Vec<crate::data::VectorIter<'_>>,
+            _params: Option<&dyn std::any::Any>,
+        ) -> Result<(DataFrame, AesMap)> {
+            let mut both = aesthetics.into_iter().zip(iters.into_iter());
+        if let Some((_x_aesthetic, x_iter)) = both.next() {
+            if let Some((_y_aesthetic, y_iter)) = both.next() {
+                return visit2_dc(
+                    x_iter,
+                    y_iter,
+                    &mut BoxplotCounter::new(self.coef),
+                );
+            }
         }
+        panic!("No aesthetics provided");
     }
 }
 
@@ -134,17 +126,17 @@ fn percentile(sorted_data: &[OrderedFloat<f64>], p: f64) -> f64 {
     }
 }
 
-struct UngroupedBoxplotCounter {
+struct BoxplotCounter {
     coef: f64,
 }
 
-impl UngroupedBoxplotCounter {
+impl BoxplotCounter {
     fn new(coef: f64) -> Self {
         Self { coef }
     }
 }
 
-impl DiscreteContinuousVisitor2 for UngroupedBoxplotCounter {
+impl DiscreteContinuousVisitor2 for BoxplotCounter {
     type Output = (DataFrame, AesMap);
 
     fn visit<
@@ -254,134 +246,6 @@ impl DiscreteContinuousVisitor2 for UngroupedBoxplotCounter {
     }
 }
 
-struct GroupedBoxplotCounter {
-    coef: f64,
-}
-
-impl GroupedBoxplotCounter {
-    fn new(coef: f64) -> Self {
-        Self { coef }
-    }
-}
-
-impl DiscreteDiscreteContinuousVisitor3 for GroupedBoxplotCounter {
-    type Output = (DataFrame, AesMap);
-
-    fn visit<
-        G: crate::utils::data::Vectorable + DiscreteType,
-        T: crate::utils::data::Vectorable + DiscreteType,
-        U: crate::utils::data::Vectorable + ContinuousType,
-    >(
-        &mut self,
-        group_iter: impl Iterator<Item = G>,
-        x_iter: impl Iterator<Item = T>,
-        y_iter: impl Iterator<Item = U>,
-    ) -> std::result::Result<Self::Output, PlotError> {
-        let mut grouped_data: HashMap<(G::Sortable, T::Sortable), Vec<OrderedFloat<f64>>> =
-            HashMap::new();
-        for ((group, x), y) in group_iter.zip(x_iter).zip(y_iter) {
-            let y = y.to_f64();
-            if y.is_finite() {
-                grouped_data
-                    .entry((group.to_sortable(), x.to_sortable()))
-                    .or_default()
-                    .push(y.to_sortable());
-            }
-        }
-
-        let mut pairs = grouped_data.into_iter().collect::<Vec<_>>();
-        pairs.sort_by(|a, b| a.0.cmp(&b.0));
-
-        let mut result_group: Vec<G> = Vec::new();
-        let mut result_x: Vec<T> = Vec::new();
-        let mut result_y = Vec::new();
-        let mut result_ymin = Vec::new();
-        let mut result_lower = Vec::new();
-        let mut result_middle = Vec::new();
-        let mut result_upper = Vec::new();
-        let mut result_ymax = Vec::new();
-
-        for ((group, x), mut values) in pairs.into_iter() {
-            if values.is_empty() {
-                continue;
-            }
-
-            values.sort();
-
-            let (ymin, q1, median, q3, ymax, lower_fence, upper_fence) =
-                compute_five_number_summary(self.coef, &values);
-
-            // Add box statistics
-            result_group.push(G::from_sortable(group.clone()));
-            result_x.push(T::from_sortable(x.clone()));
-            result_y.push(f64::NAN);
-            result_ymin.push(ymin);
-            result_lower.push(q1);
-            result_middle.push(median);
-            result_upper.push(q3);
-            result_ymax.push(ymax);
-
-            // Add outliers
-            for &value in &values {
-                if value.0 < lower_fence || value.0 > upper_fence {
-                    result_group.push(G::from_sortable(group.clone()));
-                    result_x.push(T::from_sortable(x.clone()));
-                    result_y.push(value.0);
-                    result_ymin.push(f64::NAN);
-                    result_lower.push(f64::NAN);
-                    result_middle.push(f64::NAN);
-                    result_upper.push(f64::NAN);
-                    result_ymax.push(f64::NAN);
-                }
-            }
-        }
-
-        let mut data = DataFrame::new();
-        let mut mapping = AesMap::new();
-
-        data.add_column("group", G::make_vector(result_group));
-        data.add_column("x", T::make_vector(result_x));
-        data.add_column("y", Arc::new(FloatVec(result_y)));
-        data.add_column("ymin", Arc::new(FloatVec(result_ymin)));
-        data.add_column("lower", Arc::new(FloatVec(result_lower)));
-        data.add_column("middle", Arc::new(FloatVec(result_middle)));
-        data.add_column("upper", Arc::new(FloatVec(result_upper)));
-        data.add_column("ymax", Arc::new(FloatVec(result_ymax)));
-
-        // Update mapping
-        mapping.set(Aesthetic::Group, AesValue::column("group"));
-        mapping.set(
-            Aesthetic::X(AestheticDomain::Discrete),
-            AesValue::column("x"),
-        );
-        mapping.set(
-            Aesthetic::Xmin(AestheticDomain::Discrete),
-            AesValue::column("x"),
-        );
-        mapping.set(
-            Aesthetic::Xmax(AestheticDomain::Discrete),
-            AesValue::column("x"),
-        );
-        mapping.set(
-            Aesthetic::Y(AestheticDomain::Continuous),
-            AesValue::column("y"),
-        );
-        mapping.set(
-            Aesthetic::Ymin(AestheticDomain::Continuous),
-            AesValue::column("ymin"),
-        );
-        mapping.set(
-            Aesthetic::Ymax(AestheticDomain::Continuous),
-            AesValue::column("ymax"),
-        );
-        mapping.set(Aesthetic::Lower, AesValue::column("lower"));
-        mapping.set(Aesthetic::Middle, AesValue::column("middle"));
-        mapping.set(Aesthetic::Upper, AesValue::column("upper"));
-
-        Ok((data, mapping))
-    }
-}
-
 /// Compute five-number summary from sorted data
 fn compute_five_number_summary(
     coef: f64,
@@ -430,6 +294,8 @@ fn compute_five_number_summary(
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
+
+    use crate::data::DataSource;
 
     use super::*;
 
@@ -498,10 +364,7 @@ mod tests {
         );
 
         let boxplot = Boxplot::new();
-        let result = boxplot.apply(&df, &mapping).unwrap();
-
-        assert!(result.is_some());
-        let (computed, new_mapping) = result.unwrap();
+        let (computed, new_mapping) = boxplot.compute(df.as_ref(), &mapping).unwrap();
 
         // Should have 2 box rows (one per x group), no outliers
         // Verify we have data by checking column exists
@@ -555,10 +418,7 @@ mod tests {
         );
 
         let boxplot = Boxplot::new();
-        let result = boxplot.apply(&df, &mapping).unwrap();
-
-        assert!(result.is_some());
-        let (computed, _) = result.unwrap();
+        let (computed, _) = boxplot.compute(df.as_ref(), &mapping).unwrap();
 
         // Check middle column: 1 non-NaN (box), 2 NaN (outliers)
         let middle_col = computed.get("middle").unwrap();
@@ -603,8 +463,7 @@ mod tests {
         );
 
         let boxplot = Boxplot::new();
-        let result = boxplot.apply(&df, &mapping).unwrap().unwrap();
-        let (computed, _) = result;
+        let (computed, _) = boxplot.compute(df.as_ref(), &mapping).unwrap();
 
         // X column should be IntVec
         let x_col = computed.get("x").unwrap();
@@ -640,8 +499,7 @@ mod tests {
         );
 
         let boxplot = Boxplot::new();
-        let result = boxplot.apply(&df, &mapping).unwrap().unwrap();
-        let (computed, _) = result;
+        let (computed, _) = boxplot.compute(df.as_ref(), &mapping).unwrap();
 
         // X column should be FloatVec
         let x_col = computed.get("x").unwrap();
@@ -677,8 +535,7 @@ mod tests {
         );
 
         let boxplot = Boxplot::new();
-        let result = boxplot.apply(&df, &mapping).unwrap().unwrap();
-        let (computed, _) = result;
+        let (computed, _) = boxplot.compute(df.as_ref(), &mapping).unwrap();
 
         // X column should be StrVec
         let x_col = computed.get("x").unwrap();

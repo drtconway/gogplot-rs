@@ -1,11 +1,10 @@
-use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain};
-use crate::data::{DataSource, DiscreteType};
-use crate::error::{PlotError, Result};
+use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain};
+use crate::data::VectorIter;
+use crate::error::Result;
 use crate::stat::Stat;
-use crate::utils::data::{
-    DiscreteDiscreteVisitor2, DiscreteVectorVisitor, Vectorable, visit_d, visit2_dd,
-};
+use crate::utils::data::Vectorable;
 use crate::utils::dataframe::{DataFrame, IntVec};
+use std::any::Any;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -21,80 +20,23 @@ use std::sync::Arc;
 /// - count: [2, 3, 1]
 pub struct Count;
 
-impl Stat for Count {
-    fn apply(
+impl Count {
+    pub fn new() -> Self {
+        Count
+    }
+
+    fn compute_group_inner<T: crate::data::PrimitiveType + Vectorable>(
         &self,
-        data: &Box<dyn DataSource>,
-        mapping: &AesMap,
-    ) -> Result<Option<(Box<dyn DataSource>, AesMap)>> {
-        if let Some(group_iter) = mapping.get_vector_iter(&Aesthetic::Group, data.as_ref()) {
-            let x_iter = match mapping
-                .get_vector_iter(&Aesthetic::X(AestheticDomain::Discrete), data.as_ref())
-            {
-                Some(iter) => iter,
-                None => {
-                    return Err(crate::error::PlotError::missing_stat_input(
-                        "Count",
-                        Aesthetic::X(AestheticDomain::Discrete),
-                    ));
-                }
-            };
+        aesthetic: Aesthetic,
+        iter: impl Iterator<Item = T>,
+    ) -> Result<(DataFrame, AesMap)> {
+        let mut counts: HashMap<T::Sortable, i64> = HashMap::new();
 
-            let mut counter = GroupedValueCounter::new();
-            visit2_dd(group_iter, x_iter, &mut counter)?;
-            let GroupedValueCounter { data, mapping } = counter;
-
-            Ok(Some((Box::new(data), mapping)))
-        } else {
-            let x_iter = match mapping
-                .get_vector_iter(&Aesthetic::X(AestheticDomain::Discrete), data.as_ref())
-            {
-                Some(iter) => iter,
-                None => {
-                    return Err(crate::error::PlotError::missing_stat_input(
-                        "Count",
-                        Aesthetic::X(AestheticDomain::Discrete),
-                    ));
-                }
-            };
-
-            let mut counter = UngroupedValueCounter::new();
-            visit_d(x_iter, &mut counter)?;
-            let UngroupedValueCounter { data, mapping } = counter;
-            Ok(Some((Box::new(data), mapping)))
+        for val in iter {
+            let key = val.to_sortable();
+            *counts.entry(key).or_insert(0) += 1;
         }
-    }
-}
 
-struct UngroupedValueCounter {
-    data: DataFrame,
-    mapping: AesMap,
-}
-
-impl UngroupedValueCounter {
-    fn new() -> Self {
-        Self {
-            data: DataFrame::new(),
-            mapping: AesMap::new(),
-        }
-    }
-}
-
-impl DiscreteVectorVisitor for UngroupedValueCounter {
-    type Output = ();
-    fn visit<T: Vectorable + DiscreteType>(
-        &mut self,
-        values: impl Iterator<Item = T>,
-    ) -> std::result::Result<Self::Output, PlotError> {
-        let counts: HashMap<T::Sortable, i64> = {
-            let mut map = HashMap::new();
-            for val in values {
-                let key = val.to_sortable();
-                *map.entry(key).or_insert(0) += 1;
-            }
-            map
-        };
-        // Sort by x value
         let mut pairs: Vec<(T::Sortable, i64)> = counts.into_iter().collect();
         pairs.sort();
         let mut x_values: Vec<T> = Vec::with_capacity(pairs.len());
@@ -103,77 +45,43 @@ impl DiscreteVectorVisitor for UngroupedValueCounter {
             x_values.push(T::from_sortable(x));
             count_values.push(c);
         }
-        self.data.add_column("x", T::make_vector(x_values));
-        self.data
-            .add_column("count", Arc::new(IntVec(count_values)));
 
-        self.mapping.set(
-            Aesthetic::X(AestheticDomain::Discrete),
-            AesValue::column("x"),
-        );
-        self.mapping.set(
-            Aesthetic::Y(AestheticDomain::Continuous),
-            AesValue::column("count"),
-        );
-        Ok(())
+        let mut df = DataFrame::new();
+        df.add_column("x", T::make_vector(x_values));
+        df.add_column("count", Arc::new(IntVec(count_values)));
+
+        let mut mapping = AesMap::new();
+        mapping.x("x", aesthetic.domain());
+        mapping.y("count", AestheticDomain::Continuous);
+
+        Ok((df, mapping))
     }
 }
 
-struct GroupedValueCounter {
-    data: DataFrame,
-    mapping: AesMap,
-}
-
-impl GroupedValueCounter {
-    fn new() -> Self {
-        Self {
-            data: DataFrame::new(),
-            mapping: AesMap::new(),
+impl Stat for Count {
+    fn compute_group(
+        &self,
+        aesthetics: Vec<Aesthetic>,
+        iters: Vec<VectorIter<'_>>,
+        _params: Option<&dyn Any>,
+    ) -> Result<(DataFrame, AesMap)> {
+        for (aes, iter) in aesthetics.into_iter().zip(iters.into_iter()) {
+            match iter {
+                VectorIter::Int(it) => {
+                    return self.compute_group_inner(aes, it);
+                }
+                VectorIter::Float(it) => {
+                    return self.compute_group_inner(aes, it);
+                }
+                VectorIter::Str(it) => {
+                    return self.compute_group_inner(aes, it.map(|s| s.to_string()));
+                }
+                VectorIter::Bool(it) => {
+                    return self.compute_group_inner(aes, it);
+                }
+            }
         }
-    }
-}
-
-impl DiscreteDiscreteVisitor2 for GroupedValueCounter {
-    fn visit<G: Vectorable + DiscreteType, T: Vectorable + DiscreteType>(
-        &mut self,
-        groups: impl Iterator<Item = G>,
-        values: impl Iterator<Item = T>,
-    ) {
-        let mut counts: HashMap<(G::Sortable, T::Sortable), i64> = HashMap::new();
-
-        for (val, group) in values.zip(groups) {
-            let sortable = (group.to_sortable(), val.to_sortable());
-            *counts.entry(sortable).or_insert(0) += 1;
-        }
-
-        // Sort by group then x value
-        let mut pairs: Vec<((G::Sortable, T::Sortable), i64)> = counts.into_iter().collect();
-        pairs.sort();
-
-        let mut x_values: Vec<T> = Vec::with_capacity(pairs.len());
-        let mut group_values: Vec<G> = Vec::with_capacity(pairs.len());
-        let mut count_values: Vec<i64> = Vec::with_capacity(pairs.len());
-        for ((g, x), v) in pairs.into_iter() {
-            x_values.push(T::from_sortable(x));
-            group_values.push(G::from_sortable(g));
-            count_values.push(v);
-        }
-
-        self.data.add_column("x", T::make_vector(x_values));
-        self.data.add_column("group", G::make_vector(group_values));
-        self.data
-            .add_column("count", Arc::new(IntVec(count_values)));
-
-        self.mapping.set(
-            Aesthetic::X(AestheticDomain::Discrete),
-            AesValue::column("x"),
-        );
-        self.mapping
-            .set(Aesthetic::Group, AesValue::column("group"));
-        self.mapping.set(
-            Aesthetic::Y(AestheticDomain::Continuous),
-            AesValue::column("count"),
-        );
+        panic!("No aesthetics provided");
     }
 }
 
@@ -182,7 +90,11 @@ mod tests {
     use std::sync::Arc;
 
     use super::*;
-    use crate::utils::dataframe::{DataFrame, FloatVec, StrVec};
+    use crate::{
+        aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain},
+        data::DataSource,
+        utils::dataframe::{DataFrame, FloatVec, StrVec},
+    };
 
     #[test]
     fn test_count_basic() {
@@ -195,12 +107,7 @@ mod tests {
         mapping.x("x", AestheticDomain::Discrete);
 
         let count = Count;
-        let result = count.apply(&df, &mapping);
-        assert!(result.is_ok());
-
-        let option_result = result.unwrap();
-        assert!(option_result.is_some());
-        let (data, new_mapping) = option_result.unwrap();
+        let (data, new_mapping) = count.compute(df.as_ref(), &mapping).expect("compute failed");
 
         // Check that y is now mapped to count
         assert_eq!(
@@ -228,7 +135,7 @@ mod tests {
         mapping.x("x", AestheticDomain::Discrete);
 
         let count = Count;
-        let (data, _) = count.apply(&df, &mapping).unwrap().unwrap();
+        let (data, _) = count.compute(df.as_ref(), &mapping).unwrap();
 
         let x_col = data.get("x").unwrap();
         let x_vals: Vec<i64> = x_col.iter_int().unwrap().collect();
@@ -249,7 +156,7 @@ mod tests {
         mapping.x("x", AestheticDomain::Discrete);
 
         let count = Count;
-        let (data, _) = count.apply(&df, &mapping).unwrap().unwrap();
+        let (data, _) = count.compute(df.as_ref(), &mapping).unwrap();
 
         let count_col = data.get("count").unwrap();
         let count_vals: Vec<i64> = count_col.iter_int().unwrap().collect();
@@ -265,7 +172,7 @@ mod tests {
         let mapping = AesMap::new(); // No x mapping
 
         let count = Count;
-        let result = count.apply(&df, &mapping);
+        let result = count.compute(df.as_ref(), &mapping);
         assert!(result.is_err());
     }
 
@@ -279,7 +186,7 @@ mod tests {
         mapping.x("x", AestheticDomain::Discrete);
 
         let count = Count;
-        let (data, _) = count.apply(&df, &mapping).unwrap().unwrap();
+        let (data, _) = count.compute(df.as_ref(), &mapping).unwrap();
 
         let x_col = data.get("x").unwrap();
         let x_vals: Vec<f64> = x_col.iter_float().unwrap().collect();
@@ -303,7 +210,7 @@ mod tests {
         mapping.x("x", AestheticDomain::Discrete);
 
         let count = Count;
-        let (data, _) = count.apply(&df, &mapping).unwrap().unwrap();
+        let (data, _) = count.compute(df.as_ref(), &mapping).unwrap();
 
         let x_col = data.get("x").unwrap();
         let x_vals: Vec<f64> = x_col.iter_float().unwrap().collect();
@@ -337,7 +244,7 @@ mod tests {
         mapping.x("x", AestheticDomain::Discrete);
 
         let count = Count;
-        let (data, _) = count.apply(&df, &mapping).unwrap().unwrap();
+        let (data, _) = count.compute(df.as_ref(), &mapping).unwrap();
 
         let x_col = data.get("x").unwrap();
         let x_vals: Vec<f64> = x_col.iter_float().unwrap().collect();
@@ -367,7 +274,7 @@ mod tests {
         mapping.x("x", AestheticDomain::Discrete);
 
         let count = Count;
-        let (data, _) = count.apply(&df, &mapping).unwrap().unwrap();
+        let (data, _) = count.compute(df.as_ref(), &mapping).unwrap();
 
         // String x values are kept as strings (categorical scale will handle positioning)
         let x_col = data.get("x").unwrap();
@@ -390,7 +297,7 @@ mod tests {
         mapping.x("x", AestheticDomain::Discrete);
 
         let count = Count;
-        let (data, _) = count.apply(&df, &mapping).unwrap().unwrap();
+        let (data, _) = count.compute(df.as_ref(), &mapping).unwrap();
 
         // String x values are kept as strings (categorical scale will handle positioning)
         let x_col = data.get("x").unwrap();

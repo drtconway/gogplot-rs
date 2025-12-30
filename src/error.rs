@@ -12,6 +12,10 @@ pub type Result<T> = std::result::Result<T, PlotError>;
 /// Describes expected or actual data types in error messages
 #[derive(Debug, Clone, PartialEq)]
 pub enum DataType {
+    // A Continuous datatype
+    Continuous,
+    // A Discrete datatype
+    Discrete,
     /// A vector type (int, float, string)
     Vector(VectorType),
     /// A numeric type (int or float)
@@ -31,6 +35,8 @@ pub enum DataType {
 impl Display for DataType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
+            DataType::Continuous => write!(f, "continuous"),
+            DataType::Discrete => write!(f, "discrete"),
             DataType::Vector(vtype) => write!(f, "{}", vtype),
             DataType::Numeric => write!(f, "numeric"),
             DataType::Constant(vtype) => write!(f, "{} constant", vtype),
@@ -49,6 +55,11 @@ pub enum PlotError {
         aesthetic: Aesthetic,
     },
 
+    /// A required aesthetic property is missing from the mapping
+    MissingAestheticProperty {
+        aesthetic_property: AestheticProperty,
+    },
+
     /// A column referenced in a mapping is missing from the data
     MissingColumn {
         column: String,
@@ -65,6 +76,11 @@ pub enum PlotError {
     InvalidColumnType {
         column: String,
         expected: DataType,
+    },
+
+    /// Stat parameters are invalid or missing
+    InvalidStatParameters {
+        details: String,
     },
 
     /// Scale configuration error (e.g., mismatched breaks and labels)
@@ -176,6 +192,9 @@ impl Display for PlotError {
             PlotError::MissingAesthetic { aesthetic } => {
                 write!(f, "Missing required aesthetic: {:?}", aesthetic)
             }
+            PlotError::MissingAestheticProperty { aesthetic_property } => {
+                write!(f, "Missing required aesthetic property: {}", aesthetic_property.to_str())
+            }
             PlotError::MissingColumn { column } => {
                 write!(f, "Column '{}' not found in data", column)
             }
@@ -196,6 +215,9 @@ impl Display for PlotError {
                     "Column '{}' has invalid type: expected {}",
                     column, expected
                 )
+            }
+            PlotError::InvalidStatParameters { details } => {
+                write!(f, "Invalid stat parameters: {}", details)
             }
             PlotError::ScaleMismatch {
                 breaks_count,

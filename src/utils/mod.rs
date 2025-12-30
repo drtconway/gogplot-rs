@@ -1,6 +1,7 @@
 pub mod dataframe;
 pub mod data;
 pub mod set;
+pub mod faithful;
 pub mod mtcars;
 pub mod sp500;
 

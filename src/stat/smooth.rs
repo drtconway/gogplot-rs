@@ -2,17 +2,13 @@
 //!
 //! Computes fitted values and confidence intervals using various smoothing methods.
 
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain};
-use crate::data::{ContinuousType, DataSource};
+use crate::data::ContinuousType;
 use crate::error::{PlotError, Result};
 use crate::stat::Stat;
-use crate::utils::data::{
-    ContinuousContinuousVisitor2, DiscreteContinuousContinuousVisitor3, Vectorable, visit2_cc,
-    visit3_dcc,
-};
+use crate::utils::data::{ContinuousContinuousVisitor2, Vectorable, visit2_cc};
 use crate::utils::dataframe::{DataFrame, FloatVec};
 
 /// Smoothing method to use
@@ -648,32 +644,25 @@ fn predict_linear_model(
 }
 
 impl Stat for Smooth {
-    fn apply(
+    fn compute_group(
         &self,
-        data: &Box<dyn DataSource>,
-        mapping: &AesMap,
-    ) -> Result<Option<(Box<dyn DataSource>, AesMap)>> {
-        let x_values = mapping
-            .get_vector_iter(&Aesthetic::X(AestheticDomain::Continuous), data.as_ref())
-            .ok_or_else(|| PlotError::MissingAesthetic {
-                aesthetic: Aesthetic::X(AestheticDomain::Continuous),
-            })?;
-
-        let y_values = mapping
-            .get_vector_iter(&Aesthetic::Y(AestheticDomain::Continuous), data.as_ref())
-            .ok_or_else(|| PlotError::MissingAesthetic {
-                aesthetic: Aesthetic::Y(AestheticDomain::Continuous),
-            })?;
-
-        if let Some(group_values) = mapping.get_vector_iter(&Aesthetic::Group, data.as_ref()) {
-            let mut visitor = SmoothVisitor::from(self);
-            visit3_dcc(group_values, x_values, y_values, &mut visitor).map(|(data, mapping)| {
-                Some((Box::new(data) as Box<dyn DataSource>, mapping))
-            })
+        _aesthetics: Vec<Aesthetic>,
+        iters: Vec<crate::data::VectorIter<'_>>,
+        _params: Option<&dyn std::any::Any>,
+    ) -> Result<(DataFrame, AesMap)> {
+        let mut iters = iters.into_iter();
+        if let Some(x_values) = iters.next() {
+            if let Some(y_values) = iters.next() {
+                let mut visitor = SmoothVisitor::from(self);
+                visit2_cc(x_values, y_values, &mut visitor)
+            } else {
+                Err(PlotError::MissingAesthetic {
+                    aesthetic: Aesthetic::Y(AestheticDomain::Continuous),
+                })
+            }
         } else {
-            let mut visitor = SmoothVisitor::from(self);
-            visit2_cc(x_values, y_values, &mut visitor).map(|(data, mapping)| {
-                Some((Box::new(data) as Box<dyn DataSource>, mapping))
+            Err(PlotError::MissingAesthetic {
+                aesthetic: Aesthetic::X(AestheticDomain::Continuous),
             })
         }
     }
@@ -752,124 +741,6 @@ impl ContinuousContinuousVisitor2 for SmoothVisitor {
             Aesthetic::Ymax(AestheticDomain::Continuous),
             AesValue::column("ymax"),
         );
-
-        Ok((data, mapping))
-    }
-}
-
-impl DiscreteContinuousContinuousVisitor3 for SmoothVisitor {
-    type Output = (DataFrame, AesMap);
-
-    fn visit<G: Vectorable, T: Vectorable + ContinuousType, U: Vectorable + ContinuousType>(
-        &mut self,
-        group_values: impl Iterator<Item = G>,
-        x_values: impl Iterator<Item = T>,
-        y_values: impl Iterator<Item = U>,
-    ) -> std::result::Result<Self::Output, PlotError> {
-        let groups: HashMap<G::Sortable, Vec<(T, U)>> = group_values
-            .zip(x_values.zip(y_values))
-            .fold(HashMap::new(), |mut acc, (g, (x, y))| {
-                acc.entry(g.to_sortable())
-                    .or_insert_with(Vec::new)
-                    .push((x, y));
-                acc
-            });
-
-        let mut pairs: Vec<(G::Sortable, Vec<(T, U)>)> = groups.into_iter().collect();
-        pairs.sort_by(|(g1, _), (g2, _)| g1.cmp(g2));
-
-        let mut result_x = Vec::new();
-        let mut result_y = Vec::new();
-        let mut result_ymin = Vec::new();
-        let mut result_ymax = Vec::new();
-        let mut result_se = Vec::new();
-        let mut result_group = Vec::new();
-
-        for (group_key, group_data) in pairs {
-            if group_data.len() < 2 {
-                continue; // Need at least 2 points to fit
-            }
-
-            let group_key = G::from_sortable(group_key);
-
-            let mut group_x: Vec<f64> = Vec::with_capacity(group_data.len());
-            let mut group_y: Vec<f64> = Vec::with_capacity(group_data.len());
-            for (x, y) in group_data.into_iter() {
-                group_x.push(x.to_f64());
-                group_y.push(y.to_f64());
-            }
-
-            // Compute range for predictions
-            let x_min = group_x.iter().cloned().fold(f64::INFINITY, f64::min);
-            let x_max = group_x.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-
-            // Generate evenly spaced x values for prediction
-            let x_pred: Vec<f64> = (0..self.smooth.n)
-                .map(|i| x_min + (x_max - x_min) * i as f64 / (self.smooth.n - 1) as f64)
-                .collect();
-
-            // Fit model and compute predictions
-            let (y_pred, ymin_pred, ymax_pred, se_pred) = match self.smooth.method {
-                Method::Lm => {
-                    let (intercept, slope, rse) = fit_linear_model(&group_x, &group_y)?;
-                    predict_linear_model(
-                        &x_pred,
-                        &group_x,
-                        intercept,
-                        slope,
-                        rse,
-                        self.smooth.level,
-                    )
-                }
-                Method::Spline => fit_cubic_spline(&group_x, &group_y, &x_pred, self.smooth.level)?,
-                Method::Loess => fit_loess(
-                    &group_x,
-                    &group_y,
-                    &x_pred,
-                    self.smooth.span,
-                    self.smooth.level,
-                )?,
-            };
-
-            // Add results for this group
-            for i in 0..self.smooth.n {
-                result_x.push(x_pred[i]);
-                result_y.push(y_pred[i]);
-                result_ymin.push(ymin_pred[i]);
-                result_ymax.push(ymax_pred[i]);
-                result_se.push(se_pred[i]);
-                result_group.push(group_key.clone());
-            }
-        }
-
-        // Create output dataframe
-        let mut data = DataFrame::new();
-        data.add_column("x", Arc::new(FloatVec(result_x)));
-        data.add_column("y", Arc::new(FloatVec(result_y)));
-        data.add_column("ymin", Arc::new(FloatVec(result_ymin)));
-        data.add_column("ymax", Arc::new(FloatVec(result_ymax)));
-        data.add_column("se", Arc::new(FloatVec(result_se)));
-        data.add_column("group", G::make_vector(result_group));
-
-        // Create mapping
-        let mut mapping = AesMap::new();
-        mapping.set(
-            Aesthetic::X(AestheticDomain::Continuous),
-            AesValue::column("x"),
-        );
-        mapping.set(
-            Aesthetic::Y(AestheticDomain::Continuous),
-            AesValue::column("y"),
-        );
-        mapping.set(
-            Aesthetic::Ymin(AestheticDomain::Continuous),
-            AesValue::column("ymin"),
-        );
-        mapping.set(
-            Aesthetic::Ymax(AestheticDomain::Continuous),
-            AesValue::column("ymax"),
-        );
-        mapping.set(Aesthetic::Group, AesValue::column("group"));
 
         Ok((data, mapping))
     }

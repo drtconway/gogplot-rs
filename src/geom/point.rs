@@ -196,7 +196,7 @@ impl GeomPoint {
             let x_px = ctx.map_x(x_norm);
             let y_px = ctx.map_y(y_norm);
 
-            log::info!(
+            log::debug!(
                 "Drawing point at data=({}, {}), norm=({}, {}), px=({}, {}), size={}, color={:?}, alpha={}, shape={:?}",
                 x_norm,
                 y_norm,

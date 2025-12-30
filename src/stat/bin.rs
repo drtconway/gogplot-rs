@@ -1,11 +1,10 @@
 use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain};
-use crate::data::{ContinuousType, DataSource, DiscreteType, VectorIter};
+use crate::data::{ContinuousType, DataSource, VectorIter};
 use crate::error::{PlotError, Result};
 use crate::stat::Stat;
-use crate::utils::data::{
-    ContinuousVectorVisitor, DiscreteContinuousVisitor2, Vectorable, visit_c, visit2_dc,
-};
+use crate::utils::data::Vectorable;
 use crate::utils::dataframe::{DataFrame, FloatVec, IntVec};
+use std::any::Any;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -66,6 +65,19 @@ impl Binner {
         let bin_end = bin_start + self.binwidth;
         (bin_start, bin_end)
     }
+
+    fn bin_from_iter<T: ContinuousType + Vectorable>(
+        &self,
+        iter: impl Iterator<Item = T>,
+    ) -> Vec<i64> {
+        let mut counts = vec![0i64; self.n_bins];
+        for value in iter {
+            let value_f64 = value.to_f64();
+            let bin_idx = self.bin_of_value(value_f64);
+            counts[bin_idx] += 1;
+        }
+        counts
+    }
 }
 
 impl BinStrategy {
@@ -111,6 +123,10 @@ impl Default for BinStrategy {
     fn default() -> Self {
         BinStrategy::Count(30)
     }
+}
+
+struct DataRanges {
+    ranges: HashMap<Aesthetic, (f64, f64)>,
 }
 
 /// Bin statistical transformation
@@ -159,43 +175,127 @@ impl Default for Bin {
 }
 
 impl Stat for Bin {
-    fn apply(
+    fn compute_params(
         &self,
-        data: &Box<dyn DataSource>,
+        data: &dyn DataSource,
         mapping: &AesMap,
-    ) -> Result<Option<(Box<dyn DataSource>, AesMap)>> {
-        // Get the x aesthetic - this is required for binning
-        let x_mapping = mapping
-            .get_vector_iter(&Aesthetic::X(AestheticDomain::Continuous), data.as_ref())
-            .ok_or_else(|| {
-                crate::error::PlotError::missing_stat_input(
-                    "Bin",
-                    Aesthetic::X(AestheticDomain::Continuous),
-                )
-            })?;
-
-        let (x_min, x_max) = get_data_range(x_mapping).ok_or_else(|| {
-            crate::error::PlotError::no_valid_data("no valid numeric values for binning")
-        })?;
-        let binner = Binner::new(x_min, x_max, &self.strategy.strategy);
-
-        if let Some(group_iter) = mapping.get_vector_iter(&Aesthetic::Group, data.as_ref()) {
-            let x_values = mapping
-                .get_vector_iter(&Aesthetic::X(AestheticDomain::Continuous), data.as_ref())
-                .unwrap();
-
-            let mut binner = GroupedValueBinner::new(binner, self.strategy.cumulative);
-            visit2_dc(group_iter, x_values, &mut binner)
-                .map(|(data, mapping)| Some((Box::new(data) as Box<dyn DataSource>, mapping)))
-        } else {
-            let x_values = mapping
-                .get_vector_iter(&Aesthetic::X(AestheticDomain::Continuous), data.as_ref())
-                .unwrap();
-
-            let mut binner = UngroupedValueBinner::new(binner, self.strategy.cumulative);
-            visit_c(x_values, &mut binner)
-                .map(|(data, mapping)| Some((Box::new(data) as Box<dyn DataSource>, mapping)))
+        aesthetics: &[Aesthetic],
+    ) -> Result<Option<Box<dyn Any>>> {
+        let mut result = HashMap::new();
+        for aes in aesthetics {
+            match mapping.get_vector_iter(aes, data) {
+                Some(iter) => {
+                    let range = get_data_range(iter)
+                        .ok_or(PlotError::MissingAesthetic { aesthetic: *aes })?;
+                    result.insert(*aes, range);
+                }
+                None => {
+                    return Err(PlotError::MissingAesthetic { aesthetic: *aes });
+                }
+            }
         }
+        Ok(Some(Box::new(DataRanges { ranges: result })))
+    }
+
+    fn compute_group(
+        &self,
+        aesthetics: Vec<Aesthetic>,
+        iters: Vec<VectorIter<'_>>,
+        params: Option<&dyn Any>,
+    ) -> Result<(DataFrame, AesMap)> {
+        let data_ranges = params.and_then(|p| p.downcast_ref::<DataRanges>()).ok_or(
+            PlotError::InvalidStatParameters {
+                details: "Missing or invalid parameters for Bin stat".to_string(),
+            },
+        )?;
+        for (aesthetic, iter) in aesthetics.into_iter().zip(iters.into_iter()) {
+            let data_range = data_ranges.ranges.get(&aesthetic).cloned();
+            let (min, max) = match data_range {
+                Some((min, max)) if min < max => (min, max),
+                _ => {
+                    // All values are identical or no valid values; create a single bin
+                    let mut data = DataFrame::new();
+                    data.add_column("xmin", Arc::new(FloatVec(vec![0.0])));
+                    data.add_column("x", Arc::new(FloatVec(vec![0.0])));
+                    data.add_column("xmax", Arc::new(FloatVec(vec![0.0])));
+                    data.add_column("count", Arc::new(IntVec(vec![0])));
+                    let mut mapping = AesMap::new();
+                    mapping.set(
+                        Aesthetic::X(AestheticDomain::Continuous),
+                        AesValue::column("x"),
+                    );
+                    mapping.set(
+                        Aesthetic::Xmin(AestheticDomain::Continuous),
+                        AesValue::column("xmin"),
+                    );
+                    mapping.set(
+                        Aesthetic::Xmax(AestheticDomain::Continuous),
+                        AesValue::column("xmax"),
+                    );
+                    mapping.set(
+                        Aesthetic::Y(AestheticDomain::Continuous),
+                        AesValue::column("count"),
+                    );
+                    return Ok((data, mapping));
+                }
+            };
+
+            let binner = Binner::new(min, max, &self.strategy.strategy);
+
+            let mut counts = match iter {
+                VectorIter::Int(iter) => binner.bin_from_iter(iter),
+                VectorIter::Float(iter) => binner.bin_from_iter(iter),
+                _ => {
+                    return Err(PlotError::InvalidAestheticType {
+                        aesthetic,
+                        expected: crate::error::DataType::Continuous,
+                        actual: crate::error::DataType::Discrete,
+                    });
+                }
+            };
+
+            if self.strategy.cumulative {
+                for i in 1..counts.len() {
+                    counts[i] += counts[i - 1];
+                }
+            }
+            let mut xmins = Vec::with_capacity(binner.len());
+            let mut xmaxs = Vec::with_capacity(binner.len());
+            let mut xcenters = Vec::with_capacity(binner.len());
+            for i in 0..binner.len() {
+                let (xmin, xmax) = binner.bin_bounds(i);
+                xmins.push(xmin);
+                xmaxs.push(xmax);
+                xcenters.push(binner.center_of_bin(i));
+            }
+
+            let mut data = DataFrame::new();
+            data.add_column("xmin", Arc::new(FloatVec(xmins)));
+            data.add_column("x", Arc::new(FloatVec(xcenters)));
+            data.add_column("xmax", Arc::new(FloatVec(xmaxs)));
+            data.add_column("count", Arc::new(IntVec(counts)));
+
+            let mut mapping = AesMap::new();
+            mapping.set(
+                Aesthetic::X(AestheticDomain::Continuous),
+                AesValue::column("x"),
+            );
+            mapping.set(
+                Aesthetic::Xmin(AestheticDomain::Continuous),
+                AesValue::column("xmin"),
+            );
+            mapping.set(
+                Aesthetic::Xmax(AestheticDomain::Continuous),
+                AesValue::column("xmax"),
+            );
+            mapping.set(
+                Aesthetic::Y(AestheticDomain::Continuous),
+                AesValue::column("count"),
+            );
+
+            return Ok((data, mapping));
+        }
+        panic!("No aesthetics provided");
     }
 }
 
@@ -223,175 +323,6 @@ fn get_data_range_inner<T: ContinuousType>(
     Some((min.to_f64(), max.to_f64()))
 }
 
-struct UngroupedValueBinner {
-    binner: Binner,
-    cumulative: bool,
-}
-
-impl UngroupedValueBinner {
-    fn new(binner: Binner, cumulative: bool) -> Self {
-        Self {
-            binner,
-            cumulative,
-        }
-    }
-}
-
-impl ContinuousVectorVisitor for UngroupedValueBinner {
-    type Output = (DataFrame, AesMap);
-
-    fn visit<T: Vectorable + ContinuousType>(
-        &mut self,
-        values: impl Iterator<Item = T>,
-    ) -> std::result::Result<Self::Output, PlotError> {
-        let mut counts = vec![0i64; self.binner.len()];
-
-        for value in values {
-            let value_f64 = value.to_f64();
-            let bin_idx = self.binner.bin_of_value(value_f64);
-            counts[bin_idx] += 1;
-        }
-
-        // If cumulative, accumulate counts
-        if self.cumulative {
-            for i in 1..self.binner.len() {
-                counts[i] += counts[i - 1];
-            }
-        }
-
-        // Generate bin centers
-        let mut mins = Vec::with_capacity(self.binner.len());
-        let mut centers = Vec::with_capacity(self.binner.len());
-        let mut maxs = Vec::with_capacity(self.binner.len());
-        for i in 0..self.binner.len() {
-            let (min, max) = self.binner.bin_bounds(i);
-            mins.push(min);
-            centers.push(self.binner.center_of_bin(i));
-            maxs.push(max);
-        }
-
-        let mut data = DataFrame::new();
-        let mut mapping = AesMap::new();
-
-        data.add_column("xmin", Arc::new(FloatVec(mins)));
-        data.add_column("x", Arc::new(FloatVec(centers)));
-        data.add_column("xmax", Arc::new(FloatVec(maxs)));
-        data.add_column("count", Arc::new(IntVec(counts)));
-
-        mapping.set(
-            Aesthetic::X(AestheticDomain::Continuous),
-            AesValue::column("x"),
-        );
-        mapping.set(
-            Aesthetic::Xmin(AestheticDomain::Continuous),
-            AesValue::column("xmin"),
-        );
-        mapping.set(
-            Aesthetic::Xmax(AestheticDomain::Continuous),
-            AesValue::column("xmax"),
-        );
-        mapping.set(
-            Aesthetic::Y(AestheticDomain::Continuous),
-            AesValue::column("count"),
-        );
-
-        Ok((data, mapping))
-    }
-}
-
-struct GroupedValueBinner {
-    binner: Binner,
-    cumulative: bool,
-}
-
-impl GroupedValueBinner {
-    fn new(binner: Binner, cumulative: bool) -> Self {
-        Self { binner, cumulative }
-    }
-}
-
-impl DiscreteContinuousVisitor2 for GroupedValueBinner {
-    type Output = (DataFrame, AesMap);
-
-    fn visit<G: Vectorable + DiscreteType, T: Vectorable + ContinuousType>(
-        &mut self,
-        group_values: impl Iterator<Item = G>,
-        x_values: impl Iterator<Item = T>,
-    ) -> std::result::Result<Self::Output, PlotError> {
-        let mut groups: HashMap<G::Sortable, Vec<i64>> = HashMap::new();
-        for (group, x) in group_values.zip(x_values) {
-            let value_f64 = x.to_f64();
-            let bin_idx = self.binner.bin_of_value(value_f64);
-            let entry = groups
-                .entry(group.to_sortable())
-                .or_insert_with(|| vec![0i64; self.binner.len()]);
-            entry[bin_idx] += 1;
-        }
-
-        let mut pairs = groups.into_iter().collect::<Vec<_>>();
-        pairs.sort_by_key(|(group, _)| group.clone());
-
-        let n = pairs.len() * self.binner.len();
-        let mut bins = Vec::with_capacity(n);
-        let mut mins = Vec::with_capacity(n);
-        let mut centers = Vec::with_capacity(n);
-        let mut maxs = Vec::with_capacity(n);
-        let mut counts = Vec::with_capacity(n);
-        let mut group_values = Vec::with_capacity(n);
-        for (group, group_counts) in pairs.into_iter() {
-            let group = G::from_sortable(group);
-            let mut group_counts = group_counts;
-            for i in 0..self.binner.len() {
-                if self.cumulative && i > 0 {
-                    group_counts[i] += group_counts[i - 1];
-                }
-                bins.push(i as i64);
-                let count = group_counts[i];
-                counts.push(count);
-                let (min, max) = self.binner.bin_bounds(i);
-                mins.push(min);
-                centers.push(self.binner.center_of_bin(i));
-                maxs.push(max);
-                group_values.push(group.clone());
-            }
-        }
-
-        let mut data = DataFrame::new();
-        let mut mapping = AesMap::new();
-
-        data.add_column("bin", Arc::new(IntVec(bins)));
-        data.add_column("xmin", Arc::new(FloatVec(mins)));
-        data.add_column("x", Arc::new(FloatVec(centers)));
-        data.add_column("xmax", Arc::new(FloatVec(maxs)));
-        data.add_column("count", Arc::new(IntVec(counts)));
-        data.add_column("group", G::make_vector(group_values));
-
-        mapping.set(
-            Aesthetic::X(AestheticDomain::Discrete),
-            AesValue::column("bin"),
-        );
-        mapping.set(
-            Aesthetic::X(AestheticDomain::Continuous),
-            AesValue::column("x"),
-        );
-        mapping.set(
-            Aesthetic::Xmin(AestheticDomain::Continuous),
-            AesValue::column("xmin"),
-        );
-        mapping.set(
-            Aesthetic::Xmax(AestheticDomain::Continuous),
-            AesValue::column("xmax"),
-        );
-        mapping.set(
-            Aesthetic::Y(AestheticDomain::Continuous),
-            AesValue::column("count"),
-        );
-        mapping.set(Aesthetic::Group, AesValue::column("group"));
-
-        Ok((data, mapping))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -409,10 +340,10 @@ mod tests {
         mapping.x("x", AestheticDomain::Continuous);
 
         let bin = Bin::with_count(3);
-        let result = bin.apply(&df, &mapping);
+        let result = bin.compute(df.as_ref(), &mapping);
         assert!(result.is_ok());
 
-        let (data, new_mapping) = result.unwrap().unwrap();
+        let (data, new_mapping) = result.unwrap();
 
         // Check that y is now mapped to count
         assert_eq!(
@@ -437,7 +368,7 @@ mod tests {
         mapping.x("x", AestheticDomain::Continuous);
 
         let bin = Bin::with_count(5);
-        let (data, _) = bin.apply(&df, &mapping).unwrap().unwrap();
+        let (data, _) = bin.compute(df.as_ref(), &mapping).unwrap();
 
         let count_col = data.get("count").unwrap();
         let counts: Vec<i64> = count_col.iter_int().unwrap().collect();
@@ -458,7 +389,7 @@ mod tests {
         mapping.x("x", AestheticDomain::Continuous);
 
         let bin = Bin::with_width(1.0);
-        let (data, _) = bin.apply(&df, &mapping).unwrap().unwrap();
+        let (data, _) = bin.compute(df.as_ref(), &mapping).unwrap();
 
         // With binwidth=1.0 and range 0-4, we expect bins like:
         // [0-1), [1-2), [2-3), [3-4]
@@ -484,7 +415,7 @@ mod tests {
         mapping.x("x", AestheticDomain::Continuous);
 
         let bin = Bin::with_count(3);
-        let (data, _) = bin.apply(&df, &mapping).unwrap().unwrap();
+        let (data, _) = bin.compute(df.as_ref(), &mapping).unwrap();
 
         let x_col = data.get("x").unwrap();
         let centers: Vec<f64> = x_col.iter_float().unwrap().collect();
@@ -505,7 +436,7 @@ mod tests {
         let mapping = AesMap::new(); // No x mapping
 
         let bin = Bin::default();
-        let result = bin.apply(&df, &mapping);
+        let result = bin.compute(df.as_ref(), &mapping);
         assert!(result.is_err());
     }
 
@@ -522,7 +453,7 @@ mod tests {
         mapping.x("x", AestheticDomain::Continuous);
 
         let bin = Bin::with_count(2);
-        let (data, _) = bin.apply(&df, &mapping).unwrap().unwrap();
+        let (data, _) = bin.compute(df.as_ref(), &mapping).unwrap();
 
         let count_col = data.get("count").unwrap();
         let counts: Vec<i64> = count_col.iter_int().unwrap().collect();
@@ -547,7 +478,7 @@ mod tests {
 
         // With range 0-10 and binwidth 2.0, we should get 5 bins
         let bin = Bin::with_width(2.0);
-        let (data, _) = bin.apply(&df, &mapping).unwrap().unwrap();
+        let (data, _) = bin.compute(df.as_ref(), &mapping).unwrap();
 
         let xmin_col = data.get("xmin").unwrap();
         let xmins: Vec<f64> = xmin_col.iter_float().unwrap().collect();
@@ -608,7 +539,7 @@ mod tests {
         );
 
         let bin = Bin::with_count(3);
-        let (data, new_mapping) = bin.apply(&df, &mapping).unwrap().unwrap();
+        let (data, new_mapping) = bin.compute(df.as_ref(), &mapping).unwrap();
 
         // Check that y is mapped to count
         assert_eq!(
@@ -685,7 +616,7 @@ mod tests {
         mapping.set(Aesthetic::Shape, AesValue::column("shape"));
 
         let bin = Bin::with_count(3);
-        let (data, _) = bin.apply(&df, &mapping).unwrap().unwrap();
+        let (data, _) = bin.compute(df.as_ref(), &mapping).unwrap();
 
         // Check that both grouping columns are preserved
         let color_col = data.get("color").unwrap();

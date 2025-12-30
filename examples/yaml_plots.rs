@@ -2,11 +2,13 @@ use gogplot::{
     aesthetics::{
         AestheticDomain,
         builder::{
-            ColorContinuousAesBuilder, ColorDiscreteAesBuilder, SizeContinuousAesBuilder, SizeDiscreteAesBuilder, XContininuousAesBuilder, XDiscreteAesBuilder, YContininuousAesBuilder, YDiscreteAesBuilder
+            ColorContinuousAesBuilder, ColorDiscreteAesBuilder, SizeContinuousAesBuilder,
+            SizeDiscreteAesBuilder, XContininuousAesBuilder, XDiscreteAesBuilder,
+            YContininuousAesBuilder, YDiscreteAesBuilder,
         },
     },
     error::to_io_error,
-    geom::{hline::geom_hline, line::geom_line, point::geom_point},
+    geom::{geom_rect, hline::geom_hline, line::geom_line, point::geom_point},
     plot::{PlotBuilder, plot},
     utils::mtcars::mtcars,
 };
@@ -48,6 +50,22 @@ pub struct MappingDefinition {
     /// Y-axis mapping
     #[serde(skip_serializing_if = "Option::is_none")]
     pub y: Option<String>,
+
+    /// X-axis minimum mapping
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub xmin: Option<String>,
+
+    /// X-axis maximum mapping
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub xmax: Option<String>,
+
+    /// Y-axis minimum mapping
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ymin: Option<String>,
+
+    /// Y-axis maximum mapping
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ymax: Option<String>,
 
     /// Color aesthetic mapping
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -119,6 +137,7 @@ pub struct LayerDefinition {
 pub enum GeomType {
     Point,
     Line,
+    Rect,
     HLine,
     VLine,
 }
@@ -318,7 +337,8 @@ fn add_layer<'a>(
 
             // Apply fixed parameters
             if let Some(color) = &layer.params.color {
-                geom = geom.color(color.clone());
+                let color = string_to_color(&color)?;
+                geom = geom.color(color);
             }
             if let Some(size) = layer.params.size {
                 geom = geom.size(size);
@@ -440,6 +460,50 @@ fn add_layer<'a>(
 
             builder + geom
         }
+        GeomType::Rect => {
+            let mut geom = geom_rect();
+
+            // Apply fixed parameters
+            if let Some(color) = &layer.params.fill {
+                let color = string_to_color(&color)?;
+                geom = geom.fill(color);
+            }
+            if let Some(alpha) = layer.params.alpha {
+                geom = geom.alpha(alpha);
+            }
+
+            if has_mappings(&layer.mapping) {
+                geom = geom.aes(|a| {
+                    if let Some(ref x) = layer.mapping.xmin {
+                        let (col, _domain) = decode_column_reference(x);
+                        a.xmin(&col);
+                    }
+                    if let Some(ref x) = layer.mapping.xmax {
+                        let (col, _domain) = decode_column_reference(x);
+                        a.xmax(&col);
+                    }
+                    if let Some(ref y) = layer.mapping.ymin {
+                        let (col, _domain) = decode_column_reference(y);
+                        a.ymin(&col);
+                    }
+                    if let Some(ref y) = layer.mapping.ymax {
+                        let (col, _domain) = decode_column_reference(y);
+                        a.ymax(&col);
+                    }
+                    if let Some(ref fill) = layer.mapping.fill {
+                        let (col, domain) = decode_column_reference(fill);
+                        match domain {
+                            Some(AestheticDomain::Continuous) => a.fill_continuous(&col),
+                            Some(AestheticDomain::Discrete) => a.fill_discrete(&col),
+                            None => a.fill_continuous(&col),
+                        }
+                    }
+                });
+            }
+
+            builder + geom
+        }
+
         GeomType::HLine => {
             let mut geom = geom_hline();
 

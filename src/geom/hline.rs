@@ -111,8 +111,9 @@ impl LayerBuilder for GeomHLineBuilder {
 
         // Determine and validate aesthetic domains
         let requirements = geom_hline.aesthetic_requirements();
-        let aesthetic_domains = determine_aesthetic_domains(&mapping, requirements, initial_domains)
-            .expect("Invalid aesthetic configuration for geom_hline");
+        let aesthetic_domains =
+            determine_aesthetic_domains(&mapping, requirements, initial_domains)
+                .expect("Invalid aesthetic configuration for geom_hline");
 
         // Create the layer
         let mut layer = crate::layer::Layer::new(Box::new(geom_hline));
@@ -203,8 +204,14 @@ impl GeomHLine {
         {
             let y_px = ctx.map_y(y_norm);
 
-            log::info!("Drawing hline at y_norm={}, y_px={}, color={:?}, size={}, alpha={}", 
-                      y_norm, y_px, color, size, alpha);
+            log::debug!(
+                "Drawing hline at y_norm={}, y_px={}, color={:?}, size={}, alpha={}",
+                y_norm,
+                y_px,
+                color,
+                size,
+                alpha
+            );
 
             let Color(r, g, b, a) = color;
             ctx.cairo.set_source_rgba(
@@ -220,8 +227,6 @@ impl GeomHLine {
             ctx.cairo.move_to(ctx.x_range.0, y_px);
             ctx.cairo.line_to(ctx.x_range.1, y_px);
             ctx.cairo.stroke().ok();
-            
-            log::info!("Drew hline from x={} to x={}", ctx.x_range.0, ctx.x_range.1);
         }
 
         Ok(())
@@ -237,7 +242,7 @@ impl Default for GeomHLine {
 const AESTHETIC_REQUIREMENTS: [AestheticRequirement; 4] = [
     AestheticRequirement {
         property: AestheticProperty::YIntercept,
-        required: true,  // Must have y-intercept (from property or mapping)
+        required: true, // Must have y-intercept (from property or mapping)
         constraint: DomainConstraint::Any,
     },
     AestheticRequirement {
@@ -288,7 +293,10 @@ impl Geom for GeomHLine {
         props
     }
 
-    fn property_defaults(&self, _theme: &crate::prelude::Theme) -> HashMap<AestheticProperty, super::properties::PropertyValue> {
+    fn property_defaults(
+        &self,
+        _theme: &crate::prelude::Theme,
+    ) -> HashMap<AestheticProperty, super::properties::PropertyValue> {
         let mut defaults = HashMap::new();
 
         // Only provide defaults for properties not explicitly set
@@ -333,14 +341,14 @@ impl Geom for GeomHLine {
         // Transform y_intercept through the Y scale
         if let Some(y_prop) = &mut self.y_intercept {
             if let Some(value) = y_prop.get_value() {
-                log::info!("GeomHLine::apply_scales - before: y_intercept = {}", value);
                 if let Some(normalized) = scales.y_continuous.map_value(&value) {
-                    log::info!("GeomHLine::apply_scales - after: y_intercept = {}", normalized);
                     y_prop.value(normalized);
-                }
-                else {
+                } else {
                     self.y_intercept = None;
-                    log::warn!("Y-intercept value {} is outside the Y scale domain and will not be rendered.", value);
+                    log::warn!(
+                        "Y-intercept value {} is outside the Y scale domain and will not be rendered.",
+                        value
+                    );
                 }
             }
         }
@@ -351,14 +359,10 @@ impl Geom for GeomHLine {
         ctx: &mut RenderContext,
         mut properties: HashMap<AestheticProperty, PropertyVector>,
     ) -> Result<(), PlotError> {
-        log::info!("GeomHLine::render called with properties: {:?}", properties.keys().collect::<Vec<_>>());
-        
         let y_values = properties
             .remove(&AestheticProperty::YIntercept)
             .unwrap()
             .as_floats();
-
-        log::info!("GeomHLine: y_values = {:?}", y_values);
 
         let color_values = properties
             .remove(&AestheticProperty::Color)

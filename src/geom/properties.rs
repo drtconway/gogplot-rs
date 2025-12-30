@@ -13,13 +13,13 @@ pub enum Property {
     Shape(ShapeProperty),
 }
 
-    #[derive(Debug, Clone)]
+#[derive(Debug, Clone)]
 pub enum PropertyValue {
     Int(i64),
     Float(f64),
     String(String),
     Color(Color),
-    Shape(Shape),    
+    Shape(Shape),
 }
 
 #[derive(Debug, Clone)]
@@ -46,12 +46,7 @@ impl PropertyVector {
     pub fn to_shape(self) -> PropertyVector {
         match self {
             PropertyVector::Int(v) => {
-                log::info!("Converting int vector to shapes: {:?}", v);
-                let shapes: Vec<Shape> = v.into_iter().map(|s| {
-                    let shape = Shape::from(s);
-                    log::info!("  {} -> {:?}", s, shape);
-                    shape
-                }).collect();
+                let shapes: Vec<Shape> = v.into_iter().map(|s| Shape::from(s)).collect();
                 PropertyVector::Shape(shapes)
             }
             PropertyVector::Shape(_) => self.clone(),

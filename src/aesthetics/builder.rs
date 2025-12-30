@@ -56,6 +56,58 @@ pub trait YDiscreteAesBuilder: AesMapBuilderTrait {
     }
 }
 
+pub trait XMinContinuousAesBuilder: AesMapBuilderTrait {
+    fn xmin(&mut self, column: &str) {
+        self.aes().set(
+            Aesthetic::Xmin(AestheticDomain::Continuous),
+            AesValue::Column {
+                name: column.to_string(),
+                hint: None,
+                original_name: None,
+            },
+        );
+    }
+}
+
+pub trait XMaxContinuousAesBuilder: AesMapBuilderTrait {
+    fn xmax(&mut self, column: &str) {
+        self.aes().set(
+            Aesthetic::Xmax(AestheticDomain::Continuous),
+            AesValue::Column {
+                name: column.to_string(),
+                hint: None,
+                original_name: None,
+            },
+        );
+    }
+}
+
+pub trait YMinContinuousAesBuilder: AesMapBuilderTrait {
+    fn ymin(&mut self, column: &str) {
+        self.aes().set(
+            Aesthetic::Ymin(AestheticDomain::Continuous),
+            AesValue::Column {
+                name: column.to_string(),
+                hint: None,
+                original_name: None,
+            },
+        );
+    }
+}
+
+pub trait YMaxContinuousAesBuilder: AesMapBuilderTrait {
+    fn ymax(&mut self, column: &str) {
+        self.aes().set(
+            Aesthetic::Ymax(AestheticDomain::Continuous),
+            AesValue::Column {
+                name: column.to_string(),
+                hint: None,
+                original_name: None,
+            },
+        );
+    }
+}
+
 pub trait ColorContinuousAesBuilder: AesMapBuilderTrait {
     fn color_continuous(&mut self, column: &str) {
         self.aes().set(
@@ -83,7 +135,7 @@ pub trait ColorDiscreteAesBuilder: AesMapBuilderTrait {
 }
 
 pub trait FillContinuousAesBuilder: AesMapBuilderTrait {
-    fn fill(&mut self, column: &str) {
+    fn fill_continuous(&mut self, column: &str) {
         self.aes().set(
             Aesthetic::Fill(AestheticDomain::Continuous),
             AesValue::Column {
@@ -217,6 +269,10 @@ impl XContininuousAesBuilder for AesMapBuilder {}
 impl XDiscreteAesBuilder for AesMapBuilder {}
 impl YContininuousAesBuilder for AesMapBuilder {}
 impl YDiscreteAesBuilder for AesMapBuilder {}
+impl XMinContinuousAesBuilder for AesMapBuilder {}
+impl XMaxContinuousAesBuilder for AesMapBuilder {}
+impl YMinContinuousAesBuilder for AesMapBuilder {}
+impl YMaxContinuousAesBuilder for AesMapBuilder {}
 impl ColorContinuousAesBuilder for AesMapBuilder {}
 impl ColorDiscreteAesBuilder for AesMapBuilder {}
 impl FillContinuousAesBuilder for AesMapBuilder {}

@@ -106,6 +106,16 @@ pub enum PrimitiveValue {
     Bool(bool),
 }
 
+impl PrimitiveValue {
+    pub fn to_f64(&self) -> Option<f64> {
+        match self {
+            PrimitiveValue::Int(i) => Some(*i as f64),
+            PrimitiveValue::Float(f) => Some(*f),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum DiscreteValue {
     Str(String),

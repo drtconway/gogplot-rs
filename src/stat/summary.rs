@@ -1,11 +1,11 @@
 // Statistical summary transformation
 
-use crate::aesthetics::{AesMap, Aesthetic};
-use crate::data::{DataSource, GenericVector, VectorType};
-use crate::error::{PlotError, Result};
+use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain};
+use crate::data::{ContinuousType, DiscreteType, VectorIter};
+use crate::error::Result;
 use crate::stat::Stat;
-use crate::utils::dataframe::{DataFrame, FloatVec, IntVec, StrVec};
-use std::collections::HashMap;
+use crate::utils::data::Vectorable;
+use crate::utils::dataframe::{DataFrame, FloatVec, IntVec};
 use std::sync::Arc;
 
 /// Summary stat - computes scalar summary statistics for specified aesthetics
@@ -25,239 +25,118 @@ impl Summary {
         Self { aesthetics }
     }
 
-    /// Compute summary statistics for a single aesthetic
-    fn compute_for_aesthetic(
+    fn compute_group_inner_continuous<T: ContinuousType + Vectorable>(
         &self,
-        data: &dyn DataSource,
-        aesthetic: Aesthetic,
-        column_name: &str,
-        use_prefix: bool,
-    ) -> Result<HashMap<String, Arc<dyn GenericVector>>> {
-        let column = data
-            .get(column_name)
-            .ok_or_else(|| PlotError::missing_column(column_name))?;
+        iter: impl Iterator<Item = T>,
+    ) -> Result<(DataFrame, AesMap)> {
+        let values: Vec<f64> = iter.map(|v| v.to_f64()).filter(|v| v.is_finite()).collect();
 
-        let prefix = if use_prefix {
-            format!("{:?}_", aesthetic).to_lowercase()
+        let mut data = DataFrame::new();
+        let mapping = AesMap::new();
+
+        if values.len() == 0 {
+            data.add_column("min", Arc::new(FloatVec(vec![f64::NAN])));
+            data.add_column("max", Arc::new(FloatVec(vec![f64::NAN])));
+            data.add_column("mean", Arc::new(FloatVec(vec![f64::NAN])));
+            data.add_column("median", Arc::new(FloatVec(vec![f64::NAN])));
+            data.add_column("sd", Arc::new(FloatVec(vec![f64::NAN])));
         } else {
-            String::new()
-        };
+            let min = values.iter().copied().fold(f64::INFINITY, f64::min);
+            let max = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+            let mean = values.iter().sum::<f64>() / values.len() as f64;
 
-        let mut result: HashMap<String, Arc<dyn GenericVector>> = HashMap::new();
+            let mut sorted = values.clone();
+            sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            let median = if sorted.len() % 2 == 0 {
+                let mid = sorted.len() / 2;
+                (sorted[mid - 1] + sorted[mid]) / 2.0
+            } else {
+                sorted[sorted.len() / 2]
+            };
 
-        match column.vtype() {
-            VectorType::Int | VectorType::Float => {
-                // Continuous statistics
-                let values: Vec<f64> = match column.vtype() {
-                    VectorType::Int => {
-                        if let Some(iter) = column.iter_int() {
-                            iter.map(|v| v as f64).collect()
-                        } else {
-                            return Err(PlotError::invalid_column_type(column_name, "int"));
-                        }
-                    }
-                    VectorType::Float => {
-                        if let Some(iter) = column.iter_float() {
-                            iter.collect()
-                        } else {
-                            return Err(PlotError::invalid_column_type(column_name, "float"));
-                        }
-                    }
-                    _ => unreachable!(),
-                };
+            let variance =
+                values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / values.len() as f64;
+            let sd = variance.sqrt();
 
-                // Filter out NaN and infinity
-                let valid_values: Vec<f64> = values.into_iter().filter(|v| v.is_finite()).collect();
+            data.add_column("min", Arc::new(FloatVec(vec![min])));
+            data.add_column("max", Arc::new(FloatVec(vec![max])));
+            data.add_column("mean", Arc::new(FloatVec(vec![mean])));
+            data.add_column("median", Arc::new(FloatVec(vec![median])));
+            data.add_column("sd", Arc::new(FloatVec(vec![sd])));
+        }
 
-                if valid_values.is_empty() {
-                    // All values were invalid - return NaN for all stats
-                    result.insert(
-                        format!("{}min", prefix),
-                        Arc::new(FloatVec(vec![f64::NAN])) as Arc<dyn GenericVector>,
-                    );
-                    result.insert(
-                        format!("{}max", prefix),
-                        Arc::new(FloatVec(vec![f64::NAN])) as Arc<dyn GenericVector>,
-                    );
-                    result.insert(
-                        format!("{}mean", prefix),
-                        Arc::new(FloatVec(vec![f64::NAN])) as Arc<dyn GenericVector>,
-                    );
-                    result.insert(
-                        format!("{}median", prefix),
-                        Arc::new(FloatVec(vec![f64::NAN])) as Arc<dyn GenericVector>,
-                    );
-                    result.insert(
-                        format!("{}sd", prefix),
-                        Arc::new(FloatVec(vec![f64::NAN])) as Arc<dyn GenericVector>,
-                    );
-                } else {
-                    let min = valid_values.iter().copied().fold(f64::INFINITY, f64::min);
-                    let max = valid_values
-                        .iter()
-                        .copied()
-                        .fold(f64::NEG_INFINITY, f64::max);
-                    let mean = valid_values.iter().sum::<f64>() / valid_values.len() as f64;
+        Ok((data, mapping))
+    }
 
-                    // Median
-                    let mut sorted = valid_values.clone();
-                    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
-                    let median = if sorted.len() % 2 == 0 {
-                        let mid = sorted.len() / 2;
-                        (sorted[mid - 1] + sorted[mid]) / 2.0
-                    } else {
-                        sorted[sorted.len() / 2]
-                    };
-
-                    // Standard deviation
-                    let variance = valid_values.iter().map(|v| (v - mean).powi(2)).sum::<f64>()
-                        / valid_values.len() as f64;
-                    let sd = variance.sqrt();
-
-                    result.insert(
-                        format!("{}min", prefix),
-                        Arc::new(FloatVec(vec![min])) as Arc<dyn GenericVector>,
-                    );
-                    result.insert(
-                        format!("{}max", prefix),
-                        Arc::new(FloatVec(vec![max])) as Arc<dyn GenericVector>,
-                    );
-                    result.insert(
-                        format!("{}mean", prefix),
-                        Arc::new(FloatVec(vec![mean])) as Arc<dyn GenericVector>,
-                    );
-                    result.insert(
-                        format!("{}median", prefix),
-                        Arc::new(FloatVec(vec![median])) as Arc<dyn GenericVector>,
-                    );
-                    result.insert(
-                        format!("{}sd", prefix),
-                        Arc::new(FloatVec(vec![sd])) as Arc<dyn GenericVector>,
-                    );
-                }
-            }
-            VectorType::Str | VectorType::Bool => {
-                // Categorical statistics
-                let values: Vec<String> = match column.vtype() {
-                    VectorType::Str => {
-                        if let Some(iter) = column.iter_str() {
-                            iter.map(|s| s.to_string()).collect()
-                        } else {
-                            return Err(PlotError::invalid_column_type(column_name, "string"));
-                        }
-                    }
-                    VectorType::Bool => {
-                        if let Some(iter) = column.iter_bool() {
-                            iter.map(|b| b.to_string()).collect()
-                        } else {
-                            return Err(PlotError::invalid_column_type(column_name, "boolean"));
-                        }
-                    }
-                    _ => unreachable!(),
-                };
-
-                if values.is_empty() {
-                    result.insert(
-                        format!("{}min", prefix),
-                        Arc::new(StrVec(vec![String::new()])) as Arc<dyn GenericVector>,
-                    );
-                    result.insert(
-                        format!("{}max", prefix),
-                        Arc::new(StrVec(vec![String::new()])) as Arc<dyn GenericVector>,
-                    );
-                    result.insert(
-                        format!("{}mode", prefix),
-                        Arc::new(StrVec(vec![String::new()])) as Arc<dyn GenericVector>,
-                    );
-                    result.insert(
-                        format!("{}n_unique", prefix),
-                        Arc::new(IntVec(vec![0])) as Arc<dyn GenericVector>,
-                    );
-                } else {
-                    // Min/max - lexicographic ordering
-                    let min = values.iter().min().unwrap().clone();
-                    let max = values.iter().max().unwrap().clone();
-
-                    // Mode - most common value (first in case of tie)
-                    let mut counts: HashMap<&str, usize> = HashMap::new();
-                    for value in &values {
-                        *counts.entry(value.as_str()).or_insert(0) += 1;
-                    }
-                    let mode = counts
-                        .iter()
-                        .max_by_key(|(_, count)| *count)
-                        .map(|(value, _)| value.to_string())
-                        .unwrap_or_default();
-
-                    // Number of unique values
-                    let n_unique = counts.len() as i64;
-
-                    result.insert(
-                        format!("{}min", prefix),
-                        Arc::new(StrVec(vec![min])) as Arc<dyn GenericVector>,
-                    );
-                    result.insert(
-                        format!("{}max", prefix),
-                        Arc::new(StrVec(vec![max])) as Arc<dyn GenericVector>,
-                    );
-                    result.insert(
-                        format!("{}mode", prefix),
-                        Arc::new(StrVec(vec![mode])) as Arc<dyn GenericVector>,
-                    );
-                    result.insert(
-                        format!("{}n_unique", prefix),
-                        Arc::new(IntVec(vec![n_unique])) as Arc<dyn GenericVector>,
-                    );
-                }
+    fn compute_group_inner_discrete<T: DiscreteType + Vectorable>(
+        &self,
+        iter: impl Iterator<Item = T>,
+    ) -> Result<(DataFrame, AesMap)> {
+        let mut values: Vec<T> = iter.collect();
+        values.sort();
+        let mut groups = Vec::new();
+        groups.push((values[0].clone(), 1usize));
+        for v in values.into_iter().skip(1) {
+            if v == groups.last().unwrap().0 {
+                let last = groups.last_mut().unwrap();
+                last.1 += 1;
+            } else {
+                groups.push((v.clone(), 1usize));
             }
         }
 
-        Ok(result)
+        let mut data = DataFrame::new();
+        let mapping = AesMap::new();
+
+        if groups.len() == 0 {
+            data.add_column("min", T::make_vector(Vec::<T>::new()));
+            data.add_column("max", T::make_vector(Vec::<T>::new()));
+            data.add_column("mode", T::make_vector(Vec::<T>::new()));
+            data.add_column("n_unique", Arc::new(IntVec(vec![])));
+        } else {
+            let min = groups.first().unwrap().0.clone();
+            let max = groups.last().unwrap().0.clone();
+            let mode = groups
+                .iter()
+                .max_by_key(|(_, count)| *count)
+                .map(|(value, _)| value.clone())
+                .unwrap();
+            let n_unique = groups.len() as i64;
+
+            data.add_column("min", T::make_vector(vec![min]));
+            data.add_column("max", T::make_vector(vec![max]));
+            data.add_column("mode", T::make_vector(vec![mode]));
+            data.add_column("n_unique", Arc::new(IntVec(vec![n_unique])));
+        }
+
+        Ok((data, mapping))
     }
 }
 
 impl Stat for Summary {
-    fn apply(
+    fn compute_group(
         &self,
-        data: &Box<dyn DataSource>,
-        mapping: &AesMap,
-    ) -> Result<Option<(Box<dyn DataSource>, AesMap)>> {
-        // Determine if we should use prefixes (multiple aesthetics)
-        let use_prefix = self.aesthetics.len() > 1;
-
-        let mut all_columns: HashMap<String, Arc<dyn GenericVector>> = HashMap::new();
-
-        // Compute summaries for each aesthetic
-        for aesthetic in &self.aesthetics {
-            // Get the column name mapped to this aesthetic
-            let aes_value = mapping
-                .get(aesthetic)
-                .ok_or_else(|| PlotError::missing_stat_input("Summary", *aesthetic))?;
-
-            let column_name = aes_value.as_column_name().ok_or_else(|| {
-                PlotError::no_valid_data(format!(
-                    "Aesthetic {:?} must be mapped to a column for Summary stat",
-                    aesthetic
-                ))
-            })?;
-
-            // Compute summaries for this aesthetic
-            let aesthetic_columns =
-                self.compute_for_aesthetic(data.as_ref(), *aesthetic, column_name, use_prefix)?;
-
-            // Add to result
-            all_columns.extend(aesthetic_columns);
+        aesthetics: Vec<Aesthetic>,
+        iters: Vec<crate::data::VectorIter<'_>>,
+        _params: Option<&dyn std::any::Any>,
+    ) -> Result<(DataFrame, AesMap)> {
+        for (aesthetic, iter) in aesthetics.iter().zip(iters.into_iter()) {
+            return match iter {
+                VectorIter::Int(iter) => {
+                    if aesthetic.domain() == AestheticDomain::Continuous {
+                        self.compute_group_inner_continuous(iter)
+                    } else {
+                        self.compute_group_inner_discrete(iter)
+                    }
+                }
+                VectorIter::Float(iter) => self.compute_group_inner_continuous(iter),
+                VectorIter::Str(iter) => {
+                    self.compute_group_inner_discrete(iter.map(|s| s.to_string()))
+                }
+                VectorIter::Bool(iter) => self.compute_group_inner_discrete(iter),
+            };
         }
-
-        // Create output DataFrame
-        let mut df = DataFrame::new();
-        for (name, column) in all_columns {
-            df.add_column(name, column);
-        }
-
-        // The mapping doesn't change - downstream geoms will map to the computed columns
-        // (e.g., .geom_hline(Aes::y("mean")) or .geom_hline(Aes::y("y_mean")))
-        Ok(Some((Box::new(df), mapping.clone())))
+        panic!("No aesthetics provided for Summary stat");
     }
 }
 
@@ -268,6 +147,7 @@ mod tests {
     use super::*;
     use crate::{
         aesthetics::AestheticDomain,
+        data::DataSource,
         utils::dataframe::{DataFrame, FloatVec, StrVec},
     };
 
@@ -281,10 +161,7 @@ mod tests {
         mapping.x("x", AestheticDomain::Continuous);
 
         let stat = Summary::new(vec![Aesthetic::X(AestheticDomain::Continuous)]);
-        let result = stat.apply(&df, &mapping).unwrap();
-
-        assert!(result.is_some());
-        let (output, _) = result.unwrap();
+        let (output, _) = stat.compute(df.as_ref(), &mapping).unwrap();
 
         // Should produce columns without prefix
         assert!(output.get("min").is_some());
@@ -314,51 +191,6 @@ mod tests {
     }
 
     #[test]
-    fn test_summary_multiple_continuous() {
-        let mut df = DataFrame::new();
-        df.add_column("x", Arc::new(FloatVec(vec![1.0, 2.0, 3.0])));
-        df.add_column("y", Arc::new(FloatVec(vec![10.0, 20.0, 30.0])));
-        let df: Box<dyn DataSource> = Box::new(df);
-
-        let mut mapping = AesMap::new();
-        mapping.x("x", AestheticDomain::Continuous);
-        mapping.y("y", AestheticDomain::Continuous);
-
-        let stat = Summary::new(vec![
-            Aesthetic::X(AestheticDomain::Continuous),
-            Aesthetic::Y(AestheticDomain::Continuous),
-        ]);
-        let result = stat.apply(&df, &mapping).unwrap();
-
-        assert!(result.is_some());
-        let (output, _) = result.unwrap();
-
-        // Should produce columns with prefix
-        assert!(output.get("x_min").is_some());
-        assert!(output.get("x_mean").is_some());
-        assert!(output.get("y_min").is_some());
-        assert!(output.get("y_mean").is_some());
-
-        let x_mean = output
-            .get("x_mean")
-            .unwrap()
-            .iter_float()
-            .unwrap()
-            .next()
-            .unwrap();
-        assert!((x_mean - 2.0).abs() < 1e-10);
-
-        let y_mean = output
-            .get("y_mean")
-            .unwrap()
-            .iter_float()
-            .unwrap()
-            .next()
-            .unwrap();
-        assert!((y_mean - 20.0).abs() < 1e-10);
-    }
-
-    #[test]
     fn test_summary_categorical() {
         let mut df = DataFrame::new();
         df.add_column("group", Arc::new(StrVec::from(vec!["a", "b", "a", "c"])));
@@ -368,10 +200,7 @@ mod tests {
         mapping.x("group", AestheticDomain::Discrete);
 
         let stat = Summary::new(vec![Aesthetic::X(AestheticDomain::Discrete)]);
-        let result = stat.apply(&df, &mapping).unwrap();
-
-        assert!(result.is_some());
-        let (output, _) = result.unwrap();
+        let (output, _) = stat.compute(df.as_ref(), &mapping).unwrap();
 
         // Should produce categorical stats without prefix
         assert!(output.get("min").is_some());

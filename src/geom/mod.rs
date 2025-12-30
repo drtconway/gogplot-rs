@@ -34,11 +34,11 @@ pub use hline::{geom_hline, GeomHLine, GeomHLineBuilder};
 pub use label::GeomLabel;
 pub use line::GeomLine;
 pub use point::GeomPoint;
-pub use rect::GeomRect;
+pub use rect::{geom_rect, GeomRect, GeomRectBuilder};
 pub use segment::GeomSegment;
 pub use smooth::GeomSmooth;
 pub use text::GeomText;
-pub use vline::GeomVLine;
+pub use vline::{geom_vline, GeomVLine, GeomVLineBuilder};
 
 // Define what domains a geom accepts for an aesthetic
 pub enum DomainConstraint {

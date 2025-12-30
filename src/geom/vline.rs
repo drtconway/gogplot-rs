@@ -111,8 +111,9 @@ impl LayerBuilder for GeomVLineBuilder {
 
         // Determine and validate aesthetic domains
         let requirements = geom_vline.aesthetic_requirements();
-        let aesthetic_domains = determine_aesthetic_domains(&mapping, requirements, initial_domains)
-            .expect("Invalid aesthetic configuration for geom_vline");
+        let aesthetic_domains =
+            determine_aesthetic_domains(&mapping, requirements, initial_domains)
+                .expect("Invalid aesthetic configuration for geom_vline");
 
         // Create the layer
         let mut layer = crate::layer::Layer::new(Box::new(geom_vline));
@@ -203,8 +204,14 @@ impl GeomVLine {
         {
             let x_px = ctx.map_x(x_norm);
 
-            log::info!("Drawing vline at x_norm={}, x_px={}, color={:?}, size={}, alpha={}", 
-                      x_norm, x_px, color, size, alpha);
+            log::debug!(
+                "Drawing vline at x_norm={}, x_px={}, color={:?}, size={}, alpha={}",
+                x_norm,
+                x_px,
+                color,
+                size,
+                alpha
+            );
 
             let Color(r, g, b, a) = color;
             ctx.cairo.set_source_rgba(
@@ -220,8 +227,6 @@ impl GeomVLine {
             ctx.cairo.move_to(x_px, ctx.y_range.0);
             ctx.cairo.line_to(x_px, ctx.y_range.1);
             ctx.cairo.stroke().ok();
-            
-            log::info!("Drew vline from y={} to y={}", ctx.y_range.0, ctx.y_range.1);
         }
 
         Ok(())
@@ -237,7 +242,7 @@ impl Default for GeomVLine {
 const AESTHETIC_REQUIREMENTS: [AestheticRequirement; 4] = [
     AestheticRequirement {
         property: AestheticProperty::XIntercept,
-        required: true,  // Must have y-intercept (from property or mapping)
+        required: true, // Must have y-intercept (from property or mapping)
         constraint: DomainConstraint::Any,
     },
     AestheticRequirement {
@@ -288,7 +293,10 @@ impl Geom for GeomVLine {
         props
     }
 
-    fn property_defaults(&self, _theme: &crate::prelude::Theme) -> HashMap<AestheticProperty, super::properties::PropertyValue> {
+    fn property_defaults(
+        &self,
+        _theme: &crate::prelude::Theme,
+    ) -> HashMap<AestheticProperty, super::properties::PropertyValue> {
         let mut defaults = HashMap::new();
 
         // Only provide defaults for properties not explicitly set
@@ -335,12 +343,17 @@ impl Geom for GeomVLine {
             if let Some(value) = x_prop.get_value() {
                 log::info!("GeomVLine::apply_scales - before: x_intercept = {}", value);
                 if let Some(normalized) = scales.x_continuous.map_value(&value) {
-                    log::info!("GeomVLine::apply_scales - after: x_intercept = {}", normalized);
+                    log::info!(
+                        "GeomVLine::apply_scales - after: x_intercept = {}",
+                        normalized
+                    );
                     x_prop.value(normalized);
-                }
-                else {
+                } else {
                     self.x_intercept = None;
-                    log::warn!("X-intercept value {} is outside the X scale domain and will not be rendered.", value);
+                    log::warn!(
+                        "X-intercept value {} is outside the X scale domain and will not be rendered.",
+                        value
+                    );
                 }
             }
         }
@@ -351,8 +364,11 @@ impl Geom for GeomVLine {
         ctx: &mut RenderContext,
         mut properties: HashMap<AestheticProperty, PropertyVector>,
     ) -> Result<(), PlotError> {
-        log::info!("GeomVLine::render called with properties: {:?}", properties.keys().collect::<Vec<_>>());
-        
+        log::info!(
+            "GeomVLine::render called with properties: {:?}",
+            properties.keys().collect::<Vec<_>>()
+        );
+
         let x_values = properties
             .remove(&AestheticProperty::XIntercept)
             .unwrap()

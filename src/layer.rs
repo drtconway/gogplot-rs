@@ -109,14 +109,8 @@ impl Layer {
                 all_vectors.insert(property, vector);
             } else if let Some(aesthetic) = index.get(&property) {
                 // Priority 2: Use mapping
-                if property == AestheticProperty::Shape {
-                    log::info!("Loading shape property from aesthetic: {:?}", aesthetic);
-                }
                 let vector: PropertyVector =
                     PropertyVector::from(mapping.get_vector_iter(aesthetic, data).unwrap());
-                if property == AestheticProperty::Shape {
-                    log::info!("Loaded shape vector from mapping: {:?}", vector);
-                }
                 all_vectors.insert(property, vector);
             } else if let Some(default_value) = defaults.get(&property) {
                 // Priority 3: get the default value
@@ -126,19 +120,8 @@ impl Layer {
         }
 
         // Check for grouping
-        if let Some(ref shape_vec) = all_vectors.get(&AestheticProperty::Shape) {
-            log::info!("Before grouping, Shape vector is: {:?}", shape_vec);
-        }
         if let Some(grouping_vector) = self.get_grouping_vector(data, mapping) {
-            log::info!("Have {} groups", grouping_vector.len());
-            for (group_idx, indices) in grouping_vector.into_iter().enumerate() {
-                log::info!("Processing group {}", group_idx);
-                if let Some(ref shape_vec) = all_vectors.get(&AestheticProperty::Shape) {
-                    match shape_vec {
-                        PropertyVector::Int(v) => log::info!("  all_vectors Shape before subset: Int with first few: {:?}", &v[..v.len().min(5)]),
-                        _ => log::info!("  all_vectors Shape before subset: other type"),
-                    }
-                }
+            for (_, indices) in grouping_vector.into_iter().enumerate() {
                 // Create subset PropertyVectors for this group
                 let group_data = self.subset_vectors(&all_vectors, &indices);
                 self.geom.render(ctx, group_data)?;
@@ -202,15 +185,6 @@ impl Layer {
         let mut subset = HashMap::new();
 
         for (property, vector) in all_vectors {
-            if *property == AestheticProperty::Shape {
-                match vector {
-                    PropertyVector::Int(v) => log::info!("Subsetting shape Int vector with {} values, first few: {:?}", v.len(), &v[..v.len().min(5)]),
-                    PropertyVector::Shape(v) => log::info!("Subsetting shape Shape vector with {} values", v.len()),
-                    PropertyVector::Color(_) => log::info!("ERROR: Shape property has Color vector!"),
-                    _ => log::info!("Subsetting shape with unexpected type"),
-                }
-                log::info!("  indices: {:?}", indices);
-            }
             let subset_vector = match vector {
                 PropertyVector::Int(v) => {
                     PropertyVector::Int(indices.iter().map(|&i| v[i]).collect())
@@ -228,9 +202,6 @@ impl Layer {
                     PropertyVector::String(indices.iter().map(|&i| v[i].clone()).collect())
                 }
             };
-            if *property == AestheticProperty::Shape {
-                log::info!("Shape subset result: {:?}", subset_vector);
-            }
             subset.insert(*property, subset_vector);
         }
 
@@ -243,10 +214,9 @@ impl Layer {
         mapping: &AesMap,
     ) -> Result<(), crate::error::PlotError> {
         if let Some(stat) = &self.stat {
-            if let Some((new_data, new_mapping)) = stat.apply(data, mapping)? {
-                self.data = Some(new_data);
-                self.mapping = Some(new_mapping);
-            }
+            let (new_data, new_mapping) = stat.compute(data.as_ref(), mapping)?;
+            self.data = Some(Box::new(new_data));
+            self.mapping = Some(new_mapping);
         }
         Ok(())
     }
@@ -289,6 +259,12 @@ impl Layer {
                         (AestheticProperty::XIntercept, _) => {
                             scales.x_continuous.train(iter);
                         }
+                        (AestheticProperty::XMin, _) => {
+                            scales.x_continuous.train(iter);
+                        }
+                        (AestheticProperty::XMax, _) => {
+                            scales.x_continuous.train(iter);
+                        }
                         (AestheticProperty::Y, AestheticDomain::Discrete) => {
                             scales.y_discrete.train(iter);
                         }
@@ -296,6 +272,12 @@ impl Layer {
                             scales.y_continuous.train(iter);
                         }
                         (AestheticProperty::YIntercept, _) => {
+                            scales.y_continuous.train(iter);
+                        }
+                        (AestheticProperty::YMin, _) => {
+                            scales.y_continuous.train(iter);
+                        }
+                        (AestheticProperty::YMax, _) => {
                             scales.y_continuous.train(iter);
                         }
                         (AestheticProperty::Color, AestheticDomain::Continuous) => {
@@ -349,27 +331,37 @@ impl Layer {
             if let Some(property) = aes.to_property() {
                 if let Some(domain) = self.aesthetic_domains.get(&property) {
                     let new_value = match (property, domain) {
-                        (AestheticProperty::X, AestheticDomain::Discrete) => scales
-                            .x_discrete
+                        (AestheticProperty::X, AestheticDomain::Discrete) => {
+                            scales.x_discrete.map_aesthetic_value(value, data).unwrap()
+                        }
+                        (AestheticProperty::X, AestheticDomain::Continuous) => scales
+                            .x_continuous
                             .map_aesthetic_value(value, data)
                             .unwrap(),
-                        (AestheticProperty::X, AestheticDomain::Continuous) => {
-                            let v = scales
-                                .x_continuous
-                                .map_aesthetic_value(value, data)
-                                .unwrap();
-                            log::info!("Mapped X aesthetic value: {:?}", v);
-                            v
-                        }
+                        (AestheticProperty::XMin, _) => scales
+                            .x_continuous
+                            .map_aesthetic_value(value, data)
+                            .unwrap(),
+                        (AestheticProperty::XMax, _) => scales
+                            .x_continuous
+                            .map_aesthetic_value(value, data)
+                            .unwrap(),
                         (AestheticProperty::XIntercept, _) => scales
                             .x_continuous
                             .map_aesthetic_value(value, data)
                             .unwrap(),
-                        (AestheticProperty::Y, AestheticDomain::Discrete) => scales
-                            .y_discrete
+                        (AestheticProperty::Y, AestheticDomain::Discrete) => {
+                            scales.y_discrete.map_aesthetic_value(value, data).unwrap()
+                        }
+                        (AestheticProperty::Y, AestheticDomain::Continuous) => scales
+                            .y_continuous
                             .map_aesthetic_value(value, data)
                             .unwrap(),
-                        (AestheticProperty::Y, AestheticDomain::Continuous) => scales
+                        (AestheticProperty::YMin, _) => scales
+                            .y_continuous
+                            .map_aesthetic_value(value, data)
+                            .unwrap(),
+                        (AestheticProperty::YMax, _) => scales
                             .y_continuous
                             .map_aesthetic_value(value, data)
                             .unwrap(),
@@ -393,10 +385,9 @@ impl Layer {
                             .fill_discrete
                             .map_aesthetic_value(value, data)
                             .unwrap(),
-                        (AestheticProperty::Alpha, _) => scales
-                            .alpha_scale
-                            .map_aesthetic_value(value, data)
-                            .unwrap(),
+                        (AestheticProperty::Alpha, _) => {
+                            scales.alpha_scale.map_aesthetic_value(value, data).unwrap()
+                        }
                         (AestheticProperty::Size, AestheticDomain::Continuous) => scales
                             .size_continuous
                             .map_aesthetic_value(value, data)
@@ -405,10 +396,9 @@ impl Layer {
                             .size_discrete
                             .map_aesthetic_value(value, data)
                             .unwrap(),
-                        (AestheticProperty::Shape, _) => scales
-                            .shape_scale
-                            .map_aesthetic_value(value, data)
-                            .unwrap(),
+                        (AestheticProperty::Shape, _) => {
+                            scales.shape_scale.map_aesthetic_value(value, data).unwrap()
+                        }
                         (AestheticProperty::Linetype, _) => {
                             // Copy through without scaling
                             value.clone()
@@ -417,8 +407,12 @@ impl Layer {
                     // Write back using canonical domain (Continuous for most, Shape/Linetype have no domain)
                     let canonical_aes = match property {
                         AestheticProperty::X => Aesthetic::X(AestheticDomain::Continuous),
-                        AestheticProperty::XIntercept => Aesthetic::XIntercept,
                         AestheticProperty::Y => Aesthetic::Y(AestheticDomain::Continuous),
+                        AestheticProperty::XMin => Aesthetic::Xmin(AestheticDomain::Continuous),
+                        AestheticProperty::XMax => Aesthetic::Xmax(AestheticDomain::Continuous),
+                        AestheticProperty::YMin => Aesthetic::Ymin(AestheticDomain::Continuous),
+                        AestheticProperty::YMax => Aesthetic::Ymax(AestheticDomain::Continuous),
+                        AestheticProperty::XIntercept => Aesthetic::XIntercept,
                         AestheticProperty::YIntercept => Aesthetic::YIntercept,
                         AestheticProperty::Color => Aesthetic::Color(AestheticDomain::Continuous),
                         AestheticProperty::Fill => Aesthetic::Fill(AestheticDomain::Continuous),
