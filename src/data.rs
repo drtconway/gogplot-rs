@@ -164,6 +164,19 @@ pub enum VectorIter<'a> {
     Bool(Box<dyn Iterator<Item = bool> + 'a>),
 }
 
+impl<'a> Iterator for VectorIter<'a> {
+    type Item = PrimitiveValue;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            VectorIter::Int(iter) => iter.next().map(PrimitiveValue::Int),
+            VectorIter::Float(iter) => iter.next().map(PrimitiveValue::Float),
+            VectorIter::Str(iter) => iter.next().map(|s| PrimitiveValue::Str(s.to_string())),
+            VectorIter::Bool(iter) => iter.next().map(PrimitiveValue::Bool),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VectorType {
     Int,

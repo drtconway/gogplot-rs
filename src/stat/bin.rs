@@ -211,7 +211,33 @@ impl Stat for Bin {
         for (aesthetic, iter) in aesthetics.into_iter().zip(iters.into_iter()) {
             let data_range = data_ranges.ranges.get(&aesthetic).cloned();
             let (min, max) = match data_range {
-                Some((min, max)) if min <= max => (min, max),
+                Some((min, max)) if min < max => (min, max),
+                Some((min, max)) if min == max => {
+                    // All values are identical; create a single bin
+                    let mut data = DataFrame::new();
+                    data.add_column("xmin", Arc::new(FloatVec(vec![min])));
+                    data.add_column("x", Arc::new(FloatVec(vec![min])));
+                    data.add_column("xmax", Arc::new(FloatVec(vec![min])));
+                    data.add_column("count", Arc::new(IntVec(vec![iter.count() as i64])));
+                    let mut mapping = AesMap::new();
+                    mapping.set(
+                        Aesthetic::X(AestheticDomain::Continuous),
+                        AesValue::column("x"),
+                    );
+                    mapping.set(
+                        Aesthetic::Xmin(AestheticDomain::Continuous),
+                        AesValue::column("xmin"),
+                    );
+                    mapping.set(
+                        Aesthetic::Xmax(AestheticDomain::Continuous),
+                        AesValue::column("xmax"),
+                    );
+                    mapping.set(
+                        Aesthetic::Y(AestheticDomain::Continuous),
+                        AesValue::column("count"),
+                    );
+                    return Ok((data, mapping));
+                },
                 _ => {
                     // All values are identical or no valid values; create a single bin
                     let mut data = DataFrame::new();
