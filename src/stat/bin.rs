@@ -211,7 +211,7 @@ impl Stat for Bin {
         for (aesthetic, iter) in aesthetics.into_iter().zip(iters.into_iter()) {
             let data_range = data_ranges.ranges.get(&aesthetic).cloned();
             let (min, max) = match data_range {
-                Some((min, max)) if min < max => (min, max),
+                Some((min, max)) if min <= max => (min, max),
                 _ => {
                     // All values are identical or no valid values; create a single bin
                     let mut data = DataFrame::new();
