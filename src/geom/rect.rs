@@ -117,12 +117,6 @@ impl LayerBuilder for GeomRectBuilder {
     }
 }
 
-impl Default for GeomRectBuilder {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 pub fn geom_rect() -> GeomRectBuilder {
     GeomRectBuilder::new()
 }
@@ -178,21 +172,6 @@ impl GeomRect {
             let xmax_px = ctx.map_x(xmax_norm);
             let ymin_px = ctx.map_y(ymin_norm);
             let ymax_px = ctx.map_y(ymax_norm);
-
-            log::debug!(
-                "Drawing rect at xmin_norm={}, xmax_norm={}, ymin_norm={}, ymax_norm={}, xmin_px={}, xmax_px={}, ymin_px={}, ymax_px={}, color={:?}, fill={:?}, alpha={}",
-                xmin_norm,
-                xmax_norm,
-                ymin_norm,
-                ymax_norm,
-                xmin_px,
-                xmax_px,
-                ymin_px,
-                ymax_px,
-                color,
-                fill,
-                alpha
-            );
 
             // Draw filled rectangle
             let width = xmax_px - xmin_px;
@@ -419,7 +398,7 @@ mod tests {
             a.xmax("xmax");
             a.ymin("ymin");
             a.ymax("ymax");
-        }) + geom_rect().color(color::RED).alpha(0.75);
+        }) + geom_rect().color(color::RED).fill(color::FIREBRICK).alpha(0.75);
 
         let p = builder
             .build()
