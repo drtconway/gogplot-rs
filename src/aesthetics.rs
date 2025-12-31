@@ -39,6 +39,7 @@ pub enum AestheticProperty {
     YMax,
     XIntercept,
     YIntercept,
+    Label,
 }
 
 impl AestheticProperty {
@@ -58,6 +59,7 @@ impl AestheticProperty {
             AestheticProperty::YMax => AestheticPropertyType::Float,
             AestheticProperty::XIntercept => AestheticPropertyType::Float,
             AestheticProperty::YIntercept => AestheticPropertyType::Float,
+            AestheticProperty::Label => AestheticPropertyType::String,
         }
     }
 
@@ -78,6 +80,7 @@ impl AestheticProperty {
             AestheticProperty::YMax => &[Aesthetic::Ymax(Continuous), Aesthetic::Ymax(Discrete)],
             AestheticProperty::XIntercept => &[Aesthetic::XIntercept],
             AestheticProperty::YIntercept => &[Aesthetic::YIntercept],
+            AestheticProperty::Label => &[Aesthetic::Label],
         }
     }
 
@@ -111,6 +114,7 @@ impl AestheticProperty {
             AestheticProperty::YMax => "ymax",
             AestheticProperty::XIntercept => "xintercept",
             AestheticProperty::YIntercept => "yintercept",
+            AestheticProperty::Label => "label",
         }
     }
 }
@@ -313,8 +317,9 @@ impl Aesthetic {
             Aesthetic::Ymin(_) => Some(AestheticProperty::YMin),
             Aesthetic::Ymax(_) => Some(AestheticProperty::YMax),
             Aesthetic::YIntercept => Some(AestheticProperty::YIntercept),
-            // Group and Label don't have corresponding properties
-            Aesthetic::Group | Aesthetic::Label => None,
+            Aesthetic::Label => Some(AestheticProperty::Label),
+            // Group doesn't have a corresponding property
+            Aesthetic::Group => None,
         }
     }
 }
@@ -336,6 +341,7 @@ impl From<(AestheticProperty, AestheticDomain)> for Aesthetic {
             AestheticProperty::Alpha => Aesthetic::Alpha(value.1),
             AestheticProperty::Shape => Aesthetic::Shape,
             AestheticProperty::Linetype => Aesthetic::Linetype,
+            AestheticProperty::Label => Aesthetic::Label,
         }
     }
 }

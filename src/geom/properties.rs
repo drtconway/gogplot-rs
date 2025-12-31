@@ -146,26 +146,26 @@ impl FloatProperty {
     }
 }
 
-impl Into<FloatProperty> for f64 {
-    fn into(self) -> FloatProperty {
+impl From<f64> for FloatProperty {
+    fn from(value: f64) -> Self {
         let mut prop = FloatProperty::new();
-        prop.value(self);
+        prop.value(value);
         prop
     }
 }
 
-impl Into<FloatProperty> for &str {
-    fn into(self) -> FloatProperty {
+impl From<&str> for FloatProperty {
+    fn from(value: &str) -> FloatProperty {
         let mut prop = FloatProperty::new();
-        prop.value = Either::Right(self.to_string());
+        prop.value = Either::Right(value.to_string());
         prop
     }
 }
 
-impl Into<FloatProperty> for String {
-    fn into(self) -> FloatProperty {
+impl From<String> for FloatProperty {
+    fn from(value: String) -> FloatProperty {
         let mut prop = FloatProperty::new();
-        prop.value = Either::Right(self);
+        prop.value = Either::Right(value);
         prop
     }
 }

@@ -405,6 +405,9 @@ impl Layer {
                         (AestheticProperty::Linetype, _) => {
                             // do nothing
                         }
+                        (AestheticProperty::Label, _) => {
+                            // do nothing
+                        }
                     }
                 }
             }
@@ -510,6 +513,10 @@ impl Layer {
                             // Copy through without scaling
                             value.clone()
                         }
+                        (AestheticProperty::Label, _) => {
+                            // Copy through without scaling
+                            value.clone()
+                        }
                     };
                     // Write back using canonical domain (Continuous for most, Shape/Linetype have no domain)
                     let canonical_aes = match property {
@@ -527,6 +534,7 @@ impl Layer {
                         AestheticProperty::Alpha => Aesthetic::Alpha(AestheticDomain::Continuous),
                         AestheticProperty::Shape => Aesthetic::Shape,
                         AestheticProperty::Linetype => Aesthetic::Linetype,
+                        AestheticProperty::Label => Aesthetic::Label,
                     };
                     new_mapping.set(canonical_aes, new_value);
                 } else {
