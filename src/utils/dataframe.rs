@@ -258,6 +258,14 @@ impl DataFrame {
         }
         self.len += other.len;
     }
+
+    /// Add the columns and data from another DataFrame to this one.
+    /// If a column already exists, the implementation will panic.
+    pub fn extend(&mut self, other: DataFrame) {
+        for (name, other_col) in other.columns.into_iter() {
+            self.add_column(name, other_col);
+        }
+    }
 }
 
 impl From<&dyn DataSource> for DataFrame {

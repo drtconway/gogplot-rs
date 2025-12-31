@@ -22,6 +22,52 @@ pub struct StatAestheticRequirements {
 
     /// An optional secondary aesthetic property required by the stat
     pub secondary: Option<AestheticProperty>,
+
+    pub additional: Vec<AestheticProperty>,
+}
+
+impl From<AestheticProperty> for StatAestheticRequirements {
+    fn from(property: AestheticProperty) -> Self {
+        Self {
+            main: property,
+            secondary: None,
+            additional: vec![],
+        }
+    }
+}
+
+impl From<(AestheticProperty, AestheticProperty)> for StatAestheticRequirements {
+    fn from(props: (AestheticProperty, AestheticProperty)) -> Self {
+        Self {
+            main: props.0,
+            secondary: Some(props.1),
+            additional: vec![],
+        }
+    }
+}
+
+impl From<Vec<AestheticProperty>> for StatAestheticRequirements {
+    fn from(props: Vec<AestheticProperty>) -> Self {
+        if props.is_empty() {
+            panic!("Cannot create StatAestheticRequirements from empty Vec");
+        }
+        let main = props[0];
+        let secondary = if props.len() > 1 {
+            Some(props[1])
+        } else {
+            None
+        };
+        let additional = if props.len() > 2 {
+            props[2..].to_vec()
+        } else {
+            vec![]
+        };
+        Self {
+            main,
+            secondary,
+            additional,
+        }
+    }
 }
 
 /// Trait for statistical transformations
@@ -40,6 +86,7 @@ pub trait Stat: Send + Sync {
         StatAestheticRequirements {
             main: AestheticProperty::X,
             secondary: None,
+            additional: vec![],
         }
     }
 
@@ -113,12 +160,8 @@ pub trait Stat: Send + Sync {
             std::cmp::Ordering::Equal
         }
 
-        println!("group values: {:?}", group_values);
-
         let mut permutation: Vec<usize> = (0..group_values[0].len()).collect();
         permutation.sort_by(|&i, &j| cmp(i, j, &group_values));
-
-        println!("permutation: {:?}", permutation);
 
         let aesthetic_values: Vec<VectorValue> = aesthetics
             .iter()
@@ -197,6 +240,13 @@ pub trait Stat: Send + Sync {
         }
         if let Some(secondary) = reqs.secondary {
             for aes in secondary.aesthetics() {
+                if mapping.contains(*aes) {
+                    aesthetics.push(*aes);
+                }
+            }
+        }
+        for additional in reqs.additional {
+            for aes in additional.aesthetics() {
                 if mapping.contains(*aes) {
                     aesthetics.push(*aes);
                 }

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use super::{Geom, RenderContext};
 use crate::aesthetics::builder::{
     AesMapBuilder, AlphaContinuousAesBuilder, AlphaDiscreteAesBuilder, FillContinuousAesBuilder,
-    FillDiscreteAesBuilder, XMaxContinuousAesBuilder, XMinContinuousAesBuilder,
+    FillDiscreteAesBuilder, GroupAesBuilder, XMaxContinuousAesBuilder, XMinContinuousAesBuilder,
     YMaxContinuousAesBuilder, YMinContinuousAesBuilder,
 };
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
@@ -12,6 +12,7 @@ use crate::geom::properties::{ColorProperty, FloatProperty, Property, PropertyVe
 use crate::geom::{AestheticRequirement, DomainConstraint};
 use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
+use crate::stat::Stat;
 use crate::theme::{Color, color};
 
 pub trait GeomRectAesBuilderTrait:
@@ -23,6 +24,7 @@ pub trait GeomRectAesBuilderTrait:
     + FillDiscreteAesBuilder
     + AlphaContinuousAesBuilder
     + AlphaDiscreteAesBuilder
+    + GroupAesBuilder
 {
 }
 
@@ -30,6 +32,7 @@ impl GeomRectAesBuilderTrait for AesMapBuilder {}
 
 pub struct GeomRectBuilder {
     core: LayerBuilderCore,
+    color: Option<ColorProperty>,
     fill: Option<ColorProperty>,
     alpha: Option<FloatProperty>,
 }
@@ -38,9 +41,15 @@ impl GeomRectBuilder {
     pub fn new() -> Self {
         Self {
             core: LayerBuilderCore::default(),
+            color: None,
             fill: None,
             alpha: None,
         }
+    }
+
+    pub fn color<Color: Into<ColorProperty>>(mut self, color: Color) -> Self {
+        self.color = Some(color.into());
+        self
     }
 
     pub fn fill<Fill: Into<ColorProperty>>(mut self, fill: Fill) -> Self {
@@ -67,6 +76,11 @@ impl GeomRectBuilder {
         }
         self
     }
+
+    pub fn stat<S: Stat + 'static>(mut self, stat: S) -> Self {
+        self.core.stat = Some(Box::new(stat));
+        self
+    }
 }
 
 impl LayerBuilder for GeomRectBuilder {
@@ -77,6 +91,11 @@ impl LayerBuilder for GeomRectBuilder {
         let mut overrides = Vec::new();
 
         // Set fixed property values and remove from inherited mapping
+        if self.color.is_some() {
+            geom_rect.color = self.color;
+            overrides.push(Aesthetic::Color(AestheticDomain::Continuous));
+            overrides.push(Aesthetic::Color(AestheticDomain::Discrete));
+        }
         if self.fill.is_some() {
             geom_rect.fill = self.fill;
             overrides.push(Aesthetic::Fill(AestheticDomain::Continuous));
@@ -113,6 +132,9 @@ pub fn geom_rect() -> GeomRectBuilder {
 /// Rectangles are defined by their bounding boxes, which must come from data.
 /// Useful for heatmaps, tile plots, and annotating regions.
 pub struct GeomRect {
+    /// Default color (border)
+    pub color: Option<ColorProperty>,
+
     /// Default fill color
     pub fill: Option<ColorProperty>,
 
@@ -124,21 +146,10 @@ impl GeomRect {
     /// Create a new rect geom with default theme values
     pub fn new() -> Self {
         Self {
+            color: None,
             fill: None,
             alpha: None,
         }
-    }
-
-    /// Set the default fill color
-    pub fn fill(&mut self, color: crate::theme::Color) -> &mut Self {
-        self.fill = Some(ColorProperty::new().color(color).clone());
-        self
-    }
-
-    /// Set the default alpha/opacity
-    pub fn alpha(&mut self, alpha: f64) -> &mut Self {
-        self.alpha = Some(FloatProperty::new().value(alpha.clamp(0.0, 1.0)).clone());
-        self
     }
 
     fn draw_rects(
@@ -148,17 +159,20 @@ impl GeomRect {
         xmax_values: impl Iterator<Item = f64>,
         ymin_values: impl Iterator<Item = f64>,
         ymax_values: impl Iterator<Item = f64>,
+        color_values: impl Iterator<Item = Color>,
         fill_values: impl Iterator<Item = Color>,
         alpha_values: impl Iterator<Item = f64>,
     ) -> Result<()> {
         // All values are already normalized [0,1] by scales
         // Draw rectangles at the specified bounds
-        for (((((xmin_norm, xmax_norm), ymin_norm), ymax_norm), fill), alpha) in xmin_values
-            .zip(xmax_values)
-            .zip(ymin_values)
-            .zip(ymax_values)
-            .zip(fill_values)
-            .zip(alpha_values)
+        for ((((((xmin_norm, xmax_norm), ymin_norm), ymax_norm), color), fill), alpha) in
+            xmin_values
+                .zip(xmax_values)
+                .zip(ymin_values)
+                .zip(ymax_values)
+                .zip(color_values)
+                .zip(fill_values)
+                .zip(alpha_values)
         {
             let xmin_px = ctx.map_x(xmin_norm);
             let xmax_px = ctx.map_x(xmax_norm);
@@ -166,7 +180,7 @@ impl GeomRect {
             let ymax_px = ctx.map_y(ymax_norm);
 
             log::debug!(
-                "Drawing rect at xmin_norm={}, xmax_norm={}, ymin_norm={}, ymax_norm={}, xmin_px={}, xmax_px={}, ymin_px={}, ymax_px={}, fill={:?}, alpha={}",
+                "Drawing rect at xmin_norm={}, xmax_norm={}, ymin_norm={}, ymax_norm={}, xmin_px={}, xmax_px={}, ymin_px={}, ymax_px={}, color={:?}, fill={:?}, alpha={}",
                 xmin_norm,
                 xmax_norm,
                 ymin_norm,
@@ -175,10 +189,16 @@ impl GeomRect {
                 xmax_px,
                 ymin_px,
                 ymax_px,
+                color,
                 fill,
                 alpha
             );
 
+            // Draw filled rectangle
+            let width = xmax_px - xmin_px;
+            let height = ymax_px - ymin_px;
+            
+            // Fill
             let Color(r, g, b, a) = fill;
             ctx.cairo.set_source_rgba(
                 r as f64 / 255.0,
@@ -186,25 +206,26 @@ impl GeomRect {
                 b as f64 / 255.0,
                 a as f64 / 255.0 * alpha,
             );
-
-            // Draw filled rectangle
-            let width = xmax_px - xmin_px;
-            let height = ymax_px - ymin_px;
             ctx.cairo.rectangle(xmin_px, ymin_px, width, height);
             ctx.cairo.fill().ok();
+            
+            // Border/stroke
+            let Color(r, g, b, a) = color;
+            ctx.cairo.set_source_rgba(
+                r as f64 / 255.0,
+                g as f64 / 255.0,
+                b as f64 / 255.0,
+                a as f64 / 255.0 * alpha,
+            );
+            ctx.cairo.rectangle(xmin_px, ymin_px, width, height);
+            ctx.cairo.stroke().ok();
         }
 
         Ok(())
     }
 }
 
-impl Default for GeomRect {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-const AESTHETIC_REQUIREMENTS: [AestheticRequirement; 6] = [
+const AESTHETIC_REQUIREMENTS: [AestheticRequirement; 7] = [
     AestheticRequirement {
         property: AestheticProperty::XMin,
         required: true, // Must have xmin from mapping
@@ -226,6 +247,11 @@ const AESTHETIC_REQUIREMENTS: [AestheticRequirement; 6] = [
         constraint: DomainConstraint::Any,
     },
     AestheticRequirement {
+        property: AestheticProperty::Color,
+        required: false,
+        constraint: DomainConstraint::Any,
+    },
+    AestheticRequirement {
         property: AestheticProperty::Fill,
         required: false,
         constraint: DomainConstraint::Any,
@@ -244,6 +270,9 @@ impl Geom for GeomRect {
 
     fn properties(&self) -> HashMap<AestheticProperty, Property> {
         let mut props = HashMap::new();
+        if let Some(color_prop) = &self.color {
+            props.insert(AestheticProperty::Color, Property::Color(color_prop.clone()));
+        }
         if let Some(fill_prop) = &self.fill {
             props.insert(AestheticProperty::Fill, Property::Color(fill_prop.clone()));
         }
@@ -263,6 +292,12 @@ impl Geom for GeomRect {
         let mut defaults = HashMap::new();
 
         // Only provide defaults for properties not explicitly set
+        if self.color.is_none() {
+            defaults.insert(
+                AestheticProperty::Color,
+                super::properties::PropertyValue::Color(color::BLACK),
+            );
+        }
         if self.fill.is_none() {
             defaults.insert(
                 AestheticProperty::Fill,
@@ -317,6 +352,12 @@ impl Geom for GeomRect {
             .unwrap()
             .as_floats();
 
+        let color_values = properties
+            .remove(&AestheticProperty::Color)
+            .unwrap()
+            .to_color()
+            .as_colors();
+
         let fill_values = properties
             .remove(&AestheticProperty::Fill)
             .unwrap()
@@ -334,10 +375,89 @@ impl Geom for GeomRect {
             xmax_values.into_iter(),
             ymin_values.into_iter(),
             ymax_values.into_iter(),
+            color_values.into_iter(),
             fill_values.into_iter(),
             alpha_values.into_iter(),
         )?;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        data::DataSource, error::to_io_error, plot::plot, stat::summary::Summary, utils::{dataframe::DataFrame, mtcars::mtcars}
+    };
+
+    fn init_test_logging() {
+        let _ = env_logger::builder()
+            .is_test(true)
+            .filter_level(log::LevelFilter::Debug)
+            .try_init();
+    }
+
+    #[test]
+    fn basic_rects_1() {
+        init_test_logging();
+
+        let xmins = vec![1.0, 2.0, 3.0];
+        let xmaxs = vec![1.5, 2.5, 3.5];
+        let ymins = vec![10.0, 20.0, 30.0];
+        let ymaxs = vec![15.0, 25.0, 35.0];
+
+        let data: Box<dyn DataSource> = Box::new(DataFrame::from_columns(vec![
+            ("xmin", xmins),
+            ("xmax", xmaxs),
+            ("ymin", ymins),
+            ("ymax", ymaxs),
+        ]));
+
+        let builder = plot(&data).aes(|a| {
+            a.xmin("xmin");
+            a.xmax("xmax");
+            a.ymin("ymin");
+            a.ymax("ymax");
+        }) + geom_rect().color(color::RED).alpha(0.75);
+
+        let p = builder
+            .build()
+            .map_err(to_io_error)
+            .expect("Failed to build plot");
+        p.save("tests/images/basic_rects_1.png", 800, 600)
+            .map_err(to_io_error)
+            .expect("Failed to save plot image");
+    }
+
+    #[test]
+    fn basic_rects_2() {
+        init_test_logging();
+
+        let data = mtcars();
+
+        let builder = plot(&data)
+        + geom_rect().aes(|a| {
+            a.xmin("wt");
+            a.ymin("mpg");
+            a.group("cyl");
+        }).stat(Summary::from(vec![
+            Aesthetic::Xmin(AestheticDomain::Continuous),
+            Aesthetic::Ymin(AestheticDomain::Continuous),
+        ])).aes(|a| {
+            a.xmin("xmin_min");
+            a.xmax("xmin_max");
+            a.ymin("ymin_min");
+            a.ymax("ymin_max");
+            a.fill_discrete("cyl");
+        }).alpha(0.5);
+
+        let p = builder
+            .build()
+            .map_err(to_io_error)
+            .expect("Failed to build plot");
+        p.save("tests/images/basic_rects_2.png", 800, 600)
+            .map_err(to_io_error)
+            .expect("Failed to save plot image");
     }
 }

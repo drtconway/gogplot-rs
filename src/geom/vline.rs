@@ -134,12 +134,6 @@ impl LayerBuilder for GeomVLineBuilder {
     }
 }
 
-impl Default for GeomVLineBuilder {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 pub fn geom_vline() -> GeomVLineBuilder {
     GeomVLineBuilder::new()
 }
@@ -173,30 +167,6 @@ impl GeomVLine {
         }
     }
 
-    /// Set the y-intercept value
-    pub fn xintercept(&mut self, value: f64) -> &mut Self {
-        self.x_intercept = Some(FloatProperty::new().value(value).clone());
-        self
-    }
-
-    /// Set the default line color
-    pub fn color(&mut self, color: crate::theme::Color) -> &mut Self {
-        self.color = Some(ColorProperty::new().color(color).clone());
-        self
-    }
-
-    /// Set the default line width
-    pub fn size(&mut self, size: f64) -> &mut Self {
-        self.size = Some(FloatProperty::new().value(size).clone());
-        self
-    }
-
-    /// Set the default alpha/opacity
-    pub fn alpha(&mut self, alpha: f64) -> &mut Self {
-        self.alpha = Some(FloatProperty::new().value(alpha.clamp(0.0, 1.0)).clone());
-        self
-    }
-
     fn draw_vlines(
         &self,
         ctx: &mut RenderContext,
@@ -213,15 +183,6 @@ impl GeomVLine {
             .zip(alpha_values)
         {
             let x_px = ctx.map_x(x_norm);
-
-            log::debug!(
-                "Drawing vline at x_norm={}, x_px={}, color={:?}, size={}, alpha={}",
-                x_norm,
-                x_px,
-                color,
-                size,
-                alpha
-            );
 
             let Color(r, g, b, a) = color;
             ctx.cairo.set_source_rgba(
@@ -431,7 +392,7 @@ mod tests {
             a.x_continuous("wt");
             a.y_continuous("mpg");
         }) + geom_point()
-            + geom_vline().x_intercept(3.0).color(color::RED).size(2.0);
+            + geom_vline().x_intercept(3.0).color(color::RED).size(2.0).alpha(0.75);
 
         let p = builder
             .build()
@@ -453,7 +414,7 @@ mod tests {
             a.y_continuous("mpg");
         }) + geom_point()
             + geom_vline()
-                .stat(Summary::new(Aesthetic::X(AestheticDomain::Continuous)))
+                .stat(Summary::from(Aesthetic::X(AestheticDomain::Continuous)))
                 .aes(|a| a.x_intercept("mean"));
 
         let p = builder

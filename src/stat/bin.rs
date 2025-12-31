@@ -267,8 +267,6 @@ impl Stat for Bin {
 
             let binner = Binner::new(min, max, &self.strategy.strategy);
 
-            println!("aes = {:?}, iter.vtype() = {:?}", aesthetic,iter.vtype());
-
             let mut counts = match iter {
                 VectorIter::Int(iter) => binner.bin_from_iter(iter),
                 VectorIter::Float(iter) => binner.bin_from_iter(iter),
@@ -301,7 +299,6 @@ impl Stat for Bin {
             data.add_column("x", xcenters);
             data.add_column("xmax", xmaxs);
             data.add_column("count", counts);
-            println!("data: {:?}", data);
 
             let mut mapping = AesMap::new();
             mapping.set(
@@ -512,13 +509,8 @@ mod tests {
         let xmax_col = data.get("xmax").unwrap();
         let xmaxs: Vec<f64> = xmax_col.iter_float().unwrap().collect();
 
-        println!("Binwidth 2.0 test - Number of bins: {}", xmins.len());
         for i in 0..xmins.len() {
             let width = xmaxs[i] - xmins[i];
-            println!(
-                "  Bin {}: [{:.2}, {:.2}) width={:.2}",
-                i, xmins[i], xmaxs[i], width
-            );
             // Each bin should be exactly 2.0 wide
             assert!(
                 (width - 2.0).abs() < 0.01,
@@ -574,8 +566,6 @@ mod tests {
             Some(&AesValue::column("count"))
         );
 
-        println!("data: {:?}", data);
-
         // Check that group column is preserved
         let group_col = data.get("group").unwrap();
         assert!(group_col.iter_str().is_some());
@@ -586,7 +576,6 @@ mod tests {
             .unwrap()
             .map(|s| s.to_string())
             .collect();
-        println!("Groups in binned data: {:?}", groups);
         assert!(groups.contains(&"A".to_string()));
         assert!(groups.contains(&"B".to_string()));
 
@@ -644,10 +633,7 @@ mod tests {
         mapping.set(Aesthetic::Shape, AesValue::column("shape"));
 
         let bin = Bin::with_count(3);
-        let (data, new_mapping) = bin.compute(df.as_ref(), &mapping).unwrap();
-
-        println!("data: {:?}", data);
-        println!("new_mapping: {:?}", new_mapping);
+        let (data, _new_mapping) = bin.compute(df.as_ref(), &mapping).unwrap();
 
         // Check that both grouping columns are preserved
         let color_col = data.get("color").unwrap();

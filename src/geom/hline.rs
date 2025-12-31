@@ -166,30 +166,6 @@ impl GeomHLine {
         }
     }
 
-    /// Set the y-intercept value
-    pub fn yintercept(&mut self, value: f64) -> &mut Self {
-        self.y_intercept = Some(FloatProperty::new().value(value).clone());
-        self
-    }
-
-    /// Set the default line color
-    pub fn color(&mut self, color: crate::theme::Color) -> &mut Self {
-        self.color = Some(ColorProperty::new().color(color).clone());
-        self
-    }
-
-    /// Set the default line width
-    pub fn size(&mut self, size: f64) -> &mut Self {
-        self.size = Some(FloatProperty::new().value(size).clone());
-        self
-    }
-
-    /// Set the default alpha/opacity
-    pub fn alpha(&mut self, alpha: f64) -> &mut Self {
-        self.alpha = Some(FloatProperty::new().value(alpha.clamp(0.0, 1.0)).clone());
-        self
-    }
-
     fn draw_hlines(
         &self,
         ctx: &mut RenderContext,
@@ -206,15 +182,6 @@ impl GeomHLine {
             .zip(alpha_values)
         {
             let y_px = ctx.map_y(y_norm);
-
-            log::debug!(
-                "Drawing hline at y_norm={}, y_px={}, color={:?}, size={}, alpha={}",
-                y_norm,
-                y_px,
-                color,
-                size,
-                alpha
-            );
 
             let Color(r, g, b, a) = color;
             ctx.cairo.set_source_rgba(
@@ -233,12 +200,6 @@ impl GeomHLine {
         }
 
         Ok(())
-    }
-}
-
-impl Default for GeomHLine {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -363,7 +324,6 @@ impl Geom for GeomHLine {
         mut properties: HashMap<AestheticProperty, PropertyVector>,
     ) -> Result<()> {
 
-        println!("GeomHLine render with properties: {:?}", properties);
         let y_values = properties
             .remove(&AestheticProperty::YIntercept)
             .unwrap()
@@ -448,7 +408,7 @@ mod tests {
             a.y_continuous("mpg");
         }) + geom_point()
             + geom_hline()
-                .stat(Summary::new(Aesthetic::Y(AestheticDomain::Continuous)))
+                .stat(Summary::from(Aesthetic::Y(AestheticDomain::Continuous)))
                 .aes(|a| a.y_intercept("mean"));
 
         let p = builder

@@ -78,10 +78,7 @@ impl Default for Boxplot {
 
 impl Stat for Boxplot {
     fn aesthetic_requirements(&self) -> super::StatAestheticRequirements {
-        super::StatAestheticRequirements {
-            main: AestheticProperty::X,
-            secondary: Some(AestheticProperty::Y),
-        }
+        super::StatAestheticRequirements::from((AestheticProperty::X, AestheticProperty::Y))
     }
 
     fn compute_group(

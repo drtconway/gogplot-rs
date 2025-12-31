@@ -16,17 +16,28 @@ use crate::utils::dataframe::DataFrame;
 /// - Single aesthetic: "min", "max", "mean", "median", "sd"
 /// - Multiple aesthetics: "{aes}_min", "{aes}_max", etc.
 pub struct Summary {
-    pub aesthetic: Aesthetic,
+    pub aesthetics: Vec<Aesthetic>,
 }
 
 impl Summary {
-    pub fn new(aesthetic: Aesthetic) -> Self {
-        Self { aesthetic }
+    // Check that all the aesthetics have the same domain,
+    // and panic if they do not.
+    fn check_aesthetic_domains(&self) {
+        if self.aesthetics.len() == 0 {
+            return;
+        }
+        let first_domain = self.aesthetics[0].domain();
+        for aes in &self.aesthetics[1..] {
+            if aes.domain() != first_domain {
+                panic!("All aesthetics for Summary stat must have the same domain");
+            }
+        }
     }
 
     fn compute_group_inner_continuous<T: ContinuousType + Vectorable>(
         &self,
         iter: impl Iterator<Item = T>,
+        prefix: Option<String>,
     ) -> Result<(DataFrame, AesMap)> {
         let values: Vec<f64> = iter.map(|v| v.to_f64()).filter(|v| v.is_finite()).collect();
 
@@ -34,11 +45,11 @@ impl Summary {
         let mapping = AesMap::new();
 
         if values.len() == 0 {
-            data.add_column("min", vec![f64::NAN]);
-            data.add_column("max", vec![f64::NAN]);
-            data.add_column("mean", vec![f64::NAN]);
-            data.add_column("median", vec![f64::NAN]);
-            data.add_column("sd", vec![f64::NAN]);
+            data.add_column(mk_name(&prefix, "min"), vec![f64::NAN]);
+            data.add_column(mk_name(&prefix, "max"), vec![f64::NAN]);
+            data.add_column(mk_name(&prefix, "mean"), vec![f64::NAN]);
+            data.add_column(mk_name(&prefix, "median"), vec![f64::NAN]);
+            data.add_column(mk_name(&prefix, "sd"), vec![f64::NAN]);
         } else {
             let min = values.iter().copied().fold(f64::INFINITY, f64::min);
             let max = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
@@ -57,11 +68,11 @@ impl Summary {
                 values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / values.len() as f64;
             let sd = variance.sqrt();
 
-            data.add_column("min", vec![min]);
-            data.add_column("max", vec![max]);
-            data.add_column("mean", vec![mean]);
-            data.add_column("median", vec![median]);
-            data.add_column("sd", vec![sd]);
+            data.add_column(mk_name(&prefix, "min"), vec![min]);
+            data.add_column(mk_name(&prefix, "max"), vec![max]);
+            data.add_column(mk_name(&prefix, "mean"), vec![mean]);
+            data.add_column(mk_name(&prefix, "median"), vec![median]);
+            data.add_column(mk_name(&prefix, "sd"), vec![sd]);
         }
 
         Ok((data, mapping))
@@ -70,6 +81,7 @@ impl Summary {
     fn compute_group_inner_discrete<T: DiscreteType + Vectorable>(
         &self,
         iter: impl Iterator<Item = T>,
+        prefix: Option<String>,
     ) -> Result<(DataFrame, AesMap)> {
         let mut values: Vec<T> = iter.collect();
         values.sort();
@@ -88,10 +100,10 @@ impl Summary {
         let mapping = AesMap::new();
 
         if groups.len() == 0 {
-            data.add_column("min", T::make_vector(Vec::<T>::new()));
-            data.add_column("max", T::make_vector(Vec::<T>::new()));
-            data.add_column("mode", T::make_vector(Vec::<T>::new()));
-            data.add_column("n_unique", Vec::<i64>::new());
+            data.add_column(mk_name(&prefix, "min"), T::make_vector(Vec::<T>::new()));
+            data.add_column(mk_name(&prefix, "max"), T::make_vector(Vec::<T>::new()));
+            data.add_column(mk_name(&prefix, "mode"), T::make_vector(Vec::<T>::new()));
+            data.add_column(mk_name(&prefix, "n_unique"), Vec::<i64>::new());
         } else {
             let min = groups.first().unwrap().0.clone();
             let max = groups.last().unwrap().0.clone();
@@ -102,47 +114,87 @@ impl Summary {
                 .unwrap();
             let n_unique = groups.len() as i64;
 
-            data.add_column("min", T::make_vector(vec![min]));
-            data.add_column("max", T::make_vector(vec![max]));
-            data.add_column("mode", T::make_vector(vec![mode]));
-            data.add_column("n_unique", vec![n_unique]);
+            data.add_column(mk_name(&prefix, "min"), T::make_vector(vec![min]));
+            data.add_column(mk_name(&prefix, "max"), T::make_vector(vec![max]));
+            data.add_column(mk_name(&prefix, "mode"), T::make_vector(vec![mode]));
+            data.add_column(mk_name(&prefix, "n_unique"), vec![n_unique]);
         }
 
         Ok((data, mapping))
     }
 }
 
+impl From<Aesthetic> for Summary {
+    fn from(aesthetic: Aesthetic) -> Self {
+        let result = Self {
+            aesthetics: vec![aesthetic],
+        };
+        result.check_aesthetic_domains();
+        result
+    }
+}
+
+impl From<Vec<Aesthetic>> for Summary {
+    fn from(aesthetics: Vec<Aesthetic>) -> Self {
+        let result = Self { aesthetics };
+        result.check_aesthetic_domains();
+        result
+    }
+}
+
 impl Stat for Summary {
     fn aesthetic_requirements(&self) -> super::StatAestheticRequirements {
-        super::StatAestheticRequirements {
-            main: self.aesthetic.to_property().unwrap(),
-            secondary: None,
-        }
+        super::StatAestheticRequirements::from(
+            self.aesthetics
+                .iter()
+                .map(|a| a.to_property().unwrap())
+                .collect::<Vec<_>>(),
+        )
     }
 
     fn compute_group(
         &self,
         aesthetics: Vec<Aesthetic>,
-        iters: Vec<crate::data::VectorIter<'_>>,
+        iters: Vec<VectorIter<'_>>,
         _params: Option<&dyn std::any::Any>,
     ) -> Result<(DataFrame, AesMap)> {
-        for (aesthetic, iter) in aesthetics.iter().zip(iters.into_iter()) {
-            return match iter {
+        let items = aesthetics
+            .into_iter()
+            .zip(iters.into_iter())
+            .collect::<Vec<_>>();
+        let n = items.len();
+        let mut final_data = DataFrame::new();
+        let final_mapping = AesMap::new();
+        for (aesthetic, iter) in items.into_iter() {
+            let prefix = if n > 1 {
+                Some(format!("{}_", aesthetic.to_str()))
+            } else {
+                None
+            };
+            let (data, _mapping) = match iter {
                 VectorIter::Int(iter) => {
                     if aesthetic.domain() == AestheticDomain::Continuous {
-                        self.compute_group_inner_continuous(iter)
+                        self.compute_group_inner_continuous(iter, prefix)
                     } else {
-                        self.compute_group_inner_discrete(iter)
+                        self.compute_group_inner_discrete(iter, prefix)
                     }
                 }
-                VectorIter::Float(iter) => self.compute_group_inner_continuous(iter),
+                VectorIter::Float(iter) => self.compute_group_inner_continuous(iter, prefix),
                 VectorIter::Str(iter) => {
-                    self.compute_group_inner_discrete(iter.map(|s| s.to_string()))
+                    self.compute_group_inner_discrete(iter.map(|s| s.to_string()), prefix)
                 }
-                VectorIter::Bool(iter) => self.compute_group_inner_discrete(iter),
-            };
+                VectorIter::Bool(iter) => self.compute_group_inner_discrete(iter, prefix),
+            }?;
+            final_data.extend(data);
         }
-        panic!("No aesthetics provided for Summary stat");
+        Ok((final_data, final_mapping))
+    }
+}
+
+fn mk_name(prefix: &Option<String>, base: &str) -> String {
+    match prefix {
+        Some(p) => format!("{}{}", p, base),
+        None => base.to_string(),
     }
 }
 
@@ -160,7 +212,7 @@ mod tests {
         let mut mapping = AesMap::new();
         mapping.x("x", AestheticDomain::Continuous);
 
-        let stat = Summary::new(Aesthetic::X(AestheticDomain::Continuous));
+        let stat = Summary::from(Aesthetic::X(AestheticDomain::Continuous));
         let (output, _) = stat.compute(df.as_ref(), &mapping).unwrap();
 
         // Should produce columns without prefix
@@ -199,7 +251,7 @@ mod tests {
         let mut mapping = AesMap::new();
         mapping.x("group", AestheticDomain::Discrete);
 
-        let stat = Summary::new(Aesthetic::X(AestheticDomain::Discrete));
+        let stat = Summary::from(Aesthetic::X(AestheticDomain::Discrete));
         let (output, _) = stat.compute(df.as_ref(), &mapping).unwrap();
 
         // Should produce categorical stats without prefix
