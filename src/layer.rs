@@ -144,9 +144,18 @@ impl Layer {
         let properties = self.geom.properties();
         let defaults = self.geom.property_defaults(&ctx.theme);
 
-        log::debug!("Layer render - properties from geom: {:?}", properties.keys().collect::<Vec<_>>());
-        log::debug!("Layer render - requirements: {:?}", requirements.iter().map(|r| r.property).collect::<Vec<_>>());
-        log::debug!("Layer render - defaults: {:?}", defaults.keys().collect::<Vec<_>>());
+        log::debug!(
+            "Layer render - properties from geom: {:?}",
+            properties.keys().collect::<Vec<_>>()
+        );
+        log::debug!(
+            "Layer render - requirements: {:?}",
+            requirements.iter().map(|r| r.property).collect::<Vec<_>>()
+        );
+        log::debug!(
+            "Layer render - defaults: {:?}",
+            defaults.keys().collect::<Vec<_>>()
+        );
 
         // Build index: property -> (aesthetic, domain) from the mapping
         let mut index: HashMap<AestheticProperty, Aesthetic> = HashMap::new();
@@ -268,53 +277,37 @@ impl Layer {
         subset
     }
 
-    pub fn apply_stat(
-        &mut self,
-        data: &Box<dyn DataSource>,
-        mapping: &AesMap,
-    ) -> Result<()> {
+    pub fn apply_stat(&mut self, data: &Box<dyn DataSource>, mapping: &AesMap) -> Result<()> {
         if let Some(stat) = &self.stat {
             // Use layer's pre-stat mapping (or parent mapping if not set)
             let input_mapping = self.mapping.as_ref().unwrap_or(mapping);
-            
-            log::debug!("apply_stat - input_mapping: {:?}", input_mapping.aesthetics().collect::<Vec<_>>());
-            
+
             // Stat transforms data and produces a mapping
             let (new_data, stat_mapping) = stat.compute(data.as_ref(), input_mapping)?;
-            
-            log::debug!("apply_stat - stat_mapping: {:?}", stat_mapping.aesthetics().collect::<Vec<_>>());
-            log::debug!("apply_stat - after_mapping: {:?}", self.after_mapping.as_ref().map(|m| m.aesthetics().collect::<Vec<_>>()));
-            
+
             // Merge with post-stat mapping (after_mapping takes priority)
             let mut final_mapping = stat_mapping;
             if let Some(after_mapping) = &self.after_mapping {
                 final_mapping.merge(after_mapping);
             }
-            
-            log::debug!("apply_stat - final_mapping: {:?}", final_mapping.aesthetics().collect::<Vec<_>>());
-            
-            // Update aesthetic_domains with new aesthetics from final mapping
+
+            // Update aesthetic_domains with aesthetics from final mapping
+            // Stat output domains take precedence over input domains since the stat
+            // may transform the data (e.g., continuous -> discrete bins)
             for (aesthetic, _) in final_mapping.iter() {
                 if let Some(property) = aesthetic.to_property() {
                     let domain = aesthetic.domain();
-                    // Only add if not already present (don't override existing domains)
-                    self.aesthetic_domains.entry(property).or_insert(domain);
+                    self.aesthetic_domains.insert(property, domain);
                 }
             }
-            
-            log::debug!("apply_stat - updated aesthetic_domains: {:?}", self.aesthetic_domains);
-            
+
             self.data = Some(Box::new(new_data));
             self.mapping = Some(final_mapping);
         }
         Ok(())
     }
 
-    pub fn apply_position(
-        &mut self,
-        data: &Box<dyn DataSource>,
-        mapping: &AesMap,
-    ) -> Result<()> {
+    pub fn apply_position(&mut self, data: &Box<dyn DataSource>, mapping: &AesMap) -> Result<()> {
         if let Some(position) = &self.position {
             if let Some((new_data, new_mapping)) = position.apply(data, mapping)? {
                 self.data = Some(new_data);
@@ -332,15 +325,21 @@ impl Layer {
     ) -> Result<()> {
         let data = self.data(data.as_ref());
         let mapping = self.mapping(mapping);
-        
-        log::debug!("train_scales - mapping aesthetics: {:?}", mapping.aesthetics().collect::<Vec<_>>());
+
+        log::debug!(
+            "train_scales - mapping aesthetics: {:?}",
+            mapping.aesthetics().collect::<Vec<_>>()
+        );
         log::debug!("train_scales - data columns: {:?}", data.column_names());
-        
+
         for aes in mapping.aesthetics() {
             log::debug!("train_scales - processing aesthetic: {:?}", aes);
             let iter_result = mapping.get_vector_iter(aes, data);
             if iter_result.is_none() {
-                log::error!("train_scales - failed to get iterator for aesthetic: {:?}", aes);
+                log::error!(
+                    "train_scales - failed to get iterator for aesthetic: {:?}",
+                    aes
+                );
                 continue;
             }
             let iter = iter_result.unwrap();
@@ -423,8 +422,14 @@ impl Layer {
         let data = self.data(data.as_ref());
         let mapping = self.mapping(mapping);
 
-        log::debug!("apply_scales - mapping: {:?}", mapping.aesthetics().collect::<Vec<_>>());
-        log::debug!("apply_scales - aesthetic_domains: {:?}", self.aesthetic_domains);
+        log::debug!(
+            "apply_scales - mapping: {:?}",
+            mapping.aesthetics().collect::<Vec<_>>()
+        );
+        log::debug!(
+            "apply_scales - aesthetic_domains: {:?}",
+            self.aesthetic_domains
+        );
 
         let mut new_mapping = AesMap::new();
 
@@ -661,15 +666,25 @@ pub fn determine_aesthetic_domains(
 ) -> Result<HashMap<AestheticProperty, AestheticDomain>> {
     let mut domains = initial_domains;
 
-    log::debug!("determine_aesthetic_domains - mapping: {:?}", mapping.aesthetics().collect::<Vec<_>>());
-    log::debug!("determine_aesthetic_domains - initial_domains: {:?}", domains);
+    log::debug!(
+        "determine_aesthetic_domains - mapping: {:?}",
+        mapping.aesthetics().collect::<Vec<_>>()
+    );
+    log::debug!(
+        "determine_aesthetic_domains - initial_domains: {:?}",
+        domains
+    );
 
     // First pass: extract domains from mapping
     for (aesthetic, _value) in mapping.iter() {
         if let Some(property) = aesthetic.to_property() {
             let domain = aesthetic.domain();
 
-            log::debug!("determine_aesthetic_domains - processing {:?} with domain {:?}", property, domain);
+            log::debug!(
+                "determine_aesthetic_domains - processing {:?} with domain {:?}",
+                property,
+                domain
+            );
 
             // Check for conflicts with existing domain for this property
             if let Some(existing_domain) = domains.get(&property) {

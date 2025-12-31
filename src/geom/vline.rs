@@ -4,7 +4,7 @@ use super::{Geom, RenderContext};
 use crate::aesthetics::builder::{
     AesMapBuilder, AlphaContinuousAesBuilder, AlphaDiscreteAesBuilder, ColorContinuousAesBuilder,
     ColorDiscreteAesBuilder, SizeContinuousAesBuilder, SizeDiscreteAesBuilder,
-    YContininuousAesBuilder, YDiscreteAesBuilder,
+    XInterceptAesBuilder,
 };
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::data::PrimitiveValue;
@@ -14,11 +14,11 @@ use crate::geom::{AestheticRequirement, DomainConstraint};
 use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
 use crate::scale::traits::{ContinuousRangeScale, ScaleBase};
+use crate::stat::Stat;
 use crate::theme::{Color, color};
 
 pub trait GeomVLineAesBuilderTrait:
-    YContininuousAesBuilder
-    + YDiscreteAesBuilder
+    XInterceptAesBuilder
     + ColorContinuousAesBuilder
     + ColorDiscreteAesBuilder
     + AlphaContinuousAesBuilder
@@ -49,8 +49,8 @@ impl GeomVLineBuilder {
         }
     }
 
-    pub fn xintercept<XIntercept: Into<FloatProperty>>(mut self, xintercept: XIntercept) -> Self {
-        self.x_intercept = Some(xintercept.into());
+    pub fn x_intercept<XIntercept: Into<FloatProperty>>(mut self, x_intercept: XIntercept) -> Self {
+        self.x_intercept = Some(x_intercept.into());
         self
     }
 
@@ -81,6 +81,11 @@ impl GeomVLineBuilder {
             }
             closure(self.core.after_aes_builder.as_mut().unwrap());
         }
+        self
+    }
+
+    pub fn stat<S: Stat + 'static>(mut self, stat: S) -> Self {
+        self.core.stat = Some(Box::new(stat));
         self
     }
 }
@@ -394,5 +399,69 @@ impl Geom for GeomVLine {
         )?;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        aesthetics::builder::{XContininuousAesBuilder, YContininuousAesBuilder},
+        error::to_io_error,
+        geom::point::geom_point,
+        plot::plot,
+        stat::summary::Summary,
+        utils::mtcars::mtcars,
+    };
+
+    fn init_test_logging() {
+        let _ = env_logger::builder()
+            .is_test(true)
+            .filter_level(log::LevelFilter::Debug)
+            .try_init();
+    }
+
+    #[test]
+    fn basic_vlines_1() {
+        init_test_logging();
+
+        let data = mtcars();
+
+        let builder = plot(&data).aes(|a| {
+            a.x_continuous("wt");
+            a.y_continuous("mpg");
+        }) + geom_point()
+            + geom_vline().x_intercept(3.0).color(color::RED).size(2.0);
+
+        let p = builder
+            .build()
+            .map_err(to_io_error)
+            .expect("Failed to build plot");
+        p.save("tests/images/basic_vlines_1.png", 800, 600)
+            .map_err(to_io_error)
+            .expect("Failed to save plot image");
+    }
+
+    #[test]
+    fn basic_vlines_2() {
+        init_test_logging();
+
+        let data = mtcars();
+
+        let builder = plot(&data).aes(|a| {
+            a.x_continuous("wt");
+            a.y_continuous("mpg");
+        }) + geom_point()
+            + geom_vline()
+                .stat(Summary::new(Aesthetic::X(AestheticDomain::Continuous)))
+                .aes(|a| a.x_intercept("mean"));
+
+        let p = builder
+            .build()
+            .map_err(to_io_error)
+            .expect("Failed to build plot");
+        p.save("tests/images/basic_vlines_2.png", 800, 600)
+            .map_err(to_io_error)
+            .expect("Failed to save plot image");
     }
 }

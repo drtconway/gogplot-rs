@@ -528,8 +528,8 @@ fn add_layer<'a>(
             let mut geom = gogplot::geom::vline::geom_vline();
 
             // Apply fixed parameters
-            if let Some(xintercept) = layer.params.xintercept {
-                geom = geom.xintercept(xintercept);
+            if let Some(x_intercept) = layer.params.xintercept {
+                geom = geom.x_intercept(x_intercept);
             }
             if let Some(color_str) = &layer.params.color {
                 let color = string_to_color(color_str)?;
