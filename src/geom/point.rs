@@ -7,12 +7,12 @@ use crate::aesthetics::builder::{
     XContininuousAesBuilder, XDiscreteAesBuilder, YContininuousAesBuilder, YDiscreteAesBuilder,
 };
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
-use crate::error::PlotError;
+use crate::error::Result;
 use crate::geom::properties::{
     ColorProperty, FloatProperty, PropertyValue, PropertyVector, ShapeProperty,
 };
 use crate::geom::{AestheticRequirement, DomainConstraint};
-use crate::layer::{Layer, LayerBuilder};
+use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
 use crate::theme::{Color, Theme, color};
 use crate::visuals::Shape;
@@ -35,21 +35,21 @@ pub trait GeomPointAesBuilderTrait:
 impl GeomPointAesBuilderTrait for AesMapBuilder {}
 
 pub struct GeomPointBuilder {
+    core: LayerBuilderCore,
     size: Option<FloatProperty>,
     color: Option<ColorProperty>,
     shape: Option<ShapeProperty>,
     alpha: Option<FloatProperty>,
-    aes_builder: AesMapBuilder,
 }
 
 impl GeomPointBuilder {
     pub fn new() -> Self {
         Self {
+            core: LayerBuilderCore::default(),
             size: None,
             color: None,
             shape: None,
             alpha: None,
-            aes_builder: AesMapBuilder::new(),
         }
     }
 
@@ -74,51 +74,49 @@ impl GeomPointBuilder {
     }
 
     pub fn aes(mut self, closure: impl FnOnce(&mut dyn GeomPointAesBuilderTrait)) -> Self {
-        closure(&mut self.aes_builder);
+        if self.core.stat.is_none() {
+            if self.core.aes_builder.is_none() {
+                self.core.aes_builder = Some(AesMapBuilder::new());
+            }
+            closure(self.core.aes_builder.as_mut().unwrap());
+        } else {
+            if self.core.after_aes_builder.is_none() {
+                self.core.after_aes_builder = Some(AesMapBuilder::new());
+            }
+            closure(self.core.after_aes_builder.as_mut().unwrap());
+        }
         self
     }
 }
 
 impl LayerBuilder for GeomPointBuilder {
-    fn build(self: Box<Self>, parent_mapping: &AesMap) -> Layer {
+    fn build(self: Box<Self>, parent_mapping: &AesMap) -> Result<Layer> {
         let mut geom_point = GeomPoint::new();
 
-        // Build the mapping (merging layer + parent)
-        let mut mapping = self.aes_builder.build(parent_mapping);
+        let mut overrides = Vec::new();
 
         // Set fixed property values and remove from inherited mapping
         if self.size.is_some() {
             geom_point.size = self.size;
-            mapping.remove(&Aesthetic::Size(AestheticDomain::Continuous));
-            mapping.remove(&Aesthetic::Size(AestheticDomain::Discrete));
+            overrides.push(Aesthetic::Size(AestheticDomain::Continuous));
+            overrides.push(Aesthetic::Size(AestheticDomain::Discrete));
         }
         if self.color.is_some() {
             geom_point.color = self.color;
-            mapping.remove(&Aesthetic::Color(AestheticDomain::Continuous));
-            mapping.remove(&Aesthetic::Color(AestheticDomain::Discrete));
+            overrides.push(Aesthetic::Color(AestheticDomain::Continuous));
+            overrides.push(Aesthetic::Color(AestheticDomain::Discrete));
         }
         if self.shape.is_some() {
             geom_point.shape = self.shape;
-            mapping.remove(&Aesthetic::Shape);
+            overrides.push(Aesthetic::Shape);
         }
         if self.alpha.is_some() {
             geom_point.alpha = self.alpha;
-            mapping.remove(&Aesthetic::Alpha(AestheticDomain::Continuous));
-            mapping.remove(&Aesthetic::Alpha(AestheticDomain::Discrete));
+            overrides.push(Aesthetic::Alpha(AestheticDomain::Continuous));
+            overrides.push(Aesthetic::Alpha(AestheticDomain::Discrete));
         }
 
-        // Determine and validate aesthetic domains
-        let requirements = geom_point.aesthetic_requirements();
-        let aesthetic_domains =
-            crate::layer::determine_aesthetic_domains(&mapping, requirements, HashMap::new())
-                .expect("Invalid aesthetic configuration for geom_point");
-
-        // Create the layer
-        let mut layer = crate::layer::Layer::new(Box::new(geom_point));
-        layer.mapping = Some(mapping);
-        layer.aesthetic_domains = aesthetic_domains;
-
-        layer
+        LayerBuilderCore::build(self.core, parent_mapping, Box::new(geom_point), HashMap::new(), &overrides)
     }
 }
 
@@ -145,30 +143,6 @@ impl GeomPoint {
         }
     }
 
-    /// Set the default point size
-    pub fn size(&mut self, size: f64) -> &mut Self {
-        self.size = Some(FloatProperty::new().value(size).clone());
-        self
-    }
-
-    /// Set the default point color
-    pub fn color(&mut self, color: crate::theme::Color) -> &mut Self {
-        self.color = Some(ColorProperty::new().color(color).clone());
-        self
-    }
-
-    /// Set the default point shape
-    pub fn shape(&mut self, shape: Shape) -> &mut Self {
-        self.shape = Some(ShapeProperty::new().shape(shape).clone());
-        self
-    }
-
-    /// Set the default alpha/opacity
-    pub fn alpha(&mut self, alpha: f64) -> &mut Self {
-        self.alpha = Some(FloatProperty::new().value(alpha.clamp(0.0, 1.0)).clone());
-        self
-    }
-
     fn draw_points(
         &self,
         ctx: &mut RenderContext,
@@ -178,7 +152,7 @@ impl GeomPoint {
         size_values: impl Iterator<Item = f64>,
         alpha_values: impl Iterator<Item = f64>,
         shape_values: impl Iterator<Item = Shape>,
-    ) -> Result<(), PlotError> {
+    ) -> Result<()> {
         // Set default color
         let Color(r, g, b, a) = color::BLACK; // Placeholder for now
         ctx.cairo.set_source_rgba(
@@ -231,12 +205,6 @@ impl GeomPoint {
         }
 
         Ok(())
-    }
-}
-
-impl Default for GeomPoint {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -339,7 +307,7 @@ impl Geom for GeomPoint {
         &self,
         ctx: &mut RenderContext,
         mut properties: HashMap<AestheticProperty, PropertyVector>,
-    ) -> Result<(), PlotError> {
+    ) -> Result<()> {
         let x_values = properties
             .remove(&AestheticProperty::X)
             .unwrap()
@@ -381,20 +349,76 @@ impl Geom for GeomPoint {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::{error::to_io_error, plot::plot, utils::mtcars::mtcars};
 
-    use super::*;
+    fn init_test_logging() {
+        let _ = env_logger::builder()
+            .is_test(true)
+            .filter_level(log::LevelFilter::Debug)
+            .try_init();
+    }
 
     #[test]
     fn basic_points_1() {
+        init_test_logging();
+
         let data = mtcars();
 
         let builder = plot(&data).aes(|a| {
             a.x_continuous("wt");
             a.y_continuous("mpg");
-        }) + geom_point().size(3.0);
+        }) + geom_point().size(3.0).alpha(0.5);
 
-        let p = builder.build().map_err(to_io_error).expect("Failed to build plot");
-        p.save("tests/images/basic_points_1.png", 800, 600).map_err(to_io_error).expect("Failed to save plot image");
+        let p = builder
+            .build()
+            .map_err(to_io_error)
+            .expect("Failed to build plot");
+        p.save("tests/images/basic_points_1.png", 800, 600)
+            .map_err(to_io_error)
+            .expect("Failed to save plot image");
+    }
+
+    #[test]
+    fn basic_points_2() {
+        init_test_logging();
+
+        let data = mtcars();
+
+        let builder = plot(&data).aes(|a| {
+            a.x_continuous("wt");
+            a.y_continuous("mpg");
+        }) + geom_point().color(color::BLUEVIOLET).shape(Shape::Square);
+
+        let p = builder
+            .build()
+            .map_err(to_io_error)
+            .expect("Failed to build plot");
+        p.save("tests/images/basic_points_2.png", 800, 600)
+            .map_err(to_io_error)
+            .expect("Failed to save plot image");
+    }
+
+    #[test]
+    fn basic_points_3() {
+        init_test_logging();
+
+        let data = mtcars();
+
+        let builder = plot(&data).aes(|a| {
+            a.x_continuous("wt");
+            a.y_continuous("mpg");
+        }) + geom_point().aes(|a| {
+            a.color_continuous("hp");
+            a.size_discrete("cyl");
+        });
+
+        let p = builder
+            .build()
+            .map_err(to_io_error)
+            .expect("Failed to build plot");
+        p.save("tests/images/basic_points_3.png", 800, 600)
+            .map_err(to_io_error)
+            .expect("Failed to save plot image");
     }
 }

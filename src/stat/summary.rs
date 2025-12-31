@@ -16,12 +16,12 @@ use crate::utils::dataframe::DataFrame;
 /// - Single aesthetic: "min", "max", "mean", "median", "sd"
 /// - Multiple aesthetics: "{aes}_min", "{aes}_max", etc.
 pub struct Summary {
-    pub aesthetics: Vec<Aesthetic>,
+    pub aesthetic: Aesthetic,
 }
 
 impl Summary {
-    pub fn new(aesthetics: Vec<Aesthetic>) -> Self {
-        Self { aesthetics }
+    pub fn new(aesthetic: Aesthetic) -> Self {
+        Self { aesthetic }
     }
 
     fn compute_group_inner_continuous<T: ContinuousType + Vectorable>(
@@ -57,7 +57,7 @@ impl Summary {
                 values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / values.len() as f64;
             let sd = variance.sqrt();
 
-            data.add_column("min",  vec![min]);
+            data.add_column("min", vec![min]);
             data.add_column("max", vec![max]);
             data.add_column("mean", vec![mean]);
             data.add_column("median", vec![median]);
@@ -113,6 +113,13 @@ impl Summary {
 }
 
 impl Stat for Summary {
+    fn aesthetic_requirements(&self) -> super::StatAestheticRequirements {
+        super::StatAestheticRequirements {
+            main: self.aesthetic.to_property().unwrap(),
+            secondary: None,
+        }
+    }
+
     fn compute_group(
         &self,
         aesthetics: Vec<Aesthetic>,
@@ -142,11 +149,7 @@ impl Stat for Summary {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        aesthetics::AestheticDomain,
-        data::DataSource,
-        utils::dataframe::DataFrame,
-    };
+    use crate::{aesthetics::AestheticDomain, data::DataSource, utils::dataframe::DataFrame};
 
     #[test]
     fn test_summary_single_continuous() {
@@ -157,7 +160,7 @@ mod tests {
         let mut mapping = AesMap::new();
         mapping.x("x", AestheticDomain::Continuous);
 
-        let stat = Summary::new(vec![Aesthetic::X(AestheticDomain::Continuous)]);
+        let stat = Summary::new(Aesthetic::X(AestheticDomain::Continuous));
         let (output, _) = stat.compute(df.as_ref(), &mapping).unwrap();
 
         // Should produce columns without prefix
@@ -196,7 +199,7 @@ mod tests {
         let mut mapping = AesMap::new();
         mapping.x("group", AestheticDomain::Discrete);
 
-        let stat = Summary::new(vec![Aesthetic::X(AestheticDomain::Discrete)]);
+        let stat = Summary::new(Aesthetic::X(AestheticDomain::Discrete));
         let (output, _) = stat.compute(df.as_ref(), &mapping).unwrap();
 
         // Should produce categorical stats without prefix

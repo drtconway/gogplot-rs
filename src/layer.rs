@@ -1,8 +1,9 @@
 // Layer scaffolding for grammar of graphics
 
-use crate::PlotError;
+use crate::aesthetics::builder::AesMapBuilder;
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::data::{DataSource, DiscreteValue, VectorIter};
+use crate::error::Result;
 use crate::geom::properties::{Property, PropertyValue, PropertyVector};
 use crate::geom::{AestheticRequirement, DomainConstraint, Geom};
 use crate::position::Position;
@@ -11,8 +12,66 @@ use crate::scale::traits::{ColorRangeScale, ContinuousRangeScale, ScaleBase, Sha
 use crate::stat::Stat;
 use std::collections::HashMap;
 
+pub struct LayerBuilderCore {
+    pub stat: Option<Box<dyn Stat>>,
+    pub position: Option<Box<dyn Position>>,
+    pub data: Option<Box<dyn DataSource>>,
+    pub aes_builder: Option<AesMapBuilder>,
+    pub after_aes_builder: Option<AesMapBuilder>,
+}
+
+impl Default for LayerBuilderCore {
+    fn default() -> Self {
+        Self {
+            stat: None,
+            position: None,
+            data: None,
+            aes_builder: None,
+            after_aes_builder: None,
+        }
+    }
+}
+
+impl LayerBuilderCore {
+    pub fn build(
+        self: Self,
+        parent_mapping: &AesMap,
+        geom: Box<dyn Geom>,
+        initial_domains: HashMap<AestheticProperty, AestheticDomain>,
+        overrides: &[Aesthetic],
+    ) -> Result<Layer> {
+        let mapping = self
+            .aes_builder
+            .map(|builder| builder.build(parent_mapping, overrides));
+        // after_mapping should NOT inherit from parent - it works with stat output data
+        let empty_mapping = AesMap::new();
+        let after_mapping = self
+            .after_aes_builder
+            .map(|builder| builder.build(&empty_mapping, overrides));
+
+        let requirements = geom.aesthetic_requirements();
+        let has_stat = self.stat.is_some();
+        let aesthetic_domains = determine_aesthetic_domains(
+            mapping.as_ref().unwrap_or(parent_mapping),
+            &requirements,
+            initial_domains,
+            has_stat,
+        )?;
+
+        Ok(Layer {
+            stat: self.stat,
+            position: self.position,
+            geom,
+            data: self.data,
+            mapping,
+            after_mapping,
+            aesthetic_domains,
+        })
+    }
+}
+
 pub trait LayerBuilder {
-    fn build(self: Box<Self>, parent_mapping: &AesMap) -> Layer;
+    fn build(self: Box<Self>, parent_mapping: &AesMap) -> Result<Layer>;
 }
 
 /// Layer struct - represents one layer in a plot
@@ -23,8 +82,7 @@ pub struct Layer {
     pub geom: Box<dyn Geom>,
     pub data: Option<Box<dyn DataSource>>,
     pub mapping: Option<AesMap>,
-
-    /// Track which domain each aesthetic property uses in this layer
+    pub after_mapping: Option<AesMap>,
     pub aesthetic_domains: HashMap<AestheticProperty, AestheticDomain>,
 }
 
@@ -37,6 +95,7 @@ impl Layer {
             geom,
             data: None,
             mapping: None,
+            after_mapping: None,
             aesthetic_domains: HashMap::new(),
         }
     }
@@ -75,7 +134,7 @@ impl Layer {
         ctx: &mut crate::geom::RenderContext,
         plot_data: &dyn DataSource,
         plot_mapping: &AesMap,
-    ) -> Result<(), PlotError> {
+    ) -> Result<()> {
         let data = self.data(plot_data);
         let mapping = self.mapping(plot_mapping);
         let n = data.len();
@@ -84,6 +143,10 @@ impl Layer {
         let requirements = self.geom.aesthetic_requirements();
         let properties = self.geom.properties();
         let defaults = self.geom.property_defaults(&ctx.theme);
+
+        log::debug!("Layer render - properties from geom: {:?}", properties.keys().collect::<Vec<_>>());
+        log::debug!("Layer render - requirements: {:?}", requirements.iter().map(|r| r.property).collect::<Vec<_>>());
+        log::debug!("Layer render - defaults: {:?}", defaults.keys().collect::<Vec<_>>());
 
         // Build index: property -> (aesthetic, domain) from the mapping
         let mut index: HashMap<AestheticProperty, Aesthetic> = HashMap::new();
@@ -101,11 +164,8 @@ impl Layer {
 
             // Priority 1: Check if geom has an explicit property set
             if let Some(prop_value) = properties.get(&property) {
-                // For required properties provided as constants, only materialize once
-                // (e.g., yintercept for hline). Optional properties get repeated n times.
-                // When zipped together, the shortest iterator controls iteration count.
-                let length = if req.required { 1 } else { n };
-                let vector = self.materialize_constant_aesthetic(prop_value, length);
+                // Materialize constant properties to match data length
+                let vector = self.materialize_constant_aesthetic(prop_value, n);
                 all_vectors.insert(property, vector);
             } else if let Some(aesthetic) = index.get(&property) {
                 // Priority 2: Use mapping
@@ -212,11 +272,40 @@ impl Layer {
         &mut self,
         data: &Box<dyn DataSource>,
         mapping: &AesMap,
-    ) -> Result<(), crate::error::PlotError> {
+    ) -> Result<()> {
         if let Some(stat) = &self.stat {
-            let (new_data, new_mapping) = stat.compute(data.as_ref(), mapping)?;
+            // Use layer's pre-stat mapping (or parent mapping if not set)
+            let input_mapping = self.mapping.as_ref().unwrap_or(mapping);
+            
+            log::debug!("apply_stat - input_mapping: {:?}", input_mapping.aesthetics().collect::<Vec<_>>());
+            
+            // Stat transforms data and produces a mapping
+            let (new_data, stat_mapping) = stat.compute(data.as_ref(), input_mapping)?;
+            
+            log::debug!("apply_stat - stat_mapping: {:?}", stat_mapping.aesthetics().collect::<Vec<_>>());
+            log::debug!("apply_stat - after_mapping: {:?}", self.after_mapping.as_ref().map(|m| m.aesthetics().collect::<Vec<_>>()));
+            
+            // Merge with post-stat mapping (after_mapping takes priority)
+            let mut final_mapping = stat_mapping;
+            if let Some(after_mapping) = &self.after_mapping {
+                final_mapping.merge(after_mapping);
+            }
+            
+            log::debug!("apply_stat - final_mapping: {:?}", final_mapping.aesthetics().collect::<Vec<_>>());
+            
+            // Update aesthetic_domains with new aesthetics from final mapping
+            for (aesthetic, _) in final_mapping.iter() {
+                if let Some(property) = aesthetic.to_property() {
+                    let domain = aesthetic.domain();
+                    // Only add if not already present (don't override existing domains)
+                    self.aesthetic_domains.entry(property).or_insert(domain);
+                }
+            }
+            
+            log::debug!("apply_stat - updated aesthetic_domains: {:?}", self.aesthetic_domains);
+            
             self.data = Some(Box::new(new_data));
-            self.mapping = Some(new_mapping);
+            self.mapping = Some(final_mapping);
         }
         Ok(())
     }
@@ -225,7 +314,7 @@ impl Layer {
         &mut self,
         data: &Box<dyn DataSource>,
         mapping: &AesMap,
-    ) -> Result<(), crate::error::PlotError> {
+    ) -> Result<()> {
         if let Some(position) = &self.position {
             if let Some((new_data, new_mapping)) = position.apply(data, mapping)? {
                 self.data = Some(new_data);
@@ -240,11 +329,21 @@ impl Layer {
         scales: &mut ScaleSet,
         data: &Box<dyn DataSource>,
         mapping: &AesMap,
-    ) -> Result<(), crate::error::PlotError> {
+    ) -> Result<()> {
         let data = self.data(data.as_ref());
         let mapping = self.mapping(mapping);
+        
+        log::debug!("train_scales - mapping aesthetics: {:?}", mapping.aesthetics().collect::<Vec<_>>());
+        log::debug!("train_scales - data columns: {:?}", data.column_names());
+        
         for aes in mapping.aesthetics() {
-            let iter = mapping.get_vector_iter(aes, data).unwrap();
+            log::debug!("train_scales - processing aesthetic: {:?}", aes);
+            let iter_result = mapping.get_vector_iter(aes, data);
+            if iter_result.is_none() {
+                log::error!("train_scales - failed to get iterator for aesthetic: {:?}", aes);
+                continue;
+            }
+            let iter = iter_result.unwrap();
 
             // Extract the property and look up the domain from aesthetic_domains
             if let Some(property) = aes.to_property() {
@@ -320,9 +419,12 @@ impl Layer {
         scales: &ScaleSet,
         data: &Box<dyn DataSource>,
         mapping: &AesMap,
-    ) -> Result<(), crate::error::PlotError> {
+    ) -> Result<()> {
         let data = self.data(data.as_ref());
         let mapping = self.mapping(mapping);
+
+        log::debug!("apply_scales - mapping: {:?}", mapping.aesthetics().collect::<Vec<_>>());
+        log::debug!("apply_scales - aesthetic_domains: {:?}", self.aesthetic_domains);
 
         let mut new_mapping = AesMap::new();
 
@@ -555,13 +657,19 @@ pub fn determine_aesthetic_domains(
     mapping: &AesMap,
     requirements: &[AestheticRequirement],
     initial_domains: HashMap<AestheticProperty, AestheticDomain>,
-) -> Result<HashMap<AestheticProperty, AestheticDomain>, crate::error::PlotError> {
+    has_stat: bool,
+) -> Result<HashMap<AestheticProperty, AestheticDomain>> {
     let mut domains = initial_domains;
+
+    log::debug!("determine_aesthetic_domains - mapping: {:?}", mapping.aesthetics().collect::<Vec<_>>());
+    log::debug!("determine_aesthetic_domains - initial_domains: {:?}", domains);
 
     // First pass: extract domains from mapping
     for (aesthetic, _value) in mapping.iter() {
         if let Some(property) = aesthetic.to_property() {
             let domain = aesthetic.domain();
+
+            log::debug!("determine_aesthetic_domains - processing {:?} with domain {:?}", property, domain);
 
             // Check for conflicts with existing domain for this property
             if let Some(existing_domain) = domains.get(&property) {
@@ -598,11 +706,14 @@ pub fn determine_aesthetic_domains(
     }
 
     // Second pass: check required aesthetics are present
-    for req in requirements {
-        if req.required && !domains.contains_key(&req.property) {
-            return Err(crate::error::PlotError::MissingRequiredAesthetic {
-                property: req.property,
-            });
+    // Skip this check if a stat is present, as the stat may provide required aesthetics
+    if !has_stat {
+        for req in requirements {
+            if req.required && !domains.contains_key(&req.property) {
+                return Err(crate::error::PlotError::MissingRequiredAesthetic {
+                    property: req.property,
+                });
+            }
         }
     }
 

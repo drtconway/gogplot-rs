@@ -36,7 +36,7 @@ impl<'a> PlotBuilder<'a> {
         closure(&mut builder);
         Self {
             data: self.data,
-            mapping: builder.build(&empty),
+            mapping: builder.build(&empty, &[]),
             layers: self.layers,
             guides: self.guides,
             theme: self.theme,
@@ -66,7 +66,7 @@ impl<'a> PlotBuilder<'a> {
         let mut layers: Vec<Layer> = self
             .layers
             .into_iter()
-            .map(|builder| builder.build(&self.mapping))
+            .map(|builder| builder.build(&self.mapping).unwrap())
             .collect();
 
         let mut scales = ScaleSet::default();
@@ -147,7 +147,7 @@ impl<'a> Add<AesMapBuilder> for PlotBuilder<'a> {
     type Output = Self;
 
     fn add(mut self, rhs: AesMapBuilder) -> Self::Output {
-        self.mapping = rhs.build(&self.mapping);
+        self.mapping = rhs.build(&self.mapping, &[]);
         self
     }
 }

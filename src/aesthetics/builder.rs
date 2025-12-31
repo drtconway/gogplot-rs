@@ -30,6 +30,19 @@ pub trait XDiscreteAesBuilder: AesMapBuilderTrait {
     }
 }
 
+pub trait XInterceptAesBuilder: AesMapBuilderTrait {
+    fn x_intercept(&mut self, column: &str) {
+        self.aes().set(
+            Aesthetic::XIntercept,
+            AesValue::Column {
+                name: column.to_string(),
+                hint: None,
+                original_name: None,
+            },
+        );
+    }
+}
+
 pub trait YContininuousAesBuilder: AesMapBuilderTrait {
     fn y_continuous(&mut self, column: &str) {
         self.aes().set(
@@ -47,6 +60,19 @@ pub trait YDiscreteAesBuilder: AesMapBuilderTrait {
     fn y_discrete(&mut self, column: &str) {
         self.aes().set(
             Aesthetic::Y(AestheticDomain::Discrete),
+            AesValue::Column {
+                name: column.to_string(),
+                hint: None,
+                original_name: None,
+            },
+        );
+    }
+}
+
+pub trait YInterceptAesBuilder: AesMapBuilderTrait {
+    fn y_intercept(&mut self, column: &str) {
+        self.aes().set(
+            Aesthetic::YIntercept,
             AesValue::Column {
                 name: column.to_string(),
                 hint: None,
@@ -249,11 +275,14 @@ impl AesMapBuilder {
         }
     }
 
-    pub fn build(mut self, parent_mapping: &AesMap) -> AesMap {
+    pub fn build(mut self, parent_mapping: &AesMap, overrides: &[Aesthetic]) -> AesMap {
         for (aes, aes_value) in parent_mapping.iter() {
             if !self.aes_map.contains(*aes) {
                 self.aes_map.set(*aes, aes_value.clone());
             }
+        }
+        for aes in overrides {
+            self.aes_map.remove(aes);
         }
         self.aes_map
     }
@@ -267,8 +296,10 @@ impl AesMapBuilderTrait for AesMapBuilder {
 
 impl XContininuousAesBuilder for AesMapBuilder {}
 impl XDiscreteAesBuilder for AesMapBuilder {}
+impl XInterceptAesBuilder for AesMapBuilder {}
 impl YContininuousAesBuilder for AesMapBuilder {}
 impl YDiscreteAesBuilder for AesMapBuilder {}
+impl YInterceptAesBuilder for AesMapBuilder {}
 impl XMinContinuousAesBuilder for AesMapBuilder {}
 impl XMaxContinuousAesBuilder for AesMapBuilder {}
 impl YMinContinuousAesBuilder for AesMapBuilder {}

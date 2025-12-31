@@ -7,10 +7,10 @@ use crate::aesthetics::builder::{
     XContininuousAesBuilder, XDiscreteAesBuilder, YContininuousAesBuilder, YDiscreteAesBuilder,
 };
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
-use crate::error::PlotError;
+use crate::error::Result;
 use crate::geom::properties::{ColorProperty, FloatProperty, PropertyVector};
 use crate::geom::{AestheticRequirement, DomainConstraint};
-use crate::layer::{Layer, LayerBuilder};
+use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
 use crate::theme::{Color, color};
 
@@ -31,19 +31,19 @@ pub trait GeomLineAesBuilderTrait:
 impl GeomLineAesBuilderTrait for AesMapBuilder {}
 
 pub struct GeomLineBuilder {
+    core: LayerBuilderCore,
     size: Option<FloatProperty>,
     color: Option<ColorProperty>,
     alpha: Option<FloatProperty>,
-    aes_builder: AesMapBuilder,
 }
 
 impl GeomLineBuilder {
     pub fn new() -> Self {
         Self {
+            core: LayerBuilderCore::default(),
             size: None,
             color: None,
             alpha: None,
-            aes_builder: AesMapBuilder::new(),
         }
     }
 
@@ -63,46 +63,52 @@ impl GeomLineBuilder {
     }
 
     pub fn aes(mut self, closure: impl FnOnce(&mut dyn GeomLineAesBuilderTrait)) -> Self {
-        closure(&mut self.aes_builder);
+        if self.core.stat.is_none() {
+            if self.core.aes_builder.is_none() {
+                self.core.aes_builder = Some(AesMapBuilder::new());
+            }
+            closure(self.core.aes_builder.as_mut().unwrap());
+        } else {
+            if self.core.after_aes_builder.is_none() {
+                self.core.after_aes_builder = Some(AesMapBuilder::new());
+            }
+            closure(self.core.after_aes_builder.as_mut().unwrap());
+        }
         self
     }
 }
 
 impl LayerBuilder for GeomLineBuilder {
-    fn build(self: Box<Self>, parent_mapping: &AesMap) -> Layer {
+    fn build(self: Box<Self>, parent_mapping: &AesMap) -> Result<Layer> {
         let mut geom_line = GeomLine::new();
 
         // Build the mapping (merging layer + parent)
-        let mut mapping = self.aes_builder.build(parent_mapping);
+        let mut overrides = Vec::new();
 
         // Set fixed property values and remove from inherited mapping
         if self.size.is_some() {
             geom_line.size = self.size;
-            mapping.remove(&Aesthetic::Size(AestheticDomain::Continuous));
-            mapping.remove(&Aesthetic::Size(AestheticDomain::Discrete));
+            overrides.push(Aesthetic::Size(AestheticDomain::Continuous));
+            overrides.push(Aesthetic::Size(AestheticDomain::Discrete));
         }
         if self.color.is_some() {
             geom_line.color = self.color;
-            mapping.remove(&Aesthetic::Color(AestheticDomain::Continuous));
-            mapping.remove(&Aesthetic::Color(AestheticDomain::Discrete));
+            overrides.push(Aesthetic::Color(AestheticDomain::Continuous));
+            overrides.push(Aesthetic::Color(AestheticDomain::Discrete));
         }
         if self.alpha.is_some() {
             geom_line.alpha = self.alpha;
-            mapping.remove(&Aesthetic::Alpha(AestheticDomain::Continuous));
-            mapping.remove(&Aesthetic::Alpha(AestheticDomain::Discrete));
+            overrides.push(Aesthetic::Alpha(AestheticDomain::Continuous));
+            overrides.push(Aesthetic::Alpha(AestheticDomain::Discrete));
         }
 
-        // Determine and validate aesthetic domains
-        let requirements = geom_line.aesthetic_requirements();
-        let aesthetic_domains = crate::layer::determine_aesthetic_domains(&mapping, requirements, HashMap::new())
-            .expect("Invalid aesthetic configuration for geom_line");
-
-        // Create the layer
-        let mut layer = crate::layer::Layer::new(Box::new(geom_line));
-        layer.mapping = Some(mapping);
-        layer.aesthetic_domains = aesthetic_domains;
-
-        layer
+        LayerBuilderCore::build(
+            self.core,
+            parent_mapping,
+            Box::new(geom_line),
+            HashMap::new(),
+            &overrides,
+        )
     }
 }
 
@@ -127,24 +133,6 @@ impl GeomLine {
         }
     }
 
-    /// Set the default point size
-    pub fn size(&mut self, size: f64) -> &mut Self {
-        self.size = Some(FloatProperty::new().value(size).clone());
-        self
-    }
-
-    /// Set the default point color
-    pub fn color(&mut self, color: crate::theme::Color) -> &mut Self {
-        self.color = Some(ColorProperty::new().color(color).clone());
-        self
-    }
-
-    /// Set the default alpha/opacity
-    pub fn alpha(&mut self, alpha: f64) -> &mut Self {
-        self.alpha = Some(FloatProperty::new().value(alpha.clamp(0.0, 1.0)).clone());
-        self
-    }
-
     fn draw_lines(
         &self,
         ctx: &mut RenderContext,
@@ -153,7 +141,7 @@ impl GeomLine {
         color_values: impl Iterator<Item = Color>,
         size_values: impl Iterator<Item = f64>,
         alpha_values: impl Iterator<Item = f64>,
-    ) -> Result<(), PlotError> {
+    ) -> Result<()> {
         // Collect all points for this line segment
         let points: Vec<_> = x_values
             .zip(y_values)
@@ -198,12 +186,6 @@ impl GeomLine {
         ctx.cairo.stroke().ok();
 
         Ok(())
-    }
-}
-
-impl Default for GeomLine {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -301,7 +283,7 @@ impl Geom for GeomLine {
         &self,
         ctx: &mut RenderContext,
         mut properties: HashMap<AestheticProperty, PropertyVector>,
-    ) -> Result<(), PlotError> {
+    ) -> Result<()> {
         let x_values = properties
             .remove(&AestheticProperty::X)
             .unwrap()
@@ -341,5 +323,81 @@ impl Geom for GeomLine {
             size_values,
             alpha_values,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{error::to_io_error, plot::plot, utils::mtcars::mtcars};
+
+    fn init_test_logging() {
+        let _ = env_logger::builder()
+            .is_test(true)
+            .filter_level(log::LevelFilter::Debug)
+            .try_init();
+    }
+
+    #[test]
+    fn basic_lines_1() {
+        init_test_logging();
+
+        let data = mtcars();
+
+        let builder = plot(&data).aes(|a| {
+            a.x_continuous("wt");
+            a.y_continuous("mpg");
+        }) + geom_line().size(3.0).alpha(0.5);
+
+        let p = builder
+            .build()
+            .map_err(to_io_error)
+            .expect("Failed to build plot");
+        p.save("tests/images/basic_lines_1.png", 800, 600)
+            .map_err(to_io_error)
+            .expect("Failed to save plot image");
+    }
+
+    #[test]
+    fn basic_lines_2() {
+        init_test_logging();
+
+        let data = mtcars();
+
+        let builder = plot(&data).aes(|a| {
+            a.x_continuous("wt");
+            a.y_continuous("mpg");
+        }) + geom_line().color(color::BLUEVIOLET);
+
+        let p = builder
+            .build()
+            .map_err(to_io_error)
+            .expect("Failed to build plot");
+        p.save("tests/images/basic_lines_2.png", 800, 600)
+            .map_err(to_io_error)
+            .expect("Failed to save plot image");
+    }
+
+    #[test]
+    fn basic_lines_3() {
+        init_test_logging();
+
+        let data = mtcars();
+
+        let builder = plot(&data).aes(|a| {
+            a.x_continuous("wt");
+            a.y_continuous("mpg");
+        }) + geom_line().aes(|a| {
+            a.color_continuous("hp");
+            a.size_discrete("cyl");
+        });
+
+        let p = builder
+            .build()
+            .map_err(to_io_error)
+            .expect("Failed to build plot");
+        p.save("tests/images/basic_lines_3.png", 800, 600)
+            .map_err(to_io_error)
+            .expect("Failed to save plot image");
     }
 }

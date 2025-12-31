@@ -8,10 +8,10 @@ use crate::aesthetics::builder::{
 };
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::data::PrimitiveValue;
-use crate::error::PlotError;
+use crate::error::Result;
 use crate::geom::properties::{ColorProperty, FloatProperty, Property, PropertyVector};
 use crate::geom::{AestheticRequirement, DomainConstraint};
-use crate::layer::{Layer, LayerBuilder, determine_aesthetic_domains};
+use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
 use crate::scale::traits::{ContinuousRangeScale, ScaleBase};
 use crate::theme::{Color, color};
@@ -31,21 +31,21 @@ pub trait GeomVLineAesBuilderTrait:
 impl GeomVLineAesBuilderTrait for AesMapBuilder {}
 
 pub struct GeomVLineBuilder {
+    core: LayerBuilderCore,
     x_intercept: Option<FloatProperty>,
     size: Option<FloatProperty>,
     color: Option<ColorProperty>,
     alpha: Option<FloatProperty>,
-    aes_builder: AesMapBuilder,
 }
 
 impl GeomVLineBuilder {
     pub fn new() -> Self {
         Self {
+            core: LayerBuilderCore::default(),
             x_intercept: None,
             size: None,
             color: None,
             alpha: None,
-            aes_builder: AesMapBuilder::new(),
         }
     }
 
@@ -70,37 +70,47 @@ impl GeomVLineBuilder {
     }
 
     pub fn aes(mut self, closure: impl FnOnce(&mut dyn GeomVLineAesBuilderTrait)) -> Self {
-        closure(&mut self.aes_builder);
+        if self.core.stat.is_none() {
+            if self.core.aes_builder.is_none() {
+                self.core.aes_builder = Some(AesMapBuilder::new());
+            }
+            closure(self.core.aes_builder.as_mut().unwrap());
+        } else {
+            if self.core.after_aes_builder.is_none() {
+                self.core.after_aes_builder = Some(AesMapBuilder::new());
+            }
+            closure(self.core.after_aes_builder.as_mut().unwrap());
+        }
         self
     }
 }
 
 impl LayerBuilder for GeomVLineBuilder {
-    fn build(self: Box<Self>, parent_mapping: &AesMap) -> Layer {
+    fn build(self: Box<Self>, parent_mapping: &AesMap) -> Result<Layer> {
         let mut geom_vline = GeomVLine::new();
 
         // Build the mapping (merging layer + parent)
-        let mut mapping = self.aes_builder.build(parent_mapping);
+        let mut overrides = Vec::new();
 
         // Set fixed property values and remove from inherited mapping
         if self.x_intercept.is_some() {
             geom_vline.x_intercept = self.x_intercept;
-            mapping.remove(&Aesthetic::XIntercept);
+            overrides.push(Aesthetic::XIntercept);
         }
         if self.size.is_some() {
             geom_vline.size = self.size;
-            mapping.remove(&Aesthetic::Size(AestheticDomain::Continuous));
-            mapping.remove(&Aesthetic::Size(AestheticDomain::Discrete));
+            overrides.push(Aesthetic::Size(AestheticDomain::Continuous));
+            overrides.push(Aesthetic::Size(AestheticDomain::Discrete));
         }
         if self.color.is_some() {
             geom_vline.color = self.color;
-            mapping.remove(&Aesthetic::Color(AestheticDomain::Continuous));
-            mapping.remove(&Aesthetic::Color(AestheticDomain::Discrete));
+            overrides.push(Aesthetic::Color(AestheticDomain::Continuous));
+            overrides.push(Aesthetic::Color(AestheticDomain::Discrete));
         }
         if self.alpha.is_some() {
             geom_vline.alpha = self.alpha;
-            mapping.remove(&Aesthetic::Alpha(AestheticDomain::Continuous));
-            mapping.remove(&Aesthetic::Alpha(AestheticDomain::Discrete));
+            overrides.push(Aesthetic::Alpha(AestheticDomain::Continuous));
+            overrides.push(Aesthetic::Alpha(AestheticDomain::Discrete));
         }
 
         // Build initial domains from properties
@@ -109,18 +119,13 @@ impl LayerBuilder for GeomVLineBuilder {
             initial_domains.insert(AestheticProperty::XIntercept, AestheticDomain::Continuous);
         }
 
-        // Determine and validate aesthetic domains
-        let requirements = geom_vline.aesthetic_requirements();
-        let aesthetic_domains =
-            determine_aesthetic_domains(&mapping, requirements, initial_domains)
-                .expect("Invalid aesthetic configuration for geom_vline");
-
-        // Create the layer
-        let mut layer = crate::layer::Layer::new(Box::new(geom_vline));
-        layer.mapping = Some(mapping);
-        layer.aesthetic_domains = aesthetic_domains;
-
-        layer
+        LayerBuilderCore::build(
+            self.core,
+            parent_mapping,
+            Box::new(geom_vline),
+            initial_domains,
+            &overrides,
+        )
     }
 }
 
@@ -194,7 +199,7 @@ impl GeomVLine {
         color_values: impl Iterator<Item = Color>,
         size_values: impl Iterator<Item = f64>,
         alpha_values: impl Iterator<Item = f64>,
-    ) -> Result<(), PlotError> {
+    ) -> Result<()> {
         // X values are already normalized [0,1] by scales
         // Draw vertical line across full viewport height for each x value
         for (((x_norm, color), size), alpha) in x_values
@@ -341,12 +346,7 @@ impl Geom for GeomVLine {
         // Transform x_intercept through the X scale
         if let Some(x_prop) = &mut self.x_intercept {
             if let Some(value) = x_prop.get_value() {
-                log::info!("GeomVLine::apply_scales - before: x_intercept = {}", value);
                 if let Some(normalized) = scales.x_continuous.map_value(&value) {
-                    log::info!(
-                        "GeomVLine::apply_scales - after: x_intercept = {}",
-                        normalized
-                    );
                     x_prop.value(normalized);
                 } else {
                     self.x_intercept = None;
@@ -363,18 +363,11 @@ impl Geom for GeomVLine {
         &self,
         ctx: &mut RenderContext,
         mut properties: HashMap<AestheticProperty, PropertyVector>,
-    ) -> Result<(), PlotError> {
-        log::info!(
-            "GeomVLine::render called with properties: {:?}",
-            properties.keys().collect::<Vec<_>>()
-        );
-
+    ) -> Result<()> {
         let x_values = properties
             .remove(&AestheticProperty::XIntercept)
             .unwrap()
             .as_floats();
-
-        log::info!("GeomVLine: x_values = {:?}", x_values);
 
         let color_values = properties
             .remove(&AestheticProperty::Color)

@@ -4,21 +4,21 @@ use super::{Geom, RenderContext};
 use crate::aesthetics::builder::{
     AesMapBuilder, AlphaContinuousAesBuilder, AlphaDiscreteAesBuilder, ColorContinuousAesBuilder,
     ColorDiscreteAesBuilder, SizeContinuousAesBuilder, SizeDiscreteAesBuilder,
-    YContininuousAesBuilder, YDiscreteAesBuilder,
+    YInterceptAesBuilder,
 };
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::data::PrimitiveValue;
-use crate::error::PlotError;
+use crate::error::Result;
 use crate::geom::properties::{ColorProperty, FloatProperty, Property, PropertyVector};
 use crate::geom::{AestheticRequirement, DomainConstraint};
-use crate::layer::{Layer, LayerBuilder, determine_aesthetic_domains};
+use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
 use crate::scale::traits::{ContinuousRangeScale, ScaleBase};
+use crate::stat::Stat;
 use crate::theme::{Color, color};
 
 pub trait GeomHLineAesBuilderTrait:
-    YContininuousAesBuilder
-    + YDiscreteAesBuilder
+    YInterceptAesBuilder
     + ColorContinuousAesBuilder
     + ColorDiscreteAesBuilder
     + AlphaContinuousAesBuilder
@@ -31,26 +31,26 @@ pub trait GeomHLineAesBuilderTrait:
 impl GeomHLineAesBuilderTrait for AesMapBuilder {}
 
 pub struct GeomHLineBuilder {
+    core: LayerBuilderCore,
     y_intercept: Option<FloatProperty>,
     size: Option<FloatProperty>,
     color: Option<ColorProperty>,
     alpha: Option<FloatProperty>,
-    aes_builder: AesMapBuilder,
 }
 
 impl GeomHLineBuilder {
     pub fn new() -> Self {
         Self {
+            core: LayerBuilderCore::default(),
             y_intercept: None,
             size: None,
             color: None,
             alpha: None,
-            aes_builder: AesMapBuilder::new(),
         }
     }
 
-    pub fn yintercept<YIntercept: Into<FloatProperty>>(mut self, yintercept: YIntercept) -> Self {
-        self.y_intercept = Some(yintercept.into());
+    pub fn y_intercept<YIntercept: Into<FloatProperty>>(mut self, y_intercept: YIntercept) -> Self {
+        self.y_intercept = Some(y_intercept.into());
         self
     }
 
@@ -70,37 +70,51 @@ impl GeomHLineBuilder {
     }
 
     pub fn aes(mut self, closure: impl FnOnce(&mut dyn GeomHLineAesBuilderTrait)) -> Self {
-        closure(&mut self.aes_builder);
+        if self.core.stat.is_none() {
+            if self.core.aes_builder.is_none() {
+                self.core.aes_builder = Some(AesMapBuilder::new());
+            }
+            closure(self.core.aes_builder.as_mut().unwrap());
+        } else {
+            if self.core.after_aes_builder.is_none() {
+                self.core.after_aes_builder = Some(AesMapBuilder::new());
+            }
+            closure(self.core.after_aes_builder.as_mut().unwrap());
+        }
+        self
+    }
+
+    pub fn stat<S: Stat + 'static>(mut self, stat: S) -> Self {
+        self.core.stat = Some(Box::new(stat));
         self
     }
 }
 
 impl LayerBuilder for GeomHLineBuilder {
-    fn build(self: Box<Self>, parent_mapping: &AesMap) -> Layer {
+    fn build(self: Box<Self>, parent_mapping: &AesMap) -> Result<Layer> {
         let mut geom_hline = GeomHLine::new();
 
-        // Build the mapping (merging layer + parent)
-        let mut mapping = self.aes_builder.build(parent_mapping);
+        let mut overrides = Vec::new();
 
         // Set fixed property values and remove from inherited mapping
         if self.y_intercept.is_some() {
             geom_hline.y_intercept = self.y_intercept;
-            mapping.remove(&Aesthetic::YIntercept);
+            overrides.push(Aesthetic::YIntercept);
         }
         if self.size.is_some() {
             geom_hline.size = self.size;
-            mapping.remove(&Aesthetic::Size(AestheticDomain::Continuous));
-            mapping.remove(&Aesthetic::Size(AestheticDomain::Discrete));
+            overrides.push(Aesthetic::Size(AestheticDomain::Continuous));
+            overrides.push(Aesthetic::Size(AestheticDomain::Discrete));
         }
         if self.color.is_some() {
             geom_hline.color = self.color;
-            mapping.remove(&Aesthetic::Color(AestheticDomain::Continuous));
-            mapping.remove(&Aesthetic::Color(AestheticDomain::Discrete));
+            overrides.push(Aesthetic::Color(AestheticDomain::Continuous));
+            overrides.push(Aesthetic::Color(AestheticDomain::Discrete));
         }
         if self.alpha.is_some() {
             geom_hline.alpha = self.alpha;
-            mapping.remove(&Aesthetic::Alpha(AestheticDomain::Continuous));
-            mapping.remove(&Aesthetic::Alpha(AestheticDomain::Discrete));
+            overrides.push(Aesthetic::Alpha(AestheticDomain::Continuous));
+            overrides.push(Aesthetic::Alpha(AestheticDomain::Discrete));
         }
 
         // Build initial domains from properties
@@ -109,18 +123,7 @@ impl LayerBuilder for GeomHLineBuilder {
             initial_domains.insert(AestheticProperty::YIntercept, AestheticDomain::Continuous);
         }
 
-        // Determine and validate aesthetic domains
-        let requirements = geom_hline.aesthetic_requirements();
-        let aesthetic_domains =
-            determine_aesthetic_domains(&mapping, requirements, initial_domains)
-                .expect("Invalid aesthetic configuration for geom_hline");
-
-        // Create the layer
-        let mut layer = crate::layer::Layer::new(Box::new(geom_hline));
-        layer.mapping = Some(mapping);
-        layer.aesthetic_domains = aesthetic_domains;
-
-        layer
+        LayerBuilderCore::build(self.core, parent_mapping, Box::new(geom_hline), initial_domains, &overrides)
     }
 }
 
@@ -194,7 +197,7 @@ impl GeomHLine {
         color_values: impl Iterator<Item = Color>,
         size_values: impl Iterator<Item = f64>,
         alpha_values: impl Iterator<Item = f64>,
-    ) -> Result<(), PlotError> {
+    ) -> Result<()> {
         // Y values are already normalized [0,1] by scales
         // Draw horizontal line across full viewport width for each y value
         for (((y_norm, color), size), alpha) in y_values
@@ -358,7 +361,9 @@ impl Geom for GeomHLine {
         &self,
         ctx: &mut RenderContext,
         mut properties: HashMap<AestheticProperty, PropertyVector>,
-    ) -> Result<(), PlotError> {
+    ) -> Result<()> {
+
+        println!("GeomHLine render with properties: {:?}", properties);
         let y_values = properties
             .remove(&AestheticProperty::YIntercept)
             .unwrap()
@@ -389,5 +394,69 @@ impl Geom for GeomHLine {
         )?;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        aesthetics::builder::{XContininuousAesBuilder, YContininuousAesBuilder},
+        error::to_io_error,
+        geom::point::geom_point,
+        plot::plot,
+        stat::summary::Summary,
+        utils::mtcars::mtcars,
+    };
+
+    fn init_test_logging() {
+        let _ = env_logger::builder()
+            .is_test(true)
+            .filter_level(log::LevelFilter::Debug)
+            .try_init();
+    }
+
+    #[test]
+    fn basic_hlines_1() {
+        init_test_logging();
+
+        let data = mtcars();
+
+        let builder = plot(&data).aes(|a| {
+            a.x_continuous("wt");
+            a.y_continuous("mpg");
+        }) + geom_point()
+            + geom_hline().y_intercept(20.0).color(color::RED).size(2.0);
+
+        let p = builder
+            .build()
+            .map_err(to_io_error)
+            .expect("Failed to build plot");
+        p.save("tests/images/basic_hlines_1.png", 800, 600)
+            .map_err(to_io_error)
+            .expect("Failed to save plot image");
+    }
+
+    #[test]
+    fn basic_hlines_2() {
+        init_test_logging();
+
+        let data = mtcars();
+
+        let builder = plot(&data).aes(|a| {
+            a.x_continuous("wt");
+            a.y_continuous("mpg");
+        }) + geom_point()
+            + geom_hline()
+                .stat(Summary::new(Aesthetic::Y(AestheticDomain::Continuous)))
+                .aes(|a| a.y_intercept("mean"));
+
+        let p = builder
+            .build()
+            .map_err(to_io_error)
+            .expect("Failed to build plot");
+        p.save("tests/images/basic_hlines_2.png", 800, 600)
+            .map_err(to_io_error)
+            .expect("Failed to save plot image");
     }
 }

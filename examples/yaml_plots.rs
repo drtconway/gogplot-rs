@@ -509,7 +509,7 @@ fn add_layer<'a>(
 
             // Apply fixed parameters
             if let Some(yintercept) = layer.params.yintercept {
-                geom = geom.yintercept(yintercept);
+                geom = geom.y_intercept(yintercept);
             }
             if let Some(color_str) = &layer.params.color {
                 let color = string_to_color(color_str)?;

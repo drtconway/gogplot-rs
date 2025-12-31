@@ -3,14 +3,14 @@ use std::collections::HashMap;
 use super::{Geom, RenderContext};
 use crate::aesthetics::builder::{
     AesMapBuilder, AlphaContinuousAesBuilder, AlphaDiscreteAesBuilder, FillContinuousAesBuilder,
-    FillDiscreteAesBuilder, XMinContinuousAesBuilder, XMaxContinuousAesBuilder,
-    YMinContinuousAesBuilder, YMaxContinuousAesBuilder,
+    FillDiscreteAesBuilder, XMaxContinuousAesBuilder, XMinContinuousAesBuilder,
+    YMaxContinuousAesBuilder, YMinContinuousAesBuilder,
 };
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
-use crate::error::PlotError;
+use crate::error::Result;
 use crate::geom::properties::{ColorProperty, FloatProperty, Property, PropertyVector};
 use crate::geom::{AestheticRequirement, DomainConstraint};
-use crate::layer::{Layer, LayerBuilder, determine_aesthetic_domains};
+use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
 use crate::theme::{Color, color};
 
@@ -29,17 +29,17 @@ pub trait GeomRectAesBuilderTrait:
 impl GeomRectAesBuilderTrait for AesMapBuilder {}
 
 pub struct GeomRectBuilder {
+    core: LayerBuilderCore,
     fill: Option<ColorProperty>,
     alpha: Option<FloatProperty>,
-    aes_builder: AesMapBuilder,
 }
 
 impl GeomRectBuilder {
     pub fn new() -> Self {
         Self {
+            core: LayerBuilderCore::default(),
             fill: None,
             alpha: None,
-            aes_builder: AesMapBuilder::new(),
         }
     }
 
@@ -54,44 +54,47 @@ impl GeomRectBuilder {
     }
 
     pub fn aes(mut self, closure: impl FnOnce(&mut dyn GeomRectAesBuilderTrait)) -> Self {
-        closure(&mut self.aes_builder);
+        if self.core.stat.is_none() {
+            if self.core.aes_builder.is_none() {
+                self.core.aes_builder = Some(AesMapBuilder::new());
+            }
+            closure(self.core.aes_builder.as_mut().unwrap());
+        } else {
+            if self.core.after_aes_builder.is_none() {
+                self.core.after_aes_builder = Some(AesMapBuilder::new());
+            }
+            closure(self.core.after_aes_builder.as_mut().unwrap());
+        }
         self
     }
 }
 
 impl LayerBuilder for GeomRectBuilder {
-    fn build(self: Box<Self>, parent_mapping: &AesMap) -> Layer {
+    fn build(self: Box<Self>, parent_mapping: &AesMap) -> Result<Layer> {
         let mut geom_rect = GeomRect::new();
 
         // Build the mapping (merging layer + parent)
-        let mut mapping = self.aes_builder.build(parent_mapping);
+        let mut overrides = Vec::new();
 
         // Set fixed property values and remove from inherited mapping
         if self.fill.is_some() {
             geom_rect.fill = self.fill;
-            mapping.remove(&Aesthetic::Fill(AestheticDomain::Continuous));
-            mapping.remove(&Aesthetic::Fill(AestheticDomain::Discrete));
+            overrides.push(Aesthetic::Fill(AestheticDomain::Continuous));
+            overrides.push(Aesthetic::Fill(AestheticDomain::Discrete));
         }
         if self.alpha.is_some() {
             geom_rect.alpha = self.alpha;
-            mapping.remove(&Aesthetic::Alpha(AestheticDomain::Continuous));
-            mapping.remove(&Aesthetic::Alpha(AestheticDomain::Discrete));
+            overrides.push(Aesthetic::Alpha(AestheticDomain::Continuous));
+            overrides.push(Aesthetic::Alpha(AestheticDomain::Discrete));
         }
 
-        // Build initial domains from properties (none for rect - bounds must come from mapping)
-        let initial_domains = HashMap::new();
-
-        // Determine and validate aesthetic domains
-        let requirements = geom_rect.aesthetic_requirements();
-        let aesthetic_domains = determine_aesthetic_domains(&mapping, requirements, initial_domains)
-            .expect("Invalid aesthetic configuration for geom_rect");
-
-        // Create the layer
-        let mut layer = crate::layer::Layer::new(Box::new(geom_rect));
-        layer.mapping = Some(mapping);
-        layer.aesthetic_domains = aesthetic_domains;
-
-        layer
+        LayerBuilderCore::build(
+            self.core,
+            parent_mapping,
+            Box::new(geom_rect),
+            HashMap::new(),
+            &overrides,
+        )
     }
 }
 
@@ -147,7 +150,7 @@ impl GeomRect {
         ymax_values: impl Iterator<Item = f64>,
         fill_values: impl Iterator<Item = Color>,
         alpha_values: impl Iterator<Item = f64>,
-    ) -> Result<(), PlotError> {
+    ) -> Result<()> {
         // All values are already normalized [0,1] by scales
         // Draw rectangles at the specified bounds
         for (((((xmin_norm, xmax_norm), ymin_norm), ymax_norm), fill), alpha) in xmin_values
@@ -162,8 +165,19 @@ impl GeomRect {
             let ymin_px = ctx.map_y(ymin_norm);
             let ymax_px = ctx.map_y(ymax_norm);
 
-            log::info!("Drawing rect at xmin_norm={}, xmax_norm={}, ymin_norm={}, ymax_norm={}, xmin_px={}, xmax_px={}, ymin_px={}, ymax_px={}, fill={:?}, alpha={}", 
-                      xmin_norm, xmax_norm, ymin_norm, ymax_norm, xmin_px, xmax_px, ymin_px, ymax_px, fill, alpha);
+            log::debug!(
+                "Drawing rect at xmin_norm={}, xmax_norm={}, ymin_norm={}, ymax_norm={}, xmin_px={}, xmax_px={}, ymin_px={}, ymax_px={}, fill={:?}, alpha={}",
+                xmin_norm,
+                xmax_norm,
+                ymin_norm,
+                ymax_norm,
+                xmin_px,
+                xmax_px,
+                ymin_px,
+                ymax_px,
+                fill,
+                alpha
+            );
 
             let Color(r, g, b, a) = fill;
             ctx.cairo.set_source_rgba(
@@ -193,22 +207,22 @@ impl Default for GeomRect {
 const AESTHETIC_REQUIREMENTS: [AestheticRequirement; 6] = [
     AestheticRequirement {
         property: AestheticProperty::XMin,
-        required: true,  // Must have xmin from mapping
+        required: true, // Must have xmin from mapping
         constraint: DomainConstraint::Any,
     },
     AestheticRequirement {
         property: AestheticProperty::XMax,
-        required: true,  // Must have xmax from mapping
+        required: true, // Must have xmax from mapping
         constraint: DomainConstraint::Any,
     },
     AestheticRequirement {
         property: AestheticProperty::YMin,
-        required: true,  // Must have ymin from mapping
+        required: true, // Must have ymin from mapping
         constraint: DomainConstraint::Any,
     },
     AestheticRequirement {
         property: AestheticProperty::YMax,
-        required: true,  // Must have ymax from mapping
+        required: true, // Must have ymax from mapping
         constraint: DomainConstraint::Any,
     },
     AestheticRequirement {
@@ -231,10 +245,7 @@ impl Geom for GeomRect {
     fn properties(&self) -> HashMap<AestheticProperty, Property> {
         let mut props = HashMap::new();
         if let Some(fill_prop) = &self.fill {
-            props.insert(
-                AestheticProperty::Fill,
-                Property::Color(fill_prop.clone()),
-            );
+            props.insert(AestheticProperty::Fill, Property::Color(fill_prop.clone()));
         }
         if let Some(alpha_prop) = &self.alpha {
             props.insert(
@@ -245,7 +256,10 @@ impl Geom for GeomRect {
         props
     }
 
-    fn property_defaults(&self, _theme: &crate::prelude::Theme) -> HashMap<AestheticProperty, super::properties::PropertyValue> {
+    fn property_defaults(
+        &self,
+        _theme: &crate::prelude::Theme,
+    ) -> HashMap<AestheticProperty, super::properties::PropertyValue> {
         let mut defaults = HashMap::new();
 
         // Only provide defaults for properties not explicitly set
@@ -282,9 +296,7 @@ impl Geom for GeomRect {
         &self,
         ctx: &mut RenderContext,
         mut properties: HashMap<AestheticProperty, PropertyVector>,
-    ) -> Result<(), PlotError> {
-        log::info!("GeomRect::render called with properties: {:?}", properties.keys().collect::<Vec<_>>());
-        
+    ) -> Result<()> {
         let xmin_values = properties
             .remove(&AestheticProperty::XMin)
             .unwrap()
@@ -304,9 +316,6 @@ impl Geom for GeomRect {
             .remove(&AestheticProperty::YMax)
             .unwrap()
             .as_floats();
-
-        log::info!("GeomRect: xmin_values = {:?}, xmax_values = {:?}, ymin_values = {:?}, ymax_values = {:?}", 
-                  xmin_values, xmax_values, ymin_values, ymax_values);
 
         let fill_values = properties
             .remove(&AestheticProperty::Fill)
