@@ -275,17 +275,17 @@ pub fn generate_plot_from_yaml(yaml_spec: &PlotYaml) -> std::io::Result<()> {
             if let Some(ref x) = global_mapping.x {
                 let (col, domain) = decode_column_reference(x);
                 match domain {
-                    Some(AestheticDomain::Discrete) => XContininuousAesBuilder::x(a, &col),
-                    Some(AestheticDomain::Continuous) => XDiscreteAesBuilder::x(a, &col),
-                    None => XContininuousAesBuilder::x(a, &col),
+                    Some(AestheticDomain::Discrete) => a.x_discrete(&col),
+                    Some(AestheticDomain::Continuous) => a.x_continuous(&col),
+                    None => a.x_continuous(&col),
                 }
             }
             if let Some(ref y) = global_mapping.y {
                 let (col, domain) = decode_column_reference(y);
                 match domain {
-                    Some(AestheticDomain::Discrete) => YContininuousAesBuilder::y(a, &col),
-                    Some(AestheticDomain::Continuous) => YDiscreteAesBuilder::y(a, &col),
-                    None => YContininuousAesBuilder::y(a, &col),
+                    Some(AestheticDomain::Discrete) => a.y_discrete(&col),
+                    Some(AestheticDomain::Continuous) => a.y_continuous(&col),
+                    None => a.y_continuous(&col),
                 }
             }
             if let Some(ref color) = global_mapping.color {
@@ -357,17 +357,17 @@ fn add_layer<'a>(
                     if let Some(ref x) = layer.mapping.x {
                         let (col, domain) = decode_column_reference(x);
                         match domain {
-                            Some(AestheticDomain::Discrete) => XContininuousAesBuilder::x(a, &col),
-                            Some(AestheticDomain::Continuous) => XDiscreteAesBuilder::x(a, &col),
-                            None => XContininuousAesBuilder::x(a, &col),
+                            Some(AestheticDomain::Discrete) => a.x_discrete(&col),
+                            Some(AestheticDomain::Continuous) => a.x_continuous(&col),
+                            None => a.x_continuous(&col),
                         }
                     }
                     if let Some(ref y) = layer.mapping.y {
                         let (col, domain) = decode_column_reference(y);
                         match domain {
-                            Some(AestheticDomain::Discrete) => YContininuousAesBuilder::y(a, &col),
-                            Some(AestheticDomain::Continuous) => YDiscreteAesBuilder::y(a, &col),
-                            None => YContininuousAesBuilder::y(a, &col),
+                            Some(AestheticDomain::Discrete) => a.y_discrete(&col),
+                            Some(AestheticDomain::Continuous) => a.y_continuous(&col),
+                            None => a.y_continuous(&col),
                         }
                     }
                     if let Some(ref color) = layer.mapping.color {
@@ -418,17 +418,17 @@ fn add_layer<'a>(
                     if let Some(ref x) = layer.mapping.x {
                         let (col, domain) = decode_column_reference(x);
                         match domain {
-                            Some(AestheticDomain::Discrete) => XContininuousAesBuilder::x(a, &col),
-                            Some(AestheticDomain::Continuous) => XDiscreteAesBuilder::x(a, &col),
-                            None => XContininuousAesBuilder::x(a, &col),
+                            Some(AestheticDomain::Discrete) => a.x_discrete(&col),
+                            Some(AestheticDomain::Continuous) => a.x_continuous(&col),
+                            None => a.x_continuous(&col),
                         }
                     }
                     if let Some(ref y) = layer.mapping.y {
                         let (col, domain) = decode_column_reference(y);
                         match domain {
-                            Some(AestheticDomain::Discrete) => YContininuousAesBuilder::y(a, &col),
-                            Some(AestheticDomain::Continuous) => YDiscreteAesBuilder::y(a, &col),
-                            None => YContininuousAesBuilder::y(a, &col),
+                            Some(AestheticDomain::Discrete) => a.y_discrete(&col),
+                            Some(AestheticDomain::Continuous) => a.y_continuous(&col),
+                            None => a.y_continuous(&col),
                         }
                     }
                     if let Some(ref color) = layer.mapping.color {

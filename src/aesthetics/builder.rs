@@ -5,7 +5,7 @@ pub trait AesMapBuilderTrait {
 }
 
 pub trait XContininuousAesBuilder: AesMapBuilderTrait {
-    fn x(&mut self, column: &str) {
+    fn x_continuous(&mut self, column: &str) {
         self.aes().set(
             Aesthetic::X(AestheticDomain::Continuous),
             AesValue::Column {
@@ -18,7 +18,7 @@ pub trait XContininuousAesBuilder: AesMapBuilderTrait {
 }
 
 pub trait XDiscreteAesBuilder: AesMapBuilderTrait {
-    fn x(&mut self, column: &str) {
+    fn x_discrete(&mut self, column: &str) {
         self.aes().set(
             Aesthetic::X(AestheticDomain::Discrete),
             AesValue::Column {
@@ -31,7 +31,7 @@ pub trait XDiscreteAesBuilder: AesMapBuilderTrait {
 }
 
 pub trait YContininuousAesBuilder: AesMapBuilderTrait {
-    fn y(&mut self, column: &str) {
+    fn y_continuous(&mut self, column: &str) {
         self.aes().set(
             Aesthetic::Y(AestheticDomain::Continuous),
             AesValue::Column {
@@ -44,7 +44,7 @@ pub trait YContininuousAesBuilder: AesMapBuilderTrait {
 }
 
 pub trait YDiscreteAesBuilder: AesMapBuilderTrait {
-    fn y(&mut self, column: &str) {
+    fn y_discrete(&mut self, column: &str) {
         self.aes().set(
             Aesthetic::Y(AestheticDomain::Discrete),
             AesValue::Column {

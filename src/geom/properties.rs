@@ -13,7 +13,7 @@ pub enum Property {
     Shape(ShapeProperty),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PropertyValue {
     Int(i64),
     Float(f64),
@@ -22,7 +22,7 @@ pub enum PropertyValue {
     Shape(Shape),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PropertyVector {
     Int(Vec<i64>),
     Float(Vec<f64>),

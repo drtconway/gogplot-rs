@@ -2,11 +2,15 @@ use std::collections::HashMap;
 
 use super::{Geom, RenderContext};
 use crate::aesthetics::builder::{
-    AesMapBuilder, AlphaContinuousAesBuilder, AlphaDiscreteAesBuilder, ColorContinuousAesBuilder, ColorDiscreteAesBuilder, ShapeAesBuilder, SizeContinuousAesBuilder, SizeDiscreteAesBuilder, XContininuousAesBuilder, XDiscreteAesBuilder, YContininuousAesBuilder, YDiscreteAesBuilder
+    AesMapBuilder, AlphaContinuousAesBuilder, AlphaDiscreteAesBuilder, ColorContinuousAesBuilder,
+    ColorDiscreteAesBuilder, ShapeAesBuilder, SizeContinuousAesBuilder, SizeDiscreteAesBuilder,
+    XContininuousAesBuilder, XDiscreteAesBuilder, YContininuousAesBuilder, YDiscreteAesBuilder,
 };
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::error::PlotError;
-use crate::geom::properties::{ColorProperty, FloatProperty, PropertyValue, PropertyVector, ShapeProperty};
+use crate::geom::properties::{
+    ColorProperty, FloatProperty, PropertyValue, PropertyVector, ShapeProperty,
+};
 use crate::geom::{AestheticRequirement, DomainConstraint};
 use crate::layer::{Layer, LayerBuilder};
 use crate::scale::ScaleIdentifier;
@@ -105,8 +109,9 @@ impl LayerBuilder for GeomPointBuilder {
 
         // Determine and validate aesthetic domains
         let requirements = geom_point.aesthetic_requirements();
-        let aesthetic_domains = crate::layer::determine_aesthetic_domains(&mapping, requirements, HashMap::new())
-            .expect("Invalid aesthetic configuration for geom_point");
+        let aesthetic_domains =
+            crate::layer::determine_aesthetic_domains(&mapping, requirements, HashMap::new())
+                .expect("Invalid aesthetic configuration for geom_point");
 
         // Create the layer
         let mut layer = crate::layer::Layer::new(Box::new(geom_point));
@@ -305,28 +310,19 @@ impl Geom for GeomPoint {
     fn property_defaults(&self, _theme: &Theme) -> HashMap<AestheticProperty, PropertyValue> {
         let mut defaults = HashMap::new();
         if self.size.is_none() {
-            defaults.insert(
-                AestheticProperty::Size,
-                PropertyValue::Float(3.0)
-            );
+            defaults.insert(AestheticProperty::Size, PropertyValue::Float(3.0));
         }
         if self.color.is_none() {
-            defaults.insert(
-                AestheticProperty::Color,
-                PropertyValue::Color(color::BLACK)
-            );
+            defaults.insert(AestheticProperty::Color, PropertyValue::Color(color::BLACK));
         }
         if self.shape.is_none() {
             defaults.insert(
                 AestheticProperty::Shape,
-                PropertyValue::Shape(Shape::Circle)
+                PropertyValue::Shape(Shape::Circle),
             );
         }
         if self.alpha.is_none() {
-            defaults.insert(
-                AestheticProperty::Alpha,
-                PropertyValue::Float(1.0),
-            );
+            defaults.insert(AestheticProperty::Alpha, PropertyValue::Float(1.0));
         }
         defaults
     }
@@ -344,8 +340,6 @@ impl Geom for GeomPoint {
         ctx: &mut RenderContext,
         mut properties: HashMap<AestheticProperty, PropertyVector>,
     ) -> Result<(), PlotError> {
-        let props = properties.keys().cloned().collect::<Vec<_>>();
-        log::info!("GeomPoint render with properties: {:?}", props);
         let x_values = properties
             .remove(&AestheticProperty::X)
             .unwrap()
@@ -354,13 +348,11 @@ impl Geom for GeomPoint {
             .remove(&AestheticProperty::Y)
             .unwrap()
             .as_floats();
-        
+
         // Extract color - need to convert Int to Color ONLY for color property
         let color_prop = properties.remove(&AestheticProperty::Color).unwrap();
-        log::info!("Color property before conversion: {:?}", color_prop);
         let color_values = color_prop.to_color().as_colors();
-        log::info!("Color values after conversion: {} values", color_values.len());
-        
+
         let size_values = properties
             .remove(&AestheticProperty::Size)
             .unwrap()
@@ -369,13 +361,11 @@ impl Geom for GeomPoint {
             .remove(&AestheticProperty::Alpha)
             .unwrap()
             .as_floats();
-        
+
         // Extract shape - need to convert Int to Shape ONLY for shape property
         let shape_prop = properties.remove(&AestheticProperty::Shape).unwrap();
-        log::info!("Shape property before conversion: {:?}", shape_prop);
         let shape_values = shape_prop.to_shape().as_shapes();
-        log::info!("Shape values after conversion: {} values", shape_values.len());
-        
+
         self.draw_points(
             ctx,
             x_values.into_iter(),
@@ -386,5 +376,25 @@ impl Geom for GeomPoint {
             shape_values.into_iter(),
         )?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{error::to_io_error, plot::plot, utils::mtcars::mtcars};
+
+    use super::*;
+
+    #[test]
+    fn basic_points_1() {
+        let data = mtcars();
+
+        let builder = plot(&data).aes(|a| {
+            a.x_continuous("wt");
+            a.y_continuous("mpg");
+        }) + geom_point().size(3.0);
+
+        let p = builder.build().map_err(to_io_error).expect("Failed to build plot");
+        p.save("tests/images/basic_points_1.png", 800, 600).map_err(to_io_error).expect("Failed to save plot image");
     }
 }

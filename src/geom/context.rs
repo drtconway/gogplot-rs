@@ -151,27 +151,3 @@ impl<'a> RenderContext<'a> {
     }
 
 }
-
-pub(crate) fn compute_min_spacing(aesthetic_values: AestheticValues<'_>, width: f64) -> f64 {
-    let mut x_set: Vec<OrderedFloat<f64>> = aesthetic_values
-        .filter(|x| x.is_finite())
-        .map(|x| OrderedFloat(x))
-        .collect();
-    x_set.sort();
-    x_set.dedup();
-    let x_set: Vec<f64> = x_set.into_iter().map(|of| of.0).collect();
-
-    if x_set.len() > 1 {
-        // Find minimum spacing between consecutive x values
-        let mut min_spacing = f64::MAX;
-        for i in 1..x_set.len() {
-            let spacing = x_set[i] - x_set[i - 1];
-            if spacing < min_spacing {
-                min_spacing = spacing;
-            }
-        }
-        min_spacing * width / 2.0
-    } else {
-        0.05 // Single bar fallback half-width
-    }
-}

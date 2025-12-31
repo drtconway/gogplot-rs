@@ -11,8 +11,8 @@ fn basic_points() -> std::io::Result<()> {
     let data = mtcars();
 
     let builder = plot(&data).aes(|a| {
-        a.x("wt");
-        a.y("mpg");
+        a.x_continuous("wt");
+        a.y_continuous("mpg");
     }) + geom_point().size(3.0);
 
     let p = builder.build().map_err(to_io_error)?;
@@ -24,8 +24,8 @@ fn basic_points_with_color() -> std::io::Result<()> {
     let data = mtcars();
 
     let builder = plot(&data).aes(|a| {
-        a.x("wt");
-        a.y("mpg");
+        a.x_continuous("wt");
+        a.y_continuous("mpg");
     }) + geom_point().size(5.0).color(color::BLUEVIOLET);
 
     let p = builder.build().map_err(to_io_error)?;
@@ -38,8 +38,8 @@ fn basic_points_with_color_and_size() -> std::io::Result<()> {
     let data = mtcars();
 
     let builder = plot(&data).aes(|a| {
-        a.x("wt");
-        a.y("mpg");
+        a.x_continuous("wt");
+        a.y_continuous("mpg");
     }) + geom_point().aes(|a| {
         a.color_continuous("hp");
         a.size_discrete("cyl");
