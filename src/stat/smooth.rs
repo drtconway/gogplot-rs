@@ -2,14 +2,12 @@
 //!
 //! Computes fitted values and confidence intervals using various smoothing methods.
 
-use std::sync::Arc;
-
 use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain};
 use crate::data::ContinuousType;
 use crate::error::{PlotError, Result};
 use crate::stat::Stat;
 use crate::utils::data::{ContinuousContinuousVisitor2, Vectorable, visit2_cc};
-use crate::utils::dataframe::{DataFrame, FloatVec};
+use crate::utils::dataframe::DataFrame;
 
 /// Smoothing method to use
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -718,11 +716,11 @@ impl ContinuousContinuousVisitor2 for SmoothVisitor {
 
         // Create output dataframe
         let mut data = DataFrame::new();
-        data.add_column("x", Arc::new(FloatVec(x_pred)));
-        data.add_column("y", Arc::new(FloatVec(y_pred)));
-        data.add_column("ymin", Arc::new(FloatVec(ymin_pred)));
-        data.add_column("ymax", Arc::new(FloatVec(ymax_pred)));
-        data.add_column("se", Arc::new(FloatVec(se_pred)));
+        data.add_column("x", x_pred);
+        data.add_column("y", y_pred);
+        data.add_column("ymin", ymin_pred);
+        data.add_column("ymax", ymax_pred);
+        data.add_column("se", se_pred);
         // Create mapping
         let mut mapping = AesMap::new();
         mapping.set(

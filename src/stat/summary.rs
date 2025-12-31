@@ -5,8 +5,7 @@ use crate::data::{ContinuousType, DiscreteType, VectorIter};
 use crate::error::Result;
 use crate::stat::Stat;
 use crate::utils::data::Vectorable;
-use crate::utils::dataframe::{DataFrame, FloatVec, IntVec};
-use std::sync::Arc;
+use crate::utils::dataframe::DataFrame;
 
 /// Summary stat - computes scalar summary statistics for specified aesthetics
 ///
@@ -35,11 +34,11 @@ impl Summary {
         let mapping = AesMap::new();
 
         if values.len() == 0 {
-            data.add_column("min", Arc::new(FloatVec(vec![f64::NAN])));
-            data.add_column("max", Arc::new(FloatVec(vec![f64::NAN])));
-            data.add_column("mean", Arc::new(FloatVec(vec![f64::NAN])));
-            data.add_column("median", Arc::new(FloatVec(vec![f64::NAN])));
-            data.add_column("sd", Arc::new(FloatVec(vec![f64::NAN])));
+            data.add_column("min", vec![f64::NAN]);
+            data.add_column("max", vec![f64::NAN]);
+            data.add_column("mean", vec![f64::NAN]);
+            data.add_column("median", vec![f64::NAN]);
+            data.add_column("sd", vec![f64::NAN]);
         } else {
             let min = values.iter().copied().fold(f64::INFINITY, f64::min);
             let max = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
@@ -58,11 +57,11 @@ impl Summary {
                 values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / values.len() as f64;
             let sd = variance.sqrt();
 
-            data.add_column("min", Arc::new(FloatVec(vec![min])));
-            data.add_column("max", Arc::new(FloatVec(vec![max])));
-            data.add_column("mean", Arc::new(FloatVec(vec![mean])));
-            data.add_column("median", Arc::new(FloatVec(vec![median])));
-            data.add_column("sd", Arc::new(FloatVec(vec![sd])));
+            data.add_column("min",  vec![min]);
+            data.add_column("max", vec![max]);
+            data.add_column("mean", vec![mean]);
+            data.add_column("median", vec![median]);
+            data.add_column("sd", vec![sd]);
         }
 
         Ok((data, mapping))
@@ -92,7 +91,7 @@ impl Summary {
             data.add_column("min", T::make_vector(Vec::<T>::new()));
             data.add_column("max", T::make_vector(Vec::<T>::new()));
             data.add_column("mode", T::make_vector(Vec::<T>::new()));
-            data.add_column("n_unique", Arc::new(IntVec(vec![])));
+            data.add_column("n_unique", Vec::<i64>::new());
         } else {
             let min = groups.first().unwrap().0.clone();
             let max = groups.last().unwrap().0.clone();
@@ -106,7 +105,7 @@ impl Summary {
             data.add_column("min", T::make_vector(vec![min]));
             data.add_column("max", T::make_vector(vec![max]));
             data.add_column("mode", T::make_vector(vec![mode]));
-            data.add_column("n_unique", Arc::new(IntVec(vec![n_unique])));
+            data.add_column("n_unique", vec![n_unique]);
         }
 
         Ok((data, mapping))
@@ -142,19 +141,17 @@ impl Stat for Summary {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use super::*;
     use crate::{
         aesthetics::AestheticDomain,
         data::DataSource,
-        utils::dataframe::{DataFrame, FloatVec, StrVec},
+        utils::dataframe::DataFrame,
     };
 
     #[test]
     fn test_summary_single_continuous() {
         let mut df = DataFrame::new();
-        df.add_column("x", Arc::new(FloatVec(vec![1.0, 2.0, 3.0, 4.0, 5.0])));
+        df.add_column("x", vec![1.0, 2.0, 3.0, 4.0, 5.0]);
         let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
@@ -193,7 +190,7 @@ mod tests {
     #[test]
     fn test_summary_categorical() {
         let mut df = DataFrame::new();
-        df.add_column("group", Arc::new(StrVec::from(vec!["a", "b", "a", "c"])));
+        df.add_column("group", vec!["a", "b", "a", "c"]);
         let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();

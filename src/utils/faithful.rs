@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 /// The Old Faithful Geyser dataset
 ///
 /// Waiting time between eruptions and the duration of the eruption for the
@@ -27,26 +25,8 @@ use std::sync::Arc;
 /// Faithful geyser. Applied Statistics 39, 357–365.
 
 use crate::data::DataSource;
-use crate::utils::dataframe::{DataFrame, FloatVec};
+use crate::utils::dataframe::DataFrame;
 
-/// Load the Old Faithful geyser dataset
-///
-/// Returns a DataFrame containing eruption duration and waiting times.
-///
-/// # Example
-///
-/// ```
-/// use gogplot::utils::faithful::faithful;
-/// use gogplot::prelude::*;
-///
-/// let data = faithful();
-/// let plot = Plot::new(Some(data))
-///     .aes(|a| {
-///         a.x("waiting");
-///         a.y("eruptions");
-///     })
-///     .geom_point();
-/// ```
 pub fn faithful() -> Box<dyn DataSource> {
     let mut df = DataFrame::new();
 
@@ -112,8 +92,8 @@ pub fn faithful() -> Box<dyn DataSource> {
         46.0, 74.0,
     ];
 
-    df.add_column("eruptions", Arc::new(FloatVec(eruptions)));
-    df.add_column("waiting", Arc::new(FloatVec(waiting)));
+    df.add_column("eruptions", eruptions);
+    df.add_column("waiting", waiting);
 
     Box::new(df)
 }

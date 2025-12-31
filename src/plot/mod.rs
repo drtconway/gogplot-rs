@@ -3,9 +3,7 @@
 mod export;
 mod geom_builder;
 mod layer_geom;
-mod positions;
 mod render;
-mod stats;
 
 use crate::aesthetics::{AesMap, AestheticProperty};
 use crate::data::DataSource;
@@ -79,12 +77,9 @@ impl<'a> PlotBuilder<'a> {
         }
 
         // Step 2: Apply position adjustments across layers
-        positions::apply_positions(
-            &mut layers,
-            Some(self.data.as_ref()),
-            &self.mapping,
-            &scales,
-        )?;
+        for layer in &mut layers {
+            layer.apply_position(&self.data, &self.mapping)?;
+        }
 
         // Step 3: Train scales on all layer data
         for layer in &mut layers {

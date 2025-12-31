@@ -1,38 +1,66 @@
 use std::sync::Arc;
 
 use crate::{
-    data::{ContinuousType, DiscreteType, GenericVector, PrimitiveType, VectorIter, VectorType},
+    data::{ContinuousType, DiscreteType, GenericVector, PrimitiveType, VectorIter, VectorType, VectorValue},
     error::{DataType, PlotError},
     theme::Color,
     utils::dataframe::{BoolVec, FloatVec, IntVec, StrVec},
     visuals::Shape,
 };
 
-pub trait Vectorable: PrimitiveType {
+pub trait GenericVectorable: PrimitiveType {
     fn make_vector(vector: Vec<Self>) -> Arc<dyn GenericVector>;
 }
 
-impl Vectorable for i64 {
+impl GenericVectorable for i64 {
     fn make_vector(vector: Vec<Self>) -> Arc<dyn GenericVector> {
         Arc::new(IntVec::from(vector))
     }
 }
 
-impl Vectorable for f64 {
+impl GenericVectorable for f64 {
     fn make_vector(vector: Vec<Self>) -> Arc<dyn GenericVector> {
         Arc::new(FloatVec::from(vector))
     }
 }
 
-impl Vectorable for String {
+impl GenericVectorable for String {
     fn make_vector(vector: Vec<Self>) -> Arc<dyn GenericVector> {
         Arc::new(StrVec::from(vector))
     }
 }
 
-impl Vectorable for bool {
+impl GenericVectorable for bool {
     fn make_vector(vector: Vec<Self>) -> Arc<dyn GenericVector> {
         Arc::new(BoolVec::from(vector))
+    }
+}
+
+pub trait Vectorable: PrimitiveType {
+    fn make_vector(vector: Vec<Self>) -> VectorValue;
+}
+
+impl Vectorable for i64 {
+    fn make_vector(vector: Vec<Self>) -> VectorValue {
+        VectorValue::Int(vector)
+    }
+}
+
+impl Vectorable for f64 {
+    fn make_vector(vector: Vec<Self>) -> VectorValue {
+        VectorValue::Float(vector)
+    }
+}
+
+impl Vectorable for String {
+    fn make_vector(vector: Vec<Self>) -> VectorValue {
+        VectorValue::Str(vector)
+    }
+}
+
+impl Vectorable for bool {
+    fn make_vector(vector: Vec<Self>) -> VectorValue {
+        VectorValue::Bool(vector)
     }
 }
 

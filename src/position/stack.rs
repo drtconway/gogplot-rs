@@ -5,9 +5,8 @@ use crate::aesthetics::{AesMap, AesValue, Aesthetic};
 use crate::data::{DataSource, DiscreteType};
 use crate::error::PlotError;
 use crate::utils::data::{DiscreteVectorVisitor, Vectorable, visit_d};
-use crate::utils::dataframe::{DataFrame, FloatVec};
+use crate::utils::dataframe::DataFrame;
 use std::collections::HashMap;
-use std::sync::Arc;
 
 /// Stack position adjustment
 ///
@@ -52,7 +51,7 @@ impl Position for Stack {
         for (aes, aes_value) in mapping.iter() {
             if let Some(stacked_values) = y_like_data.remove(aes) {
                 let original_name = mapping.get(aes).and_then(|v| v.as_column_name()).map(|s| s.to_string());
-                new_mapping.set(*aes, AesValue::vector(Arc::new( FloatVec(stacked_values)), original_name));
+                new_mapping.set(*aes, AesValue::vector(stacked_values, original_name));
             } else {
                 new_mapping.set(*aes, aes_value.clone());
             }

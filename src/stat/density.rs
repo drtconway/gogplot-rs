@@ -1,10 +1,8 @@
-use std::sync::Arc;
-
 use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain};
 use crate::data::{ContinuousType, VectorIter};
 use crate::error::PlotError;
 use crate::stat::Stat;
-use crate::utils::dataframe::{DataFrame, FloatVec};
+use crate::utils::dataframe::DataFrame;
 
 /// Kernel density estimation stat
 ///
@@ -56,24 +54,21 @@ impl Density {
         let mut data = DataFrame::new();
         let mut mapping = AesMap::new();
 
-        data.add_column("x", Arc::new(FloatVec(x_vals)));
+        data.add_column("x", x_vals);
         mapping.set(
             Aesthetic::X(AestheticDomain::Continuous),
             AesValue::column("x"),
         );
 
-        data.add_column("density", Arc::new(FloatVec(density_vals)));
+        data.add_column("density", density_vals);
         mapping.set(
             Aesthetic::Y(AestheticDomain::Continuous),
             AesValue::column("density"),
         );
 
-        data.add_column("count", Arc::new(FloatVec(count_vals)));
-        data.add_column("scaled", Arc::new(FloatVec(scaled_vals)));
-        data.add_column(
-            "n",
-            Arc::new(FloatVec(vec![clean_data.len() as f64; self.n])),
-        );
+        data.add_column("count", count_vals);
+        data.add_column("scaled", scaled_vals);
+        data.add_column("n", vec![clean_data.len() as f64; self.n]);
 
         Ok((data, mapping))
     }

@@ -3,10 +3,9 @@ use crate::data::VectorIter;
 use crate::error::Result;
 use crate::stat::Stat;
 use crate::utils::data::Vectorable;
-use crate::utils::dataframe::{DataFrame, IntVec};
+use crate::utils::dataframe::DataFrame;
 use std::any::Any;
 use std::collections::HashMap;
-use std::sync::Arc;
 
 /// Count statistical transformation
 ///
@@ -48,7 +47,7 @@ impl Count {
 
         let mut df = DataFrame::new();
         df.add_column("x", T::make_vector(x_values));
-        df.add_column("count", Arc::new(IntVec(count_values)));
+        df.add_column("count", count_values);
 
         let mut mapping = AesMap::new();
         mapping.x("x", aesthetic.domain());
@@ -87,20 +86,18 @@ impl Stat for Count {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use super::*;
     use crate::{
         aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain},
-        data::DataSource,
-        utils::dataframe::{DataFrame, FloatVec, StrVec},
+        data::{DataSource, VectorValue},
+        utils::dataframe::DataFrame,
     };
 
     #[test]
     fn test_count_basic() {
         // Create test data: x values [1, 1, 2, 2, 2, 3]
         let mut df = DataFrame::new();
-        df.add_column("x", Arc::new(IntVec(vec![1, 1, 2, 2, 2, 3])));
+        df.add_column("x", vec![1, 1, 2, 2, 2, 3]);
         let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
@@ -128,7 +125,7 @@ mod tests {
     #[test]
     fn test_count_single_value() {
         let mut df = DataFrame::new();
-        df.add_column("x", Arc::new(IntVec(vec![5, 5, 5, 5])));
+        df.add_column("x", vec![5, 5, 5, 5]);
         let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
@@ -149,7 +146,7 @@ mod tests {
     #[test]
     fn test_count_all_unique() {
         let mut df = DataFrame::new();
-        df.add_column("x", Arc::new(IntVec(vec![1, 2, 3, 4, 5])));
+        df.add_column("x", vec![1, 2, 3, 4, 5]);
         let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
@@ -166,7 +163,7 @@ mod tests {
     #[test]
     fn test_count_requires_x() {
         let mut df = DataFrame::new();
-        df.add_column("y", Arc::new(IntVec(vec![1, 2, 3])));
+        df.add_column("y", vec![1, 2, 3]);
         let df: Box<dyn DataSource> = Box::new(df);
 
         let mapping = AesMap::new(); // No x mapping
@@ -179,7 +176,7 @@ mod tests {
     #[test]
     fn test_count_floats() {
         let mut df = DataFrame::new();
-        df.add_column("x", Arc::new(FloatVec(vec![1.5, 1.5, 2.5, 2.5, 2.5, 3.5])));
+        df.add_column("x", vec![1.5, 1.5, 2.5, 2.5, 2.5, 3.5]);
         let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();
@@ -202,7 +199,7 @@ mod tests {
         let mut df = DataFrame::new();
         df.add_column(
             "x",
-            Arc::new(FloatVec(vec![1.0, f64::NAN, 2.0, f64::NAN, 1.0, 2.0, 2.0])),
+            VectorValue::from(vec![1.0, f64::NAN, 2.0, f64::NAN, 1.0, 2.0, 2.0]),
         );
         let df: Box<dyn DataSource> = Box::new(df);
 
@@ -230,14 +227,14 @@ mod tests {
         let mut df = DataFrame::new();
         df.add_column(
             "x",
-            Arc::new(FloatVec(vec![
+            VectorValue::from(vec![
                 1.0,
                 f64::INFINITY,
                 2.0,
                 f64::NEG_INFINITY,
                 1.0,
                 f64::INFINITY,
-            ])),
+            ]),
         );
         let df: Box<dyn DataSource> = Box::new(df);
 
@@ -265,9 +262,9 @@ mod tests {
         let mut df = DataFrame::new();
         df.add_column(
             "x",
-            Arc::new(StrVec::from(vec![
+            VectorValue::from(vec![
                 "apple", "banana", "apple", "cherry", "banana", "apple",
-            ])),
+            ]),
         );
         let df: Box<dyn DataSource> = Box::new(df);
 
@@ -291,7 +288,7 @@ mod tests {
     #[test]
     fn test_count_strings_single() {
         let mut df = DataFrame::new();
-        df.add_column("x", Arc::new(StrVec::from(vec!["test", "test", "test"])));
+        df.add_column("x", vec!["test", "test", "test"]);
         let df: Box<dyn DataSource> = Box::new(df);
 
         let mut mapping = AesMap::new();

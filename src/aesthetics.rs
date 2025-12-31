@@ -1,4 +1,4 @@
-use crate::data::{DataSource, DiscreteValue, GenericVector, PrimitiveValue, VectorIter};
+use crate::data::{DataSource, DiscreteValue, GenericVector, PrimitiveValue, VectorIter, VectorValue};
 use crate::error::PlotError;
 use crate::scale::ScaleType;
 use crate::theme::Color;
@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 pub mod builder;
+pub mod values;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AestheticDomain {
@@ -359,7 +360,7 @@ pub enum AesValue {
     },
     /// Materialized vector of values (result of scale/stat/position transformation)
     Vector {
-        values: Arc<dyn GenericVector>,
+        values: Arc<VectorValue>,
         /// Original column name before transformation (for legend titles)
         original_name: Option<String>,
     },
@@ -495,9 +496,9 @@ impl AesValue {
     }
 
     /// Create a Vector variant from materialized values
-    pub fn vector(values: Arc<dyn GenericVector>, original_name: Option<String>) -> Self {
+    pub fn vector(values: impl Into<VectorValue>, original_name: Option<String>) -> Self {
         AesValue::Vector {
-            values,
+            values: Arc::new(values.into()),
             original_name,
         }
     }

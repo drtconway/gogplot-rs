@@ -155,6 +155,144 @@ pub enum ColumnDataType {
     String,
 }
 
+#[derive(Debug)]
+pub enum VectorValue {
+    Int(Vec<i64>),
+    Float(Vec<f64>),
+    Str(Vec<String>),
+    Bool(Vec<bool>),
+}
+
+impl VectorValue {
+    pub fn len(&self) -> usize {
+        match self {
+            VectorValue::Int(v) => v.len(),
+            VectorValue::Float(v) => v.len(),
+            VectorValue::Str(v) => v.len(),
+            VectorValue::Bool(v) => v.len(),
+        }
+    }
+
+    pub fn vtype(&self) -> VectorType {
+        match self {
+            VectorValue::Int(_) => VectorType::Int,
+            VectorValue::Float(_) => VectorType::Float,
+            VectorValue::Str(_) => VectorType::Str,
+            VectorValue::Bool(_) => VectorType::Bool,
+        }
+    }
+
+    pub fn cmp_at_index(&self, i: usize, j: usize) -> std::cmp::Ordering {
+        match self {
+            VectorValue::Int(v) => v[i].cmp(&v[j]),
+            VectorValue::Float(v) => v[i].partial_cmp(&v[j]).unwrap(),
+            VectorValue::Str(v) => v[i].cmp(&v[j]),
+            VectorValue::Bool(v) => v[i].cmp(&v[j]),
+        }
+    }
+
+    pub fn subset_iter<'a>(&'a self, indices: &'a [usize]) -> VectorIter<'a> {
+        match self {
+            VectorValue::Int(v) => {
+                let iter = indices.iter().map(move |&i| v[i]);
+                VectorIter::Int(Box::new(iter))
+            }
+            VectorValue::Float(v) => {
+                let iter = indices.iter().map(move |&i| v[i]);
+                VectorIter::Float(Box::new(iter))
+            }
+            VectorValue::Str(v) => {
+                let iter = indices.iter().map(move |&i| v[i].as_str());
+                VectorIter::Str(Box::new(iter))
+            }
+            VectorValue::Bool(v) => {
+                let iter = indices.iter().map(move |&i| v[i]);
+                VectorIter::Bool(Box::new(iter))
+            }
+        }
+    }
+
+    pub fn empty_copy(&self) -> Self {
+        match self {
+            VectorValue::Int(_) => VectorValue::Int(Vec::new()),
+            VectorValue::Float(_) => VectorValue::Float(Vec::new()),
+            VectorValue::Str(_) => VectorValue::Str(Vec::new()),
+            VectorValue::Bool(_) => VectorValue::Bool(Vec::new()),
+        }
+    }
+
+    pub fn append(&mut self, other: &VectorValue) {
+        match (self, other) {
+            (VectorValue::Int(v1), VectorValue::Int(v2)) => v1.extend_from_slice(v2),
+            (VectorValue::Float(v1), VectorValue::Float(v2)) => v1.extend_from_slice(v2),
+            (VectorValue::Str(v1), VectorValue::Str(v2)) => v1.extend_from_slice(v2),
+            (VectorValue::Bool(v1), VectorValue::Bool(v2)) => v1.extend_from_slice(v2),
+            _ => panic!("Cannot append VectorValues of different types"),
+        }
+    }
+}
+
+impl From<Vec<i64>> for VectorValue {
+    fn from(v: Vec<i64>) -> Self {
+        VectorValue::Int(v)
+    }
+}
+
+impl From<Vec<f64>> for VectorValue {
+    fn from(v: Vec<f64>) -> Self {
+        VectorValue::Float(v)
+    }
+}
+
+impl From<Vec<String>> for VectorValue {
+    fn from(v: Vec<String>) -> Self {
+        VectorValue::Str(v)
+    }
+}
+
+impl From<Vec<&str>> for VectorValue {
+    fn from(v: Vec<&str>) -> Self {
+        VectorValue::Str(v.iter().map(|s| s.to_string()).collect())
+    }
+}
+
+impl From<Vec<bool>> for VectorValue {
+    fn from(v: Vec<bool>) -> Self {
+        VectorValue::Bool(v)
+    }
+}
+
+impl GenericVector for VectorValue {
+    fn len(&self) -> usize {
+        self.len()
+    }
+
+    fn vtype(&self) -> VectorType {
+        self.vtype()
+    }
+
+    fn iter(&self) -> VectorIter<'_> {
+        match self {
+            VectorValue::Int(v) => {
+                let iter = v.iter().cloned();
+                VectorIter::Int(Box::new(iter))
+            }
+            VectorValue::Float(v) => {
+                let iter = v.iter().cloned();
+                VectorIter::Float(Box::new(iter))
+            }
+            VectorValue::Str(v) => {
+                let iter = v.iter().map(|s| s.as_str());
+                VectorIter::Str(Box::new(iter))
+            }
+            VectorValue::Bool(v) => {
+                let iter = v.iter().cloned();
+                VectorIter::Bool(Box::new(iter))
+            }
+        }
+    }
+}
+
 /// Discriminated union of iterators over vector data.
 /// This makes it impossible to miss handling a data type.
 pub enum VectorIter<'a> {
@@ -162,6 +300,26 @@ pub enum VectorIter<'a> {
     Float(Box<dyn Iterator<Item = f64> + 'a>),
     Str(Box<dyn Iterator<Item = &'a str> + 'a>),
     Bool(Box<dyn Iterator<Item = bool> + 'a>),
+}
+
+impl<'a> VectorIter<'a> {
+    pub fn to_vector(self) -> VectorValue {
+        match self {
+            VectorIter::Int(iter) => VectorValue::Int(iter.collect()),
+            VectorIter::Float(iter) => VectorValue::Float(iter.collect()),
+            VectorIter::Str(iter) => VectorValue::Str(iter.map(|s| s.to_string()).collect()),
+            VectorIter::Bool(iter) => VectorValue::Bool(iter.collect()),
+        }
+    }
+
+    pub fn vtype(&self) -> VectorType {
+        match self {
+            VectorIter::Int(_) => VectorType::Int,
+            VectorIter::Float(_) => VectorType::Float,
+            VectorIter::Str(_) => VectorType::Str,
+            VectorIter::Bool(_) => VectorType::Bool,
+        }
+    }
 }
 
 impl<'a> Iterator for VectorIter<'a> {
@@ -220,16 +378,32 @@ pub trait GenericVector: Send + Sync {
     // Returns None if the vector is not of the requested type
     // These are convenience methods; prefer using iter() for exhaustive matching
     fn iter_int(&self) -> Option<Box<dyn Iterator<Item = i64> + '_>> {
-        None
+        if let VectorIter::Int(iter) = self.iter() {
+            Some(iter)
+        } else {
+            None
+        }
     }
     fn iter_float(&self) -> Option<Box<dyn Iterator<Item = f64> + '_>> {
-        None
+        if let VectorIter::Float(iter) = self.iter() {
+            Some(iter)
+        } else {
+            None
+        }
     }
     fn iter_str(&self) -> Option<Box<dyn Iterator<Item = &str> + '_>> {
-        None
+        if let VectorIter::Str(iter) = self.iter() {
+            Some(iter)
+        } else {
+            None
+        }
     }
     fn iter_bool(&self) -> Option<Box<dyn Iterator<Item = bool> + '_>> {
-        None
+        if let VectorIter::Bool(iter) = self.iter() {
+            Some(iter)
+        } else {
+            None
+        }
     }
 }
 

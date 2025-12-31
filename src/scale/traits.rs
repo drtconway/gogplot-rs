@@ -1,5 +1,4 @@
 use core::panic;
-use std::sync::Arc;
 
 use crate::aesthetics::AesValue;
 use crate::data::{
@@ -170,11 +169,7 @@ pub trait ContinuousRangeScale: ScaleBase {
         mapped_values
     }
 
-    fn map_aesthetic_value(
-        &self,
-        value: &AesValue,
-        data: &dyn DataSource,
-    ) -> Option<AesValue> {
+    fn map_aesthetic_value(&self, value: &AesValue, data: &dyn DataSource) -> Option<AesValue> {
         match value {
             AesValue::Column {
                 name,
@@ -183,10 +178,7 @@ pub trait ContinuousRangeScale: ScaleBase {
             } => {
                 let column = DataSource::get(data, name)?;
                 let values = self.map_vector_iter(column.iter());
-                return Some(AesValue::vector(
-                    Arc::new(FloatVec::from(values)),
-                    original_name.clone(),
-                ));
+                return Some(AesValue::vector(values, original_name.clone()));
             }
             AesValue::Constant { value, hint } => {
                 let mapped = self.map_primitive_value(value)?;
@@ -200,10 +192,7 @@ pub trait ContinuousRangeScale: ScaleBase {
                 original_name,
             } => {
                 let mapped_values = self.map_vector_iter(values.iter());
-                Some(AesValue::vector(
-                    Arc::new(FloatVec::from(mapped_values)),
-                    original_name.clone(),
-                ))
+                Some(AesValue::vector(mapped_values, original_name.clone()))
             }
         }
     }
@@ -264,11 +253,7 @@ pub trait ColorRangeScale: ScaleBase {
         colors
     }
 
-    fn map_aesthetic_value(
-        &self,
-        value: &AesValue,
-        data: &dyn DataSource,
-    ) -> Option<AesValue> {
+    fn map_aesthetic_value(&self, value: &AesValue, data: &dyn DataSource) -> Option<AesValue> {
         match value {
             AesValue::Column {
                 name,
@@ -278,10 +263,7 @@ pub trait ColorRangeScale: ScaleBase {
                 let column = DataSource::get(data, name)?;
                 let colors: Vec<Color> = self.map_vector_iter(column.iter());
                 let color_values: Vec<i64> = colors.iter().map(|c| i64::from(*c)).collect();
-                Some(AesValue::vector(
-                    Arc::new(IntVec::from(color_values)),
-                    original_name.clone(),
-                ))
+                Some(AesValue::vector(color_values, original_name.clone()))
             }
             AesValue::Constant { value, hint } => {
                 let color = self.map_primitive_value(value)?;
@@ -296,10 +278,7 @@ pub trait ColorRangeScale: ScaleBase {
             } => {
                 let colors = self.map_vector_iter(values.iter());
                 let color_values: Vec<i64> = colors.iter().map(|c| i64::from(*c)).collect();
-                Some(AesValue::vector(
-                    Arc::new(IntVec::from(color_values)),
-                    original_name.clone(),
-                ))
+                Some(AesValue::vector(color_values, original_name.clone()))
             }
         }
     }
@@ -356,11 +335,7 @@ pub trait ShapeRangeScale: ScaleBase {
         shapes
     }
 
-    fn map_aesthetic_value(
-        &self,
-        value: &AesValue,
-        data: &dyn DataSource,
-    ) -> Option<AesValue> {
+    fn map_aesthetic_value(&self, value: &AesValue, data: &dyn DataSource) -> Option<AesValue> {
         match value {
             AesValue::Column {
                 name,
@@ -370,10 +345,7 @@ pub trait ShapeRangeScale: ScaleBase {
                 let column = DataSource::get(data, name)?;
                 let shapes: Vec<Shape> = self.map_vector_iter(column.iter());
                 let shape_values: Vec<i64> = shapes.iter().map(|s| i64::from(*s)).collect();
-                Some(AesValue::vector(
-                    Arc::new(IntVec::from(shape_values)),
-                    original_name.clone(),
-                ))
+                Some(AesValue::vector(shape_values, original_name.clone()))
             }
             AesValue::Constant { value, hint } => {
                 let shape = self.map_primitive_value(value)?;
@@ -388,10 +360,7 @@ pub trait ShapeRangeScale: ScaleBase {
             } => {
                 let shapes = self.map_vector_iter(values.iter());
                 let shape_values: Vec<i64> = shapes.iter().map(|s| i64::from(*s)).collect();
-                Some(AesValue::vector(
-                    Arc::new(IntVec::from(shape_values)),
-                    original_name.clone(),
-                ))
+                Some(AesValue::vector(shape_values, original_name.clone()))
             }
         }
     }
