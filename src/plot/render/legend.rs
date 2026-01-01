@@ -94,7 +94,7 @@ pub fn generate_automatic_legends(
             return title;
         }
         // Then check each layer's mapping
-        for layer in layers {
+        for layer in layers.iter() {
             if let Some(mapping) = &layer.mapping {
                 if let Some(title) = mapping.get_label(property) {
                     return title;

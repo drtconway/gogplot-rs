@@ -141,7 +141,7 @@ pub trait ColorContinuousAesBuilder: AesMapBuilderTrait {
             AesValue::Column {
                 name: column.to_string(),
                 hint: None,
-                original_name: None,
+                original_name: Some(column.to_string()),
             },
         );
     }
@@ -154,7 +154,7 @@ pub trait ColorDiscreteAesBuilder: AesMapBuilderTrait {
             AesValue::Column {
                 name: column.to_string(),
                 hint: None,
-                original_name: None,
+                original_name: Some(column.to_string()),
             },
         );
     }
@@ -167,7 +167,7 @@ pub trait FillContinuousAesBuilder: AesMapBuilderTrait {
             AesValue::Column {
                 name: column.to_string(),
                 hint: None,
-                original_name: None,
+                original_name: Some(column.to_string()),
             },
         );
     }
@@ -180,7 +180,7 @@ pub trait FillDiscreteAesBuilder: AesMapBuilderTrait {
             AesValue::Column {
                 name: column.to_string(),
                 hint: None,
-                original_name: None,
+                original_name: Some(column.to_string()),
             },
         );
     }
@@ -193,7 +193,7 @@ pub trait AlphaContinuousAesBuilder: AesMapBuilderTrait {
             AesValue::Column {
                 name: column.to_string(),
                 hint: None,
-                original_name: None,
+                original_name: Some(column.to_string()),
             },
         );
     }
@@ -206,7 +206,7 @@ pub trait AlphaDiscreteAesBuilder: AesMapBuilderTrait {
             AesValue::Column {
                 name: column.to_string(),
                 hint: None,
-                original_name: None,
+                original_name: Some(column.to_string()),
             },
         );
     }
@@ -219,7 +219,7 @@ pub trait SizeContinuousAesBuilder: AesMapBuilderTrait {
             AesValue::Column {
                 name: column.to_string(),
                 hint: None,
-                original_name: None,
+                original_name: Some(column.to_string()),
             },
         );
     }
@@ -232,7 +232,7 @@ pub trait SizeDiscreteAesBuilder: AesMapBuilderTrait {
             AesValue::Column {
                 name: column.to_string(),
                 hint: None,
-                original_name: None,
+                original_name: Some(column.to_string()),
             },
         );
     }
@@ -245,7 +245,7 @@ pub trait ShapeAesBuilder: AesMapBuilderTrait {
             AesValue::Column {
                 name: column.to_string(),
                 hint: None,
-                original_name: None,
+                original_name: Some(column.to_string()),
             },
         );
     }
