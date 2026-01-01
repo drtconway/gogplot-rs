@@ -35,7 +35,7 @@ pub use label::GeomLabel;
 pub use line::GeomLine;
 pub use point::GeomPoint;
 pub use rect::{geom_rect, GeomRect, GeomRectBuilder};
-pub use segment::GeomSegment;
+pub use segment::{geom_segment, GeomSegment, GeomSegmentBuilder};
 pub use smooth::GeomSmooth;
 pub use text::GeomText;
 pub use vline::{geom_vline, GeomVLine, GeomVLineBuilder};

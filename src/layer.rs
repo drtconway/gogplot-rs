@@ -8,7 +8,6 @@ use crate::geom::properties::{Property, PropertyValue, PropertyVector};
 use crate::geom::{AestheticRequirement, DomainConstraint, Geom};
 use crate::position::Position;
 use crate::scale::ScaleSet;
-use crate::scale::traits::{ColorRangeScale, ContinuousRangeScale, ScaleBase, ShapeRangeScale};
 use crate::stat::Stat;
 use std::collections::HashMap;
 
@@ -374,6 +373,10 @@ impl Layer {
                 AestheticProperty::YMax => Aesthetic::Ymax(AestheticDomain::Continuous),
                 AestheticProperty::XIntercept => Aesthetic::XIntercept,
                 AestheticProperty::YIntercept => Aesthetic::YIntercept,
+                AestheticProperty::XBegin => Aesthetic::XBegin,
+                AestheticProperty::XEnd => Aesthetic::XEnd,
+                AestheticProperty::YBegin => Aesthetic::YBegin,
+                AestheticProperty::YEnd => Aesthetic::YEnd,
                 AestheticProperty::Color => Aesthetic::Color(AestheticDomain::Continuous),
                 AestheticProperty::Fill => Aesthetic::Fill(AestheticDomain::Continuous),
                 AestheticProperty::Size => Aesthetic::Size(AestheticDomain::Continuous),
