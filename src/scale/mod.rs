@@ -1,6 +1,8 @@
 use crate::{
-    data::{ContinuousType, DiscreteType},
+    aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain},
+    data::{ContinuousType, DataSource, DiscreteType},
     error::PlotError,
+    scale::traits::{ColorRangeScale, ContinuousRangeScale, ScaleBase, ShapeRangeScale},
     utils::{
         data::{ContinuousVectorVisitor, DiscreteVectorVisitor, Vectorable},
         set::DiscreteSet,
@@ -54,7 +56,8 @@ pub struct ScaleSet {
     pub fill_continuous: color::ContinuousColorScale,
     pub fill_discrete: color::DiscreteColorScale,
     pub shape_scale: shape::ShapeScale,
-    pub alpha_scale: positional::ContinuousPositionalScale,
+    pub alpha_continuous: positional::ContinuousPositionalScale,
+    pub alpha_discrete: positional::DiscretePositionalScale,
     pub size_continuous: size::ContinuousSizeScale,
     pub size_discrete: size::DiscreteSizeScale,
 }
@@ -71,9 +74,104 @@ impl Default for ScaleSet {
             fill_continuous: color::ContinuousColorScale::default(),
             fill_discrete: color::DiscreteColorScale::default(),
             shape_scale: shape::ShapeScale::default(),
-            alpha_scale: positional::ContinuousPositionalScale::default(),
+            alpha_continuous: positional::ContinuousPositionalScale::default(),
+            alpha_discrete: positional::DiscretePositionalScale::default(),
             size_continuous: size::ContinuousSizeScale::default(),
             size_discrete: size::DiscreteSizeScale::default(),
+        }
+    }
+}
+
+impl ScaleSet {
+    pub fn train(
+        &mut self,
+        aesthetic: &Aesthetic,
+        mapping: &AesMap,
+        data: &dyn DataSource,
+    ) -> Result<(), PlotError> {
+        use crate::aesthetics::AestheticDomain::*;
+
+        let iter = mapping
+            .get_vector_iter(aesthetic, data)
+            .ok_or(PlotError::MissingAesthetic {
+                aesthetic: *aesthetic,
+            })?;
+        match aesthetic {
+            Aesthetic::X(domain) | Aesthetic::Xmin(domain) | Aesthetic::Xmax(domain) => {
+                match domain {
+                    Continuous => self.x_continuous.train(iter),
+                    Discrete => self.x_discrete.train(iter),
+                }
+            }
+            Aesthetic::XIntercept | Aesthetic::XBegin | Aesthetic::XEnd => {
+                self.x_continuous.train(iter)
+            }
+            Aesthetic::Y(domain) | Aesthetic::Ymin(domain) | Aesthetic::Ymax(domain) => {
+                match domain {
+                    Continuous => self.y_continuous.train(iter),
+                    Discrete => self.y_discrete.train(iter),
+                }
+            }
+            Aesthetic::YIntercept | Aesthetic::YBegin | Aesthetic::YEnd => {
+                self.y_continuous.train(iter)
+            }
+            Aesthetic::Lower => self.y_continuous.train(iter),
+            Aesthetic::Middle => self.y_continuous.train(iter),
+            Aesthetic::Upper => self.y_continuous.train(iter),
+            Aesthetic::Color(domain) => match domain {
+                Continuous => self.color_continuous.train(iter),
+                Discrete => self.color_discrete.train(iter),
+            },
+            Aesthetic::Fill(domain) => match domain {
+                Continuous => self.fill_continuous.train(iter),
+                Discrete => self.fill_discrete.train(iter),
+            },
+            Aesthetic::Alpha(domain) => match domain {
+                Continuous => self.alpha_continuous.train(iter),
+                Discrete => self.alpha_discrete.train(iter),
+            },
+            Aesthetic::Size(domain) => match domain {
+                Continuous => self.size_continuous.train(iter),
+                Discrete => self.size_discrete.train(iter),
+            },
+            Aesthetic::Shape => self.shape_scale.train(iter),
+            Aesthetic::Linetype | Aesthetic::Group | Aesthetic::Label => {
+                // No scale training needed for these aesthetics
+            }
+        }
+        Ok(())
+    }
+
+    pub fn apply(
+        &self,
+        aesthetic: &Aesthetic,
+        value: &AesValue,
+        data: &dyn DataSource,
+    ) -> Result<AesValue, PlotError> {
+        match aesthetic {
+            Aesthetic::X(_) | Aesthetic::Xmin(_) | Aesthetic::Xmax(_) | Aesthetic::XIntercept
+            | Aesthetic::XBegin | Aesthetic::XEnd => self.x_continuous.map_aesthetic_value(value, data),
+            Aesthetic::Y(_) | Aesthetic::Ymin(_) | Aesthetic::Ymax(_) | Aesthetic::YIntercept
+            | Aesthetic::YBegin | Aesthetic::YEnd | Aesthetic::Lower | Aesthetic::Middle
+            | Aesthetic::Upper => self.y_continuous.map_aesthetic_value(value, data),
+            Aesthetic::Color(domain) => match domain {
+                AestheticDomain::Continuous => self.color_continuous.map_aesthetic_value(value, data),
+                AestheticDomain::Discrete => self.color_discrete.map_aesthetic_value(value, data),
+            },
+            Aesthetic::Fill(domain) => match domain {
+                AestheticDomain::Continuous => self.fill_continuous.map_aesthetic_value(value, data),
+                AestheticDomain::Discrete => self.fill_discrete.map_aesthetic_value(value, data),
+            },
+            Aesthetic::Alpha(domain) => match domain {
+                AestheticDomain::Continuous => self.alpha_continuous.map_aesthetic_value(value, data),
+                AestheticDomain::Discrete => self.alpha_discrete.map_aesthetic_value(value, data),
+            },
+            Aesthetic::Size(domain) => match domain {
+                AestheticDomain::Continuous => self.size_continuous.map_aesthetic_value(value, data),
+                AestheticDomain::Discrete => self.size_discrete.map_aesthetic_value(value, data),
+            },
+            Aesthetic::Shape => self.shape_scale.map_aesthetic_value(value, data),
+            _ => Ok(value.clone()), // No scaling needed for other aesthetics
         }
     }
 }

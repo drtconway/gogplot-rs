@@ -320,97 +320,14 @@ impl Layer {
     pub fn train_scales(
         &mut self,
         scales: &mut ScaleSet,
-        data: &Box<dyn DataSource>,
+        data: &dyn DataSource,
         mapping: &AesMap,
     ) -> Result<()> {
-        let data = self.data(data.as_ref());
+        let data = self.data(data);
         let mapping = self.mapping(mapping);
 
-        log::debug!(
-            "train_scales - mapping aesthetics: {:?}",
-            mapping.aesthetics().collect::<Vec<_>>()
-        );
-        log::debug!("train_scales - data columns: {:?}", data.column_names());
-
         for aes in mapping.aesthetics() {
-            log::debug!("train_scales - processing aesthetic: {:?}", aes);
-            let iter_result = mapping.get_vector_iter(aes, data);
-            if iter_result.is_none() {
-                log::error!(
-                    "train_scales - failed to get iterator for aesthetic: {:?}",
-                    aes
-                );
-                continue;
-            }
-            let iter = iter_result.unwrap();
-
-            // Extract the property and look up the domain from aesthetic_domains
-            if let Some(property) = aes.to_property() {
-                if let Some(domain) = self.aesthetic_domains.get(&property) {
-                    match (property, domain) {
-                        (AestheticProperty::X, AestheticDomain::Discrete) => {
-                            scales.x_discrete.train(iter);
-                        }
-                        (AestheticProperty::X, AestheticDomain::Continuous) => {
-                            scales.x_continuous.train(iter);
-                        }
-                        (AestheticProperty::XIntercept, _) => {
-                            scales.x_continuous.train(iter);
-                        }
-                        (AestheticProperty::XMin, _) => {
-                            scales.x_continuous.train(iter);
-                        }
-                        (AestheticProperty::XMax, _) => {
-                            scales.x_continuous.train(iter);
-                        }
-                        (AestheticProperty::Y, AestheticDomain::Discrete) => {
-                            scales.y_discrete.train(iter);
-                        }
-                        (AestheticProperty::Y, AestheticDomain::Continuous) => {
-                            scales.y_continuous.train(iter);
-                        }
-                        (AestheticProperty::YIntercept, _) => {
-                            scales.y_continuous.train(iter);
-                        }
-                        (AestheticProperty::YMin, _) => {
-                            scales.y_continuous.train(iter);
-                        }
-                        (AestheticProperty::YMax, _) => {
-                            scales.y_continuous.train(iter);
-                        }
-                        (AestheticProperty::Color, AestheticDomain::Continuous) => {
-                            scales.color_continuous.train(iter);
-                        }
-                        (AestheticProperty::Color, AestheticDomain::Discrete) => {
-                            scales.color_discrete.train(iter);
-                        }
-                        (AestheticProperty::Fill, AestheticDomain::Continuous) => {
-                            scales.fill_continuous.train(iter);
-                        }
-                        (AestheticProperty::Fill, AestheticDomain::Discrete) => {
-                            scales.fill_discrete.train(iter);
-                        }
-                        (AestheticProperty::Alpha, _) => {
-                            scales.alpha_scale.train(iter);
-                        }
-                        (AestheticProperty::Size, AestheticDomain::Continuous) => {
-                            scales.size_continuous.train(iter);
-                        }
-                        (AestheticProperty::Size, AestheticDomain::Discrete) => {
-                            scales.size_discrete.train(iter);
-                        }
-                        (AestheticProperty::Shape, _) => {
-                            scales.shape_scale.train(iter);
-                        }
-                        (AestheticProperty::Linetype, _) => {
-                            // do nothing
-                        }
-                        (AestheticProperty::Label, _) => {
-                            // do nothing
-                        }
-                    }
-                }
-            }
+            scales.train(aes, mapping, data)?;
         }
 
         Ok(())
@@ -437,114 +354,35 @@ impl Layer {
         let mut new_mapping = AesMap::new();
 
         for (aes, value) in mapping.iter() {
-            // Extract the property and look up the domain from aesthetic_domains
-            if let Some(property) = aes.to_property() {
-                if let Some(domain) = self.aesthetic_domains.get(&property) {
-                    let new_value = match (property, domain) {
-                        (AestheticProperty::X, AestheticDomain::Discrete) => {
-                            scales.x_discrete.map_aesthetic_value(value, data).unwrap()
-                        }
-                        (AestheticProperty::X, AestheticDomain::Continuous) => scales
-                            .x_continuous
-                            .map_aesthetic_value(value, data)
-                            .unwrap(),
-                        (AestheticProperty::XMin, _) => scales
-                            .x_continuous
-                            .map_aesthetic_value(value, data)
-                            .unwrap(),
-                        (AestheticProperty::XMax, _) => scales
-                            .x_continuous
-                            .map_aesthetic_value(value, data)
-                            .unwrap(),
-                        (AestheticProperty::XIntercept, _) => scales
-                            .x_continuous
-                            .map_aesthetic_value(value, data)
-                            .unwrap(),
-                        (AestheticProperty::Y, AestheticDomain::Discrete) => {
-                            scales.y_discrete.map_aesthetic_value(value, data).unwrap()
-                        }
-                        (AestheticProperty::Y, AestheticDomain::Continuous) => scales
-                            .y_continuous
-                            .map_aesthetic_value(value, data)
-                            .unwrap(),
-                        (AestheticProperty::YMin, _) => scales
-                            .y_continuous
-                            .map_aesthetic_value(value, data)
-                            .unwrap(),
-                        (AestheticProperty::YMax, _) => scales
-                            .y_continuous
-                            .map_aesthetic_value(value, data)
-                            .unwrap(),
-                        (AestheticProperty::YIntercept, _) => scales
-                            .y_continuous
-                            .map_aesthetic_value(value, data)
-                            .unwrap(),
-                        (AestheticProperty::Color, AestheticDomain::Continuous) => scales
-                            .color_continuous
-                            .map_aesthetic_value(value, data)
-                            .unwrap(),
-                        (AestheticProperty::Color, AestheticDomain::Discrete) => scales
-                            .color_discrete
-                            .map_aesthetic_value(value, data)
-                            .unwrap(),
-                        (AestheticProperty::Fill, AestheticDomain::Continuous) => scales
-                            .fill_continuous
-                            .map_aesthetic_value(value, data)
-                            .unwrap(),
-                        (AestheticProperty::Fill, AestheticDomain::Discrete) => scales
-                            .fill_discrete
-                            .map_aesthetic_value(value, data)
-                            .unwrap(),
-                        (AestheticProperty::Alpha, _) => {
-                            scales.alpha_scale.map_aesthetic_value(value, data).unwrap()
-                        }
-                        (AestheticProperty::Size, AestheticDomain::Continuous) => scales
-                            .size_continuous
-                            .map_aesthetic_value(value, data)
-                            .unwrap(),
-                        (AestheticProperty::Size, AestheticDomain::Discrete) => scales
-                            .size_discrete
-                            .map_aesthetic_value(value, data)
-                            .unwrap(),
-                        (AestheticProperty::Shape, _) => {
-                            scales.shape_scale.map_aesthetic_value(value, data).unwrap()
-                        }
-                        (AestheticProperty::Linetype, _) => {
-                            // Copy through without scaling
-                            value.clone()
-                        }
-                        (AestheticProperty::Label, _) => {
-                            // Copy through without scaling
-                            value.clone()
-                        }
-                    };
-                    // Write back using canonical domain (Continuous for most, Shape/Linetype have no domain)
-                    let canonical_aes = match property {
-                        AestheticProperty::X => Aesthetic::X(AestheticDomain::Continuous),
-                        AestheticProperty::Y => Aesthetic::Y(AestheticDomain::Continuous),
-                        AestheticProperty::XMin => Aesthetic::Xmin(AestheticDomain::Continuous),
-                        AestheticProperty::XMax => Aesthetic::Xmax(AestheticDomain::Continuous),
-                        AestheticProperty::YMin => Aesthetic::Ymin(AestheticDomain::Continuous),
-                        AestheticProperty::YMax => Aesthetic::Ymax(AestheticDomain::Continuous),
-                        AestheticProperty::XIntercept => Aesthetic::XIntercept,
-                        AestheticProperty::YIntercept => Aesthetic::YIntercept,
-                        AestheticProperty::Color => Aesthetic::Color(AestheticDomain::Continuous),
-                        AestheticProperty::Fill => Aesthetic::Fill(AestheticDomain::Continuous),
-                        AestheticProperty::Size => Aesthetic::Size(AestheticDomain::Continuous),
-                        AestheticProperty::Alpha => Aesthetic::Alpha(AestheticDomain::Continuous),
-                        AestheticProperty::Shape => Aesthetic::Shape,
-                        AestheticProperty::Linetype => Aesthetic::Linetype,
-                        AestheticProperty::Label => Aesthetic::Label,
-                    };
-                    new_mapping.set(canonical_aes, new_value);
-                } else {
-                    // No domain specified for this property, copy through
+            let property = match aes.to_property() {
+                Some(prop) => prop,
+                None => {
+                    // Non-scaled aesthetic (e.g., Group) - copy as is
                     new_mapping.set(aes.clone(), value.clone());
+                    continue;
                 }
-            } else {
-                // Group and Label aesthetics don't have properties, copy through
-                new_mapping.set(aes.clone(), value.clone());
-            }
+            };
+            let new_value = scales.apply(aes, value, data)?;
+
+            // Write back using canonical domain (Continuous for most, Shape/Linetype have no domain)
+            let canonical_aes = match property {
+                AestheticProperty::X => Aesthetic::X(AestheticDomain::Continuous),
+                AestheticProperty::Y => Aesthetic::Y(AestheticDomain::Continuous),
+                AestheticProperty::XMin => Aesthetic::Xmin(AestheticDomain::Continuous),
+                AestheticProperty::XMax => Aesthetic::Xmax(AestheticDomain::Continuous),
+                AestheticProperty::YMin => Aesthetic::Ymin(AestheticDomain::Continuous),
+                AestheticProperty::YMax => Aesthetic::Ymax(AestheticDomain::Continuous),
+                AestheticProperty::XIntercept => Aesthetic::XIntercept,
+                AestheticProperty::YIntercept => Aesthetic::YIntercept,
+                AestheticProperty::Color => Aesthetic::Color(AestheticDomain::Continuous),
+                AestheticProperty::Fill => Aesthetic::Fill(AestheticDomain::Continuous),
+                AestheticProperty::Size => Aesthetic::Size(AestheticDomain::Continuous),
+                AestheticProperty::Alpha => Aesthetic::Alpha(AestheticDomain::Continuous),
+                AestheticProperty::Shape => Aesthetic::Shape,
+                AestheticProperty::Linetype => Aesthetic::Linetype,
+                AestheticProperty::Label => Aesthetic::Label,
+            };
+            new_mapping.set(canonical_aes, new_value);
         }
 
         self.mapping = Some(new_mapping);

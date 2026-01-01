@@ -4,7 +4,7 @@ use std::{
     io,
 };
 
-use crate::aesthetics::{Aesthetic, AestheticDomain, AestheticProperty};
+use crate::{aesthetics::{Aesthetic, AestheticDomain, AestheticProperty}, data::PrimitiveValue};
 use crate::data::VectorType;
 
 pub type Result<T> = std::result::Result<T, PlotError>;
@@ -48,6 +48,23 @@ impl Display for DataType {
     }
 }
 
+impl From<VectorType> for DataType {
+    fn from(vtype: VectorType) -> Self {
+        DataType::Vector(vtype)
+    }
+}
+
+impl From<&PrimitiveValue> for DataType {
+    fn from(pv: &PrimitiveValue) -> Self {
+        match pv {
+            PrimitiveValue::Int(_) => DataType::Constant(VectorType::Int),
+            PrimitiveValue::Float(_) => DataType::Constant(VectorType::Float),
+            PrimitiveValue::Str(_) => DataType::Constant(VectorType::Str),
+            PrimitiveValue::Bool(_) => DataType::Constant(VectorType::Bool),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum PlotError {
     /// A required aesthetic is missing from the mapping
@@ -76,6 +93,11 @@ pub enum PlotError {
     InvalidColumnType {
         column: String,
         expected: DataType,
+    },
+
+    /// A primitive value could not be mapped to the scale's range
+    InvalidPrimitiveValueMapping {
+        value: PrimitiveValue,
     },
 
     /// Stat parameters are invalid or missing
@@ -207,6 +229,13 @@ impl Display for PlotError {
                     f,
                     "Invalid type for aesthetic {:?}: expected {}, got {}",
                     aesthetic, expected, actual
+                )
+            }
+            PlotError::InvalidPrimitiveValueMapping { value } => {
+                write!(
+                    f,
+                    "Cannot map primitive value '{:?}' to scale range",
+                    value
                 )
             }
             PlotError::InvalidColumnType { column, expected } => {
@@ -415,12 +444,6 @@ impl From<&str> for DataType {
 impl From<String> for DataType {
     fn from(s: String) -> Self {
         s.as_str().into()
-    }
-}
-
-impl From<VectorType> for DataType {
-    fn from(vtype: VectorType) -> Self {
-        DataType::Vector(vtype)
     }
 }
 

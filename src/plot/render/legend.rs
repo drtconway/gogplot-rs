@@ -4,11 +4,294 @@ use crate::error::PlotError;
 use crate::guide::{Guides, LegendEntry, LegendGuide, LegendPosition, LegendType};
 use crate::layer::Layer;
 use crate::scale::ScaleSet;
+use crate::scale::traits::{ColorRangeScale, ContinuousDomainScale, ContinuousRangeScale, DiscreteDomainScale};
 use crate::theme::{Color, Theme};
+use crate::utils::set::DiscreteSet;
 use crate::visuals::Shape;
 use cairo::Context;
 
 use super::cairo_helpers::{apply_color, apply_fill_style, apply_font, apply_line_style};
+
+/// Helper to create discrete legend entries from categories
+fn create_discrete_entries<T>(
+    categories: &DiscreteSet,
+    mut map_value: impl FnMut(&crate::data::DiscreteValue) -> Option<T>,
+    mut apply_value: impl FnMut(&mut LegendEntry, T),
+) -> Vec<LegendEntry>
+{
+    let mut entries = Vec::new();
+    
+    for i in 0..categories.len() {
+        if let Some(value) = categories.get_at(i) {
+            let label = match &value {
+                crate::data::DiscreteValue::Int(x) => x.to_string(),
+                crate::data::DiscreteValue::Str(x) => x.clone(),
+                crate::data::DiscreteValue::Bool(x) => x.to_string(),
+            };
+            
+            if let Some(mapped) = map_value(&value) {
+                let mut entry = LegendEntry::new(label);
+                apply_value(&mut entry, mapped);
+                entries.push(entry);
+            }
+        }
+    }
+    
+    entries
+}
+
+/// Helper to create a discrete color legend
+fn create_discrete_color_legend(
+    title: String,
+    scales: &ScaleSet,
+) -> LegendGuide {
+    use crate::scale::traits::ColorRangeScale;
+    let entries = create_discrete_entries(
+        scales.color_discrete.categories(),
+        |value| match value {
+            crate::data::DiscreteValue::Int(x) => scales.color_discrete.map_value(x),
+            crate::data::DiscreteValue::Str(x) => scales.color_discrete.map_value(x),
+            crate::data::DiscreteValue::Bool(x) => scales.color_discrete.map_value(x),
+        },
+        |entry, color| {
+            entry.color = Some(color);
+            entry.size = Some(5.0);
+        }
+    );
+    
+    LegendGuide {
+        title: Some(title),
+        entries,
+        legend_type: LegendType::Discrete,
+        ..Default::default()
+    }
+}
+
+/// Helper to create a continuous color legend
+fn create_continuous_color_legend(
+    title: String,
+    scales: &ScaleSet,
+) -> LegendGuide {
+    if let Some(domain) = scales.color_continuous.domain() {
+        let colors = vec![
+            scales.color_continuous.map_value(&domain.0).unwrap_or(crate::theme::color::BLACK),
+            scales.color_continuous.map_value(&domain.1).unwrap_or(crate::theme::color::WHITE),
+        ];
+        
+        LegendGuide {
+            title: Some(title),
+            legend_type: LegendType::ColorBar { 
+                domain, 
+                colors,
+                breaks: scales.color_continuous.breaks().to_vec(),
+                labels: scales.color_continuous.labels().to_vec(),
+            },
+            ..Default::default()
+        }
+    } else {
+        LegendGuide::default()
+    }
+}
+
+/// Helper to create a discrete fill legend
+fn create_discrete_fill_legend(
+    title: String,
+    scales: &ScaleSet,
+) -> LegendGuide {
+    use crate::scale::traits::ColorRangeScale;
+    let entries = create_discrete_entries(
+        scales.fill_discrete.categories(),
+        |value| match value {
+            crate::data::DiscreteValue::Int(x) => scales.fill_discrete.map_value(x),
+            crate::data::DiscreteValue::Str(x) => scales.fill_discrete.map_value(x),
+            crate::data::DiscreteValue::Bool(x) => scales.fill_discrete.map_value(x),
+        },
+        |entry, color| {
+            entry.color = Some(color);
+            entry.size = Some(5.0);
+        }
+    );
+    
+    LegendGuide {
+        title: Some(title),
+        entries,
+        legend_type: LegendType::Discrete,
+        ..Default::default()
+    }
+}
+
+/// Helper to create a discrete size legend
+fn create_discrete_size_legend(
+    title: String,
+    scales: &ScaleSet,
+) -> LegendGuide {
+    use crate::scale::traits::ContinuousRangeScale;
+    let entries = create_discrete_entries(
+        scales.size_discrete.categories(),
+        |value| match value {
+            crate::data::DiscreteValue::Int(x) => scales.size_discrete.map_value(x),
+            crate::data::DiscreteValue::Str(x) => scales.size_discrete.map_value(x),
+            crate::data::DiscreteValue::Bool(x) => scales.size_discrete.map_value(x),
+        },
+        |entry, size| {
+            entry.color = Some(crate::theme::color::BLACK);
+            entry.size = Some(size);
+        }
+    );
+    
+    LegendGuide {
+        title: Some(title),
+        entries,
+        legend_type: LegendType::Discrete,
+        ..Default::default()
+    }
+}
+
+/// Helper to create a continuous size legend
+fn create_continuous_size_legend(
+    title: String,
+    scales: &ScaleSet,
+) -> LegendGuide {
+    if let Some(domain) = scales.size_continuous.domain() {
+        let mut entries = Vec::new();
+        let num_breaks = 4;
+        
+        for i in 0..num_breaks {
+            let t = i as f64 / (num_breaks - 1) as f64;
+            let value = domain.0 + t * (domain.1 - domain.0);
+            let size = scales.size_continuous.map_value(&value);
+            
+            if let Some(size) = size {
+                let label = if (value - value.round()).abs() < 0.01 {
+                    format!("{}", value.round() as i64)
+                } else {
+                    format!("{:.1}", value)
+                };
+                
+                entries.push(
+                    LegendEntry::new(label)
+                        .color(crate::theme::color::BLACK)
+                        .size(size)
+                );
+            }
+        }
+        
+        LegendGuide {
+            title: Some(title),
+            entries,
+            legend_type: LegendType::Discrete,
+            ..Default::default()
+        }
+    } else {
+        LegendGuide::default()
+    }
+}
+
+/// Helper to create a discrete shape legend
+fn create_discrete_shape_legend(
+    title: String,
+    scales: &ScaleSet,
+) -> LegendGuide {
+    use crate::scale::traits::ShapeRangeScale;
+    
+    let entries = create_discrete_entries(
+        scales.shape_scale.categories(),
+        |value| match value {
+            crate::data::DiscreteValue::Int(x) => scales.shape_scale.map_value(x),
+            crate::data::DiscreteValue::Str(x) => scales.shape_scale.map_value(x),
+            crate::data::DiscreteValue::Bool(x) => scales.shape_scale.map_value(x),
+        },
+        |entry, shape| {
+            entry.color = Some(crate::theme::color::BLACK);
+            entry.shape = Some(shape);
+            entry.size = Some(5.0);
+        }
+    );
+    
+    LegendGuide {
+        title: Some(title),
+        entries,
+        legend_type: LegendType::Discrete,
+        ..Default::default()
+    }
+}
+
+/// Helper to create a discrete alpha legend
+fn create_discrete_alpha_legend(
+    title: String,
+    scales: &ScaleSet,
+) -> LegendGuide {
+    use crate::scale::traits::ContinuousRangeScale;
+    
+    let entries = create_discrete_entries(
+        scales.alpha_discrete.categories(),
+        |value| match value {
+            crate::data::DiscreteValue::Int(x) => scales.alpha_discrete.map_value(x),
+            crate::data::DiscreteValue::Str(x) => scales.alpha_discrete.map_value(x),
+            crate::data::DiscreteValue::Bool(x) => scales.alpha_discrete.map_value(x),
+        },
+        |entry, alpha| {
+            // Show alpha as gray circles with varying transparency
+            let gray = 128u8;
+            let alpha_u8 = (alpha * 255.0) as u8;
+            entry.color = Some(Color(gray, gray, gray, alpha_u8));
+            entry.size = Some(5.0);
+        }
+    );
+    
+    LegendGuide {
+        title: Some(title),
+        entries,
+        legend_type: LegendType::Discrete,
+        ..Default::default()
+    }
+}
+
+/// Helper to create a continuous alpha legend
+fn create_continuous_alpha_legend(
+    title: String,
+    scales: &ScaleSet,
+) -> LegendGuide {
+    use crate::scale::traits::ContinuousRangeScale;
+    
+    if let Some(domain) = scales.alpha_continuous.domain() {
+        let mut entries = Vec::new();
+        let num_breaks = 4;
+        
+        for i in 0..num_breaks {
+            let t = i as f64 / (num_breaks - 1) as f64;
+            let value = domain.0 + t * (domain.1 - domain.0);
+            let alpha = scales.alpha_continuous.map_value(&value);
+            
+            if let Some(alpha) = alpha {
+                let label = if (value - value.round()).abs() < 0.01 {
+                    format!("{}", value.round() as i64)
+                } else {
+                    format!("{:.1}", value)
+                };
+                
+                // Show alpha as gray circles with varying transparency
+                let gray = 128u8;
+                let alpha_u8 = (alpha * 255.0) as u8;
+                
+                entries.push(
+                    LegendEntry::new(label)
+                        .color(Color(gray, gray, gray, alpha_u8))
+                        .size(5.0)
+                );
+            }
+        }
+        
+        LegendGuide {
+            title: Some(title),
+            entries,
+            legend_type: LegendType::Discrete,
+            ..Default::default()
+        }
+    } else {
+        LegendGuide::default()
+    }
+}
 
 /// Generate legends automatically from scales when aesthetics are mapped
 pub fn generate_automatic_legends(
@@ -18,7 +301,6 @@ pub fn generate_automatic_legends(
     plot_mapping: &crate::aesthetics::AesMap,
 ) -> Guides {
     use crate::aesthetics::{AestheticProperty, AestheticDomain};
-    use crate::scale::traits::{DiscreteDomainScale, ContinuousDomainScale, ColorRangeScale, ContinuousRangeScale};
     
     let mut guides = guides.clone();
 
@@ -112,146 +394,44 @@ pub fn generate_automatic_legends(
     
     // Generate color legend if not already specified
     if has_color && guides.color.is_none() {
-        let legend = match color_domain {
-            Some(AestheticDomain::Discrete) => {
-                let mut entries = Vec::new();
-                let categories = scales.color_discrete.categories();
-                
-                for i in 0..categories.len() {
-                    if let Some(value) = categories.get_at(i) {
-                        let label = match &value {
-                            crate::data::DiscreteValue::Int(x) => x.to_string(),
-                            crate::data::DiscreteValue::Str(x) => x.clone(),
-                            crate::data::DiscreteValue::Bool(x) => x.to_string(),
-                        };
-                        
-                        let color = match &value {
-                            crate::data::DiscreteValue::Int(x) => scales.color_discrete.map_value(x),
-                            crate::data::DiscreteValue::Str(x) => scales.color_discrete.map_value(x),
-                            crate::data::DiscreteValue::Bool(x) => scales.color_discrete.map_value(x),
-                        };
-                        
-                        if let Some(color) = color {
-                            entries.push(
-                                LegendEntry::new(label)
-                                    .color(color)
-                                    .size(5.0)
-                            );
-                        }
-                    }
-                }
-                
-                LegendGuide {
-                    title: Some(color_title),
-                    entries,
-                    legend_type: LegendType::Discrete,
-                    ..Default::default()
-                }
-            }
-            Some(AestheticDomain::Continuous) => {
-                if let Some(domain) = scales.color_continuous.domain() {
-                    // Get the gradient colors from the scale
-                    let colors = vec![
-                        scales.color_continuous.map_value(&domain.0).unwrap_or(crate::theme::color::BLACK),
-                        scales.color_continuous.map_value(&domain.1).unwrap_or(crate::theme::color::WHITE),
-                    ];
-                    
-                    LegendGuide {
-                        title: Some(color_title),
-                        legend_type: LegendType::ColorBar { 
-                            domain, 
-                            colors,
-                            breaks: scales.color_continuous.breaks().to_vec(),
-                            labels: scales.color_continuous.labels().to_vec(),
-                        },
-                        ..Default::default()
-                    }
-                } else {
-                    LegendGuide::default()
-                }
-            }
+        guides.color = Some(match color_domain {
+            Some(AestheticDomain::Discrete) => create_discrete_color_legend(color_title, scales),
+            Some(AestheticDomain::Continuous) => create_continuous_color_legend(color_title, scales),
             None => LegendGuide::default(),
-        };
-        guides.color = Some(legend);
+        });
+    }
+    
+    // Generate fill legend if not already specified
+    if has_fill && guides.fill.is_none() {
+        guides.fill = Some(match fill_domain {
+            Some(AestheticDomain::Discrete) => create_discrete_fill_legend(fill_title, scales),
+            // Continuous fill would use a color bar like color
+            Some(AestheticDomain::Continuous) => LegendGuide::default(), // TODO: implement continuous fill
+            None => LegendGuide::default(),
+        });
     }
     
     // Generate size legend if not already specified
     if has_size && guides.size.is_none() {
-        let legend = match size_domain {
-            Some(AestheticDomain::Discrete) => {
-                let mut entries = Vec::new();
-                let categories = scales.size_discrete.categories();
-                
-                for i in 0..categories.len() {
-                    if let Some(value) = categories.get_at(i) {
-                        let label = match &value {
-                            crate::data::DiscreteValue::Int(x) => x.to_string(),
-                            crate::data::DiscreteValue::Str(x) => x.clone(),
-                            crate::data::DiscreteValue::Bool(x) => x.to_string(),
-                        };
-                        
-                        let size = match &value {
-                            crate::data::DiscreteValue::Int(x) => scales.size_discrete.map_value(x),
-                            crate::data::DiscreteValue::Str(x) => scales.size_discrete.map_value(x),
-                            crate::data::DiscreteValue::Bool(x) => scales.size_discrete.map_value(x),
-                        };
-                        
-                        if let Some(size) = size {
-                            entries.push(
-                                LegendEntry::new(label)
-                                    .color(crate::theme::color::BLACK)
-                                    .size(size)
-                            );
-                        }
-                    }
-                }
-                
-                LegendGuide {
-                    title: Some(size_title),
-                    entries,
-                    legend_type: LegendType::Discrete,
-                    ..Default::default()
-                }
-            }
-            Some(AestheticDomain::Continuous) => {
-                // For continuous size, show a few representative sizes
-                if let Some(domain) = scales.size_continuous.domain() {
-                    let mut entries = Vec::new();
-                    let num_breaks = 4;
-                    
-                    for i in 0..num_breaks {
-                        let t = i as f64 / (num_breaks - 1) as f64;
-                        let value = domain.0 + t * (domain.1 - domain.0);
-                        let size = scales.size_continuous.map_value(&value);
-                        
-                        if let Some(size) = size {
-                            let label = if (value - value.round()).abs() < 0.01 {
-                                format!("{}", value.round() as i64)
-                            } else {
-                                format!("{:.1}", value)
-                            };
-                            
-                            entries.push(
-                                LegendEntry::new(label)
-                                    .color(crate::theme::color::BLACK)
-                                    .size(size)
-                            );
-                        }
-                    }
-                    
-                    LegendGuide {
-                        title: Some(size_title),
-                        entries,
-                        legend_type: LegendType::Discrete, // Even for continuous, show discrete samples
-                        ..Default::default()
-                    }
-                } else {
-                    LegendGuide::default()
-                }
-            }
+        guides.size = Some(match size_domain {
+            Some(AestheticDomain::Discrete) => create_discrete_size_legend(size_title, scales),
+            Some(AestheticDomain::Continuous) => create_continuous_size_legend(size_title, scales),
             None => LegendGuide::default(),
-        };
-        guides.size = Some(legend);
+        });
+    }
+    
+    // Generate shape legend if not already specified
+    if has_shape && guides.shape.is_none() {
+        guides.shape = Some(create_discrete_shape_legend(shape_title, scales));
+    }
+    
+    // Generate alpha legend if not already specified
+    if has_alpha && guides.alpha.is_none() {
+        guides.alpha = Some(match alpha_domain {
+            Some(AestheticDomain::Discrete) => create_discrete_alpha_legend(alpha_title, scales),
+            Some(AestheticDomain::Continuous) => create_continuous_alpha_legend(alpha_title, scales),
+            None => LegendGuide::default(),
+        });
     }
 
     guides
@@ -293,6 +473,12 @@ pub fn calculate_legend_width(
     }
 
     if let Some(ref legend) = guides.size {
+        if !matches!(legend.position, LegendPosition::None) {
+            legend_count += 1;
+        }
+    }
+
+    if let Some(ref legend) = guides.alpha {
         if !matches!(legend.position, LegendPosition::None) {
             legend_count += 1;
         }
@@ -345,6 +531,11 @@ pub fn draw_legends(
     // Add size legend if present
     if let Some(ref size_guide) = guides.size {
         legends.push(size_guide);
+    }
+
+    // Add alpha legend if present
+    if let Some(ref alpha_guide) = guides.alpha {
+        legends.push(alpha_guide);
     }
 
     if legends.is_empty() {

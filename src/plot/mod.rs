@@ -83,7 +83,7 @@ impl<'a> PlotBuilder<'a> {
 
         // Step 3: Train scales on all layer data
         for layer in &mut layers {
-            layer.train_scales(&mut scales, &self.data, &self.mapping)?;
+            layer.train_scales(&mut scales, self.data.as_ref(), &self.mapping)?;
         }
 
         // Step 4: Apply scales to convert data to visual coordinates
