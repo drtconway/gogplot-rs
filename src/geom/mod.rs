@@ -66,7 +66,7 @@ pub trait Geom: Send + Sync {
         HashMap::new()
     }
 
-    fn property_defaults(&self, theme: &Theme) -> HashMap<AestheticProperty, PropertyValue> {
+    fn property_defaults(&self, _theme: &Theme) -> HashMap<AestheticProperty, PropertyValue> {
         HashMap::new()
     }
 

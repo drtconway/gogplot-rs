@@ -685,7 +685,7 @@ pub fn draw_legends(
                 apply_color(ctx, &theme.legend.text_color);
                 ctx.set_font_size(9.0);
 
-                for (i, (&break_value, label)) in breaks.iter().zip(labels.iter()).enumerate() {
+                for (_i, (&break_value, label)) in breaks.iter().zip(labels.iter()).enumerate() {
                     // Calculate position on the bar (inverted: high values at top)
                     let t = (break_value - domain.0) / (domain.1 - domain.0);
                     let tick_y = bar_y + bar_height - t * bar_height;
