@@ -177,9 +177,10 @@ impl Layer {
                 all_vectors.insert(property, vector);
             } else if let Some(aesthetic) = index.get(&property) {
                 // Priority 2: Use mapping
-                let vector: PropertyVector =
-                    PropertyVector::from(mapping.get_vector_iter(aesthetic, data).unwrap());
-                all_vectors.insert(property, vector);
+                if let Some(vec_iter) = mapping.get_vector_iter(aesthetic, data) {
+                    let vector: PropertyVector = PropertyVector::from(vec_iter);
+                    all_vectors.insert(property, vector);
+                }
             } else if let Some(default_value) = defaults.get(&property) {
                 // Priority 3: get the default value
                 let vector = self.make_property_value_vector(&default_value, n);

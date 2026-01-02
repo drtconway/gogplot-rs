@@ -1,5 +1,5 @@
 use crate::{
-    aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain},
+    aesthetics::{AesMap, AesValue, Aesthetic},
     data::{ContinuousType, DataSource, DiscreteType},
     error::PlotError,
     scale::traits::{ColorRangeScale, ContinuousRangeScale, ScaleBase, ShapeRangeScale},
@@ -148,27 +148,43 @@ impl ScaleSet {
         value: &AesValue,
         data: &dyn DataSource,
     ) -> Result<AesValue, PlotError> {
+        use crate::aesthetics::AestheticDomain::*;
+        
         match aesthetic {
-            Aesthetic::X(_) | Aesthetic::Xmin(_) | Aesthetic::Xmax(_) | Aesthetic::XIntercept
-            | Aesthetic::XBegin | Aesthetic::XEnd => self.x_continuous.map_aesthetic_value(value, data),
-            Aesthetic::Y(_) | Aesthetic::Ymin(_) | Aesthetic::Ymax(_) | Aesthetic::YIntercept
-            | Aesthetic::YBegin | Aesthetic::YEnd | Aesthetic::Lower | Aesthetic::Middle
-            | Aesthetic::Upper => self.y_continuous.map_aesthetic_value(value, data),
+            Aesthetic::X(domain) | Aesthetic::Xmin(domain) | Aesthetic::Xmax(domain) => {
+                match domain {
+                    Continuous => self.x_continuous.map_aesthetic_value(value, data),
+                    Discrete => self.x_discrete.map_aesthetic_value(value, data),
+                }
+            }
+            Aesthetic::XIntercept | Aesthetic::XBegin | Aesthetic::XEnd => {
+                self.x_continuous.map_aesthetic_value(value, data)
+            }
+            Aesthetic::Y(domain) | Aesthetic::Ymin(domain) | Aesthetic::Ymax(domain) => {
+                match domain {
+                    Continuous => self.y_continuous.map_aesthetic_value(value, data),
+                    Discrete => self.y_discrete.map_aesthetic_value(value, data),
+                }
+            }
+            Aesthetic::YIntercept | Aesthetic::YBegin | Aesthetic::YEnd | Aesthetic::Lower
+            | Aesthetic::Middle | Aesthetic::Upper => {
+                self.y_continuous.map_aesthetic_value(value, data)
+            }
             Aesthetic::Color(domain) => match domain {
-                AestheticDomain::Continuous => self.color_continuous.map_aesthetic_value(value, data),
-                AestheticDomain::Discrete => self.color_discrete.map_aesthetic_value(value, data),
+                Continuous => self.color_continuous.map_aesthetic_value(value, data),
+                Discrete => self.color_discrete.map_aesthetic_value(value, data),
             },
             Aesthetic::Fill(domain) => match domain {
-                AestheticDomain::Continuous => self.fill_continuous.map_aesthetic_value(value, data),
-                AestheticDomain::Discrete => self.fill_discrete.map_aesthetic_value(value, data),
+                Continuous => self.fill_continuous.map_aesthetic_value(value, data),
+                Discrete => self.fill_discrete.map_aesthetic_value(value, data),
             },
             Aesthetic::Alpha(domain) => match domain {
-                AestheticDomain::Continuous => self.alpha_continuous.map_aesthetic_value(value, data),
-                AestheticDomain::Discrete => self.alpha_discrete.map_aesthetic_value(value, data),
+                Continuous => self.alpha_continuous.map_aesthetic_value(value, data),
+                Discrete => self.alpha_discrete.map_aesthetic_value(value, data),
             },
             Aesthetic::Size(domain) => match domain {
-                AestheticDomain::Continuous => self.size_continuous.map_aesthetic_value(value, data),
-                AestheticDomain::Discrete => self.size_discrete.map_aesthetic_value(value, data),
+                Continuous => self.size_continuous.map_aesthetic_value(value, data),
+                Discrete => self.size_discrete.map_aesthetic_value(value, data),
             },
             Aesthetic::Shape => self.shape_scale.map_aesthetic_value(value, data),
             _ => Ok(value.clone()), // No scaling needed for other aesthetics

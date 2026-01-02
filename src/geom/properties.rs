@@ -32,6 +32,16 @@ pub enum PropertyVector {
 }
 
 impl PropertyVector {
+    pub fn len(&self) -> usize {
+        match self {
+            PropertyVector::Int(v) => v.len(),
+            PropertyVector::Float(v) => v.len(),
+            PropertyVector::String(v) => v.len(),
+            PropertyVector::Color(v) => v.len(),
+            PropertyVector::Shape(v) => v.len(),
+        }
+    }
+    
     pub fn to_color(self) -> PropertyVector {
         match self {
             PropertyVector::Int(v) => {

@@ -86,6 +86,11 @@ impl<'a> PlotBuilder<'a> {
             layer.train_scales(&mut scales, self.data.as_ref(), &self.mapping)?;
         }
 
+        // Step 3b: Let geoms add additional scale training (e.g., bars need y=0)
+        for layer in &layers {
+            layer.geom.train_scales(&mut scales);
+        }
+
         // Step 4: Apply scales to convert data to visual coordinates
         for layer in &mut layers {
             layer.apply_scales(&scales, self.data, &self.mapping)?;

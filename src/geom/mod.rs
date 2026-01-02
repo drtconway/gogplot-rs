@@ -24,21 +24,21 @@ pub mod smooth;
 pub mod text;
 pub mod vline;
 
-pub use bar::GeomBar;
+pub use bar::{GeomBar, GeomBarBuilder, geom_bar};
 pub use boxplot::GeomBoxplot;
 pub use context::RenderContext;
 pub use density::GeomDensity;
 pub use errorbar::GeomErrorbar;
 pub use histogram::GeomHistogram;
-pub use hline::{geom_hline, GeomHLine, GeomHLineBuilder};
+pub use hline::{GeomHLine, GeomHLineBuilder, geom_hline};
 pub use label::GeomLabel;
 pub use line::GeomLine;
 pub use point::GeomPoint;
-pub use rect::{geom_rect, GeomRect, GeomRectBuilder};
-pub use segment::{geom_segment, GeomSegment, GeomSegmentBuilder};
+pub use rect::{GeomRect, GeomRectBuilder, geom_rect};
+pub use segment::{GeomSegment, GeomSegmentBuilder, geom_segment};
 pub use smooth::GeomSmooth;
 pub use text::GeomText;
-pub use vline::{geom_vline, GeomVLine, GeomVLineBuilder};
+pub use vline::{GeomVLine, GeomVLineBuilder, geom_vline};
 
 // Define what domains a geom accepts for an aesthetic
 pub enum DomainConstraint {
@@ -82,5 +82,9 @@ pub trait Geom: Send + Sync {
     fn apply_scales(&mut self, scales: &ScaleSet);
 
     /// Render the geom with the provided context, data, and aesthetic properties for a single group.
-    fn render<'a>(&self, ctx: &mut RenderContext<'a>, data: HashMap<AestheticProperty, PropertyVector>) -> Result<(), PlotError>;
+    fn render<'a>(
+        &self,
+        ctx: &mut RenderContext<'a>,
+        data: HashMap<AestheticProperty, PropertyVector>,
+    ) -> Result<(), PlotError>;
 }
