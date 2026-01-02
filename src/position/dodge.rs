@@ -167,7 +167,7 @@ impl GroupDodger {
         self.x_offsets = Vec::with_capacity(x_values.len());
         self.widths = Vec::with_capacity(x_values.len());
         
-        for (x_val, group_val) in x_values.iter().zip(group_values.iter()) {
+        for (_x_val, group_val) in x_values.iter().zip(group_values.iter()) {
             let group_idx = global_group_indices.get(group_val).unwrap_or(&0);
 
             // Center the group of bars around x=0 (will be added to discrete position later)

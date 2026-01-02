@@ -1,7 +1,7 @@
 // Layer scaffolding for grammar of graphics
 
 use crate::aesthetics::builder::AesMapBuilder;
-use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain, AestheticProperty};
+use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::data::{DataSource, DiscreteValue, VectorIter};
 use crate::error::Result;
 use crate::geom::properties::{Property, PropertyValue, PropertyVector};
@@ -420,6 +420,9 @@ impl Layer {
                 AestheticProperty::YMax => Aesthetic::Ymax(AestheticDomain::Continuous),
                 AestheticProperty::XIntercept => Aesthetic::XIntercept,
                 AestheticProperty::YIntercept => Aesthetic::YIntercept,
+                AestheticProperty::Lower => Aesthetic::Lower,
+                AestheticProperty::Middle => Aesthetic::Middle,
+                AestheticProperty::Upper => Aesthetic::Upper,
                 AestheticProperty::XBegin => Aesthetic::XBegin,
                 AestheticProperty::XEnd => Aesthetic::XEnd,
                 AestheticProperty::YBegin => Aesthetic::YBegin,
