@@ -103,7 +103,7 @@ impl ScaleSet {
                     Discrete => self.x_discrete.train(iter),
                 }
             }
-            Aesthetic::XIntercept | Aesthetic::XBegin | Aesthetic::XEnd => {
+            Aesthetic::XIntercept | Aesthetic::XBegin | Aesthetic::XEnd | Aesthetic::XOffset => {
                 self.x_continuous.train(iter)
             }
             Aesthetic::Y(domain) | Aesthetic::Ymin(domain) | Aesthetic::Ymax(domain) => {
@@ -112,7 +112,7 @@ impl ScaleSet {
                     Discrete => self.y_discrete.train(iter),
                 }
             }
-            Aesthetic::YIntercept | Aesthetic::YBegin | Aesthetic::YEnd => {
+            Aesthetic::YIntercept | Aesthetic::YBegin | Aesthetic::YEnd | Aesthetic::YOffset => {
                 self.y_continuous.train(iter)
             }
             Aesthetic::Lower => self.y_continuous.train(iter),
@@ -135,7 +135,7 @@ impl ScaleSet {
                 Discrete => self.size_discrete.train(iter),
             },
             Aesthetic::Shape => self.shape_scale.train(iter),
-            Aesthetic::Linetype | Aesthetic::Group | Aesthetic::Label => {
+            Aesthetic::Linetype | Aesthetic::Group | Aesthetic::Label | Aesthetic::Width | Aesthetic::Height => {
                 // No scale training needed for these aesthetics
             }
         }
@@ -167,7 +167,7 @@ impl ScaleSet {
                 }
             }
             Aesthetic::YIntercept | Aesthetic::YBegin | Aesthetic::YEnd | Aesthetic::Lower
-            | Aesthetic::Middle | Aesthetic::Upper => {
+            | Aesthetic::Middle | Aesthetic::Upper | Aesthetic::YOffset => {
                 self.y_continuous.map_aesthetic_value(value, data)
             }
             Aesthetic::Color(domain) => match domain {

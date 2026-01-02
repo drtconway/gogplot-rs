@@ -57,6 +57,12 @@ impl Count {
     }
 }
 
+impl Default for Count {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Stat for Count {
     fn compute_group(
         &self,

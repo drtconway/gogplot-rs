@@ -22,10 +22,20 @@ pub trait Position {
     ///
     /// # Returns
     /// * `None` - No adjustment needed
-    /// * `Some((data, mapping, scales))` - Adjusted data, mapping, and optionally transformed scales
+    /// * `Some(mapping)` - Adjusted mapping
     fn apply(
         &self,
         data: &Box<dyn DataSource>,
         mapping: &AesMap,
-    ) -> Result<Option<(Box<dyn DataSource>, AesMap)>, PlotError>;
+    ) -> Result<Option<AesMap>, PlotError>;
+}
+
+impl From<&str> for Box<dyn Position> {
+    fn from(s: &str) -> Self {
+        match s {
+            "dodge" => Box::new(dodge::Dodge::default()),
+            "stack" => Box::new(stack::Stack::default()),
+            _ => panic!("Unknown position adjustment: {}", s),
+        }
+    }
 }

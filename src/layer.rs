@@ -1,7 +1,7 @@
 // Layer scaffolding for grammar of graphics
 
 use crate::aesthetics::builder::AesMapBuilder;
-use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
+use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::data::{DataSource, DiscreteValue, VectorIter};
 use crate::error::Result;
 use crate::geom::properties::{Property, PropertyValue, PropertyVector};
@@ -9,6 +9,7 @@ use crate::geom::{AestheticRequirement, DomainConstraint, Geom};
 use crate::position::Position;
 use crate::scale::ScaleSet;
 use crate::stat::Stat;
+use core::panic;
 use std::collections::HashMap;
 
 pub struct LayerBuilderCore {
@@ -188,6 +189,17 @@ impl Layer {
             }
         }
 
+        // Also materialize any mapped aesthetics that aren't required
+        // (e.g., XOffset, Width from position adjustments)
+        for (property, aesthetic) in index.iter() {
+            if !all_vectors.contains_key(property) {
+                if let Some(vec_iter) = mapping.get_vector_iter(aesthetic, data) {
+                    let vector: PropertyVector = PropertyVector::from(vec_iter);
+                    all_vectors.insert(*property, vector);
+                }
+            }
+        }
+
         // Check for grouping
         if let Some(grouping_vector) = self.get_grouping_vector(data, mapping) {
             for (_, indices) in grouping_vector.into_iter().enumerate() {
@@ -308,9 +320,43 @@ impl Layer {
     }
 
     pub fn apply_position(&mut self, data: &Box<dyn DataSource>, mapping: &AesMap) -> Result<()> {
+        // Use layer's effective mapping (from stat if applied)
+        let effective_mapping = self.mapping(mapping);
+        
+        log::debug!("apply_position - effective_mapping contains: {:?}", effective_mapping.aesthetics().collect::<Vec<_>>());
+        
+        let mut mapping_with_group = effective_mapping.clone();
+        if !mapping_with_group.contains(Aesthetic::Group) {
+            let grouping_aesthetics: Vec<Aesthetic> = mapping_with_group
+                .aesthetics()
+                .filter(|aes| aes.is_grouping())
+                .cloned()
+                .collect();
+            log::debug!("apply_position - grouping aesthetics: {:?}", grouping_aesthetics);
+            if grouping_aesthetics.is_empty() {
+                // No grouping aesthetics, no group needed
+            } else if grouping_aesthetics.len() == 1 {
+                let aes = &grouping_aesthetics[0];
+                let value = mapping_with_group.get(aes).unwrap().clone();
+                log::debug!("apply_position - setting Group from {:?}", aes);
+                mapping_with_group.set(Aesthetic::Group, value);
+            } else {
+                panic!(
+                    "Multiple grouping aesthetics not yet supported for automatic Group assignment ({:?})",
+                    grouping_aesthetics
+                );
+            }
+        }
+        
+        log::debug!("apply_position - mapping_with_group contains: {:?}", mapping_with_group.aesthetics().collect::<Vec<_>>());
+        
         if let Some(position) = &self.position {
-            if let Some((new_data, new_mapping)) = position.apply(data, mapping)? {
-                self.data = Some(new_data);
+            // Use layer's data if it has been set by stat, otherwise use plot data
+            let effective_data = self.data.as_ref().unwrap_or(data);
+            
+            if let Some(new_mapping) = position.apply(effective_data, &mapping_with_group)? {
+                // Position returns new mapping with adjusted aesthetics
+                // Data remains the same (position uses AesValue::Vector for new aesthetics)
                 self.mapping = Some(new_mapping);
             }
         }
@@ -378,6 +424,10 @@ impl Layer {
                 AestheticProperty::XEnd => Aesthetic::XEnd,
                 AestheticProperty::YBegin => Aesthetic::YBegin,
                 AestheticProperty::YEnd => Aesthetic::YEnd,
+                AestheticProperty::XOffset => Aesthetic::XOffset,
+                AestheticProperty::YOffset => Aesthetic::YOffset,
+                AestheticProperty::Width => Aesthetic::Width,
+                AestheticProperty::Height => Aesthetic::Height,
                 AestheticProperty::Color => Aesthetic::Color(AestheticDomain::Continuous),
                 AestheticProperty::Fill => Aesthetic::Fill(AestheticDomain::Continuous),
                 AestheticProperty::Size => Aesthetic::Size(AestheticDomain::Continuous),

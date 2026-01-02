@@ -2,8 +2,9 @@
 
 use crate::error::PlotError;
 use crate::guide::{AxisGuide, AxisType, XAxisPosition, YAxisPosition};
+use crate::scale::ScaleSet;
 use crate::scale::positional::ContinuousPositionalScale;
-use crate::scale::traits::{ContinuousDomainScale, ContinuousRangeScale};
+use crate::scale::traits::{ContinuousDomainScale, ContinuousRangeScale, DiscreteDomainScale};
 use crate::theme::Theme;
 use cairo::Context;
 
@@ -23,7 +24,7 @@ pub fn draw_grid_lines(
     // Draw minor grid lines first (if present) so major grid lines are on top
     if let Some(ref grid_minor) = theme.panel.grid_minor {
         apply_line_style(ctx, grid_minor);
-        
+
         // Draw vertical minor grid lines between x scale breaks
         let x_breaks = x_scale.breaks();
         for i in 1..x_breaks.len() {
@@ -34,7 +35,7 @@ pub fn draw_grid_lines(
                 ctx.line_to(x_pos, plot_y1);
             }
         }
-        
+
         // Draw horizontal minor grid lines between y scale breaks
         let y_breaks = y_scale.breaks();
         for i in 1..y_breaks.len() {
@@ -46,7 +47,7 @@ pub fn draw_grid_lines(
                 ctx.line_to(plot_x1, y_pos);
             }
         }
-        
+
         ctx.stroke().ok();
     }
 
@@ -85,14 +86,38 @@ pub fn draw_axes(
     theme: &Theme,
     x_axis: Option<&AxisGuide>,
     y_axis: Option<&AxisGuide>,
-    x_scale: &ContinuousPositionalScale,
-    y_scale: &ContinuousPositionalScale,
+    scales: &ScaleSet,
     title: Option<&String>,
     x0: f64,
     x1: f64,
     y0: f64,
     y1: f64,
 ) -> Result<(), PlotError> {
+    // Determine which scales to use for axes
+    // Use discrete scale if it has categories, otherwise use continuous
+    let use_x_discrete = scales.x_discrete.categories().len() > 0;
+    let use_y_discrete = scales.y_discrete.categories().len() > 0;
+
+    // Get breaks and labels for X axis
+    let (x_breaks, x_labels): (Vec<f64>, Vec<String>) = if use_x_discrete {
+        (scales.x_discrete.breaks(), scales.x_discrete.labels())
+    } else {
+        (
+            scales.x_continuous.breaks().to_vec(),
+            scales.x_continuous.labels().to_vec(),
+        )
+    };
+
+    // Get breaks and labels for Y axis
+    let (y_breaks, y_labels): (Vec<f64>, Vec<String>) = if use_y_discrete {
+        (scales.y_discrete.breaks(), scales.y_discrete.labels())
+    } else {
+        (
+            scales.y_continuous.breaks().to_vec(),
+            scales.y_continuous.labels().to_vec(),
+        )
+    };
+
     // Draw axis lines based on position
 
     // X axis line
@@ -123,12 +148,19 @@ pub fn draw_axes(
     if let Some(ref line_style) = theme.axis_x.line.ticks {
         apply_line_style(ctx, line_style);
         apply_text_theme(ctx, &theme.axis_x.text.text);
-        
-        for (break_val, label) in x_scale.breaks().iter().zip(x_scale.labels().iter()) {
+
+        for (break_val, label) in x_breaks.iter().zip(x_labels.iter()) {
             // Map break value to viewport coordinate
-            if let Some(normalized) = x_scale.map_value(break_val) {
+            // For discrete scales, the breaks are already normalized (0-1)
+            let normalized = if use_x_discrete {
+                Some(*break_val)
+            } else {
+                scales.x_continuous.map_value(break_val)
+            };
+
+            if let Some(normalized) = normalized {
                 let x_pos = x0 + normalized * (x1 - x0);
-                
+
                 // Draw tick mark
                 match x_position {
                     XAxisPosition::Bottom => {
@@ -141,7 +173,7 @@ pub fn draw_axes(
                     }
                 }
                 ctx.stroke().ok();
-                
+
                 // Draw label
                 let extents = ctx.text_extents(label).ok();
                 if let Some(ext) = extents {
@@ -190,13 +222,20 @@ pub fn draw_axes(
     if let Some(ref line_style) = theme.axis_y.line.ticks {
         apply_line_style(ctx, line_style);
         apply_text_theme(ctx, &theme.axis_y.text.text);
-        
-        for (break_val, label) in y_scale.breaks().iter().zip(y_scale.labels().iter()) {
+
+        for (break_val, label) in y_breaks.iter().zip(y_labels.iter()) {
             // Map break value to viewport coordinate
-            if let Some(normalized) = y_scale.map_value(break_val) {
+            // For discrete scales, the breaks are already normalized (0-1)
+            let normalized = if use_y_discrete {
+                Some(*break_val)
+            } else {
+                scales.y_continuous.map_value(break_val)
+            };
+
+            if let Some(normalized) = normalized {
                 // Note: y is inverted (y1 is bottom, y0 is top)
                 let y_pos = y1 + normalized * (y0 - y1);
-                
+
                 // Draw tick mark
                 match y_position {
                     YAxisPosition::Left => {
@@ -209,7 +248,7 @@ pub fn draw_axes(
                     }
                 }
                 ctx.stroke().ok();
-                
+
                 // Draw label
                 let extents = ctx.text_extents(label).ok();
                 if let Some(ext) = extents {

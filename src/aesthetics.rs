@@ -43,6 +43,10 @@ pub enum AestheticProperty {
     YEnd,
     XIntercept,
     YIntercept,
+    XOffset,
+    YOffset,
+    Width,
+    Height,
     Label,
 }
 
@@ -67,6 +71,10 @@ impl AestheticProperty {
             AestheticProperty::YEnd => AestheticPropertyType::Float,
             AestheticProperty::XIntercept => AestheticPropertyType::Float,
             AestheticProperty::YIntercept => AestheticPropertyType::Float,
+            AestheticProperty::XOffset => AestheticPropertyType::Float,
+            AestheticProperty::YOffset => AestheticPropertyType::Float,
+            AestheticProperty::Width => AestheticPropertyType::Float,
+            AestheticProperty::Height => AestheticPropertyType::Float,
             AestheticProperty::Label => AestheticPropertyType::String,
         }
     }
@@ -92,6 +100,10 @@ impl AestheticProperty {
             AestheticProperty::YEnd => &[Aesthetic::YEnd],
             AestheticProperty::XIntercept => &[Aesthetic::XIntercept],
             AestheticProperty::YIntercept => &[Aesthetic::YIntercept],
+            AestheticProperty::XOffset => &[Aesthetic::XOffset],
+            AestheticProperty::YOffset => &[Aesthetic::YOffset],
+            AestheticProperty::Width => &[Aesthetic::Width],
+            AestheticProperty::Height => &[Aesthetic::Height],
             AestheticProperty::Label => &[Aesthetic::Label],
         }
     }
@@ -110,6 +122,10 @@ impl AestheticProperty {
             AestheticProperty::YEnd => AestheticProperty::XEnd,
             AestheticProperty::XIntercept => AestheticProperty::YIntercept,
             AestheticProperty::YIntercept => AestheticProperty::XIntercept,
+            AestheticProperty::XOffset => AestheticProperty::YOffset,
+            AestheticProperty::YOffset => AestheticProperty::XOffset,
+            AestheticProperty::Width => AestheticProperty::Height,
+            AestheticProperty::Height => AestheticProperty::Width,
             other => *other,
         }
     }
@@ -134,6 +150,10 @@ impl AestheticProperty {
             AestheticProperty::YEnd => "yend",
             AestheticProperty::XIntercept => "xintercept",
             AestheticProperty::YIntercept => "yintercept",
+            AestheticProperty::XOffset => "xoffset",
+            AestheticProperty::YOffset => "yoffset",
+            AestheticProperty::Width => "width",
+            AestheticProperty::Height => "height",
             AestheticProperty::Label => "label",
         }
     }
@@ -194,6 +214,10 @@ pub enum Aesthetic {
     YEnd,
     XIntercept,
     YIntercept,
+    XOffset,
+    YOffset,
+    Width,
+    Height,
     Label,
 }
 
@@ -264,6 +288,10 @@ impl Aesthetic {
             | Aesthetic::YBegin
             | Aesthetic::YEnd
             | Aesthetic::YIntercept
+            | Aesthetic::XOffset
+            | Aesthetic::YOffset
+            | Aesthetic::Width
+            | Aesthetic::Height
             | Aesthetic::Lower
             | Aesthetic::Middle
             | Aesthetic::Upper
@@ -296,6 +324,10 @@ impl Aesthetic {
             Aesthetic::YEnd => "yend",
             Aesthetic::XIntercept => "xintercept",
             Aesthetic::YIntercept => "yintercept",
+            Aesthetic::XOffset => "xoffset",
+            Aesthetic::YOffset => "yoffset",
+            Aesthetic::Width => "width",
+            Aesthetic::Height => "height",
             Aesthetic::Label => "label",
         }
     }
@@ -339,6 +371,10 @@ impl Aesthetic {
             Aesthetic::YEnd => Some(AestheticProperty::YEnd),
             Aesthetic::XIntercept => Some(AestheticProperty::XIntercept),
             Aesthetic::YIntercept => Some(AestheticProperty::YIntercept),
+            Aesthetic::XOffset => Some(AestheticProperty::XOffset),
+            Aesthetic::YOffset => Some(AestheticProperty::YOffset),
+            Aesthetic::Width => Some(AestheticProperty::Width),
+            Aesthetic::Height => Some(AestheticProperty::Height),
             Aesthetic::Label => Some(AestheticProperty::Label),
             // Group doesn't have a corresponding property
             Aesthetic::Group => None,
@@ -361,6 +397,10 @@ impl From<(AestheticProperty, AestheticDomain)> for Aesthetic {
             AestheticProperty::YEnd => Aesthetic::YEnd,
             AestheticProperty::XIntercept => Aesthetic::XIntercept,
             AestheticProperty::YIntercept => Aesthetic::YIntercept,
+            AestheticProperty::XOffset => Aesthetic::XOffset,
+            AestheticProperty::YOffset => Aesthetic::YOffset,
+            AestheticProperty::Width => Aesthetic::Width,
+            AestheticProperty::Height => Aesthetic::Height,
             AestheticProperty::Color => Aesthetic::Color(value.1),
             AestheticProperty::Fill => Aesthetic::Fill(value.1),
             AestheticProperty::Size => Aesthetic::Size(value.1),

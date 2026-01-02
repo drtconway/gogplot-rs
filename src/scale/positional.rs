@@ -108,6 +108,24 @@ impl DiscretePositionalScale {
             elements: DiscreteSet::new(),
         }
     }
+
+    /// Get the break positions for discrete categories
+    /// Returns the normalized position (0-1) for each category
+    pub fn breaks(&self) -> Vec<f64> {
+        let n = self.elements.len() as f64;
+        if n == 0.0 {
+            return Vec::new();
+        }
+        (0..self.elements.len())
+            .map(|i| (i as f64 + 0.5) / n)
+            .collect()
+    }
+
+    /// Get the labels for discrete categories
+    /// Returns the string representation of each category
+    pub fn labels(&self) -> Vec<String> {
+        self.elements.iter().map(|v| v.to_string()).collect()
+    }
 }
 
 impl Default for DiscretePositionalScale {

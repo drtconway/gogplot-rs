@@ -2,10 +2,8 @@
 
 use super::Position;
 use crate::aesthetics::{AesMap, AesValue, Aesthetic};
-use crate::data::{DataSource, DiscreteType};
+use crate::data::DataSource;
 use crate::error::PlotError;
-use crate::utils::data::{DiscreteVectorVisitor, Vectorable, visit_d};
-use crate::utils::dataframe::DataFrame;
 use std::collections::HashMap;
 
 /// Stack position adjustment
@@ -19,7 +17,7 @@ impl Position for Stack {
         &self,
         data: &Box<dyn DataSource>,
         mapping: &AesMap,
-    ) -> Result<Option<(Box<dyn DataSource>, AesMap)>, PlotError>
+    ) -> Result<Option<AesMap>, PlotError>
     {
         if !mapping.contains(Aesthetic::Group) {
             // No grouping aesthetic, cannot stack
@@ -28,91 +26,100 @@ impl Position for Stack {
             });
         }
 
-        let mut y_like_data: HashMap<Aesthetic, Vec<f64>> = HashMap::new();
-        for aes in mapping.aesthetics() {
-            if aes.is_y_like() && aes.is_continuous() {
-                let y_like_values = mapping.get_iter_float(aes, data.as_ref()).unwrap();
-                let y_like_values = y_like_values.collect::<Vec<f64>>();
-                y_like_data.insert(*aes, y_like_values);
+        // Get X values (should be discrete for stacking)
+        let x_aes = if mapping.contains(Aesthetic::X(crate::aesthetics::AestheticDomain::Discrete)) {
+            Aesthetic::X(crate::aesthetics::AestheticDomain::Discrete)
+        } else if mapping.contains(Aesthetic::X(crate::aesthetics::AestheticDomain::Continuous)) {
+            Aesthetic::X(crate::aesthetics::AestheticDomain::Continuous)
+        } else {
+            return Err(PlotError::MissingAesthetic {
+                aesthetic: Aesthetic::X(crate::aesthetics::AestheticDomain::Discrete),
+            });
+        };
+
+        let x_iter = mapping.get_vector_iter(&x_aes, data.as_ref()).unwrap();
+        let group_iter = mapping.get_vector_iter(&Aesthetic::Group, data.as_ref()).unwrap();
+        
+        // Collect X and Group values
+        let x_values: Vec<String> = match x_iter {
+            crate::data::VectorIter::Int(it) => it.map(|v| v.to_string()).collect(),
+            crate::data::VectorIter::Str(it) => it.map(|s| s.to_string()).collect(),
+            crate::data::VectorIter::Float(it) => it.map(|f| f.to_string()).collect(),
+            crate::data::VectorIter::Bool(it) => it.map(|b| b.to_string()).collect(),
+        };
+        
+        let group_values: Vec<String> = match group_iter {
+            crate::data::VectorIter::Int(it) => it.map(|v| v.to_string()).collect(),
+            crate::data::VectorIter::Str(it) => it.map(|s| s.to_string()).collect(),
+            crate::data::VectorIter::Float(it) => it.map(|f| f.to_string()).collect(),
+            crate::data::VectorIter::Bool(it) => it.map(|b| b.to_string()).collect(),
+        };
+
+        // Get Y values
+        let y_values: Vec<f64> = if let Some(y_iter) = mapping.get_iter_float(&Aesthetic::Y(crate::aesthetics::AestheticDomain::Continuous), data.as_ref()) {
+            y_iter.collect()
+        } else {
+            return Err(PlotError::MissingAesthetic {
+                aesthetic: Aesthetic::Y(crate::aesthetics::AestheticDomain::Continuous),
+            });
+        };
+
+        // Group data by X, then stack by Group within each X
+        let mut x_group_map: HashMap<String, HashMap<String, Vec<(usize, f64)>>> = HashMap::new();
+        
+        for (i, (x_val, group_val)) in x_values.iter().zip(group_values.iter()).enumerate() {
+            x_group_map
+                .entry(x_val.clone())
+                .or_insert_with(HashMap::new)
+                .entry(group_val.clone())
+                .or_insert_with(Vec::new)
+                .push((i, y_values[i]));
+        }
+
+        // Compute stacked Y values and offsets for each X position
+        let mut new_y_values = vec![0.0; y_values.len()];
+        let mut y_offsets = vec![0.0; y_values.len()];
+        
+        for (_x_val, groups) in x_group_map.iter() {
+            // Get unique groups at this X position and sort them
+            let mut unique_groups: Vec<String> = groups.keys().cloned().collect();
+            unique_groups.sort();
+            
+            // Stack groups in order
+            let mut cumulative = 0.0;
+            for group_val in unique_groups {
+                if let Some(indices_and_values) = groups.get(&group_val) {
+                    for (idx, y_val) in indices_and_values {
+                        y_offsets[*idx] = cumulative;
+                        new_y_values[*idx] = cumulative + y_val;
+                    }
+                    // Move cumulative up by the maximum Y in this group
+                    if let Some(max_y) = indices_and_values.iter().map(|(_, y)| y).max_by(|a, b| a.partial_cmp(b).unwrap()) {
+                        cumulative += max_y;
+                    }
+                }
             }
         }
-        let group_values = mapping
-        .get_vector_iter(&Aesthetic::Group, data.as_ref()).unwrap();
 
-        let mut grouped_stacker = GroupStacker::new(y_like_data);
-
-        let _max_val = visit_d(group_values, &mut grouped_stacker)?;
-
-        let mut y_like_data = grouped_stacker.y_like_data;
-
-        // Create new dataframe with all original columns, replacing y-like aesthetics with stacked versions
-        let new_data: DataFrame = DataFrame::new();
+        // Create new mapping with stacked values
         let mut new_mapping = AesMap::new();
         for (aes, aes_value) in mapping.iter() {
-            if let Some(stacked_values) = y_like_data.remove(aes) {
-                let original_name = mapping.get(aes).and_then(|v| v.as_column_name()).map(|s| s.to_string());
-                new_mapping.set(*aes, AesValue::vector(stacked_values, original_name));
+            if aes == &Aesthetic::Y(crate::aesthetics::AestheticDomain::Continuous) {
+                new_mapping.set(*aes, AesValue::vector(new_y_values.clone(), None));
             } else {
                 new_mapping.set(*aes, aes_value.clone());
             }
         }
         
-        Ok(Some((Box::new(new_data), new_mapping) ))
+        // Add YOffset for the bottom of each stacked bar
+        new_mapping.set(Aesthetic::YOffset, AesValue::vector(y_offsets, None));
+        
+        Ok(Some(new_mapping))
     }
 }
 
-struct GroupStacker {
-    y_like_data: HashMap<Aesthetic, Vec<f64>>,
-}
-
-impl GroupStacker {
-    fn new(y_like_data: HashMap<Aesthetic, Vec<f64>>) -> Self {
-        Self { y_like_data }
-    }
-}
-
-impl DiscreteVectorVisitor for GroupStacker {
-    type Output = f64;
-
-    fn visit<T: Vectorable + DiscreteType>(&mut self, group_values: impl Iterator<Item = T>) -> std::result::Result<Self::Output, PlotError> {
-
-        let group_values: Vec<T::Sortable> = group_values.map(|v| v.to_sortable()).collect();
-
-        // Collect maxima per group
-        let mut maxima: HashMap<T::Sortable, _> = HashMap::new();
-        for (i, group_value) in group_values.iter().enumerate() {
-            for vals in self.y_like_data.values_mut() {
-                let entry = maxima.entry(group_value.clone()).or_insert(f64::NEG_INFINITY);
-                if *entry < vals[i] {
-                    *entry = vals[i];
-                }
-            }
-        }
-
-        // Get the keys in sorted order
-        let mut sorted_keys: Vec<_> = maxima.keys().cloned().collect();
-        sorted_keys.sort();
-
-        // Compute the per-group offsets
-        let mut cumulative = 0.0;
-        for key in &sorted_keys {
-            let max_val = maxima.get_mut(key).unwrap();
-            let val = *max_val;
-            *max_val = cumulative;
-            cumulative += val;
-        }
-
-        let offsets = maxima;
-
-        // Apply offsets to y-like data
-        for (_aes, vals) in self.y_like_data.iter_mut() {
-            for (i, group_value) in group_values.iter().enumerate() {
-                if let Some(offset) = offsets.get(group_value) {
-                    vals[i] += offset;
-                }
-            }
-        }
-
-        Ok(cumulative)
+impl Default for Stack {
+    fn default() -> Self {
+        Self {}
     }
 }

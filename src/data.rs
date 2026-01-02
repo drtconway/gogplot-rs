@@ -116,6 +116,30 @@ impl PrimitiveValue {
     }
 }
 
+impl From<i64> for PrimitiveValue {
+    fn from(i: i64) -> Self {
+        PrimitiveValue::Int(i)
+    }
+}
+
+impl From<f64> for PrimitiveValue {
+    fn from(f: f64) -> Self {
+        PrimitiveValue::Float(f)
+    }
+}
+
+impl From<String> for PrimitiveValue {
+    fn from(s: String) -> Self {
+        PrimitiveValue::Str(s)
+    }
+}
+
+impl From<&str> for PrimitiveValue {
+    fn from(s: &str) -> Self {
+        PrimitiveValue::Str(s.to_string())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum DiscreteValue {
     Str(String),
