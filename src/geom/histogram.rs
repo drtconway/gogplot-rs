@@ -48,11 +48,6 @@ impl GeomHistogramBuilder {
         }
     }
 
-    pub fn stat<S: 'static + crate::stat::Stat>(mut self, stat: S) -> Self {
-        self.core.stat = Some(Box::new(stat));
-        self
-    }
-
     pub fn color<C: Into<ColorProperty>>(mut self, color: C) -> Self {
         self.color = Some(color.into());
         self
@@ -84,6 +79,16 @@ impl GeomHistogramBuilder {
                 closure(builder);
             }
         }
+        self
+    }
+
+    pub fn stat<S: 'static + crate::stat::Stat>(mut self, stat: S) -> Self {
+        self.core.stat = Some(Box::new(stat));
+        self
+    }
+
+    pub fn position(mut self, position: &str) -> Self {
+        self.core.position = Some(position.into());
         self
     }
 }
@@ -175,24 +180,31 @@ impl GeomHistogram {
         color_values: &[Color],
         fill_values: &[Color],
         alpha_values: &[f64],
+        x_offset: Option<&[f64]>,
+        width_factor: Option<&[f64]>,
+        y_offset: Option<&[f64]>,
     ) -> Result<()> {
         if x_values.is_empty() {
             return Ok(());
         }
 
-        // Calculate bar width from spacing between consecutive x values
-        let mut unique_x: Vec<f64> = x_values.to_vec();
-        unique_x.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        unique_x.dedup();
+        // Calculate bar width and spacing from consecutive x values
+        let (spacing, base_bar_width) = {
+            let mut unique_x: Vec<f64> = x_values.to_vec();
+            unique_x.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            unique_x.dedup();
 
-        let bar_width = if unique_x.len() > 1 {
-            let mut spacings = Vec::new();
-            for i in 1..unique_x.len() {
-                spacings.push(unique_x[i] - unique_x[i - 1]);
-            }
-            spacings.iter().sum::<f64>() / spacings.len() as f64
-        } else {
-            0.2
+            let spacing = if unique_x.len() > 1 {
+                let mut spacings = Vec::new();
+                for i in 1..unique_x.len() {
+                    spacings.push(unique_x[i] - unique_x[i - 1]);
+                }
+                spacings.iter().sum::<f64>() / spacings.len() as f64
+            } else {
+                0.2
+            };
+            
+            (spacing, spacing)
         };
 
         // Calculate the baseline (where y=0 in data space maps to in normalized space)
@@ -204,7 +216,13 @@ impl GeomHistogram {
             .max(0.0);
 
         for i in 0..x_values.len() {
-            let x_center = x_values[i];
+            // Apply optional x offset from position adjustment (e.g., dodge)
+            // XOffset is a fraction of spacing, so multiply by actual spacing
+            let x_center = x_values[i] + x_offset.map(|offsets| offsets[i] * spacing).unwrap_or(0.0);
+            
+            // Apply optional width scaling factor from position adjustment
+            let bar_width = base_bar_width * width_factor.map(|factors| factors[i]).unwrap_or(1.0);
+            
             let y_top = y_values[i];
             let color = color_values[i];
             let fill = fill_values[i];
@@ -213,7 +231,9 @@ impl GeomHistogram {
             // Calculate bar bounds in normalized space
             let x_left = (x_center - bar_width / 2.0).max(0.0);
             let x_right = (x_center + bar_width / 2.0).min(1.0);
-            let y_bottom = y_baseline; // Use calculated baseline
+            
+            // Use YOffset for bar bottom if available (for stacking), otherwise use baseline
+            let y_bottom = y_offset.map(|offsets| offsets[i]).unwrap_or(y_baseline);
             let y_top_clamped = y_top.min(1.0);
 
             if y_top_clamped <= y_bottom {
@@ -377,6 +397,19 @@ impl Geom for GeomHistogram {
             .unwrap()
             .as_floats();
 
+        // Extract optional position adjustment aesthetics
+        let x_offset = properties
+            .remove(&AestheticProperty::XOffset)
+            .map(|v| v.as_floats());
+
+        let width_factor = properties
+            .remove(&AestheticProperty::Width)
+            .map(|v| v.as_floats());
+
+        let y_offset = properties
+            .remove(&AestheticProperty::YOffset)
+            .map(|v| v.as_floats());
+
         self.draw_bars(
             ctx,
             &x_values,
@@ -384,6 +417,9 @@ impl Geom for GeomHistogram {
             &color_values,
             &fill_values,
             &alpha_values,
+            x_offset.as_deref(),
+            width_factor.as_deref(),
+            y_offset.as_deref(),
         )
     }
 }
@@ -440,6 +476,52 @@ mod tests {
             .map_err(to_io_error)
             .expect("Failed to build plot");
         p.save("tests/images/basic_histogram_2.png", 800, 600)
+            .map_err(to_io_error)
+            .expect("Failed to save plot image");
+    }
+
+    #[test]
+    fn basic_histogram_3() {
+        init_test_logging();
+
+        let data = mtcars();
+
+        let builder = plot(&data).aes(|a| {
+            a.x_continuous("mpg");
+            a.fill_discrete("cyl");
+        }) + geom_histogram()
+            .stat(Bin::with_width(2.0))
+            .position("stack")
+            .alpha(0.7);
+
+        let p = builder
+            .build()
+            .map_err(to_io_error)
+            .expect("Failed to build plot");
+        p.save("tests/images/basic_histogram_3.png", 800, 600)
+            .map_err(to_io_error)
+            .expect("Failed to save plot image");
+    }
+
+    #[test]
+    fn basic_histogram_4() {
+        init_test_logging();
+
+        let data = mtcars();
+
+        let builder = plot(&data).aes(|a| {
+            a.x_continuous("mpg");
+            a.fill_discrete("cyl");
+        }) + geom_histogram()
+            .stat(Bin::with_width(4.0))
+            .position("dodge")
+            .alpha(0.7);
+
+        let p = builder
+            .build()
+            .map_err(to_io_error)
+            .expect("Failed to build plot");
+        p.save("tests/images/basic_histogram_4.png", 800, 600)
             .map_err(to_io_error)
             .expect("Failed to save plot image");
     }

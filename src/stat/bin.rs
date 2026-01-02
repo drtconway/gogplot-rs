@@ -214,14 +214,15 @@ impl Stat for Bin {
                 Some((min, max)) if min == max => {
                     // All values are identical; create a single bin
                     let mut data = DataFrame::new();
+                    data.add_column("bin", vec![0i64]);
                     data.add_column("xmin", vec![min]);
                     data.add_column("x", vec![min]);
                     data.add_column("xmax", vec![min]);
                     data.add_column("count", vec![iter.count() as i64]);
                     let mut mapping = AesMap::new();
                     mapping.set(
-                        Aesthetic::X(AestheticDomain::Continuous),
-                        AesValue::column("x"),
+                        Aesthetic::X(AestheticDomain::Discrete),
+                        AesValue::column("bin"),
                     );
                     mapping.set(
                         Aesthetic::Xmin(AestheticDomain::Continuous),
@@ -240,14 +241,15 @@ impl Stat for Bin {
                 _ => {
                     // All values are identical or no valid values; create a single bin
                     let mut data = DataFrame::new();
+                    data.add_column("bin", vec![0i64]);
                     data.add_column("xmin", vec![0.0]);
                     data.add_column("x", vec![0.0]);
                     data.add_column("xmax", vec![0.0]);
                     data.add_column("count", vec![0]);
                     let mut mapping = AesMap::new();
                     mapping.set(
-                        Aesthetic::X(AestheticDomain::Continuous),
-                        AesValue::column("x"),
+                        Aesthetic::X(AestheticDomain::Discrete),
+                        AesValue::column("bin"),
                     );
                     mapping.set(
                         Aesthetic::Xmin(AestheticDomain::Continuous),
@@ -287,23 +289,27 @@ impl Stat for Bin {
             let mut xmins = Vec::with_capacity(binner.len());
             let mut xmaxs = Vec::with_capacity(binner.len());
             let mut xcenters = Vec::with_capacity(binner.len());
+            let mut bin_numbers = Vec::with_capacity(binner.len());
             for i in 0..binner.len() {
                 let (xmin, xmax) = binner.bin_bounds(i);
                 xmins.push(xmin);
                 xmaxs.push(xmax);
                 xcenters.push(binner.center_of_bin(i));
+                bin_numbers.push(i as i64);
             }
 
             let mut data = DataFrame::new();
+            data.add_column("bin", bin_numbers);
             data.add_column("xmin", xmins);
             data.add_column("x", xcenters);
             data.add_column("xmax", xmaxs);
             data.add_column("count", counts);
 
             let mut mapping = AesMap::new();
+            // Add discrete X mapping for position adjustments (dodge/stack)
             mapping.set(
-                Aesthetic::X(AestheticDomain::Continuous),
-                AesValue::column("x"),
+                Aesthetic::X(AestheticDomain::Discrete),
+                AesValue::column("bin"),
             );
             mapping.set(
                 Aesthetic::Xmin(AestheticDomain::Continuous),
