@@ -11,7 +11,7 @@ use crate::geom::properties::{ColorProperty, FloatProperty, Property, PropertyVa
 use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
 use crate::stat::density::Density;
-use crate::theme::{Color, color};
+use crate::theme::Color;
 
 pub trait GeomDensityAesBuilderTrait:
     XContininuousAesBuilder
@@ -398,6 +398,7 @@ mod tests {
     use crate::data::{DataSource, VectorValue};
     use crate::error::to_io_error;
     use crate::plot::plot;
+    use crate::theme::color;
     use crate::utils::dataframe::DataFrame;
 
     fn init_test_logging() {
