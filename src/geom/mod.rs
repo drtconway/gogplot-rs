@@ -58,22 +58,14 @@ pub trait GeomBuilder {
 
 pub trait Geom: Send + Sync {
     /// Get the list of aesthetic requirements for this geom
-    fn aesthetic_requirements(&self) -> &'static [AestheticRequirement] {
-        &[]
-    }
+    fn aesthetic_requirements(&self) -> &'static [AestheticRequirement];
 
-    fn properties(&self) -> HashMap<AestheticProperty, Property> {
-        HashMap::new()
-    }
+    fn properties(&self) -> HashMap<AestheticProperty, Property>;
 
-    fn property_defaults(&self, _theme: &Theme) -> HashMap<AestheticProperty, PropertyValue> {
-        HashMap::new()
-    }
+    fn property_defaults(&self, _theme: &Theme) -> HashMap<AestheticProperty, PropertyValue>;
 
     /// Get the list of scales required by this geom
-    fn required_scales(&self) -> Vec<ScaleIdentifier> {
-        Vec::new()
-    }
+    fn required_scales(&self) -> Vec<ScaleIdentifier>;
 
     /// Train the provided scales based on the geom's constants where necessary
     fn train_scales(&self, scales: &mut ScaleSet);
