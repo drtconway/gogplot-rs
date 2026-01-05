@@ -586,11 +586,11 @@ mod tests {
         }) + geom_segment()
             .size(3.0)
             .color(color::BLUE)
-            .linestyle(LineStyle::Custom(vec![10.0, 5.0]))
+            .linestyle(LineStyle::Custom(vec![10, 5]))
             + geom_segment()
                 .size(2.0)
                 .color(color::RED)
-                .linestyle(LineStyle::Custom(vec![5.0, 3.0, 1.0, 3.0]))
+                .linestyle(LineStyle::Custom(vec![5, 3, 1, 3]))
                 .aes(|a| {
                     a.xbegin("x1");
                     a.ybegin("y1");

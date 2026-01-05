@@ -491,7 +491,7 @@ mod tests {
         }) + geom_density()
             .color(crate::theme::color::BLUE)
             .size(2.0)
-            .linestyle(LineStyle::Custom(vec![10.0, 5.0]))
+            .linestyle(LineStyle::Custom(vec![10, 5]))
             .fill(crate::theme::color::LIGHTBLUE)
             .alpha(0.3);
 

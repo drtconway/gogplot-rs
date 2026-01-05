@@ -465,12 +465,12 @@ mod tests {
                 .x_intercept(3.0)
                 .color(color::BLUE)
                 .size(2.0)
-                .linestyle(LineStyle::Custom(vec![10.0, 5.0]))
+                .linestyle(LineStyle::Custom(vec![10, 5]))
             + geom_vline()
                 .x_intercept(4.5)
                 .color(color::RED)
                 .size(1.5)
-                .linestyle(LineStyle::Custom(vec![5.0, 3.0, 1.0, 3.0]));
+                .linestyle(LineStyle::Custom(vec![5, 3, 1, 3]));
 
         let p = builder
             .build()

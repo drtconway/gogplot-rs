@@ -579,7 +579,7 @@ mod tests {
         }) + geom_smooth()
             .color(color::BLUE)
             .size(2.0)
-            .linestyle(LineStyle::Custom(vec![10.0, 5.0]))
+            .linestyle(LineStyle::Custom(vec![10, 5]))
             .confidence_interval(true);
 
         let p = builder

@@ -1,7 +1,7 @@
 use crate::{
     data::VectorIter,
     theme::Color,
-    visuals::Shape,
+    visuals::{LineStyle, Shape},
 };
 
 pub enum Property {
@@ -18,6 +18,7 @@ pub enum PropertyValue {
     String(String),
     Color(Color),
     Shape(Shape),
+    LineStyle(LineStyle),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -27,6 +28,7 @@ pub enum PropertyVector {
     String(Vec<String>),
     Color(Vec<Color>),
     Shape(Vec<Shape>),
+    LineStyle(Vec<LineStyle>),
 }
 
 impl PropertyVector {
@@ -37,6 +39,7 @@ impl PropertyVector {
             PropertyVector::String(v) => v.len(),
             PropertyVector::Color(v) => v.len(),
             PropertyVector::Shape(v) => v.len(),
+            PropertyVector::LineStyle(v) => v.len(),
         }
     }
     
@@ -87,6 +90,24 @@ impl PropertyVector {
         match self.to_shape() {
             PropertyVector::Shape(v) => v,
             _ => panic!("Not a Shape PropertyVector"),
+        }
+    }
+
+    pub fn to_linestyle(self) -> PropertyVector {
+        match self {
+            PropertyVector::String(v) => {
+                let linestyles: Vec<LineStyle> = v.into_iter().map(|s| LineStyle::from(s)).collect();
+                PropertyVector::LineStyle(linestyles)
+            }
+            PropertyVector::LineStyle(_) => self.clone(),
+            _ => panic!("Cannot convert to LineStyle PropertyVector"),
+        }
+    }
+
+    pub fn as_linestyles(self) -> Vec<LineStyle> {
+        match self.to_linestyle() {
+            PropertyVector::LineStyle(v) => v,
+            _ => panic!("Not a LineStyle PropertyVector"),
         }
     }
 }

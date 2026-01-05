@@ -469,6 +469,9 @@ impl Geom for GeomLabel {
             PropertyVector::Shape(shapes) => {
                 shapes.into_iter().map(|s| format!("{:?}", s)).collect()
             }
+            PropertyVector::LineStyle(linestyles) => {
+                linestyles.into_iter().map(|ls| format!("{:?}", ls)).collect()
+            }
         };
 
         let color_prop = properties.remove(&AestheticProperty::Color).unwrap();

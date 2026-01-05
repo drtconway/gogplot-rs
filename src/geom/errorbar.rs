@@ -461,7 +461,7 @@ mod tests {
         }) + geom_errorbar()
             .size(2.0)
             .color(color::BLUE)
-            .linestyle(LineStyle::Custom(vec![5.0, 3.0]))
+            .linestyle(LineStyle::Custom(vec![5, 3]))
             .aes(|a| {
                 a.ymin("qsec");
                 a.ymax("hp");

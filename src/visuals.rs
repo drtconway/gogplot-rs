@@ -5,16 +5,20 @@ use cairo::Context;
 pub mod palette;
 
 /// Line style patterns for line geoms
-#[derive(Clone, Debug, PartialEq)]
-#[derive(Default)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
 pub enum LineStyle {
     /// Solid line (no dashing)
     #[default]
     Solid,
     /// Custom dash pattern specified as array of on/off lengths
-    Custom(Vec<f64>),
+    Custom(Vec<i64>),
 }
 
+impl From<String> for LineStyle {
+    fn from(pattern: String) -> Self {
+        LineStyle::from(pattern.as_str())
+    }
+}
 
 impl From<&str> for LineStyle {
     /// Create a LineStyle from a pattern string.
@@ -40,15 +44,15 @@ impl From<&str> for LineStyle {
         for ch in pattern.chars() {
             match ch {
                 '-' => {
-                    dashes.push(5.0); // dash on
-                    dashes.push(2.0); // gap after dash
+                    dashes.push(5); // dash on
+                    dashes.push(2); // gap after dash
                 }
                 '.' => {
-                    dashes.push(1.0); // dot on
-                    dashes.push(2.0); // gap after dot
+                    dashes.push(1); // dot on
+                    dashes.push(2); // gap after dot
                 }
                 ' ' => {
-                    dashes.push(5.0); // long gap
+                    dashes.push(5); // long gap
                 }
                 _ => {} // ignore other characters
             }
@@ -70,7 +74,8 @@ impl LineStyle {
                 ctx.set_dash(&[], 0.0);
             }
             LineStyle::Custom(dashes) => {
-                ctx.set_dash(dashes, 0.0);
+                let dashes_f64: Vec<f64> = dashes.iter().map(|&d| d as f64).collect();
+                ctx.set_dash(&dashes_f64, 0.0);
             }
         }
     }

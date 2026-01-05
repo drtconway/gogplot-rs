@@ -760,7 +760,7 @@ mod tests {
             a.y_continuous("mpg");
         }) + geom_boxplot()
             .color(color::BLUE)
-            .linestyle(LineStyle::Custom(vec![5.0, 3.0]));
+            .linestyle(LineStyle::Custom(vec![5, 3]));
 
         let p = builder
             .build()

@@ -232,6 +232,7 @@ impl Layer {
             PropertyValue::Color(color) => PropertyVector::Color(vec![*color; n]),
             PropertyValue::Shape(shape) => PropertyVector::Shape(vec![*shape; n]),
             PropertyValue::String(s) => PropertyVector::String(vec![s.clone(); n]),
+            PropertyValue::LineStyle(ls) => PropertyVector::LineStyle(vec![ls.clone(); n]),
         }
     }
 
@@ -259,6 +260,9 @@ impl Layer {
                 }
                 PropertyVector::String(v) => {
                     PropertyVector::String(indices.iter().map(|&i| v[i].clone()).collect())
+                }
+                PropertyVector::LineStyle(v) => {
+                    PropertyVector::LineStyle(indices.iter().map(|&i| v[i].clone()).collect())
                 }
             };
             subset.insert(*property, subset_vector);
