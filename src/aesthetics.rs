@@ -1,6 +1,5 @@
 use crate::data::{DataSource, DiscreteValue, GenericVector, PrimitiveValue, VectorIter, VectorValue};
 use crate::error::PlotError;
-use crate::scale::ScaleType;
 use crate::theme::Color;
 use crate::visuals::Shape;
 use std::collections::HashMap;

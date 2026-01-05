@@ -6,7 +6,7 @@ pub mod smooth;
 pub mod summary;
 
 use std::any::Any;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use crate::PlotError;
 use crate::aesthetics::values::AesValueBuilder;

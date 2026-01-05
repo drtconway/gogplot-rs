@@ -28,7 +28,7 @@ pub use bar::{GeomBar, GeomBarBuilder, geom_bar};
 pub use boxplot::GeomBoxplot;
 pub use context::RenderContext;
 pub use density::GeomDensity;
-pub use errorbar::GeomErrorbar;
+pub use errorbar::{GeomErrorbar, GeomErrorbarBuilder, geom_errorbar};
 pub use histogram::GeomHistogram;
 pub use hline::{GeomHLine, GeomHLineBuilder, geom_hline};
 pub use label::GeomLabel;
@@ -36,7 +36,7 @@ pub use line::GeomLine;
 pub use point::GeomPoint;
 pub use rect::{GeomRect, GeomRectBuilder, geom_rect};
 pub use segment::{GeomSegment, GeomSegmentBuilder, geom_segment};
-pub use smooth::GeomSmooth;
+pub use smooth::{GeomSmooth, GeomSmoothBuilder, geom_smooth};
 pub use text::GeomText;
 pub use vline::{GeomVLine, GeomVLineBuilder, geom_vline};
 

@@ -2,7 +2,7 @@
 //!
 //! Computes fitted values and confidence intervals using various smoothing methods.
 
-use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain};
+use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::data::ContinuousType;
 use crate::error::{PlotError, Result};
 use crate::stat::Stat;
@@ -642,6 +642,14 @@ fn predict_linear_model(
 }
 
 impl Stat for Smooth {
+    fn aesthetic_requirements(&self) -> super::StatAestheticRequirements {
+        super::StatAestheticRequirements {
+            main: AestheticProperty::X,
+            secondary: Some(AestheticProperty::Y),
+            additional: vec![],
+        }
+    }
+
     fn compute_group(
         &self,
         _aesthetics: Vec<Aesthetic>,
