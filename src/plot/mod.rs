@@ -11,7 +11,7 @@ use crate::error::PlotError;
 use crate::aesthetics::builder::AesMapBuilder;
 use crate::guide::{AxisGuide, Guides};
 use crate::layer::{Layer, LayerBuilder};
-use crate::scale::ScaleSet;
+use crate::scale::{ScaleSet, ContinuousScaleBuilder};
 use crate::theme::Theme;
 use cairo::ImageSurface;
 use std::ops::Add;
@@ -24,6 +24,7 @@ pub struct PlotBuilder<'a> {
     data: &'a Box<dyn DataSource>,
     mapping: AesMap,
     layers: Vec<Box<dyn LayerBuilder>>,
+    scales: Vec<ContinuousScaleBuilder>,
     guides: Guides,
     theme: Theme,
     title: Option<String>,
@@ -38,6 +39,7 @@ impl<'a> PlotBuilder<'a> {
             data: self.data,
             mapping: builder.build(&empty, &[]),
             layers: self.layers,
+            scales: self.scales,
             guides: self.guides,
             theme: self.theme,
             title: self.title,
@@ -62,6 +64,12 @@ impl<'a> PlotBuilder<'a> {
         self
     }
 
+    /// Add a scale configuration
+    pub fn add_scale(mut self, scale: ContinuousScaleBuilder) -> Self {
+        self.scales.push(scale);
+        self
+    }
+
     pub fn build(self) -> Result<Plot<'a>, PlotError> {
         let mut layers: Vec<Layer> = self
             .layers
@@ -70,6 +78,11 @@ impl<'a> PlotBuilder<'a> {
             .collect();
 
         let mut scales = ScaleSet::default();
+        
+        // Apply scale builders before training
+        for scale_builder in self.scales {
+            scale_builder.apply_to(&mut scales);
+        }
 
         // Step 1: Apply stat transformations to each layer
         for layer in &mut layers {
@@ -94,6 +107,17 @@ impl<'a> PlotBuilder<'a> {
         // Step 4: Apply scales to convert data to visual coordinates
         for layer in &mut layers {
             layer.apply_scales(&scales, self.data.as_ref())?;
+            
+            // DEBUG: Check data after apply_scales
+            if let Some(data) = &layer.data {
+                if let Some(x_col) = data.get("x") {
+                    if let Some(ymin_col) = data.get("ymin") {
+                        eprintln!("DEBUG after apply_scales:");
+                        eprintln!("  x column length = {}", x_col.len());
+                        eprintln!("  ymin column length = {}", ymin_col.len());
+                    }
+                }
+            }
         }
 
         let mut required_scales = Vec::new();
@@ -142,6 +166,7 @@ pub fn plot<'a>(data: &'a Box<dyn DataSource>) -> PlotBuilder<'a> {
         data,
         mapping: AesMap::new(),
         layers: Vec::new(),
+        scales: Vec::new(),
         guides: Guides::default(),
         theme: Theme::default(),
         title: None,
@@ -163,6 +188,14 @@ impl<'a, L: LayerBuilder + 'static> Add<L> for PlotBuilder<'a> {
     fn add(mut self, rhs: L) -> Self::Output {
         self.layers.push(Box::new(rhs));
         self
+    }
+}
+
+impl<'a> Add<ContinuousScaleBuilder> for PlotBuilder<'a> {
+    type Output = Self;
+
+    fn add(self, rhs: ContinuousScaleBuilder) -> Self::Output {
+        self.add_scale(rhs)
     }
 }
 

@@ -285,6 +285,15 @@ impl Layer {
             // Stat transforms data and produces a mapping
             let (new_data, stat_mapping) = stat.compute(data.as_ref(), &self.mapping)?;
 
+            // DEBUG: Check row count after stat
+            if let Some(x_col) = new_data.get("x") {
+                if let Some(ymin_col) = new_data.get("ymin") {
+                    eprintln!("DEBUG after stat:");
+                    eprintln!("  x column length = {}", x_col.len());
+                    eprintln!("  ymin column length = {}", ymin_col.len());
+                }
+            }
+
             // Merge with post-stat mapping (after_mapping takes priority)
             let mut final_mapping = stat_mapping;
             if let Some(after_mapping) = &self.after_mapping {

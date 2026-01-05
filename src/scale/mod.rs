@@ -268,3 +268,127 @@ impl DiscreteVectorVisitor for DiscreteScaleTrainer {
         Ok(())
     }
 }
+
+// ============================================================================
+// Scale Builders
+// ============================================================================
+
+/// Builder for configuring continuous positional scales (x, y axes)
+#[derive(Clone)]
+pub struct ContinuousScaleBuilder {
+    pub(crate) aesthetic: ScaleAesthetic,
+    pub(crate) transform: Option<Box<dyn transform::Transform>>,
+    pub(crate) limits: Option<(f64, f64)>,
+    pub(crate) breaks: Option<Vec<f64>>,
+    pub(crate) labels: Option<Vec<String>>,
+}
+
+/// Identifies which aesthetic this scale applies to
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScaleAesthetic {
+    XContinuous,
+    YContinuous,
+    ColorContinuous,
+    FillContinuous,
+    SizeContinuous,
+    AlphaContinuous,
+}
+
+impl ContinuousScaleBuilder {
+    pub fn new(aesthetic: ScaleAesthetic) -> Self {
+        Self {
+            aesthetic,
+            transform: None,
+            limits: None,
+            breaks: None,
+            labels: None,
+        }
+    }
+
+    /// Set the transformation for this scale (log10, sqrt, etc.)
+    pub fn transform(mut self, transform: Box<dyn transform::Transform>) -> Self {
+        self.transform = Some(transform);
+        self
+    }
+
+    /// Set explicit limits for this scale
+    pub fn limits(mut self, min: f64, max: f64) -> Self {
+        self.limits = Some((min, max));
+        self
+    }
+
+    /// Set explicit break positions
+    pub fn breaks(mut self, breaks: Vec<f64>) -> Self {
+        self.breaks = Some(breaks);
+        self
+    }
+
+    /// Set explicit labels for breaks
+    pub fn labels(mut self, labels: Vec<String>) -> Self {
+        self.labels = Some(labels);
+        self
+    }
+
+    /// Apply this builder's configuration to a scale set
+    pub(crate) fn apply_to(self, scales: &mut ScaleSet) {
+        use ScaleAesthetic::*;
+        
+        match self.aesthetic {
+            XContinuous => {
+                if let Some(transform) = self.transform {
+                    scales.x_continuous.set_transform(transform);
+                }
+                // TODO: apply limits, breaks, labels when those features are added
+            }
+            YContinuous => {
+                if let Some(transform) = self.transform {
+                    scales.y_continuous.set_transform(transform);
+                }
+            }
+            ColorContinuous => {
+                // TODO: implement when continuous color scales support transforms
+            }
+            FillContinuous => {
+                // TODO: implement when continuous fill scales support transforms
+            }
+            SizeContinuous => {
+                // TODO: implement when continuous size scales support transforms
+            }
+            AlphaContinuous => {
+                if let Some(transform) = self.transform {
+                    scales.alpha_continuous.set_transform(transform);
+                }
+            }
+        }
+    }
+}
+
+/// Create a continuous scale builder for the x aesthetic
+pub fn scale_x_continuous() -> ContinuousScaleBuilder {
+    ContinuousScaleBuilder::new(ScaleAesthetic::XContinuous)
+}
+
+/// Create a continuous scale builder for the y aesthetic
+pub fn scale_y_continuous() -> ContinuousScaleBuilder {
+    ContinuousScaleBuilder::new(ScaleAesthetic::YContinuous)
+}
+
+/// Create a continuous scale builder for the color aesthetic
+pub fn scale_color_continuous() -> ContinuousScaleBuilder {
+    ContinuousScaleBuilder::new(ScaleAesthetic::ColorContinuous)
+}
+
+/// Create a continuous scale builder for the fill aesthetic
+pub fn scale_fill_continuous() -> ContinuousScaleBuilder {
+    ContinuousScaleBuilder::new(ScaleAesthetic::FillContinuous)
+}
+
+/// Create a continuous scale builder for the size aesthetic
+pub fn scale_size_continuous() -> ContinuousScaleBuilder {
+    ContinuousScaleBuilder::new(ScaleAesthetic::SizeContinuous)
+}
+
+/// Create a continuous scale builder for the alpha aesthetic
+pub fn scale_alpha_continuous() -> ContinuousScaleBuilder {
+    ContinuousScaleBuilder::new(ScaleAesthetic::AlphaContinuous)
+}

@@ -280,11 +280,7 @@ pub struct SqrtTransform;
 
 impl Transform for SqrtTransform {
     fn transform(&self, x: f64) -> f64 {
-        if x < 0.0 {
-            f64::NAN
-        } else {
-            x.sqrt()
-        }
+        if x < 0.0 { f64::NAN } else { x.sqrt() }
     }
 
     fn inverse(&self, x: f64) -> f64 {
@@ -304,7 +300,7 @@ impl Transform for SqrtTransform {
 
         // Compute breaks in transformed (sqrt) space
         let sqrt_breaks = compute_breaks(min.sqrt(), max.sqrt(), n);
-        
+
         // Transform back to data space
         sqrt_breaks.into_iter().map(|b| b * b).collect()
     }
@@ -359,11 +355,7 @@ pub struct Log10Transform;
 
 impl Transform for Log10Transform {
     fn transform(&self, x: f64) -> f64 {
-        if x <= 0.0 {
-            f64::NAN
-        } else {
-            x.log10()
-        }
+        if x <= 0.0 { f64::NAN } else { x.log10() }
     }
 
     fn inverse(&self, x: f64) -> f64 {
@@ -490,6 +482,10 @@ impl Transform for ReverseTransform {
 
 #[cfg(test)]
 mod tests {
+    use crate::{
+        aesthetics::builder::{XContinuousAesBuilder, YContinuousAesBuilder}, data::DataSource, error::to_io_error, geom::point::geom_point, plot::plot, scale::{scale_x_continuous, scale_y_continuous}, utils::dataframe::DataFrame
+    };
+
     use super::*;
 
     #[test]
@@ -574,5 +570,59 @@ mod tests {
         assert!(!breaks.is_empty());
         assert!(breaks[0] >= 0.0);
         assert!(*breaks.last().unwrap() <= 100.0);
+    }
+
+    // ========================================================================
+    // Integration tests with actual plots
+    // ========================================================================
+
+    #[test]
+    fn test_log10_transform_with_plot() {
+        // Create data spanning multiple orders of magnitude (ideal for log scale)
+        let x = vec![1.0, 10.0, 100.0, 1000.0, 10000.0];
+        let y = vec![1.0, 100.0, 10000.0, 1000000.0, 100000000.0];
+
+        let data: Box<dyn DataSource> =
+            Box::new(DataFrame::from_columns(vec![("x", x), ("y", y)]));
+
+        let builder = plot(&data).aes(|a| {
+            a.x_continuous("x");
+            a.y_continuous("y");
+        }) + geom_point().size(3.0).alpha(0.5)
+            + scale_x_continuous().transform(Box::new(Log10Transform))
+            + scale_y_continuous().transform(Box::new(Log10Transform));
+
+        let p = builder
+            .build()
+            .map_err(to_io_error)
+            .expect("Failed to build plot");
+        p.save("tests/images/transform_points_log10.png", 800, 600)
+            .map_err(to_io_error)
+            .expect("Failed to save plot image");
+    }
+
+    #[test]
+    fn test_sqrt_transform_with_plot() {
+        // Create data with moderate right skew (good for sqrt transform)
+        let x = vec![0.0, 1.0, 4.0, 9.0, 16.0, 25.0, 36.0, 49.0, 64.0, 81.0, 100.0];
+        let y = vec![0.0, 1.0, 4.0, 9.0, 16.0, 25.0, 36.0, 49.0, 64.0, 81.0, 100.0];
+
+        let data: Box<dyn DataSource> =
+            Box::new(DataFrame::from_columns(vec![("x", x), ("y", y)]));
+
+        let builder = plot(&data).aes(|a| {
+            a.x_continuous("x");
+            a.y_continuous("y");
+        }) + geom_point().size(4.0).alpha(0.7)
+            + scale_x_continuous().transform(Box::new(SqrtTransform))
+            + scale_y_continuous().transform(Box::new(SqrtTransform));
+
+        let p = builder
+            .build()
+            .map_err(to_io_error)
+            .expect("Failed to build plot");
+        p.save("tests/images/transform_points_sqrt.png", 800, 600)
+            .map_err(to_io_error)
+            .expect("Failed to save plot image");
     }
 }

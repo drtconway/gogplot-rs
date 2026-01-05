@@ -141,30 +141,26 @@ pub trait ContinuousRangeScale: ScaleBase {
         match iter {
             VectorIter::Int(iterator) => {
                 for v in iterator {
-                    if let Some(mapped) = self.map_value(&v) {
-                        mapped_values.push(mapped);
-                    }
+                    // Preserve row alignment by pushing NaN for unmappable values
+                    mapped_values.push(self.map_value(&v).unwrap_or(f64::NAN));
                 }
             }
             VectorIter::Float(iterator) => {
                 for v in iterator {
-                    if let Some(mapped) = self.map_value(&v) {
-                        mapped_values.push(mapped);
-                    }
+                    // Preserve row alignment by pushing NaN for unmappable values
+                    mapped_values.push(self.map_value(&v).unwrap_or(f64::NAN));
                 }
             }
             VectorIter::Str(iterator) => {
                 for v in iterator {
-                    if let Some(mapped) = self.map_value(&v.to_string()) {
-                        mapped_values.push(mapped);
-                    }
+                    // Preserve row alignment by pushing NaN for unmappable values
+                    mapped_values.push(self.map_value(&v.to_string()).unwrap_or(f64::NAN));
                 }
             }
             VectorIter::Bool(iterator) => {
                 for v in iterator {
-                    if let Some(mapped) = self.map_value(&v) {
-                        mapped_values.push(mapped);
-                    }
+                    // Preserve row alignment by pushing NaN for unmappable values
+                    mapped_values.push(self.map_value(&v).unwrap_or(f64::NAN));
                 }
             }
         }

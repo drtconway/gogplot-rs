@@ -369,6 +369,12 @@ impl Geom for GeomBoxplot {
             .remove(&AestheticProperty::Width)
             .map(|v| v.as_floats());
 
+        eprintln!("DEBUG boxplot arrays:");
+        eprintln!("  x_values.len() = {}", x_values.len());
+        eprintln!("  ymin_values.len() = {}", ymin_values.len());
+        eprintln!("  color_values.len() = {}", color_values.len());
+        eprintln!("  y_values.len() = {:?}", y_values.as_ref().map(|v| v.len()));
+        
         self.draw_boxplots(
             ctx,
             &x_values,

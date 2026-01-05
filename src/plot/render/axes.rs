@@ -28,7 +28,12 @@ pub fn draw_grid_lines(
         // Draw vertical minor grid lines between x scale breaks
         let x_breaks = x_scale.breaks();
         for i in 1..x_breaks.len() {
-            let midpoint = (x_breaks[i - 1] + x_breaks[i]) / 2.0;
+            // Calculate midpoint in transformed space, then inverse transform
+            let transformed_prev = x_scale.transform.transform(x_breaks[i - 1]);
+            let transformed_next = x_scale.transform.transform(x_breaks[i]);
+            let transformed_mid = (transformed_prev + transformed_next) / 2.0;
+            let midpoint = x_scale.transform.inverse(transformed_mid);
+            
             if let Some(normalized) = x_scale.map_value(&midpoint) {
                 let x_pos = plot_x0 + normalized * (plot_x1 - plot_x0);
                 ctx.move_to(x_pos, plot_y0);
@@ -39,7 +44,12 @@ pub fn draw_grid_lines(
         // Draw horizontal minor grid lines between y scale breaks
         let y_breaks = y_scale.breaks();
         for i in 1..y_breaks.len() {
-            let midpoint = (y_breaks[i - 1] + y_breaks[i]) / 2.0;
+            // Calculate midpoint in transformed space, then inverse transform
+            let transformed_prev = y_scale.transform.transform(y_breaks[i - 1]);
+            let transformed_next = y_scale.transform.transform(y_breaks[i]);
+            let transformed_mid = (transformed_prev + transformed_next) / 2.0;
+            let midpoint = y_scale.transform.inverse(transformed_mid);
+            
             if let Some(normalized) = y_scale.map_value(&midpoint) {
                 // Note: y is inverted (y1 is bottom, y0 is top)
                 let y_pos = plot_y1 + normalized * (plot_y0 - plot_y1);
