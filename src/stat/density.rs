@@ -1,4 +1,4 @@
-use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain};
+use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::data::{ContinuousType, VectorIter};
 use crate::error::PlotError;
 use crate::stat::Stat;

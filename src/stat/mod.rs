@@ -6,10 +6,11 @@ pub mod smooth;
 pub mod summary;
 
 use std::any::Any;
+use std::collections::{HashMap, HashSet};
 
 use crate::PlotError;
 use crate::aesthetics::values::AesValueBuilder;
-use crate::aesthetics::{AesMap, Aesthetic, AestheticProperty};
+use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticProperty};
 use crate::data::{DataSource, PrimitiveType, VectorIter, VectorValue};
 use crate::error::Result;
 use crate::utils::GroupByExt;
@@ -124,7 +125,24 @@ pub trait Stat: Send + Sync {
             .filter(|aes| aes.is_grouping())
             .collect();
 
-        if grouping_aesthetics.is_empty() {
+        let mut unique_grouping_aesthetics: Vec<Aesthetic> = Vec::new();
+        let mut seen_columns: HashSet<String> = HashSet::new();
+        let mut duplicate_grouping_aesthetics: Vec<(Aesthetic, AesValue)> = Vec::new();
+        for aes in grouping_aesthetics {
+            let value = mapping.get(&aes).unwrap();
+            if let AesValue::Column { name, .. } = value {
+                if seen_columns.contains(name) {
+                    duplicate_grouping_aesthetics.push((aes, value.clone()));
+                } else {
+                    seen_columns.insert(name.clone());
+                    unique_grouping_aesthetics.push(aes);
+                }
+            } else {
+                unique_grouping_aesthetics.push(aes);
+            }
+        }
+
+        if unique_grouping_aesthetics.is_empty() {
             let mut iters = Vec::new();
             for aes in &aesthetics {
                 let iter = mapping
@@ -136,11 +154,11 @@ pub trait Stat: Send + Sync {
             return self.compute_group(aesthetics, iters, params.as_deref());
         }
 
-        if grouping_aesthetics.len() == 1 {
+        if unique_grouping_aesthetics.len() == 1 {
             // Implement the optimization for single grouping aesthetic
         }
 
-        let group_values: Vec<VectorValue> = grouping_aesthetics
+        let group_values: Vec<VectorValue> = unique_grouping_aesthetics
             .iter()
             .map(|aes| {
                 mapping
@@ -173,7 +191,7 @@ pub trait Stat: Send + Sync {
             })
             .collect::<Result<Vec<VectorValue>>>()?;
 
-        let mut group_aesthetic_values: Vec<AesValueBuilder> = grouping_aesthetics
+        let mut group_aesthetic_values: Vec<AesValueBuilder> = unique_grouping_aesthetics
             .iter()
             .map(|aes| {
                 let av = mapping
@@ -201,7 +219,6 @@ pub trait Stat: Send + Sync {
             let n = group_data.len();
             let group_index_vector = vec![group_indices[0]; n];
 
-            // Add group information
             for (gv, avb) in group_values.iter().zip(group_aesthetic_values.iter_mut()) {
                 let group_column = gv.subset_iter(&group_index_vector).to_vector();
                 avb.append(&mut group_data, group_column);
@@ -219,11 +236,14 @@ pub trait Stat: Send + Sync {
         }
 
         // Add grouping aesthetics to final mapping
-        for (aes, avb) in grouping_aesthetics
+        for (aes, avb) in unique_grouping_aesthetics
             .iter()
             .zip(group_aesthetic_values.into_iter())
         {
             final_mapping.set(*aes, avb.build());
+        }
+        for (aes, av) in duplicate_grouping_aesthetics.into_iter() {
+            final_mapping.set(aes, av);
         }
 
         Ok((final_data, final_mapping))
