@@ -748,3 +748,162 @@ impl<'a> ElementBuilder<'a> {
             .insert(self.element_name, element.into());
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{aesthetics::builder::{ColorDiscreteAesBuilder, XContinuousAesBuilder, YContinuousAesBuilder}, error::to_io_error, geom::point::geom_point, plot::plot, theme::point, utils::mtcars::mtcars};
+
+    fn init_test_logging() {
+        let _ = env_logger::builder()
+            .is_test(true)
+            .filter_level(log::LevelFilter::Debug)
+            .try_init();
+    }
+    
+    #[test]
+    fn theme_custom_color() {
+        init_test_logging();
+
+        let data = mtcars();
+
+        let builder = plot(&data)
+            .aes(|a| {
+                a.x_continuous("wt");
+                a.y_continuous("mpg");
+            })
+            .theme(|theme| {
+                theme
+                    .geom("point")
+                    .element("point")
+                    .set(point().color(color::CORAL).size(5.0));
+            })
+            + geom_point();
+
+        let p = builder
+            .build()
+            .map_err(to_io_error)
+            .expect("Failed to build plot");
+        p.save("tests/images/theme_points_color.png", 800, 600)
+            .map_err(to_io_error)
+            .expect("Failed to save plot image");
+    }
+
+    #[test]
+    fn theme_custom_size_shape() {
+        init_test_logging();
+
+        let data = mtcars();
+
+        let builder = plot(&data)
+            .aes(|a| {
+                a.x_continuous("wt");
+                a.y_continuous("mpg");
+                a.color_discrete("cyl");
+            })
+            .theme(|theme| {
+                theme
+                    .geom("point")
+                    .element("point")
+                    .set(point().size(8.0).shape(Shape::Triangle));
+            })
+            + geom_point();
+
+        let p = builder
+            .build()
+            .map_err(to_io_error)
+            .expect("Failed to build plot");
+        p.save("tests/images/theme_points_size_shape.png", 800, 600)
+            .map_err(to_io_error)
+            .expect("Failed to save plot image");
+    }
+
+    #[test]
+    fn theme_custom_alpha() {
+        init_test_logging();
+
+        let data = mtcars();
+
+        let builder = plot(&data)
+            .aes(|a| {
+                a.x_continuous("wt");
+                a.y_continuous("mpg");
+            })
+            .theme(|theme| {
+                theme
+                    .geom("point")
+                    .element("point")
+                    .set(point().color(color::STEELBLUE).size(6.0).alpha(0.3));
+            })
+            + geom_point();
+
+        let p = builder
+            .build()
+            .map_err(to_io_error)
+            .expect("Failed to build plot");
+        p.save("tests/images/theme_points_alpha.png", 800, 600)
+            .map_err(to_io_error)
+            .expect("Failed to save plot image");
+    }
+
+    #[test]
+    fn theme_overridden_by_geom() {
+        init_test_logging();
+
+        let data = mtcars();
+
+        // Theme sets one color, but geom explicitly overrides it
+        let builder = plot(&data)
+            .aes(|a| {
+                a.x_continuous("wt");
+                a.y_continuous("mpg");
+            })
+            .theme(|theme| {
+                theme
+                    .geom("point")
+                    .element("point")
+                    .set(crate::theme::point().color(color::RED).size(3.0));
+            })
+            + geom_point().color(color::GREEN).size(7.0);
+
+        let p = builder
+            .build()
+            .map_err(to_io_error)
+            .expect("Failed to build plot");
+        p.save("tests/images/theme_points_override.png", 800, 600)
+            .map_err(to_io_error)
+            .expect("Failed to save plot image");
+    }
+
+    #[test]
+    fn theme_partial_override() {
+        init_test_logging();
+
+        let data = mtcars();
+
+        // Theme sets color and size, but geom only overrides color
+        // Size should come from theme
+        let builder = plot(&data)
+            .aes(|a| {
+                a.x_continuous("wt");
+                a.y_continuous("mpg");
+            })
+            .theme(|theme| {
+                theme.geom("point").element("point").set(
+                    point()
+                        .color(color::ORANGE)
+                        .size(10.0)
+                        .shape(Shape::Diamond),
+                );
+            })
+            + geom_point().color(color::PURPLE);
+
+        let p = builder
+            .build()
+            .map_err(to_io_error)
+            .expect("Failed to build plot");
+        p.save("tests/images/theme_points_partial.png", 800, 600)
+            .map_err(to_io_error)
+            .expect("Failed to save plot image");
+    }
+}

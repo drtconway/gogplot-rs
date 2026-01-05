@@ -4,7 +4,7 @@ use super::{AestheticRequirement, DomainConstraint, Geom, RenderContext};
 use crate::aesthetics::builder::{
     AesMapBuilder, AlphaContinuousAesBuilder, AlphaDiscreteAesBuilder, ColorContinuousAesBuilder,
     ColorDiscreteAesBuilder, SizeContinuousAesBuilder, SizeDiscreteAesBuilder,
-    XContininuousAesBuilder, YMaxContinuousAesBuilder, YMinContinuousAesBuilder,
+    XContinuousAesBuilder, YMaxContinuousAesBuilder, YMinContinuousAesBuilder,
 };
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::error::Result;
@@ -14,7 +14,7 @@ use crate::scale::ScaleIdentifier;
 use crate::theme::{Color, color};
 
 pub trait GeomErrorbarAesBuilderTrait:
-    XContininuousAesBuilder
+    XContinuousAesBuilder
     + YMinContinuousAesBuilder
     + YMaxContinuousAesBuilder
     + ColorContinuousAesBuilder

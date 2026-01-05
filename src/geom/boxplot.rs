@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use super::{Geom, RenderContext, AestheticRequirement, DomainConstraint};
 use crate::aesthetics::builder::{
     AesMapBuilder, AlphaContinuousAesBuilder, AlphaDiscreteAesBuilder, FillContinuousAesBuilder,
-    FillDiscreteAesBuilder, GroupAesBuilder, XDiscreteAesBuilder, YContininuousAesBuilder,
+    FillDiscreteAesBuilder, GroupAesBuilder, XDiscreteAesBuilder, YContinuousAesBuilder,
 };
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::error::{PlotError, Result};
@@ -16,7 +16,7 @@ use crate::theme::{Color, color};
 
 pub trait GeomBoxplotAesBuilderTrait:
     XDiscreteAesBuilder
-    + YContininuousAesBuilder
+    + YContinuousAesBuilder
     + FillContinuousAesBuilder
     + FillDiscreteAesBuilder
     + AlphaContinuousAesBuilder
@@ -614,7 +614,7 @@ impl GeomBoxplot {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::aesthetics::builder::{XDiscreteAesBuilder, YContininuousAesBuilder};
+    use crate::aesthetics::builder::{XDiscreteAesBuilder, YContinuousAesBuilder};
     use crate::data::{DataSource, VectorValue};
     use crate::error::to_io_error;
     use crate::plot::plot;

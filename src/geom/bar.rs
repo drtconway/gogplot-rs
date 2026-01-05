@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use super::{Geom, RenderContext};
 use crate::aesthetics::builder::{
     AesMapBuilder, AlphaContinuousAesBuilder, AlphaDiscreteAesBuilder, FillContinuousAesBuilder,
-    FillDiscreteAesBuilder, GroupAesBuilder, XContininuousAesBuilder, XDiscreteAesBuilder,
-    YContininuousAesBuilder, YDiscreteAesBuilder,
+    FillDiscreteAesBuilder, GroupAesBuilder, XContinuousAesBuilder, XDiscreteAesBuilder,
+    YContinuousAesBuilder, YDiscreteAesBuilder,
 };
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::data::PrimitiveValue;
@@ -18,9 +18,9 @@ use crate::stat::Stat;
 use crate::theme::{Color, color};
 
 pub trait GeomBarAesBuilderTrait:
-    XContininuousAesBuilder
+    XContinuousAesBuilder
     + XDiscreteAesBuilder
-    + YContininuousAesBuilder
+    + YContinuousAesBuilder
     + YDiscreteAesBuilder
     + FillContinuousAesBuilder
     + FillDiscreteAesBuilder

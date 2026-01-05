@@ -3,8 +3,8 @@ use gogplot::{
         AestheticDomain,
         builder::{
             ColorContinuousAesBuilder, ColorDiscreteAesBuilder, SizeContinuousAesBuilder,
-            SizeDiscreteAesBuilder, XContininuousAesBuilder, XDiscreteAesBuilder,
-            YContininuousAesBuilder, YDiscreteAesBuilder,
+            SizeDiscreteAesBuilder, XContinuousAesBuilder, XDiscreteAesBuilder,
+            YContinuousAesBuilder, YDiscreteAesBuilder,
         },
     },
     error::to_io_error,

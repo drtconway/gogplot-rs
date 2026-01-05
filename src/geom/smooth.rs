@@ -4,7 +4,7 @@ use super::{AestheticRequirement, DomainConstraint, Geom, RenderContext};
 use crate::aesthetics::builder::{
     AesMapBuilder, AlphaContinuousAesBuilder, AlphaDiscreteAesBuilder, ColorContinuousAesBuilder,
     ColorDiscreteAesBuilder, SizeContinuousAesBuilder, SizeDiscreteAesBuilder,
-    XContininuousAesBuilder, YContininuousAesBuilder, YMaxContinuousAesBuilder,
+    XContinuousAesBuilder, YContinuousAesBuilder, YMaxContinuousAesBuilder,
     YMinContinuousAesBuilder,
 };
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
@@ -16,8 +16,8 @@ use crate::stat::smooth::Smooth;
 use crate::theme::{Color, color};
 
 pub trait GeomSmoothAesBuilderTrait:
-    XContininuousAesBuilder
-    + YContininuousAesBuilder
+    XContinuousAesBuilder
+    + YContinuousAesBuilder
     + YMinContinuousAesBuilder
     + YMaxContinuousAesBuilder
     + ColorContinuousAesBuilder

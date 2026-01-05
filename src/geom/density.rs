@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use super::{Geom, RenderContext, AestheticRequirement, DomainConstraint};
 use crate::aesthetics::builder::{
     AesMapBuilder, AlphaContinuousAesBuilder, AlphaDiscreteAesBuilder, ColorContinuousAesBuilder,
-    ColorDiscreteAesBuilder, FillContinuousAesBuilder, FillDiscreteAesBuilder, GroupAesBuilder, XContininuousAesBuilder, YContininuousAesBuilder,
+    ColorDiscreteAesBuilder, FillContinuousAesBuilder, FillDiscreteAesBuilder, GroupAesBuilder, XContinuousAesBuilder, YContinuousAesBuilder,
 };
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::error::Result;
@@ -14,8 +14,8 @@ use crate::stat::density::Density;
 use crate::theme::Color;
 
 pub trait GeomDensityAesBuilderTrait:
-    XContininuousAesBuilder
-    + YContininuousAesBuilder
+    XContinuousAesBuilder
+    + YContinuousAesBuilder
     + ColorContinuousAesBuilder
     + ColorDiscreteAesBuilder
     + FillContinuousAesBuilder
@@ -394,7 +394,7 @@ impl GeomDensity {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::aesthetics::builder::XContininuousAesBuilder;
+    use crate::aesthetics::builder::XContinuousAesBuilder;
     use crate::data::{DataSource, VectorValue};
     use crate::error::to_io_error;
     use crate::plot::plot;

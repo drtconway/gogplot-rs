@@ -4,7 +4,7 @@ use super::{Geom, RenderContext};
 use crate::aesthetics::builder::{
     AesMapBuilder, AlphaContinuousAesBuilder, AlphaDiscreteAesBuilder, ColorContinuousAesBuilder,
     ColorDiscreteAesBuilder, SizeContinuousAesBuilder, SizeDiscreteAesBuilder,
-    XContininuousAesBuilder, XDiscreteAesBuilder, YContininuousAesBuilder, YDiscreteAesBuilder,
+    XContinuousAesBuilder, XDiscreteAesBuilder, YContinuousAesBuilder, YDiscreteAesBuilder,
 };
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::error::Result;
@@ -15,9 +15,9 @@ use crate::scale::ScaleIdentifier;
 use crate::theme::{Color, color};
 
 pub trait GeomLineAesBuilderTrait:
-    XContininuousAesBuilder
+    XContinuousAesBuilder
     + XDiscreteAesBuilder
-    + YContininuousAesBuilder
+    + YContinuousAesBuilder
     + YDiscreteAesBuilder
     + ColorContinuousAesBuilder
     + ColorDiscreteAesBuilder

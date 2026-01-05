@@ -50,14 +50,8 @@ impl<'a> PlotBuilder<'a> {
         self
     }
 
-    /// Set the theme (builder style)
-    pub fn theme(mut self, theme: Theme) -> Self {
-        self.theme = theme;
-        self
-    }
-    
     /// Customize the theme using a closure
-    pub fn theme_custom(mut self, f: impl FnOnce(&mut Theme)) -> Self {
+    pub fn theme(mut self, f: impl FnOnce(&mut Theme)) -> Self {
         f(&mut self.theme);
         self
     }

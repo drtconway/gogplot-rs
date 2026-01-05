@@ -369,7 +369,7 @@ impl Geom for GeomVLine {
 mod tests {
     use super::*;
     use crate::{
-        aesthetics::builder::{XContininuousAesBuilder, YContininuousAesBuilder},
+        aesthetics::builder::{XContinuousAesBuilder, YContinuousAesBuilder},
         error::to_io_error,
         geom::point::geom_point,
         plot::plot,

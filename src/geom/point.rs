@@ -4,7 +4,7 @@ use super::{Geom, RenderContext};
 use crate::aesthetics::builder::{
     AesMapBuilder, AlphaContinuousAesBuilder, AlphaDiscreteAesBuilder, ColorContinuousAesBuilder,
     ColorDiscreteAesBuilder, ShapeAesBuilder, SizeContinuousAesBuilder, SizeDiscreteAesBuilder,
-    XContininuousAesBuilder, XDiscreteAesBuilder, YContininuousAesBuilder, YDiscreteAesBuilder,
+    XContinuousAesBuilder, XDiscreteAesBuilder, YContinuousAesBuilder, YDiscreteAesBuilder,
 };
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::error::Result;
@@ -16,9 +16,9 @@ use crate::theme::{Color, Theme, color};
 use crate::visuals::Shape;
 
 pub trait GeomPointAesBuilderTrait:
-    XContininuousAesBuilder
+    XContinuousAesBuilder
     + XDiscreteAesBuilder
-    + YContininuousAesBuilder
+    + YContinuousAesBuilder
     + YDiscreteAesBuilder
     + ColorContinuousAesBuilder
     + ColorDiscreteAesBuilder
