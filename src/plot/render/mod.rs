@@ -184,7 +184,7 @@ pub fn render_with_context(
             (plot_y1, plot_y0),
         );
 
-        layer.render(&mut render_ctx, data.unwrap(), plot_mapping)?;
+        layer.render(&mut render_ctx, data.unwrap())?;
     }
 
     // Draw legends

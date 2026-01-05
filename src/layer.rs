@@ -40,9 +40,11 @@ impl LayerBuilderCore {
         initial_domains: HashMap<AestheticProperty, AestheticDomain>,
         overrides: &[Aesthetic],
     ) -> Result<Layer> {
+        // Mapping is always initialized - either from layer's aes_builder or inherited from parent
         let mapping = self
             .aes_builder
-            .map(|builder| builder.build(parent_mapping, overrides));
+            .map(|builder| builder.build(parent_mapping, overrides))
+            .unwrap_or_else(|| parent_mapping.clone());
         // after_mapping should NOT inherit from parent - it works with stat output data
         let empty_mapping = AesMap::new();
         let after_mapping = self
@@ -52,7 +54,7 @@ impl LayerBuilderCore {
         let requirements = geom.aesthetic_requirements();
         let has_stat = self.stat.is_some();
         let aesthetic_domains = determine_aesthetic_domains(
-            mapping.as_ref().unwrap_or(parent_mapping),
+            &mapping,
             &requirements,
             initial_domains,
             has_stat,
@@ -82,7 +84,7 @@ pub struct Layer {
     pub position: Option<Box<dyn Position>>,
     pub geom: Box<dyn Geom>,
     pub data: Option<Box<dyn DataSource>>,
-    pub mapping: Option<AesMap>,
+    pub mapping: AesMap,
     pub after_mapping: Option<AesMap>,
     pub aesthetic_domains: HashMap<AestheticProperty, AestheticDomain>,
     pub aesthetic_group_sentinals: Option<Vec<(Aesthetic, Vec<DiscreteValue>)>>,
@@ -96,7 +98,7 @@ impl Layer {
             position: None,
             geom,
             data: None,
-            mapping: None,
+            mapping: AesMap::new(),
             after_mapping: None,
             aesthetic_domains: HashMap::new(),
             aesthetic_group_sentinals: None,
@@ -119,7 +121,7 @@ impl Layer {
     }
 
     pub fn with_mapping(mut self, mapping: AesMap) -> Self {
-        self.mapping = Some(mapping);
+        self.mapping = mapping;
         self
     }
 
@@ -127,19 +129,14 @@ impl Layer {
         self.data.as_ref().map(|b| b.as_ref()).unwrap_or(other_data)
     }
 
-    pub fn mapping<'a>(&'a self, other_mapping: &'a AesMap) -> &'a AesMap {
-        self.mapping.as_ref().unwrap_or(other_mapping)
-    }
-
     /// Render this layer by materializing groups and calling the geom
     pub fn render(
         &self,
         ctx: &mut crate::geom::RenderContext,
         plot_data: &dyn DataSource,
-        plot_mapping: &AesMap,
     ) -> Result<()> {
         let data = self.data(plot_data);
-        let mapping = self.mapping(plot_mapping);
+        let mapping = &self.mapping;
         let n = data.len();
 
         // Get aesthetic requirements and properties from geom
@@ -270,7 +267,7 @@ impl Layer {
         subset
     }
 
-    pub fn apply_stat(&mut self, data: &Box<dyn DataSource>, mapping: &AesMap) -> Result<()> {
+    pub fn apply_stat(&mut self, data: &Box<dyn DataSource>) -> Result<()> {
         // Establish grouping before stat application
         // Use layer data if available, otherwise use plot data
         if self.data.is_some() {
@@ -285,11 +282,8 @@ impl Layer {
         }
 
         if let Some(stat) = &self.stat {
-            // Use layer's pre-stat mapping (or parent mapping if not set)
-            let input_mapping = self.mapping.as_ref().unwrap_or(mapping);
-
             // Stat transforms data and produces a mapping
-            let (new_data, stat_mapping) = stat.compute(data.as_ref(), input_mapping)?;
+            let (new_data, stat_mapping) = stat.compute(data.as_ref(), &self.mapping)?;
 
             // Merge with post-stat mapping (after_mapping takes priority)
             let mut final_mapping = stat_mapping;
@@ -308,12 +302,12 @@ impl Layer {
             }
 
             self.data = Some(Box::new(new_data));
-            self.mapping = Some(final_mapping);
+            self.mapping = final_mapping;
         }
         Ok(())
     }
 
-    pub fn apply_position(&mut self, data: &Box<dyn DataSource>, mapping: &AesMap) -> Result<()> {
+    pub fn apply_position(&mut self, data: &Box<dyn DataSource>) -> Result<()> {
         // Establish grouping before position application (in case stat changed the mapping)
         // Use layer data if available, otherwise use plot data
         if self.data.is_some() {
@@ -327,15 +321,12 @@ impl Layer {
             self.establish_grouping(data.as_ref());
         }
 
-        // Use layer's effective mapping (from stat if applied)
-        let effective_mapping = self.mapping(mapping);
-
         log::debug!(
             "apply_position - effective_mapping contains: {:?}",
-            effective_mapping.aesthetics().collect::<Vec<_>>()
+            self.mapping.aesthetics().collect::<Vec<_>>()
         );
 
-        let mut mapping_with_group = effective_mapping.clone();
+        let mut mapping_with_group = self.mapping.clone();
         if !mapping_with_group.contains(Aesthetic::Group) {
             let grouping_aesthetics: Vec<Aesthetic> = mapping_with_group
                 .aesthetics()
@@ -373,7 +364,7 @@ impl Layer {
             if let Some(new_mapping) = position.apply(effective_data, &mapping_with_group)? {
                 // Position returns new mapping with adjusted aesthetics
                 // Data remains the same (position uses AesValue::Vector for new aesthetics)
-                self.mapping = Some(new_mapping);
+                self.mapping = new_mapping;
             }
         }
         Ok(())
@@ -383,13 +374,11 @@ impl Layer {
         &mut self,
         scales: &mut ScaleSet,
         data: &dyn DataSource,
-        mapping: &AesMap,
     ) -> Result<()> {
         let data = self.data(data);
-        let mapping = self.mapping(mapping);
 
-        for aes in mapping.aesthetics() {
-            scales.train(aes, mapping, data)?;
+        for aes in self.mapping.aesthetics() {
+            scales.train(aes, &self.mapping, data)?;
         }
 
         Ok(())
@@ -398,15 +387,13 @@ impl Layer {
     pub fn apply_scales(
         &mut self,
         scales: &ScaleSet,
-        data: &Box<dyn DataSource>,
-        mapping: &AesMap,
+        parent_data: &dyn DataSource,
     ) -> Result<()> {
-        let data = self.data(data.as_ref());
-        let mapping = self.mapping(mapping);
+        let data = self.data(parent_data);
 
         log::debug!(
             "apply_scales - mapping: {:?}",
-            mapping.aesthetics().collect::<Vec<_>>()
+            self.mapping.aesthetics().collect::<Vec<_>>()
         );
         log::debug!(
             "apply_scales - aesthetic_domains: {:?}",
@@ -415,7 +402,7 @@ impl Layer {
 
         let mut new_mapping = AesMap::new();
 
-        for (aes, value) in mapping.iter() {
+        for (aes, value) in self.mapping.iter() {
             let property = match aes.to_property() {
                 Some(prop) => prop,
                 None => {
@@ -458,19 +445,19 @@ impl Layer {
             new_mapping.set(canonical_aes, new_value);
         }
 
-        self.mapping = Some(new_mapping);
+        self.mapping = new_mapping;
 
         // Apply scales to the geom itself (for properties that aren't in the mapping)
         self.geom.apply_scales(scales);
+
+        self.establish_grouping(parent_data);
 
         Ok(())
     }
 
     pub fn aesthetic_value_iter<'a>(&'a self, aes: &'a Aesthetic) -> Option<VectorIter<'a>> {
-        if let Some(mapping) = &self.mapping {
-            if let Some(data) = &self.data {
-                return mapping.get_vector_iter(aes, data.as_ref());
-            }
+        if let Some(data) = &self.data {
+            return self.mapping.get_vector_iter(aes, data.as_ref());
         }
         None
     }
@@ -501,28 +488,29 @@ impl Layer {
         None
     }
 
-    fn establish_grouping(&mut self, data: &dyn DataSource) {
-        if let Some(mapping) = &mut self.mapping {
-            if mapping.contains(Aesthetic::Group) {
-                return;
-            }
-            let mut grouping_aesthetics: Vec<Aesthetic> = mapping
-                .aesthetics()
-                .filter(|aes| aes.is_grouping())
-                .cloned()
-                .collect();
-            grouping_aesthetics.sort();
+    fn establish_grouping(&mut self, parent_data: &dyn DataSource) {
+        let data = self.data(parent_data);
+        
+        if self.mapping.contains(Aesthetic::Group) {
+            return;
+        }
+        let mut grouping_aesthetics: Vec<Aesthetic> = self.mapping
+            .aesthetics()
+            .filter(|aes| aes.is_grouping())
+            .cloned()
+            .collect();
+        grouping_aesthetics.sort();
 
-            if grouping_aesthetics.is_empty() {
-                return;
-            }
+        if grouping_aesthetics.is_empty() {
+            return;
+        }
 
-            if grouping_aesthetics.len() == 1 {
-                let aes = &grouping_aesthetics[0];
-                let group_values = mapping
-                    .get_iter_discrete(aes, data)
-                    .unwrap()
-                    .collect::<Vec<_>>();
+        if grouping_aesthetics.len() == 1 {
+            let aes = &grouping_aesthetics[0];
+            let group_values = self.mapping
+                .get_iter_discrete(aes, data)
+                .unwrap()
+                .collect::<Vec<_>>();
                 let mut permutation: Vec<usize> = (0..group_values.len()).collect();
                 permutation.sort_by_key(|&i| &group_values[i]);
 
@@ -544,21 +532,21 @@ impl Layer {
                     grouping_vector[j] = group_index;
                 }
 
-                assert_eq!(grouping_vector.len(), data.len());
+            assert_eq!(grouping_vector.len(), data.len());
 
-                mapping.set(Aesthetic::Group, AesValue::vector(grouping_vector, None));
-                self.aesthetic_group_sentinals = Some(group_sentinals);
+            self.mapping.set(Aesthetic::Group, AesValue::vector(grouping_vector, None));
+            self.aesthetic_group_sentinals = Some(group_sentinals);
 
-                return;
-            }
+            return;
+        }
 
-            let mut group_values: Vec<Vec<DiscreteValue>> = mapping
-                .get_iter_discrete(&grouping_aesthetics[0], data)
-                .unwrap()
-                .map(|v| vec![v])
-                .collect();
-            for aes in &grouping_aesthetics[1..] {
-                for (i, v) in mapping.get_iter_discrete(aes, data).unwrap().enumerate() {
+        let mut group_values: Vec<Vec<DiscreteValue>> = self.mapping
+            .get_iter_discrete(&grouping_aesthetics[0], data)
+            .unwrap()
+            .map(|v| vec![v])
+            .collect();
+        for aes in &grouping_aesthetics[1..] {
+            for (i, v) in self.mapping.get_iter_discrete(aes, data).unwrap().enumerate() {
                     group_values[i].push(v);
                 }
             }
@@ -586,11 +574,10 @@ impl Layer {
                 grouping_vector[j] = group_index;
             }
 
-            assert_eq!(grouping_vector.len(), data.len());
+        assert_eq!(grouping_vector.len(), data.len());
 
-            mapping.set(Aesthetic::Group, AesValue::vector(grouping_vector, None));
-            self.aesthetic_group_sentinals = Some(group_sentinals);
-        }
+        self.mapping.set(Aesthetic::Group, AesValue::vector(grouping_vector, None));
+        self.aesthetic_group_sentinals = Some(group_sentinals);
     }
 }
 

@@ -4,7 +4,9 @@ use crate::error::PlotError;
 use crate::guide::{Guides, LegendEntry, LegendGuide, LegendPosition, LegendType};
 use crate::layer::Layer;
 use crate::scale::ScaleSet;
-use crate::scale::traits::{ColorRangeScale, ContinuousDomainScale, ContinuousRangeScale, DiscreteDomainScale};
+use crate::scale::traits::{
+    ColorRangeScale, ContinuousDomainScale, ContinuousRangeScale, DiscreteDomainScale,
+};
 use crate::theme::{Color, Theme};
 use crate::utils::set::DiscreteSet;
 use crate::visuals::Shape;
@@ -17,10 +19,9 @@ fn create_discrete_entries<T>(
     categories: &DiscreteSet,
     mut map_value: impl FnMut(&crate::data::DiscreteValue) -> Option<T>,
     mut apply_value: impl FnMut(&mut LegendEntry, T),
-) -> Vec<LegendEntry>
-{
+) -> Vec<LegendEntry> {
     let mut entries = Vec::new();
-    
+
     for i in 0..categories.len() {
         if let Some(value) = categories.get_at(i) {
             let label = match &value {
@@ -28,7 +29,7 @@ fn create_discrete_entries<T>(
                 crate::data::DiscreteValue::Str(x) => x.clone(),
                 crate::data::DiscreteValue::Bool(x) => x.to_string(),
             };
-            
+
             if let Some(mapped) = map_value(&value) {
                 let mut entry = LegendEntry::new(label);
                 apply_value(&mut entry, mapped);
@@ -36,15 +37,12 @@ fn create_discrete_entries<T>(
             }
         }
     }
-    
+
     entries
 }
 
 /// Helper to create a discrete color legend
-fn create_discrete_color_legend(
-    title: String,
-    scales: &ScaleSet,
-) -> LegendGuide {
+fn create_discrete_color_legend(title: String, scales: &ScaleSet) -> LegendGuide {
     use crate::scale::traits::ColorRangeScale;
     let entries = create_discrete_entries(
         scales.color_discrete.categories(),
@@ -56,9 +54,9 @@ fn create_discrete_color_legend(
         |entry, color| {
             entry.color = Some(color);
             entry.size = Some(5.0);
-        }
+        },
     );
-    
+
     LegendGuide {
         title: Some(title),
         entries,
@@ -68,20 +66,23 @@ fn create_discrete_color_legend(
 }
 
 /// Helper to create a continuous color legend
-fn create_continuous_color_legend(
-    title: String,
-    scales: &ScaleSet,
-) -> LegendGuide {
+fn create_continuous_color_legend(title: String, scales: &ScaleSet) -> LegendGuide {
     if let Some(domain) = scales.color_continuous.domain() {
         let colors = vec![
-            scales.color_continuous.map_value(&domain.0).unwrap_or(crate::theme::color::BLACK),
-            scales.color_continuous.map_value(&domain.1).unwrap_or(crate::theme::color::WHITE),
+            scales
+                .color_continuous
+                .map_value(&domain.0)
+                .unwrap_or(crate::theme::color::BLACK),
+            scales
+                .color_continuous
+                .map_value(&domain.1)
+                .unwrap_or(crate::theme::color::WHITE),
         ];
-        
+
         LegendGuide {
             title: Some(title),
-            legend_type: LegendType::ColorBar { 
-                domain, 
+            legend_type: LegendType::ColorBar {
+                domain,
                 colors,
                 breaks: scales.color_continuous.breaks().to_vec(),
                 labels: scales.color_continuous.labels().to_vec(),
@@ -94,10 +95,7 @@ fn create_continuous_color_legend(
 }
 
 /// Helper to create a discrete fill legend
-fn create_discrete_fill_legend(
-    title: String,
-    scales: &ScaleSet,
-) -> LegendGuide {
+fn create_discrete_fill_legend(title: String, scales: &ScaleSet) -> LegendGuide {
     use crate::scale::traits::ColorRangeScale;
     let entries = create_discrete_entries(
         scales.fill_discrete.categories(),
@@ -109,9 +107,9 @@ fn create_discrete_fill_legend(
         |entry, color| {
             entry.color = Some(color);
             entry.size = Some(5.0);
-        }
+        },
     );
-    
+
     LegendGuide {
         title: Some(title),
         entries,
@@ -121,10 +119,7 @@ fn create_discrete_fill_legend(
 }
 
 /// Helper to create a discrete size legend
-fn create_discrete_size_legend(
-    title: String,
-    scales: &ScaleSet,
-) -> LegendGuide {
+fn create_discrete_size_legend(title: String, scales: &ScaleSet) -> LegendGuide {
     use crate::scale::traits::ContinuousRangeScale;
     let entries = create_discrete_entries(
         scales.size_discrete.categories(),
@@ -136,9 +131,9 @@ fn create_discrete_size_legend(
         |entry, size| {
             entry.color = Some(crate::theme::color::BLACK);
             entry.size = Some(size);
-        }
+        },
     );
-    
+
     LegendGuide {
         title: Some(title),
         entries,
@@ -148,34 +143,31 @@ fn create_discrete_size_legend(
 }
 
 /// Helper to create a continuous size legend
-fn create_continuous_size_legend(
-    title: String,
-    scales: &ScaleSet,
-) -> LegendGuide {
+fn create_continuous_size_legend(title: String, scales: &ScaleSet) -> LegendGuide {
     if let Some(domain) = scales.size_continuous.domain() {
         let mut entries = Vec::new();
         let num_breaks = 4;
-        
+
         for i in 0..num_breaks {
             let t = i as f64 / (num_breaks - 1) as f64;
             let value = domain.0 + t * (domain.1 - domain.0);
             let size = scales.size_continuous.map_value(&value);
-            
+
             if let Some(size) = size {
                 let label = if (value - value.round()).abs() < 0.01 {
                     format!("{}", value.round() as i64)
                 } else {
                     format!("{:.1}", value)
                 };
-                
+
                 entries.push(
                     LegendEntry::new(label)
                         .color(crate::theme::color::BLACK)
-                        .size(size)
+                        .size(size),
                 );
             }
         }
-        
+
         LegendGuide {
             title: Some(title),
             entries,
@@ -188,12 +180,9 @@ fn create_continuous_size_legend(
 }
 
 /// Helper to create a discrete shape legend
-fn create_discrete_shape_legend(
-    title: String,
-    scales: &ScaleSet,
-) -> LegendGuide {
+fn create_discrete_shape_legend(title: String, scales: &ScaleSet) -> LegendGuide {
     use crate::scale::traits::ShapeRangeScale;
-    
+
     let entries = create_discrete_entries(
         scales.shape_scale.categories(),
         |value| match value {
@@ -205,9 +194,9 @@ fn create_discrete_shape_legend(
             entry.color = Some(crate::theme::color::BLACK);
             entry.shape = Some(shape);
             entry.size = Some(5.0);
-        }
+        },
     );
-    
+
     LegendGuide {
         title: Some(title),
         entries,
@@ -217,12 +206,9 @@ fn create_discrete_shape_legend(
 }
 
 /// Helper to create a discrete alpha legend
-fn create_discrete_alpha_legend(
-    title: String,
-    scales: &ScaleSet,
-) -> LegendGuide {
+fn create_discrete_alpha_legend(title: String, scales: &ScaleSet) -> LegendGuide {
     use crate::scale::traits::ContinuousRangeScale;
-    
+
     let entries = create_discrete_entries(
         scales.alpha_discrete.categories(),
         |value| match value {
@@ -236,9 +222,9 @@ fn create_discrete_alpha_legend(
             let alpha_u8 = (alpha * 255.0) as u8;
             entry.color = Some(Color(gray, gray, gray, alpha_u8));
             entry.size = Some(5.0);
-        }
+        },
     );
-    
+
     LegendGuide {
         title: Some(title),
         entries,
@@ -248,40 +234,37 @@ fn create_discrete_alpha_legend(
 }
 
 /// Helper to create a continuous alpha legend
-fn create_continuous_alpha_legend(
-    title: String,
-    scales: &ScaleSet,
-) -> LegendGuide {
+fn create_continuous_alpha_legend(title: String, scales: &ScaleSet) -> LegendGuide {
     use crate::scale::traits::ContinuousRangeScale;
-    
+
     if let Some(domain) = scales.alpha_continuous.domain() {
         let mut entries = Vec::new();
         let num_breaks = 4;
-        
+
         for i in 0..num_breaks {
             let t = i as f64 / (num_breaks - 1) as f64;
             let value = domain.0 + t * (domain.1 - domain.0);
             let alpha = scales.alpha_continuous.map_value(&value);
-            
+
             if let Some(alpha) = alpha {
                 let label = if (value - value.round()).abs() < 0.01 {
                     format!("{}", value.round() as i64)
                 } else {
                     format!("{:.1}", value)
                 };
-                
+
                 // Show alpha as gray circles with varying transparency
                 let gray = 128u8;
                 let alpha_u8 = (alpha * 255.0) as u8;
-                
+
                 entries.push(
                     LegendEntry::new(label)
                         .color(Color(gray, gray, gray, alpha_u8))
-                        .size(5.0)
+                        .size(5.0),
                 );
             }
         }
-        
+
         LegendGuide {
             title: Some(title),
             entries,
@@ -301,29 +284,45 @@ fn create_individual_legend(
     title: &str,
     scales: &ScaleSet,
 ) {
-    use crate::aesthetics::{AestheticProperty, AestheticDomain};
-    
+    use crate::aesthetics::{AestheticDomain, AestheticProperty};
+
     let check_and_set = |guide_field: &mut Option<LegendGuide>| {
         if guide_field.is_none() {
             *guide_field = Some(match domain {
                 AestheticDomain::Discrete => match property {
-                    AestheticProperty::Color => create_discrete_color_legend(title.to_string(), scales),
-                    AestheticProperty::Fill => create_discrete_fill_legend(title.to_string(), scales),
-                    AestheticProperty::Size => create_discrete_size_legend(title.to_string(), scales),
-                    AestheticProperty::Shape => create_discrete_shape_legend(title.to_string(), scales),
-                    AestheticProperty::Alpha => create_discrete_alpha_legend(title.to_string(), scales),
+                    AestheticProperty::Color => {
+                        create_discrete_color_legend(title.to_string(), scales)
+                    }
+                    AestheticProperty::Fill => {
+                        create_discrete_fill_legend(title.to_string(), scales)
+                    }
+                    AestheticProperty::Size => {
+                        create_discrete_size_legend(title.to_string(), scales)
+                    }
+                    AestheticProperty::Shape => {
+                        create_discrete_shape_legend(title.to_string(), scales)
+                    }
+                    AestheticProperty::Alpha => {
+                        create_discrete_alpha_legend(title.to_string(), scales)
+                    }
                     _ => LegendGuide::default(),
                 },
                 AestheticDomain::Continuous => match property {
-                    AestheticProperty::Color => create_continuous_color_legend(title.to_string(), scales),
-                    AestheticProperty::Size => create_continuous_size_legend(title.to_string(), scales),
-                    AestheticProperty::Alpha => create_continuous_alpha_legend(title.to_string(), scales),
+                    AestheticProperty::Color => {
+                        create_continuous_color_legend(title.to_string(), scales)
+                    }
+                    AestheticProperty::Size => {
+                        create_continuous_size_legend(title.to_string(), scales)
+                    }
+                    AestheticProperty::Alpha => {
+                        create_continuous_alpha_legend(title.to_string(), scales)
+                    }
                     _ => LegendGuide::default(),
                 },
             });
         }
     };
-    
+
     match property {
         AestheticProperty::Color => check_and_set(&mut guides.color),
         AestheticProperty::Fill => check_and_set(&mut guides.fill),
@@ -341,11 +340,11 @@ fn create_merged_legend(
     title: &str,
     scales: &ScaleSet,
 ) {
-    use crate::aesthetics::{AestheticProperty, AestheticDomain};
+    use crate::aesthetics::{AestheticDomain, AestheticProperty};
     use crate::scale::traits::{ColorRangeScale, ContinuousRangeScale, ShapeRangeScale};
-    
+
     let domain = aesthetics[0].domain;
-    
+
     // Only handle discrete merging for now
     if domain != AestheticDomain::Discrete {
         // Fall back to individual legends for continuous
@@ -354,14 +353,24 @@ fn create_merged_legend(
         }
         return;
     }
-    
+
     // Determine which aesthetics we're merging
-    let has_color = aesthetics.iter().any(|a| a.property == AestheticProperty::Color);
-    let has_fill = aesthetics.iter().any(|a| a.property == AestheticProperty::Fill);
-    let has_size = aesthetics.iter().any(|a| a.property == AestheticProperty::Size);
-    let has_shape = aesthetics.iter().any(|a| a.property == AestheticProperty::Shape);
-    let has_alpha = aesthetics.iter().any(|a| a.property == AestheticProperty::Alpha);
-    
+    let has_color = aesthetics
+        .iter()
+        .any(|a| a.property == AestheticProperty::Color);
+    let has_fill = aesthetics
+        .iter()
+        .any(|a| a.property == AestheticProperty::Fill);
+    let has_size = aesthetics
+        .iter()
+        .any(|a| a.property == AestheticProperty::Size);
+    let has_shape = aesthetics
+        .iter()
+        .any(|a| a.property == AestheticProperty::Shape);
+    let has_alpha = aesthetics
+        .iter()
+        .any(|a| a.property == AestheticProperty::Alpha);
+
     // Get categories from the first available scale
     let categories = if has_color {
         scales.color_discrete.categories()
@@ -376,10 +385,10 @@ fn create_merged_legend(
     } else {
         return;
     };
-    
+
     // Create merged entries
     let mut entries = Vec::new();
-    
+
     for i in 0..categories.len() {
         if let Some(value) = categories.get_at(i) {
             let label = match &value {
@@ -387,9 +396,9 @@ fn create_merged_legend(
                 crate::data::DiscreteValue::Str(x) => x.clone(),
                 crate::data::DiscreteValue::Bool(x) => x.to_string(),
             };
-            
+
             let mut entry = LegendEntry::new(label);
-            
+
             // Get values from each scale
             if has_color {
                 if let Some(color) = match &value {
@@ -400,7 +409,7 @@ fn create_merged_legend(
                     entry.color = Some(color);
                 }
             }
-            
+
             if has_fill {
                 if let Some(fill) = match &value {
                     crate::data::DiscreteValue::Int(x) => scales.fill_discrete.map_value(x),
@@ -410,7 +419,7 @@ fn create_merged_legend(
                     entry.fill = Some(fill);
                 }
             }
-            
+
             if has_size {
                 if let Some(size) = match &value {
                     crate::data::DiscreteValue::Int(x) => scales.size_discrete.map_value(x),
@@ -423,7 +432,7 @@ fn create_merged_legend(
                 // Default size if not mapped
                 entry.size = Some(5.0);
             }
-            
+
             if has_shape {
                 if let Some(shape) = match &value {
                     crate::data::DiscreteValue::Int(x) => scales.shape_scale.map_value(x),
@@ -433,7 +442,7 @@ fn create_merged_legend(
                     entry.shape = Some(shape);
                 }
             }
-            
+
             if has_alpha {
                 if let Some(alpha) = match &value {
                     crate::data::DiscreteValue::Int(x) => scales.alpha_discrete.map_value(x),
@@ -443,39 +452,89 @@ fn create_merged_legend(
                     entry.alpha = Some(alpha);
                 }
             }
-            
+
             entries.push(entry);
         }
     }
-    
+
     let merged_guide = LegendGuide {
         title: Some(title.to_string()),
         entries,
         legend_type: LegendType::Discrete,
         ..Default::default()
     };
-    
+
     // Decide which guide field to use - prioritize color > fill > size > shape > alpha
     // and suppress others
     if has_color && guides.color.is_none() {
         guides.color = Some(merged_guide);
         // Suppress other aesthetics in this merge
-        if has_fill { guides.fill = Some(LegendGuide { position: LegendPosition::None, ..Default::default() }); }
-        if has_size { guides.size = Some(LegendGuide { position: LegendPosition::None, ..Default::default() }); }
-        if has_shape { guides.shape = Some(LegendGuide { position: LegendPosition::None, ..Default::default() }); }
-        if has_alpha { guides.alpha = Some(LegendGuide { position: LegendPosition::None, ..Default::default() }); }
+        if has_fill {
+            guides.fill = Some(LegendGuide {
+                position: LegendPosition::None,
+                ..Default::default()
+            });
+        }
+        if has_size {
+            guides.size = Some(LegendGuide {
+                position: LegendPosition::None,
+                ..Default::default()
+            });
+        }
+        if has_shape {
+            guides.shape = Some(LegendGuide {
+                position: LegendPosition::None,
+                ..Default::default()
+            });
+        }
+        if has_alpha {
+            guides.alpha = Some(LegendGuide {
+                position: LegendPosition::None,
+                ..Default::default()
+            });
+        }
     } else if has_fill && guides.fill.is_none() {
         guides.fill = Some(merged_guide);
-        if has_size { guides.size = Some(LegendGuide { position: LegendPosition::None, ..Default::default() }); }
-        if has_shape { guides.shape = Some(LegendGuide { position: LegendPosition::None, ..Default::default() }); }
-        if has_alpha { guides.alpha = Some(LegendGuide { position: LegendPosition::None, ..Default::default() }); }
+        if has_size {
+            guides.size = Some(LegendGuide {
+                position: LegendPosition::None,
+                ..Default::default()
+            });
+        }
+        if has_shape {
+            guides.shape = Some(LegendGuide {
+                position: LegendPosition::None,
+                ..Default::default()
+            });
+        }
+        if has_alpha {
+            guides.alpha = Some(LegendGuide {
+                position: LegendPosition::None,
+                ..Default::default()
+            });
+        }
     } else if has_size && guides.size.is_none() {
         guides.size = Some(merged_guide);
-        if has_shape { guides.shape = Some(LegendGuide { position: LegendPosition::None, ..Default::default() }); }
-        if has_alpha { guides.alpha = Some(LegendGuide { position: LegendPosition::None, ..Default::default() }); }
+        if has_shape {
+            guides.shape = Some(LegendGuide {
+                position: LegendPosition::None,
+                ..Default::default()
+            });
+        }
+        if has_alpha {
+            guides.alpha = Some(LegendGuide {
+                position: LegendPosition::None,
+                ..Default::default()
+            });
+        }
     } else if has_shape && guides.shape.is_none() {
         guides.shape = Some(merged_guide);
-        if has_alpha { guides.alpha = Some(LegendGuide { position: LegendPosition::None, ..Default::default() }); }
+        if has_alpha {
+            guides.alpha = Some(LegendGuide {
+                position: LegendPosition::None,
+                ..Default::default()
+            });
+        }
     } else if has_alpha && guides.alpha.is_none() {
         guides.alpha = Some(merged_guide);
     }
@@ -499,12 +558,12 @@ pub fn generate_automatic_legends(
 ) -> Guides {
     use crate::aesthetics::AestheticProperty;
     use std::collections::HashMap;
-    
+
     let mut guides = guides.clone();
 
     // Collect all mapped aesthetics with their column names
     let mut mapped_aesthetics: Vec<MappedAesthetic> = Vec::new();
-    
+
     // Helper to get column name for a property
     let get_column_name = |property: AestheticProperty| -> Option<String> {
         // First check plot-level mapping
@@ -513,15 +572,13 @@ pub fn generate_automatic_legends(
         }
         // Then check each layer's mapping
         for layer in layers.iter() {
-            if let Some(mapping) = &layer.mapping {
-                if let Some(title) = mapping.get_label(property) {
-                    return Some(title);
-                }
+            if let Some(title) = layer.mapping.get_label(property) {
+                return Some(title);
             }
         }
         None
     };
-    
+
     // Check plot-level mappings
     for aesthetic in plot_mapping.aesthetics() {
         if let Some(property) = aesthetic.to_property() {
@@ -535,7 +592,7 @@ pub fn generate_automatic_legends(
             }
         }
     }
-    
+
     // Check layer-level aesthetic_domains
     for layer in layers {
         for (property, domain) in &layer.aesthetic_domains {
@@ -551,7 +608,7 @@ pub fn generate_automatic_legends(
             }
         }
     }
-    
+
     // Group aesthetics by column name
     let mut aesthetic_groups: HashMap<String, Vec<MappedAesthetic>> = HashMap::new();
     for mapped in mapped_aesthetics {
@@ -560,32 +617,44 @@ pub fn generate_automatic_legends(
             .or_insert_with(Vec::new)
             .push(mapped);
     }
-    
+
     // Process each group
     for (column_name, aesthetics) in aesthetic_groups {
         if aesthetics.is_empty() {
             continue;
         }
-        
+
         // Check if all aesthetics in the group have the same domain
         let first_domain = aesthetics[0].domain;
         let same_domain = aesthetics.iter().all(|a| a.domain == first_domain);
-        
+
         if !same_domain {
             // Don't merge if domains don't match - fall back to individual legends
             for aesthetic in aesthetics {
-                create_individual_legend(&mut guides, aesthetic.property, aesthetic.domain, &column_name, scales);
+                create_individual_legend(
+                    &mut guides,
+                    aesthetic.property,
+                    aesthetic.domain,
+                    &column_name,
+                    scales,
+                );
             }
             continue;
         }
-        
+
         // Determine if we should merge: we merge if multiple aesthetics map to same column
         if aesthetics.len() > 1 {
             // Create merged legend
             create_merged_legend(&mut guides, &aesthetics, &column_name, scales);
         } else {
             // Single aesthetic, create individual legend
-            create_individual_legend(&mut guides, aesthetics[0].property, aesthetics[0].domain, &column_name, scales);
+            create_individual_legend(
+                &mut guides,
+                aesthetics[0].property,
+                aesthetics[0].domain,
+                &column_name,
+                scales,
+            );
         }
     }
 
@@ -769,7 +838,7 @@ pub fn draw_legends(
                     if has_shape {
                         // Draw shape with fill and/or color
                         let shape = entry.shape.unwrap();
-                        
+
                         // Draw fill if present
                         if let Some(fill) = entry.fill {
                             let Color(r, g, b, a) = fill;
@@ -782,7 +851,7 @@ pub fn draw_legends(
                             draw_shape(ctx, symbol_x + 10.0, symbol_y, size, shape);
                             ctx.fill().ok();
                         }
-                        
+
                         // Draw outline if present
                         if let Some(color) = entry.color {
                             apply_color(ctx, &color);
@@ -796,7 +865,7 @@ pub fn draw_legends(
                         let symbol_size = size * 2.0;
                         let rect_x = symbol_x + 10.0 - symbol_size / 2.0;
                         let rect_y = symbol_y - symbol_size / 2.0;
-                        
+
                         // Draw fill if present
                         if let Some(fill) = entry.fill {
                             let Color(r, g, b, a) = fill;
@@ -809,7 +878,7 @@ pub fn draw_legends(
                             ctx.rectangle(rect_x, rect_y, symbol_size, symbol_size);
                             ctx.fill().ok();
                         }
-                        
+
                         // Draw outline/color if present
                         if let Some(color) = entry.color {
                             apply_color(ctx, &color);
@@ -846,7 +915,12 @@ pub fn draw_legends(
                     item_y += item_height;
                 }
             }
-            LegendType::ColorBar { domain, colors, breaks, labels } => {
+            LegendType::ColorBar {
+                domain,
+                colors,
+                breaks,
+                labels,
+            } => {
                 // Draw continuous color bar
                 let bar_x = legend_x + padding + 10.0;
                 let bar_width = 20.0;

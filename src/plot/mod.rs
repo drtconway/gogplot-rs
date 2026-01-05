@@ -73,17 +73,17 @@ impl<'a> PlotBuilder<'a> {
 
         // Step 1: Apply stat transformations to each layer
         for layer in &mut layers {
-            layer.apply_stat(&self.data, &self.mapping)?;
+            layer.apply_stat(&self.data)?;
         }
 
         // Step 2: Apply position adjustments across layers
         for layer in &mut layers {
-            layer.apply_position(&self.data, &self.mapping)?;
+            layer.apply_position(&self.data)?;
         }
 
         // Step 3: Train scales on all layer data
         for layer in &mut layers {
-            layer.train_scales(&mut scales, self.data.as_ref(), &self.mapping)?;
+            layer.train_scales(&mut scales, self.data.as_ref())?;
         }
 
         // Step 3b: Let geoms add additional scale training (e.g., bars need y=0)
@@ -93,7 +93,7 @@ impl<'a> PlotBuilder<'a> {
 
         // Step 4: Apply scales to convert data to visual coordinates
         for layer in &mut layers {
-            layer.apply_scales(&scales, self.data, &self.mapping)?;
+            layer.apply_scales(&scales, self.data.as_ref())?;
         }
 
         let mut required_scales = Vec::new();

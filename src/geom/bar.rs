@@ -235,17 +235,16 @@ impl GeomBar {
             let alpha = alpha_values[i];
 
             // Calculate bar bounds in normalized space
-            let x_left = (x_center - bar_width / 2.0).max(0.0);
-            let x_right = (x_center + bar_width / 2.0).min(1.0);
+            let x_left = x_center - bar_width / 2.0;
+            let x_right = x_center + bar_width / 2.0;
 
             // Use YOffset for bar bottom if available (for stacking), otherwise use 0
             let y_bottom = y_offset.map(|offsets| offsets[i]).unwrap_or(0.0);
-            let y_top_clamped = y_top.min(1.0);
 
             // Convert to pixel coordinates
             let x_left_px = ctx.map_x(x_left);
             let x_right_px = ctx.map_x(x_right);
-            let y_top_px = ctx.map_y(y_top_clamped);
+            let y_top_px = ctx.map_y(y_top);
             let y_bottom_px = ctx.map_y(y_bottom);
 
             let width = x_right_px - x_left_px;
@@ -643,6 +642,41 @@ mod tests {
             .map_err(to_io_error)
             .expect("Failed to build plot");
         p.save("tests/images/basic_bar_7.png", 800, 600)
+            .map_err(to_io_error)
+            .expect("Failed to save plot image");
+    }
+
+    #[test]
+    fn basic_bar_8() {
+        init_test_logging();
+
+        // Create data with large stacked values to demonstrate the overflow issue
+        // Three categories, each with 4 groups that stack to large totals
+        let categories = vec!["A", "A", "A", "A", "B", "B", "B", "B", "C", "C", "C", "C"];
+        let groups = vec!["G1", "G2", "G3", "G4", "G1", "G2", "G3", "G4", "G1", "G2", "G3", "G4"];
+        let values = vec![
+            25.0, 30.0, 35.0, 40.0,  // A stacks to 130
+            20.0, 25.0, 30.0, 35.0,  // B stacks to 110
+            30.0, 35.0, 40.0, 45.0,  // C stacks to 150
+        ];
+
+        let data: Box<dyn DataSource> = Box::new(DataFrame::from_columns(vec![
+            ("category", VectorValue::from(categories)),
+            ("group", VectorValue::from(groups)),
+            ("value", VectorValue::from(values)),
+        ]));
+
+        let builder = plot(&data).aes(|a| {
+            a.x_discrete("category");
+            a.y_continuous("value");
+            a.fill_discrete("group");
+        }) + geom_bar().position("stack");
+
+        let p = builder
+            .build()
+            .map_err(to_io_error)
+            .expect("Failed to build plot");
+        p.save("tests/images/basic_bar_8.png", 800, 600)
             .map_err(to_io_error)
             .expect("Failed to save plot image");
     }
