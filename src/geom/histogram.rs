@@ -8,9 +8,7 @@ use crate::aesthetics::builder::{
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::data::PrimitiveValue;
 use crate::error::Result;
-use crate::geom::properties::{
-    ColorProperty, FloatProperty, Property, PropertyValue, PropertyVector,
-};
+use crate::geom::properties::{Property, PropertyValue, PropertyVector};
 use crate::geom::{AestheticRequirement, DomainConstraint};
 use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
@@ -33,9 +31,9 @@ impl GeomHistogramAesBuilderTrait for AesMapBuilder {}
 
 pub struct GeomHistogramBuilder {
     core: LayerBuilderCore,
-    color: Option<ColorProperty>,
-    fill: Option<ColorProperty>,
-    alpha: Option<FloatProperty>,
+    color: Option<Color>,
+    fill: Option<Color>,
+    alpha: Option<f64>,
 }
 
 impl GeomHistogramBuilder {
@@ -48,17 +46,17 @@ impl GeomHistogramBuilder {
         }
     }
 
-    pub fn color<C: Into<ColorProperty>>(mut self, color: C) -> Self {
+    pub fn color<C: Into<Color>>(mut self, color: C) -> Self {
         self.color = Some(color.into());
         self
     }
 
-    pub fn fill<F: Into<ColorProperty>>(mut self, fill: F) -> Self {
+    pub fn fill<F: Into<Color>>(mut self, fill: F) -> Self {
         self.fill = Some(fill.into());
         self
     }
 
-    pub fn alpha<A: Into<FloatProperty>>(mut self, alpha: A) -> Self {
+    pub fn alpha<A: Into<f64>>(mut self, alpha: A) -> Self {
         self.alpha = Some(alpha.into());
         self
     }
@@ -153,13 +151,13 @@ pub fn geom_histogram() -> GeomHistogramBuilder {
 /// - `Alpha`: Bar transparency (0.0 = transparent, 1.0 = opaque)
 pub struct GeomHistogram {
     /// Default color (border)
-    pub color: Option<ColorProperty>,
+    pub color: Option<Color>,
 
     /// Default fill color
-    pub fill: Option<ColorProperty>,
+    pub fill: Option<Color>,
 
     /// Default alpha/opacity
-    pub alpha: Option<FloatProperty>,
+    pub alpha: Option<f64>,
 }
 
 impl GeomHistogram {
@@ -203,7 +201,7 @@ impl GeomHistogram {
             } else {
                 0.2
             };
-            
+
             (spacing, spacing)
         };
 
@@ -218,11 +216,12 @@ impl GeomHistogram {
         for i in 0..x_values.len() {
             // Apply optional x offset from position adjustment (e.g., dodge)
             // XOffset is a fraction of spacing, so multiply by actual spacing
-            let x_center = x_values[i] + x_offset.map(|offsets| offsets[i] * spacing).unwrap_or(0.0);
-            
+            let x_center =
+                x_values[i] + x_offset.map(|offsets| offsets[i] * spacing).unwrap_or(0.0);
+
             // Apply optional width scaling factor from position adjustment
             let bar_width = base_bar_width * width_factor.map(|factors| factors[i]).unwrap_or(1.0);
-            
+
             let y_top = y_values[i];
             let color = color_values[i];
             let fill = fill_values[i];
@@ -231,7 +230,7 @@ impl GeomHistogram {
             // Calculate bar bounds in normalized space
             let x_left = (x_center - bar_width / 2.0).max(0.0);
             let x_right = (x_center + bar_width / 2.0).min(1.0);
-            
+
             // Use YOffset for bar bottom if available (for stacking), otherwise use baseline
             let y_bottom = y_offset.map(|offsets| offsets[i]).unwrap_or(y_baseline);
             let y_top_clamped = y_top.min(1.0);

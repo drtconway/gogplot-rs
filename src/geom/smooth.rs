@@ -1,15 +1,15 @@
 use std::collections::HashMap;
 
-use super::{Geom, RenderContext, AestheticRequirement, DomainConstraint};
+use super::{AestheticRequirement, DomainConstraint, Geom, RenderContext};
 use crate::aesthetics::builder::{
     AesMapBuilder, AlphaContinuousAesBuilder, AlphaDiscreteAesBuilder, ColorContinuousAesBuilder,
     ColorDiscreteAesBuilder, SizeContinuousAesBuilder, SizeDiscreteAesBuilder,
-    XContininuousAesBuilder, YContininuousAesBuilder, YMinContinuousAesBuilder,
-    YMaxContinuousAesBuilder,
+    XContininuousAesBuilder, YContininuousAesBuilder, YMaxContinuousAesBuilder,
+    YMinContinuousAesBuilder,
 };
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
-use crate::error::{Result, PlotError};
-use crate::geom::properties::{ColorProperty, FloatProperty, Property, PropertyValue, PropertyVector};
+use crate::error::{PlotError, Result};
+use crate::geom::properties::{Property, PropertyValue, PropertyVector};
 use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
 use crate::stat::smooth::Smooth;
@@ -33,10 +33,10 @@ impl GeomSmoothAesBuilderTrait for AesMapBuilder {}
 
 pub struct GeomSmoothBuilder {
     core: LayerBuilderCore,
-    color: Option<ColorProperty>,
-    fill: Option<ColorProperty>,
-    size: Option<FloatProperty>,
-    alpha: Option<FloatProperty>,
+    color: Option<Color>,
+    fill: Option<Color>,
+    size: Option<f64>,
+    alpha: Option<f64>,
     confidence_interval: bool,
 }
 
@@ -52,22 +52,22 @@ impl GeomSmoothBuilder {
         }
     }
 
-    pub fn color<C: Into<ColorProperty>>(mut self, color: C) -> Self {
+    pub fn color<C: Into<Color>>(mut self, color: C) -> Self {
         self.color = Some(color.into());
         self
     }
 
-    pub fn fill<F: Into<ColorProperty>>(mut self, fill: F) -> Self {
+    pub fn fill<F: Into<Color>>(mut self, fill: F) -> Self {
         self.fill = Some(fill.into());
         self
     }
 
-    pub fn size<S: Into<FloatProperty>>(mut self, size: S) -> Self {
+    pub fn size<S: Into<f64>>(mut self, size: S) -> Self {
         self.size = Some(size.into());
         self
     }
 
-    pub fn alpha<A: Into<FloatProperty>>(mut self, alpha: A) -> Self {
+    pub fn alpha<A: Into<f64>>(mut self, alpha: A) -> Self {
         self.alpha = Some(alpha.into());
         self
     }
@@ -140,10 +140,10 @@ pub fn geom_smooth() -> GeomSmoothBuilder {
 
 /// GeomSmooth renders fitted curves with confidence intervals
 pub struct GeomSmooth {
-    color: Option<ColorProperty>,
-    fill: Option<ColorProperty>,
-    size: Option<FloatProperty>,
-    alpha: Option<FloatProperty>,
+    color: Option<Color>,
+    fill: Option<Color>,
+    size: Option<f64>,
+    alpha: Option<f64>,
     confidence_interval: bool,
 }
 
@@ -191,7 +191,7 @@ impl GeomSmooth {
         for i in 0..x_values.len() {
             let x_px = ctx.map_x(x_values[i]);
             let ymax_px = ctx.map_y(ymax_values[i]);
-            
+
             if i == 0 {
                 ctx.cairo.move_to(x_px, ymax_px);
             } else {
@@ -317,7 +317,10 @@ impl Geom for GeomSmooth {
     fn properties(&self) -> HashMap<AestheticProperty, Property> {
         let mut props = HashMap::new();
         if let Some(color_prop) = &self.color {
-            props.insert(AestheticProperty::Color, Property::Color(color_prop.clone()));
+            props.insert(
+                AestheticProperty::Color,
+                Property::Color(color_prop.clone()),
+            );
         }
         if let Some(fill_prop) = &self.fill {
             props.insert(AestheticProperty::Fill, Property::Color(fill_prop.clone()));
@@ -326,18 +329,21 @@ impl Geom for GeomSmooth {
             props.insert(AestheticProperty::Size, Property::Float(size_prop.clone()));
         }
         if let Some(alpha_prop) = &self.alpha {
-            props.insert(AestheticProperty::Alpha, Property::Float(alpha_prop.clone()));
+            props.insert(
+                AestheticProperty::Alpha,
+                Property::Float(alpha_prop.clone()),
+            );
         }
         props
     }
 
-    fn property_defaults(&self, _theme: &crate::theme::Theme) -> HashMap<AestheticProperty, PropertyValue> {
+    fn property_defaults(
+        &self,
+        _theme: &crate::theme::Theme,
+    ) -> HashMap<AestheticProperty, PropertyValue> {
         let mut defaults = HashMap::new();
         if self.color.is_none() {
-            defaults.insert(
-                AestheticProperty::Color,
-                PropertyValue::Color(color::BLUE),
-            );
+            defaults.insert(AestheticProperty::Color, PropertyValue::Color(color::BLUE));
         }
         if self.fill.is_none() {
             defaults.insert(
@@ -346,25 +352,16 @@ impl Geom for GeomSmooth {
             );
         }
         if self.size.is_none() {
-            defaults.insert(
-                AestheticProperty::Size,
-                PropertyValue::Float(1.0),
-            );
+            defaults.insert(AestheticProperty::Size, PropertyValue::Float(1.0));
         }
         if self.alpha.is_none() {
-            defaults.insert(
-                AestheticProperty::Alpha,
-                PropertyValue::Float(0.4),
-            );
+            defaults.insert(AestheticProperty::Alpha, PropertyValue::Float(0.4));
         }
         defaults
     }
 
     fn required_scales(&self) -> Vec<ScaleIdentifier> {
-        vec![
-            ScaleIdentifier::XContinuous,
-            ScaleIdentifier::YContinuous,
-        ]
+        vec![ScaleIdentifier::XContinuous, ScaleIdentifier::YContinuous]
     }
 
     fn train_scales(&self, _scales: &mut crate::scale::ScaleSet) {}
@@ -419,14 +416,7 @@ impl Geom for GeomSmooth {
         // Draw ribbon (confidence interval) first if se is enabled and we have ymin/ymax
         if self.confidence_interval {
             if let (Some(ymin), Some(ymax)) = (ymin_values.as_ref(), ymax_values.as_ref()) {
-                self.draw_ribbon(
-                    ctx,
-                    &x_values,
-                    ymin,
-                    ymax,
-                    &fill_values,
-                    &alpha_values,
-                )?;
+                self.draw_ribbon(ctx, &x_values, ymin, ymax, &fill_values, &alpha_values)?;
             }
         }
 
@@ -500,7 +490,8 @@ mod tests {
             a.x_continuous("wt");
             a.y_continuous("mpg");
             a.color_discrete("cyl");
-        }) + crate::geom::point::geom_point() + geom_smooth();
+        }) + crate::geom::point::geom_point()
+            + geom_smooth();
 
         let p = builder
             .build()

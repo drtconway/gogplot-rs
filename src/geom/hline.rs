@@ -9,7 +9,7 @@ use crate::aesthetics::builder::{
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::data::PrimitiveValue;
 use crate::error::Result;
-use crate::geom::properties::{ColorProperty, FloatProperty, Property, PropertyVector};
+use crate::geom::properties::{Property, PropertyVector};
 use crate::geom::{AestheticRequirement, DomainConstraint};
 use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
@@ -32,10 +32,10 @@ impl GeomHLineAesBuilderTrait for AesMapBuilder {}
 
 pub struct GeomHLineBuilder {
     core: LayerBuilderCore,
-    y_intercept: Option<FloatProperty>,
-    size: Option<FloatProperty>,
-    color: Option<ColorProperty>,
-    alpha: Option<FloatProperty>,
+    y_intercept: Option<f64>,
+    size: Option<f64>,
+    color: Option<Color>,
+    alpha: Option<f64>,
 }
 
 impl GeomHLineBuilder {
@@ -49,22 +49,22 @@ impl GeomHLineBuilder {
         }
     }
 
-    pub fn y_intercept<YIntercept: Into<FloatProperty>>(mut self, y_intercept: YIntercept) -> Self {
+    pub fn y_intercept<YIntercept: Into<f64>>(mut self, y_intercept: YIntercept) -> Self {
         self.y_intercept = Some(y_intercept.into());
         self
     }
 
-    pub fn size<Size: Into<FloatProperty>>(mut self, size: Size) -> Self {
+    pub fn size<Size: Into<f64>>(mut self, size: Size) -> Self {
         self.size = Some(size.into());
         self
     }
 
-    pub fn color<Color: Into<ColorProperty>>(mut self, color: Color) -> Self {
+    pub fn color<C: Into<Color>>(mut self, color: C) -> Self {
         self.color = Some(color.into());
         self
     }
 
-    pub fn alpha<Alpha: Into<FloatProperty>>(mut self, alpha: Alpha) -> Self {
+    pub fn alpha<Alpha: Into<f64>>(mut self, alpha: Alpha) -> Self {
         self.alpha = Some(alpha.into());
         self
     }
@@ -123,7 +123,13 @@ impl LayerBuilder for GeomHLineBuilder {
             initial_domains.insert(AestheticProperty::YIntercept, AestheticDomain::Continuous);
         }
 
-        LayerBuilderCore::build(self.core, parent_mapping, Box::new(geom_hline), initial_domains, &overrides)
+        LayerBuilderCore::build(
+            self.core,
+            parent_mapping,
+            Box::new(geom_hline),
+            initial_domains,
+            &overrides,
+        )
     }
 }
 
@@ -143,16 +149,16 @@ pub fn geom_hline() -> GeomHLineBuilder {
 /// Draws horizontal lines across the full width of the plot at each y value.
 pub struct GeomHLine {
     /// Fixed y-intercept value(s) for the horizontal line(s)
-    pub y_intercept: Option<FloatProperty>,
+    pub y_intercept: Option<f64>,
 
     /// Default line color
-    pub color: Option<ColorProperty>,
+    pub color: Option<Color>,
 
     /// Default line width
-    pub size: Option<FloatProperty>,
+    pub size: Option<f64>,
 
     /// Default alpha/opacity
-    pub alpha: Option<FloatProperty>,
+    pub alpha: Option<f64>,
 }
 
 impl GeomHLine {
@@ -294,27 +300,30 @@ impl Geom for GeomHLine {
 
     fn train_scales(&self, scales: &mut crate::scale::ScaleSet) {
         // If y_intercept is set as a property, train the Y scale with it
-        if let Some(y_prop) = &self.y_intercept {
-            if let Some(value) = y_prop.get_value() {
-                scales.y_continuous.train_one(&PrimitiveValue::Float(value));
-            }
+        if let Some(value) = &self.y_intercept {
+            scales
+                .y_continuous
+                .train_one(&PrimitiveValue::Float(*value));
         }
     }
 
     fn apply_scales(&mut self, scales: &crate::scale::ScaleSet) {
         // Transform y_intercept through the Y scale
-        if let Some(y_prop) = &mut self.y_intercept {
-            if let Some(value) = y_prop.get_value() {
-                if let Some(normalized) = scales.y_continuous.map_value(&value) {
-                    y_prop.value(normalized);
-                } else {
-                    self.y_intercept = None;
-                    log::warn!(
-                        "Y-intercept value {} is outside the Y scale domain and will not be rendered.",
-                        value
-                    );
-                }
+        let mut warn = None;
+        if let Some(value) = &mut self.y_intercept {
+            if let Some(normalized) = scales.y_continuous.map_value(value) {
+                *value = normalized;
+            } else {
+                warn = Some(*value);
             }
+        }
+        if let Some(value) = warn {
+            self.y_intercept = None;
+            log::warn!(
+                "Y-intercept value {} is outside the Y scale domain and will not be rendered.",
+                value
+            );
+
         }
     }
 
@@ -323,7 +332,6 @@ impl Geom for GeomHLine {
         ctx: &mut RenderContext,
         mut properties: HashMap<AestheticProperty, PropertyVector>,
     ) -> Result<()> {
-
         let y_values = properties
             .remove(&AestheticProperty::YIntercept)
             .unwrap()

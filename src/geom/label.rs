@@ -8,9 +8,7 @@ use crate::aesthetics::builder::{
 };
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::error::Result;
-use crate::geom::properties::{
-    ColorProperty, FloatProperty, Property, PropertyValue, PropertyVector,
-};
+use crate::geom::properties::{Property, PropertyValue, PropertyVector};
 use crate::geom::{AestheticRequirement, DomainConstraint};
 use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
@@ -36,10 +34,10 @@ impl GeomLabelAesBuilderTrait for AesMapBuilder {}
 
 pub struct GeomLabelBuilder {
     core: LayerBuilderCore,
-    color: Option<ColorProperty>,
-    size: Option<FloatProperty>,
-    alpha: Option<FloatProperty>,
-    fill: Option<ColorProperty>,
+    color: Option<Color>,
+    size: Option<f64>,
+    alpha: Option<f64>,
+    fill: Option<Color>,
     hjust: Option<f64>,
     vjust: Option<f64>,
     angle: Option<f64>,
@@ -63,22 +61,22 @@ impl GeomLabelBuilder {
         }
     }
 
-    pub fn color<C: Into<ColorProperty>>(mut self, color: C) -> Self {
+    pub fn color<C: Into<Color>>(mut self, color: C) -> Self {
         self.color = Some(color.into());
         self
     }
 
-    pub fn size<S: Into<FloatProperty>>(mut self, size: S) -> Self {
+    pub fn size<S: Into<f64>>(mut self, size: S) -> Self {
         self.size = Some(size.into());
         self
     }
 
-    pub fn alpha<A: Into<FloatProperty>>(mut self, alpha: A) -> Self {
+    pub fn alpha<A: Into<f64>>(mut self, alpha: A) -> Self {
         self.alpha = Some(alpha.into());
         self
     }
 
-    pub fn fill<F: Into<ColorProperty>>(mut self, fill: F) -> Self {
+    pub fn fill<F: Into<Color>>(mut self, fill: F) -> Self {
         self.fill = Some(fill.into());
         self
     }
@@ -189,16 +187,16 @@ pub fn geom_label() -> GeomLabelBuilder {
 /// GeomLabel renders text labels with a background box at specified positions
 pub struct GeomLabel {
     /// Default color
-    pub color: Option<ColorProperty>,
+    pub color: Option<Color>,
 
     /// Default text size
-    pub size: Option<FloatProperty>,
+    pub size: Option<f64>,
 
     /// Default alpha/opacity
-    pub alpha: Option<FloatProperty>,
+    pub alpha: Option<f64>,
 
     /// Fill color for label background
-    pub fill: Option<ColorProperty>,
+    pub fill: Option<Color>,
 
     /// Horizontal justification (0 = left, 0.5 = center, 1 = right)
     pub hjust: f64,
@@ -242,7 +240,6 @@ impl GeomLabel {
         alpha_values: impl Iterator<Item = f64>,
         fill_values: impl Iterator<Item = Color>,
     ) -> Result<()> {
-        
         for ((((((x_norm, y_norm), label), color), size), alpha), fill) in x_values
             .zip(y_values)
             .zip(label_values)
@@ -263,12 +260,12 @@ impl GeomLabel {
 
             ctx.cairo.set_font_size(visual_size);
             let extents = ctx.cairo.text_extents(&label).ok();
-            
+
             if let Some(extents) = extents {
                 // Save context for rotation and translation
                 ctx.cairo.save().ok();
                 ctx.cairo.translate(x_px, y_px);
-                
+
                 if self.angle != 0.0 {
                     ctx.cairo.rotate(self.angle.to_radians());
                 }
@@ -296,16 +293,40 @@ impl GeomLabel {
                     // Draw rounded rectangle
                     let r = self.radius.min(box_width / 2.0).min(box_height / 2.0);
                     ctx.cairo.new_path();
-                    ctx.cairo.arc(box_x + r, box_y + r, r, std::f64::consts::PI, 3.0 * std::f64::consts::PI / 2.0);
-                    ctx.cairo.arc(box_x + box_width - r, box_y + r, r, 3.0 * std::f64::consts::PI / 2.0, 0.0);
-                    ctx.cairo.arc(box_x + box_width - r, box_y + box_height - r, r, 0.0, std::f64::consts::PI / 2.0);
-                    ctx.cairo.arc(box_x + r, box_y + box_height - r, r, std::f64::consts::PI / 2.0, std::f64::consts::PI);
+                    ctx.cairo.arc(
+                        box_x + r,
+                        box_y + r,
+                        r,
+                        std::f64::consts::PI,
+                        3.0 * std::f64::consts::PI / 2.0,
+                    );
+                    ctx.cairo.arc(
+                        box_x + box_width - r,
+                        box_y + r,
+                        r,
+                        3.0 * std::f64::consts::PI / 2.0,
+                        0.0,
+                    );
+                    ctx.cairo.arc(
+                        box_x + box_width - r,
+                        box_y + box_height - r,
+                        r,
+                        0.0,
+                        std::f64::consts::PI / 2.0,
+                    );
+                    ctx.cairo.arc(
+                        box_x + r,
+                        box_y + box_height - r,
+                        r,
+                        std::f64::consts::PI / 2.0,
+                        std::f64::consts::PI,
+                    );
                     ctx.cairo.close_path();
                 } else {
                     // Draw sharp rectangle
                     ctx.cairo.rectangle(box_x, box_y, box_width, box_height);
                 }
-                
+
                 ctx.cairo.fill().ok();
 
                 // Draw text
@@ -434,16 +455,20 @@ impl Geom for GeomLabel {
             .unwrap()
             .as_floats();
 
-        let label_prop = properties
-            .remove(&AestheticProperty::Label)
-            .unwrap();
-        
+        let label_prop = properties.remove(&AestheticProperty::Label).unwrap();
+
         let label_values = match label_prop {
             PropertyVector::String(strings) => strings,
             PropertyVector::Int(ints) => ints.into_iter().map(|i| i.to_string()).collect(),
-            PropertyVector::Float(floats) => floats.into_iter().map(|f| format!("{:.2}", f)).collect(),
-            PropertyVector::Color(colors) => colors.into_iter().map(|c| format!("{:?}", c)).collect(),
-            PropertyVector::Shape(shapes) => shapes.into_iter().map(|s| format!("{:?}", s)).collect(),
+            PropertyVector::Float(floats) => {
+                floats.into_iter().map(|f| format!("{:.2}", f)).collect()
+            }
+            PropertyVector::Color(colors) => {
+                colors.into_iter().map(|c| format!("{:?}", c)).collect()
+            }
+            PropertyVector::Shape(shapes) => {
+                shapes.into_iter().map(|s| format!("{:?}", s)).collect()
+            }
         };
 
         let color_prop = properties.remove(&AestheticProperty::Color).unwrap();
@@ -460,16 +485,12 @@ impl Geom for GeomLabel {
             .as_floats();
 
         // Get fill color (default to white if not specified)
-        let fill_color = if let Some(fill_prop) = &self.fill {
-            use crate::utils::Either;
-            match &fill_prop.color {
-                Either::Left(c) => *c,
-                Either::Right(_) => color::WHITE, // TODO: handle variable fill
-            }
+        let fill_color = if let Some(fill_color) = self.fill {
+            fill_color
         } else {
             color::WHITE
         };
-        
+
         let n = x_values.len();
         let fill_values = vec![fill_color; n];
 
@@ -629,12 +650,10 @@ mod tests {
             a.x_continuous("wt");
             a.y_continuous("mpg");
             a.label("cyl");
-        }) + geom_label()
-            .fill(color::WHITE)
-            .aes(|a| {
-                a.color_discrete("cyl");
-                a.size_continuous("hp");
-            });
+        }) + geom_label().fill(color::WHITE).aes(|a| {
+            a.color_discrete("cyl");
+            a.size_continuous("hp");
+        });
 
         let p = builder
             .build()

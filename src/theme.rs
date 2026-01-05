@@ -1,5 +1,8 @@
 // Theme component templates for grammar of graphics
 
+use std::collections::HashMap;
+use crate::visuals::{Shape, LineStyle};
+
 /// Color representation (could be RGB, RGBA, etc.)
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Color(pub u8, pub u8, pub u8, pub u8); // RGBA
@@ -32,6 +35,207 @@ impl From<i64> for Color {
 
 pub mod color;
 
+// ============================================================================
+// Theme Element Types - used for per-geom customization
+// ============================================================================
+
+/// Element types for theme customization
+#[derive(Clone, Debug, PartialEq)]
+pub enum Element {
+    Point(PointElement),
+    Line(LineElement),
+    Rect(RectElement),
+    Text(TextElement),
+}
+
+/// Point element properties
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct PointElement {
+    pub color: Option<Color>,
+    pub size: Option<f64>,
+    pub alpha: Option<f64>,
+    pub shape: Option<Shape>,
+}
+
+impl PointElement {
+    pub fn color(mut self, color: Color) -> Self {
+        self.color = Some(color);
+        self
+    }
+    
+    pub fn size(mut self, size: f64) -> Self {
+        self.size = Some(size);
+        self
+    }
+    
+    pub fn alpha(mut self, alpha: f64) -> Self {
+        self.alpha = Some(alpha);
+        self
+    }
+    
+    pub fn shape(mut self, shape: Shape) -> Self {
+        self.shape = Some(shape);
+        self
+    }
+}
+
+/// Line element properties
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct LineElement {
+    pub color: Option<Color>,
+    pub size: Option<f64>,
+    pub alpha: Option<f64>,
+    pub linetype: Option<LineStyle>,
+}
+
+impl LineElement {
+    pub fn color(mut self, color: Color) -> Self {
+        self.color = Some(color);
+        self
+    }
+    
+    pub fn size(mut self, size: f64) -> Self {
+        self.size = Some(size);
+        self
+    }
+    
+    pub fn alpha(mut self, alpha: f64) -> Self {
+        self.alpha = Some(alpha);
+        self
+    }
+    
+    pub fn linetype(mut self, linetype: LineStyle) -> Self {
+        self.linetype = Some(linetype);
+        self
+    }
+}
+
+/// Rect element properties
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct RectElement {
+    pub fill: Option<Color>,
+    pub color: Option<Color>,  // border color
+    pub alpha: Option<f64>,
+    pub linewidth: Option<f64>,
+}
+
+impl RectElement {
+    pub fn fill(mut self, fill: Color) -> Self {
+        self.fill = Some(fill);
+        self
+    }
+    
+    pub fn color(mut self, color: Color) -> Self {
+        self.color = Some(color);
+        self
+    }
+    
+    pub fn alpha(mut self, alpha: f64) -> Self {
+        self.alpha = Some(alpha);
+        self
+    }
+    
+    pub fn linewidth(mut self, linewidth: f64) -> Self {
+        self.linewidth = Some(linewidth);
+        self
+    }
+}
+
+/// Text element properties
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct TextElement {
+    pub color: Option<Color>,
+    pub size: Option<f64>,
+    pub alpha: Option<f64>,
+    pub family: Option<String>,
+    pub face: Option<FontWeight>,
+    pub hjust: Option<f64>,
+    pub vjust: Option<f64>,
+}
+
+impl TextElement {
+    pub fn color(mut self, color: Color) -> Self {
+        self.color = Some(color);
+        self
+    }
+    
+    pub fn size(mut self, size: f64) -> Self {
+        self.size = Some(size);
+        self
+    }
+    
+    pub fn alpha(mut self, alpha: f64) -> Self {
+        self.alpha = Some(alpha);
+        self
+    }
+    
+    pub fn family(mut self, family: String) -> Self {
+        self.family = Some(family);
+        self
+    }
+    
+    pub fn face(mut self, face: FontWeight) -> Self {
+        self.face = Some(face);
+        self
+    }
+    
+    pub fn hjust(mut self, hjust: f64) -> Self {
+        self.hjust = Some(hjust);
+        self
+    }
+    
+    pub fn vjust(mut self, vjust: f64) -> Self {
+        self.vjust = Some(vjust);
+        self
+    }
+}
+
+// Helper constructors for ergonomic API
+pub fn point() -> PointElement {
+    PointElement::default()
+}
+
+pub fn line() -> LineElement {
+    LineElement::default()
+}
+
+pub fn rect() -> RectElement {
+    RectElement::default()
+}
+
+pub fn text() -> TextElement {
+    TextElement::default()
+}
+
+// Into implementations for Element enum
+impl From<PointElement> for Element {
+    fn from(e: PointElement) -> Element {
+        Element::Point(e)
+    }
+}
+
+impl From<LineElement> for Element {
+    fn from(e: LineElement) -> Element {
+        Element::Line(e)
+    }
+}
+
+impl From<RectElement> for Element {
+    fn from(e: RectElement) -> Element {
+        Element::Rect(e)
+    }
+}
+
+impl From<TextElement> for Element {
+    fn from(e: TextElement) -> Element {
+        Element::Text(e)
+    }
+}
+
+// ============================================================================
+// Structural Theme Components (existing)
+// ============================================================================
+
 /// Font representation
 #[derive(Clone, Debug, PartialEq)]
 pub struct Font {
@@ -55,9 +259,9 @@ pub enum FontStyle {
     Oblique,
 }
 
-/// Line style representation
+/// Line drawing style for theme borders, axes, etc. (not to be confused with visuals::LineStyle)
 #[derive(Clone, Debug, PartialEq)]
-pub struct LineStyle {
+pub struct LineDrawStyle {
     pub color: Color,
     pub width: f32,
     pub dash: Option<Vec<f32>>, // Dash pattern
@@ -127,20 +331,20 @@ impl Default for TextTheme {
 /// Theme for axis line and ticks
 #[derive(Clone, Debug, PartialEq)]
 pub struct AxisLineTheme {
-    pub line: Option<LineStyle>,
-    pub ticks: Option<LineStyle>,
+    pub line: Option<LineDrawStyle>,
+    pub ticks: Option<LineDrawStyle>,
     pub tick_length: f32,
 }
 
 impl Default for AxisLineTheme {
     fn default() -> Self {
         AxisLineTheme {
-            line: Some(LineStyle {
+            line: Some(LineDrawStyle {
                 color: color::BLACK,
                 width: 1.0,
                 dash: None,
             }),
-            ticks: Some(LineStyle {
+            ticks: Some(LineDrawStyle {
                 color: color::BLACK,
                 width: 1.0,
                 dash: None,
@@ -207,7 +411,7 @@ pub struct AxisTheme {
 #[derive(Clone, Debug, PartialEq)]
 pub struct LegendTheme {
     pub background: FillStyle,
-    pub border: LineStyle,
+    pub border: LineDrawStyle,
     pub text_font: Font,
     pub text_color: Color,
 }
@@ -219,7 +423,7 @@ impl Default for LegendTheme {
                 color: color::WHITE, // white
                 opacity: 0.8,
             },
-            border: LineStyle {
+            border: LineDrawStyle {
                 color: color::BLACK, // black
                 width: 0.5,
                 dash: None,
@@ -239,9 +443,9 @@ impl Default for LegendTheme {
 #[derive(Clone, Debug, PartialEq)]
 pub struct PanelTheme {
     pub background: Option<FillStyle>,
-    pub border: Option<LineStyle>,
-    pub grid_major: Option<LineStyle>,
-    pub grid_minor: Option<LineStyle>,
+    pub border: Option<LineDrawStyle>,
+    pub grid_major: Option<LineDrawStyle>,
+    pub grid_minor: Option<LineDrawStyle>,
 }
 
 impl Default for PanelTheme {
@@ -252,12 +456,12 @@ impl Default for PanelTheme {
                 opacity: 1.0,
             }),
             border: None,
-            grid_major: Some(LineStyle {
+            grid_major: Some(LineDrawStyle {
                 color: color::WHITE,
                 width: 1.5,
                 dash: None,
             }),
-            grid_minor: Some(LineStyle {
+            grid_minor: Some(LineDrawStyle {
                 color: color::WHITE,
                 width: 0.75,
                 dash: None,
@@ -395,6 +599,9 @@ pub struct Theme {
     pub geom_point: GeomPointTheme,
     pub geom_rect: GeomRectTheme,
     pub geom_text: GeomTextTheme,
+    
+    // Per-geom element overrides: geom_name -> element_name -> Element
+    geom_elements: HashMap<&'static str, HashMap<&'static str, Element>>,
 }
 
 impl Default for Theme {
@@ -416,6 +623,7 @@ impl Default for Theme {
             geom_point: GeomPointTheme::default(),
             geom_rect: GeomRectTheme::default(),
             geom_text: GeomTextTheme::default(),
+            geom_elements: HashMap::new(),
         }
     }
 }
@@ -437,7 +645,7 @@ impl Theme {
             color: color::WHITE,
             opacity: 1.0,
         });
-        theme.panel.border = Some(LineStyle {
+        theme.panel.border = Some(LineDrawStyle {
             color: color::BLACK,
             width: 1.0,
             dash: None,
@@ -458,7 +666,7 @@ impl Theme {
             color: Color(50, 50, 50, 255),
             opacity: 1.0,
         });
-        theme.panel.grid_major = Some(LineStyle {
+        theme.panel.grid_major = Some(LineDrawStyle {
             color: Color(70, 70, 70, 255),
             width: 1.0,
             dash: None,
@@ -491,5 +699,52 @@ impl Theme {
         theme.legend.border.color = Color(70, 70, 70, 255); // Same as grid lines
 
         theme
+    }
+    
+    /// Get a builder for customizing a specific geom's theme
+    pub fn geom(&mut self, geom_name: &'static str) -> GeomThemeBuilder<'_> {
+        GeomThemeBuilder {
+            theme: self,
+            geom_name,
+        }
+    }
+    
+    /// Get an element override for a specific geom
+    pub fn get_element(&self, geom_name: &str, element_name: &str) -> Option<&Element> {
+        self.geom_elements.get(geom_name)?.get(element_name)
+    }
+}
+
+/// Builder for customizing geom-specific theme elements
+pub struct GeomThemeBuilder<'a> {
+    theme: &'a mut Theme,
+    geom_name: &'static str,
+}
+
+impl<'a> GeomThemeBuilder<'a> {
+    /// Select a specific element to customize
+    pub fn element(self, element_name: &'static str) -> ElementBuilder<'a> {
+        ElementBuilder {
+            theme: self.theme,
+            geom_name: self.geom_name,
+            element_name,
+        }
+    }
+}
+
+/// Builder for setting element values
+pub struct ElementBuilder<'a> {
+    theme: &'a mut Theme,
+    geom_name: &'static str,
+    element_name: &'static str,
+}
+
+impl<'a> ElementBuilder<'a> {
+    /// Set the element value
+    pub fn set(self, element: impl Into<Element>) {
+        self.theme.geom_elements
+            .entry(self.geom_name)
+            .or_insert_with(HashMap::new)
+            .insert(self.element_name, element.into());
     }
 }

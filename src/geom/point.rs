@@ -8,9 +8,7 @@ use crate::aesthetics::builder::{
 };
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::error::Result;
-use crate::geom::properties::{
-    ColorProperty, FloatProperty, PropertyValue, PropertyVector, ShapeProperty,
-};
+use crate::geom::properties::{PropertyValue, PropertyVector};
 use crate::geom::{AestheticRequirement, DomainConstraint};
 use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
@@ -36,10 +34,10 @@ impl GeomPointAesBuilderTrait for AesMapBuilder {}
 
 pub struct GeomPointBuilder {
     core: LayerBuilderCore,
-    size: Option<FloatProperty>,
-    color: Option<ColorProperty>,
-    shape: Option<ShapeProperty>,
-    alpha: Option<FloatProperty>,
+    size: Option<f64>,
+    color: Option<Color>,
+    shape: Option<Shape>,
+    alpha: Option<f64>,
 }
 
 impl GeomPointBuilder {
@@ -53,23 +51,23 @@ impl GeomPointBuilder {
         }
     }
 
-    pub fn size<Size: Into<FloatProperty>>(mut self, size: Size) -> Self {
-        self.size = Some(size.into());
+    pub fn size(mut self, size: f64) -> Self {
+        self.size = Some(size);
         self
     }
 
-    pub fn color<Color: Into<ColorProperty>>(mut self, color: Color) -> Self {
-        self.color = Some(color.into());
+    pub fn color(mut self, color: Color) -> Self {
+        self.color = Some(color);
         self
     }
 
-    pub fn shape<Shape: Into<ShapeProperty>>(mut self, shape: Shape) -> Self {
-        self.shape = Some(shape.into());
+    pub fn shape(mut self, shape: Shape) -> Self {
+        self.shape = Some(shape);
         self
     }
 
-    pub fn alpha<Alpha: Into<FloatProperty>>(mut self, alpha: Alpha) -> Self {
-        self.alpha = Some(alpha.into());
+    pub fn alpha(mut self, alpha: f64) -> Self {
+        self.alpha = Some(alpha);
         self
     }
 
@@ -116,7 +114,13 @@ impl LayerBuilder for GeomPointBuilder {
             overrides.push(Aesthetic::Alpha(AestheticDomain::Discrete));
         }
 
-        LayerBuilderCore::build(self.core, parent_mapping, Box::new(geom_point), HashMap::new(), &overrides)
+        LayerBuilderCore::build(
+            self.core,
+            parent_mapping,
+            Box::new(geom_point),
+            HashMap::new(),
+            &overrides,
+        )
     }
 }
 
@@ -126,10 +130,10 @@ pub fn geom_point() -> GeomPointBuilder {
 
 /// GeomPoint renders points/scatterplot
 pub struct GeomPoint {
-    size: Option<FloatProperty>,
-    color: Option<ColorProperty>,
-    shape: Option<ShapeProperty>,
-    alpha: Option<FloatProperty>,
+    size: Option<f64>,
+    color: Option<Color>,
+    shape: Option<Shape>,
+    alpha: Option<f64>,
 }
 
 impl GeomPoint {
@@ -248,49 +252,79 @@ impl Geom for GeomPoint {
 
     fn properties(&self) -> HashMap<AestheticProperty, super::properties::Property> {
         let mut props = HashMap::new();
-        if let Some(size_prop) = &self.size {
+        if let Some(size) = self.size {
             props.insert(
                 AestheticProperty::Size,
-                super::properties::Property::Float(size_prop.clone()),
+                super::properties::Property::Float(size),
             );
         }
-        if let Some(color_prop) = &self.color {
+        if let Some(color) = self.color {
             props.insert(
                 AestheticProperty::Color,
-                super::properties::Property::Color(color_prop.clone()),
+                super::properties::Property::Color(color),
             );
         }
-        if let Some(shape_prop) = &self.shape {
+        if let Some(shape) = self.shape {
             props.insert(
                 AestheticProperty::Shape,
-                super::properties::Property::Shape(shape_prop.clone()),
+                super::properties::Property::Shape(shape),
             );
         }
-        if let Some(alpha_prop) = &self.alpha {
+        if let Some(alpha) = self.alpha {
             props.insert(
                 AestheticProperty::Alpha,
-                super::properties::Property::Float(alpha_prop.clone()),
+                super::properties::Property::Float(alpha),
             );
         }
         props
     }
 
-    fn property_defaults(&self, _theme: &Theme) -> HashMap<AestheticProperty, PropertyValue> {
+    fn property_defaults(&self, theme: &Theme) -> HashMap<AestheticProperty, PropertyValue> {
         let mut defaults = HashMap::new();
+
+        // Start with hardcoded defaults
+        let mut default_size = 3.0;
+        let mut default_color = color::BLACK;
+        let mut default_shape = Shape::Circle;
+        let mut default_alpha = 1.0;
+
+        // Apply theme overrides if present
+        if let Some(crate::theme::Element::Point(elem)) = theme.get_element("point", "point") {
+            if let Some(size) = elem.size {
+                default_size = size;
+            }
+            if let Some(color) = elem.color {
+                default_color = color;
+            }
+            if let Some(shape) = elem.shape {
+                default_shape = shape;
+            }
+            if let Some(alpha) = elem.alpha {
+                default_alpha = alpha;
+            }
+        }
+
+        // Only set defaults for properties not explicitly set on the geom
         if self.size.is_none() {
-            defaults.insert(AestheticProperty::Size, PropertyValue::Float(3.0));
+            defaults.insert(AestheticProperty::Size, PropertyValue::Float(default_size));
         }
         if self.color.is_none() {
-            defaults.insert(AestheticProperty::Color, PropertyValue::Color(color::BLACK));
+            defaults.insert(
+                AestheticProperty::Color,
+                PropertyValue::Color(default_color),
+            );
         }
         if self.shape.is_none() {
             defaults.insert(
                 AestheticProperty::Shape,
-                PropertyValue::Shape(Shape::Circle),
+                PropertyValue::Shape(default_shape),
             );
         }
         if self.alpha.is_none() {
-            defaults.insert(AestheticProperty::Alpha, PropertyValue::Float(1.0));
+            defaults.insert(
+                AestheticProperty::Alpha,
+                PropertyValue::Float(default_alpha),
+            );
         }
         defaults
     }

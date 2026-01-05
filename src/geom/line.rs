@@ -8,7 +8,7 @@ use crate::aesthetics::builder::{
 };
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::error::Result;
-use crate::geom::properties::{ColorProperty, FloatProperty, PropertyVector};
+use crate::geom::properties::PropertyVector;
 use crate::geom::{AestheticRequirement, DomainConstraint};
 use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
@@ -32,9 +32,9 @@ impl GeomLineAesBuilderTrait for AesMapBuilder {}
 
 pub struct GeomLineBuilder {
     core: LayerBuilderCore,
-    size: Option<FloatProperty>,
-    color: Option<ColorProperty>,
-    alpha: Option<FloatProperty>,
+    size: Option<f64>,
+    color: Option<Color>,
+    alpha: Option<f64>,
 }
 
 impl GeomLineBuilder {
@@ -47,17 +47,17 @@ impl GeomLineBuilder {
         }
     }
 
-    pub fn size<Size: Into<FloatProperty>>(mut self, size: Size) -> Self {
+    pub fn size<Size: Into<f64>>(mut self, size: Size) -> Self {
         self.size = Some(size.into());
         self
     }
 
-    pub fn color<Color: Into<ColorProperty>>(mut self, color: Color) -> Self {
+    pub fn color<C: Into<Color>>(mut self, color: C) -> Self {
         self.color = Some(color.into());
         self
     }
 
-    pub fn alpha<Alpha: Into<FloatProperty>>(mut self, alpha: Alpha) -> Self {
+    pub fn alpha<Alpha: Into<f64>>(mut self, alpha: Alpha) -> Self {
         self.alpha = Some(alpha.into());
         self
     }
@@ -118,9 +118,9 @@ pub fn geom_line() -> GeomLineBuilder {
 
 /// GeomLine renders points/scatterplot
 pub struct GeomLine {
-    size: Option<FloatProperty>,
-    color: Option<ColorProperty>,
-    alpha: Option<FloatProperty>,
+    size: Option<f64>,
+    color: Option<Color>,
+    alpha: Option<f64>,
 }
 
 impl GeomLine {

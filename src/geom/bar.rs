@@ -9,9 +9,7 @@ use crate::aesthetics::builder::{
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::data::PrimitiveValue;
 use crate::error::Result;
-use crate::geom::properties::{
-    ColorProperty, FloatProperty, Property, PropertyValue, PropertyVector,
-};
+use crate::geom::properties::{Property, PropertyValue, PropertyVector};
 use crate::geom::{AestheticRequirement, DomainConstraint};
 use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
@@ -36,9 +34,9 @@ impl GeomBarAesBuilderTrait for AesMapBuilder {}
 
 pub struct GeomBarBuilder {
     core: LayerBuilderCore,
-    color: Option<ColorProperty>,
-    fill: Option<ColorProperty>,
-    alpha: Option<FloatProperty>,
+    color: Option<Color>,
+    fill: Option<Color>,
+    alpha: Option<f64>,
     width: f64,
 }
 
@@ -53,17 +51,17 @@ impl GeomBarBuilder {
         }
     }
 
-    pub fn color<C: Into<ColorProperty>>(mut self, color: C) -> Self {
+    pub fn color<C: Into<Color>>(mut self, color: C) -> Self {
         self.color = Some(color.into());
         self
     }
 
-    pub fn fill<F: Into<ColorProperty>>(mut self, fill: F) -> Self {
+    pub fn fill<F: Into<Color>>(mut self, fill: F) -> Self {
         self.fill = Some(fill.into());
         self
     }
 
-    pub fn alpha<A: Into<FloatProperty>>(mut self, alpha: A) -> Self {
+    pub fn alpha<A: Into<f64>>(mut self, alpha: A) -> Self {
         self.alpha = Some(alpha.into());
         self
     }
@@ -157,13 +155,13 @@ pub fn geom_bar() -> GeomBarBuilder {
 /// - `Alpha`: Bar transparency (0.0 = transparent, 1.0 = opaque)
 pub struct GeomBar {
     /// Default color (border)
-    pub color: Option<ColorProperty>,
+    pub color: Option<Color>,
 
     /// Default fill color
-    pub fill: Option<ColorProperty>,
+    pub fill: Option<Color>,
 
     /// Default alpha/opacity
-    pub alpha: Option<FloatProperty>,
+    pub alpha: Option<f64>,
 
     /// Bar width (as a proportion of the spacing between x values)
     pub width: f64,
@@ -239,7 +237,7 @@ impl GeomBar {
             // Calculate bar bounds in normalized space
             let x_left = (x_center - bar_width / 2.0).max(0.0);
             let x_right = (x_center + bar_width / 2.0).min(1.0);
-            
+
             // Use YOffset for bar bottom if available (for stacking), otherwise use 0
             let y_bottom = y_offset.map(|offsets| offsets[i]).unwrap_or(0.0);
             let y_top_clamped = y_top.min(1.0);

@@ -8,9 +8,7 @@ use crate::aesthetics::builder::{
 };
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::error::Result;
-use crate::geom::properties::{
-    ColorProperty, FloatProperty, Property, PropertyValue, PropertyVector,
-};
+use crate::geom::properties::{Property, PropertyValue, PropertyVector};
 use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
 use crate::theme::{Color, color};
@@ -32,9 +30,9 @@ impl GeomErrorbarAesBuilderTrait for AesMapBuilder {}
 
 pub struct GeomErrorbarBuilder {
     core: LayerBuilderCore,
-    color: Option<ColorProperty>,
-    size: Option<FloatProperty>,
-    alpha: Option<FloatProperty>,
+    color: Option<Color>,
+    size: Option<f64>,
+    alpha: Option<f64>,
     width: f64,
 }
 
@@ -49,17 +47,17 @@ impl GeomErrorbarBuilder {
         }
     }
 
-    pub fn color<C: Into<ColorProperty>>(mut self, color: C) -> Self {
+    pub fn color<C: Into<Color>>(mut self, color: C) -> Self {
         self.color = Some(color.into());
         self
     }
 
-    pub fn size<S: Into<FloatProperty>>(mut self, size: S) -> Self {
+    pub fn size<S: Into<f64>>(mut self, size: S) -> Self {
         self.size = Some(size.into());
         self
     }
 
-    pub fn alpha<A: Into<FloatProperty>>(mut self, alpha: A) -> Self {
+    pub fn alpha<A: Into<f64>>(mut self, alpha: A) -> Self {
         self.alpha = Some(alpha.into());
         self
     }
@@ -123,9 +121,9 @@ pub fn geom_errorbar() -> GeomErrorbarBuilder {
 
 /// GeomErrorbar renders vertical error bars with horizontal caps at ymin and ymax
 pub struct GeomErrorbar {
-    color: Option<ColorProperty>,
-    size: Option<FloatProperty>,
-    alpha: Option<FloatProperty>,
+    color: Option<Color>,
+    size: Option<f64>,
+    alpha: Option<f64>,
     width: f64,
 }
 

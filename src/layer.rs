@@ -221,32 +221,10 @@ impl Layer {
     /// Materialize a constant aesthetic from property default
     fn materialize_constant_aesthetic(&self, prop_value: &Property, n: usize) -> PropertyVector {
         match prop_value {
-            Property::Float(fp) => {
-                // Extract constant value and repeat n times
-                match &fp.value {
-                    crate::utils::Either::Left(val) => PropertyVector::Float(vec![*val; n]),
-                    crate::utils::Either::Right(_) => {
-                        // Column reference in property - shouldn't happen for constants
-                        PropertyVector::Float(vec![1.0; n])
-                    }
-                }
-            }
-            Property::Color(cp) => match &cp.color {
-                crate::utils::Either::Left(color) => PropertyVector::Color(vec![*color; n]),
-                crate::utils::Either::Right(_) => {
-                    PropertyVector::Color(vec![crate::theme::color::BLACK; n])
-                }
-            },
-            Property::Shape(sp) => match &sp.shape {
-                crate::utils::Either::Left(shape) => PropertyVector::Shape(vec![*shape; n]),
-                crate::utils::Either::Right(_) => {
-                    PropertyVector::Shape(vec![crate::visuals::Shape::Circle; n])
-                }
-            },
-            Property::String(sp) => match &sp.value {
-                crate::utils::Either::Left(s) => PropertyVector::String(vec![s.clone(); n]),
-                crate::utils::Either::Right(_) => PropertyVector::String(vec![String::new(); n]),
-            },
+            Property::Float(val) => PropertyVector::Float(vec![*val; n]),
+            Property::Color(color) => PropertyVector::Color(vec![*color; n]),
+            Property::Shape(shape) => PropertyVector::Shape(vec![*shape; n]),
+            Property::String(s) => PropertyVector::String(vec![s.clone(); n]),
         }
     }
 

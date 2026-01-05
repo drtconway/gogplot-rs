@@ -9,7 +9,7 @@ use crate::aesthetics::builder::{
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::data::PrimitiveValue;
 use crate::error::Result;
-use crate::geom::properties::{ColorProperty, FloatProperty, Property, PropertyVector};
+use crate::geom::properties::{Property, PropertyVector};
 use crate::geom::{AestheticRequirement, DomainConstraint};
 use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
@@ -32,10 +32,10 @@ impl GeomVLineAesBuilderTrait for AesMapBuilder {}
 
 pub struct GeomVLineBuilder {
     core: LayerBuilderCore,
-    x_intercept: Option<FloatProperty>,
-    size: Option<FloatProperty>,
-    color: Option<ColorProperty>,
-    alpha: Option<FloatProperty>,
+    x_intercept: Option<f64>,
+    size: Option<f64>,
+    color: Option<Color>,
+    alpha: Option<f64>,
 }
 
 impl GeomVLineBuilder {
@@ -49,22 +49,22 @@ impl GeomVLineBuilder {
         }
     }
 
-    pub fn x_intercept<XIntercept: Into<FloatProperty>>(mut self, x_intercept: XIntercept) -> Self {
+    pub fn x_intercept<XIntercept: Into<f64>>(mut self, x_intercept: XIntercept) -> Self {
         self.x_intercept = Some(x_intercept.into());
         self
     }
 
-    pub fn size<Size: Into<FloatProperty>>(mut self, size: Size) -> Self {
+    pub fn size<Size: Into<f64>>(mut self, size: Size) -> Self {
         self.size = Some(size.into());
         self
     }
 
-    pub fn color<Color: Into<ColorProperty>>(mut self, color: Color) -> Self {
+    pub fn color<C: Into<Color>>(mut self, color: C) -> Self {
         self.color = Some(color.into());
         self
     }
 
-    pub fn alpha<Alpha: Into<FloatProperty>>(mut self, alpha: Alpha) -> Self {
+    pub fn alpha<Alpha: Into<f64>>(mut self, alpha: Alpha) -> Self {
         self.alpha = Some(alpha.into());
         self
     }
@@ -144,16 +144,16 @@ pub fn geom_vline() -> GeomVLineBuilder {
 /// Draws horizontal lines across the full width of the plot at each y value.
 pub struct GeomVLine {
     /// Fixed y-intercept value(s) for the horizontal line(s)
-    pub x_intercept: Option<FloatProperty>,
+    pub x_intercept: Option<f64>,
 
     /// Default line color
-    pub color: Option<ColorProperty>,
+    pub color: Option<Color>,
 
     /// Default line width
-    pub size: Option<FloatProperty>,
+    pub size: Option<f64>,
 
     /// Default alpha/opacity
-    pub alpha: Option<FloatProperty>,
+    pub alpha: Option<f64>,
 }
 
 impl GeomVLine {
@@ -301,27 +301,29 @@ impl Geom for GeomVLine {
 
     fn train_scales(&self, scales: &mut crate::scale::ScaleSet) {
         // If x_intercept is set as a property, train the X scale with it
-        if let Some(x_prop) = &self.x_intercept {
-            if let Some(value) = x_prop.get_value() {
-                scales.x_continuous.train_one(&PrimitiveValue::Float(value));
-            }
+        if let Some(value) = &self.x_intercept {
+            scales
+                .x_continuous
+                .train_one(&PrimitiveValue::Float(*value));
         }
     }
 
     fn apply_scales(&mut self, scales: &crate::scale::ScaleSet) {
         // Transform x_intercept through the X scale
-        if let Some(x_prop) = &mut self.x_intercept {
-            if let Some(value) = x_prop.get_value() {
-                if let Some(normalized) = scales.x_continuous.map_value(&value) {
-                    x_prop.value(normalized);
-                } else {
-                    self.x_intercept = None;
-                    log::warn!(
-                        "X-intercept value {} is outside the X scale domain and will not be rendered.",
-                        value
-                    );
-                }
+        let mut warn = None;
+        if let Some(value) = &mut self.x_intercept {
+            if let Some(normalized) = scales.x_continuous.map_value(value) {
+                *value = normalized;
+            } else {
+                warn = Some(*value);
             }
+        }
+        if let Some(value) = warn {
+            self.x_intercept = None;
+            log::warn!(
+                "X-intercept value {} is outside the X scale domain and will not be rendered.",
+                value
+            );
         }
     }
 
@@ -392,7 +394,11 @@ mod tests {
             a.x_continuous("wt");
             a.y_continuous("mpg");
         }) + geom_point()
-            + geom_vline().x_intercept(3.0).color(color::RED).size(2.0).alpha(0.75);
+            + geom_vline()
+                .x_intercept(3.0)
+                .color(color::RED)
+                .size(2.0)
+                .alpha(0.75);
 
         let p = builder
             .build()

@@ -7,7 +7,7 @@ use crate::aesthetics::builder::{
 };
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::error::Result;
-use crate::geom::properties::{ColorProperty, FloatProperty, Property, PropertyValue, PropertyVector};
+use crate::geom::properties::{Property, PropertyValue, PropertyVector};
 use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
 use crate::stat::density::Density;
@@ -30,10 +30,10 @@ impl GeomDensityAesBuilderTrait for AesMapBuilder {}
 
 pub struct GeomDensityBuilder {
     core: LayerBuilderCore,
-    color: Option<ColorProperty>,
-    fill: Option<ColorProperty>,
-    alpha: Option<FloatProperty>,
-    size: Option<FloatProperty>,
+    color: Option<Color>,
+    fill: Option<Color>,
+    alpha: Option<f64>,
+    size: Option<f64>,
 }
 
 impl GeomDensityBuilder {
@@ -47,22 +47,22 @@ impl GeomDensityBuilder {
         }
     }
 
-    pub fn color<C: Into<ColorProperty>>(mut self, color: C) -> Self {
+    pub fn color<C: Into<Color>>(mut self, color: C) -> Self {
         self.color = Some(color.into());
         self
     }
 
-    pub fn fill<F: Into<ColorProperty>>(mut self, fill: F) -> Self {
+    pub fn fill<F: Into<Color>>(mut self, fill: F) -> Self {
         self.fill = Some(fill.into());
         self
     }
 
-    pub fn alpha<A: Into<FloatProperty>>(mut self, alpha: A) -> Self {
+    pub fn alpha<A: Into<f64>>(mut self, alpha: A) -> Self {
         self.alpha = Some(alpha.into());
         self
     }
 
-    pub fn size<S: Into<FloatProperty>>(mut self, size: S) -> Self {
+    pub fn size<S: Into<f64>>(mut self, size: S) -> Self {
         self.size = Some(size.into());
         self
     }
@@ -149,16 +149,16 @@ pub fn geom_density() -> GeomDensityBuilder {
 /// and renders it as a line plot.
 pub struct GeomDensity {
     /// Default line color (if not mapped)
-    pub color: Option<ColorProperty>,
+    pub color: Option<Color>,
 
     /// Default fill color for area under curve (if not mapped)
-    pub fill: Option<ColorProperty>,
+    pub fill: Option<Color>,
 
     /// Default alpha/opacity (if not mapped)
-    pub alpha: Option<FloatProperty>,
+    pub alpha: Option<f64>,
 
     /// Default line width (if not mapped)
-    pub size: Option<FloatProperty>,
+    pub size: Option<f64>,
 }
 
 impl GeomDensity {

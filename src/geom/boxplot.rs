@@ -8,7 +8,7 @@ use crate::aesthetics::builder::{
 };
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::error::{PlotError, Result};
-use crate::geom::properties::{ColorProperty, FloatProperty, Property, PropertyValue, PropertyVector};
+use crate::geom::properties::{Property, PropertyValue, PropertyVector};
 use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
 use crate::stat::boxplot::Boxplot;
@@ -29,9 +29,9 @@ impl GeomBoxplotAesBuilderTrait for AesMapBuilder {}
 
 pub struct GeomBoxplotBuilder {
     core: LayerBuilderCore,
-    color: Option<ColorProperty>,
-    fill: Option<ColorProperty>,
-    alpha: Option<FloatProperty>,
+    color: Option<Color>,
+    fill: Option<Color>,
+    alpha: Option<f64>,
     width: f64,
 }
 
@@ -46,17 +46,17 @@ impl GeomBoxplotBuilder {
         }
     }
 
-    pub fn color<C: Into<ColorProperty>>(mut self, color: C) -> Self {
+    pub fn color<C: Into<Color>>(mut self, color: C) -> Self {
         self.color = Some(color.into());
         self
     }
 
-    pub fn fill<F: Into<ColorProperty>>(mut self, fill: F) -> Self {
+    pub fn fill<F: Into<Color>>(mut self, fill: F) -> Self {
         self.fill = Some(fill.into());
         self
     }
 
-    pub fn alpha<A: Into<FloatProperty>>(mut self, alpha: A) -> Self {
+    pub fn alpha<A: Into<f64>>(mut self, alpha: A) -> Self {
         self.alpha = Some(alpha.into());
         self
     }
@@ -176,13 +176,13 @@ pub fn geom_boxplot() -> GeomBoxplotBuilder {
 /// - Size: Line width for box outline and whiskers
 pub struct GeomBoxplot {
     /// Default fill color (if not mapped)
-    pub fill: Option<ColorProperty>,
+    pub fill: Option<Color>,
 
     /// Default stroke color (if not mapped)
-    pub color: Option<ColorProperty>,
+    pub color: Option<Color>,
 
     /// Default alpha/opacity (if not mapped)
-    pub alpha: Option<FloatProperty>,
+    pub alpha: Option<f64>,
 
     /// Box width (as proportion of spacing between x values)
     pub width: f64,

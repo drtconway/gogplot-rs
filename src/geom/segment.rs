@@ -8,11 +8,11 @@ use crate::aesthetics::builder::{
 };
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::error::Result;
-use crate::geom::properties::{ColorProperty, FloatProperty, PropertyVector};
+use crate::geom::properties::PropertyVector;
 use crate::geom::{AestheticRequirement, DomainConstraint};
 use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
-use crate::theme::{color, Color};
+use crate::theme::{Color, color};
 
 pub trait GeomSegmentAesBuilderTrait:
     XBeginAesBuilder
@@ -32,9 +32,9 @@ impl GeomSegmentAesBuilderTrait for AesMapBuilder {}
 
 pub struct GeomSegmentBuilder {
     core: LayerBuilderCore,
-    size: Option<FloatProperty>,
-    color: Option<ColorProperty>,
-    alpha: Option<FloatProperty>,
+    size: Option<f64>,
+    color: Option<Color>,
+    alpha: Option<f64>,
 }
 
 impl GeomSegmentBuilder {
@@ -47,17 +47,17 @@ impl GeomSegmentBuilder {
         }
     }
 
-    pub fn size<Size: Into<FloatProperty>>(mut self, size: Size) -> Self {
+    pub fn size<Size: Into<f64>>(mut self, size: Size) -> Self {
         self.size = Some(size.into());
         self
     }
 
-    pub fn color<Color: Into<ColorProperty>>(mut self, color: Color) -> Self {
+    pub fn color<C: Into<Color>>(mut self, color: C) -> Self {
         self.color = Some(color.into());
         self
     }
 
-    pub fn alpha<Alpha: Into<FloatProperty>>(mut self, alpha: Alpha) -> Self {
+    pub fn alpha<Alpha: Into<f64>>(mut self, alpha: Alpha) -> Self {
         self.alpha = Some(alpha.into());
         self
     }
@@ -134,9 +134,9 @@ pub fn geom_segment() -> GeomSegmentBuilder {
 /// - `Alpha`: Line transparency (0.0 = transparent, 1.0 = opaque)
 /// - `Size`: Line width in pixels
 pub struct GeomSegment {
-    size: Option<FloatProperty>,
-    color: Option<ColorProperty>,
-    alpha: Option<FloatProperty>,
+    size: Option<f64>,
+    color: Option<Color>,
+    alpha: Option<f64>,
 }
 
 impl GeomSegment {
@@ -352,11 +352,11 @@ impl Geom for GeomSegment {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::data::DataSource;
     use crate::data::VectorValue;
     use crate::error::to_io_error;
     use crate::plot::plot;
     use crate::theme::color;
-    use crate::data::DataSource;
     use crate::utils::dataframe::DataFrame;
 
     fn init_test_logging() {
@@ -440,7 +440,9 @@ mod tests {
         let center_y = 3.0;
         let x1 = vec![center_x; 8];
         let y1 = vec![center_y; 8];
-        let angles: Vec<f64> = (0..8).map(|i| i as f64 * std::f64::consts::PI / 4.0).collect();
+        let angles: Vec<f64> = (0..8)
+            .map(|i| i as f64 * std::f64::consts::PI / 4.0)
+            .collect();
         let x2: Vec<f64> = angles.iter().map(|a| center_x + a.cos() * 1.5).collect();
         let y2: Vec<f64> = angles.iter().map(|a| center_y + a.sin() * 1.5).collect();
 

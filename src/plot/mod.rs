@@ -55,6 +55,12 @@ impl<'a> PlotBuilder<'a> {
         self.theme = theme;
         self
     }
+    
+    /// Customize the theme using a closure
+    pub fn theme_custom(mut self, f: impl FnOnce(&mut Theme)) -> Self {
+        f(&mut self.theme);
+        self
+    }
 
     /// Set the guides configuration (builder style)
     pub fn guides(mut self, guides: Guides) -> Self {

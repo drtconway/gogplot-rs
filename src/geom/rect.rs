@@ -8,7 +8,7 @@ use crate::aesthetics::builder::{
 };
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::error::Result;
-use crate::geom::properties::{ColorProperty, FloatProperty, Property, PropertyVector};
+use crate::geom::properties::{Property, PropertyVector};
 use crate::geom::{AestheticRequirement, DomainConstraint};
 use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
@@ -32,9 +32,9 @@ impl GeomRectAesBuilderTrait for AesMapBuilder {}
 
 pub struct GeomRectBuilder {
     core: LayerBuilderCore,
-    color: Option<ColorProperty>,
-    fill: Option<ColorProperty>,
-    alpha: Option<FloatProperty>,
+    color: Option<Color>,
+    fill: Option<Color>,
+    alpha: Option<f64>,
 }
 
 impl GeomRectBuilder {
@@ -47,17 +47,17 @@ impl GeomRectBuilder {
         }
     }
 
-    pub fn color<Color: Into<ColorProperty>>(mut self, color: Color) -> Self {
+    pub fn color<C: Into<Color>>(mut self, color: C) -> Self {
         self.color = Some(color.into());
         self
     }
 
-    pub fn fill<Fill: Into<ColorProperty>>(mut self, fill: Fill) -> Self {
+    pub fn fill<F: Into<Color>>(mut self, fill: F) -> Self {
         self.fill = Some(fill.into());
         self
     }
 
-    pub fn alpha<Alpha: Into<FloatProperty>>(mut self, alpha: Alpha) -> Self {
+    pub fn alpha<Alpha: Into<f64>>(mut self, alpha: Alpha) -> Self {
         self.alpha = Some(alpha.into());
         self
     }
@@ -127,13 +127,13 @@ pub fn geom_rect() -> GeomRectBuilder {
 /// Useful for heatmaps, tile plots, and annotating regions.
 pub struct GeomRect {
     /// Default color (border)
-    pub color: Option<ColorProperty>,
+    pub color: Option<Color>,
 
     /// Default fill color
-    pub fill: Option<ColorProperty>,
+    pub fill: Option<Color>,
 
     /// Default alpha/opacity
-    pub alpha: Option<FloatProperty>,
+    pub alpha: Option<f64>,
 }
 
 impl GeomRect {

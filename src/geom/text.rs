@@ -8,9 +8,7 @@ use crate::aesthetics::builder::{
 };
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::error::Result;
-use crate::geom::properties::{
-    ColorProperty, FloatProperty, Property, PropertyValue, PropertyVector,
-};
+use crate::geom::properties::{Property, PropertyValue, PropertyVector};
 use crate::geom::{AestheticRequirement, DomainConstraint};
 use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
@@ -36,9 +34,9 @@ impl GeomTextAesBuilderTrait for AesMapBuilder {}
 
 pub struct GeomTextBuilder {
     core: LayerBuilderCore,
-    color: Option<ColorProperty>,
-    size: Option<FloatProperty>,
-    alpha: Option<FloatProperty>,
+    color: Option<Color>,
+    size: Option<f64>,
+    alpha: Option<f64>,
     hjust: Option<f64>,
     vjust: Option<f64>,
     angle: Option<f64>,
@@ -57,17 +55,17 @@ impl GeomTextBuilder {
         }
     }
 
-    pub fn color<C: Into<ColorProperty>>(mut self, color: C) -> Self {
+    pub fn color<C: Into<Color>>(mut self, color: C) -> Self {
         self.color = Some(color.into());
         self
     }
 
-    pub fn size<S: Into<FloatProperty>>(mut self, size: S) -> Self {
+    pub fn size<S: Into<f64>>(mut self, size: S) -> Self {
         self.size = Some(size.into());
         self
     }
 
-    pub fn alpha<A: Into<FloatProperty>>(mut self, alpha: A) -> Self {
+    pub fn alpha<A: Into<f64>>(mut self, alpha: A) -> Self {
         self.alpha = Some(alpha.into());
         self
     }
@@ -161,13 +159,13 @@ pub fn geom_text() -> GeomTextBuilder {
 /// GeomText renders text labels at specified positions
 pub struct GeomText {
     /// Default color
-    pub color: Option<ColorProperty>,
+    pub color: Option<Color>,
 
     /// Default text size
-    pub size: Option<FloatProperty>,
+    pub size: Option<f64>,
 
     /// Default alpha/opacity
-    pub alpha: Option<FloatProperty>,
+    pub alpha: Option<f64>,
 
     /// Horizontal justification (0 = left, 0.5 = center, 1 = right)
     pub hjust: f64,
@@ -376,16 +374,20 @@ impl Geom for GeomText {
             .as_floats();
 
         // Extract label values (should be strings, but convert if needed)
-        let label_prop = properties
-            .remove(&AestheticProperty::Label)
-            .unwrap();
-        
+        let label_prop = properties.remove(&AestheticProperty::Label).unwrap();
+
         let label_values = match label_prop {
             PropertyVector::String(strings) => strings,
             PropertyVector::Int(ints) => ints.into_iter().map(|i| i.to_string()).collect(),
-            PropertyVector::Float(floats) => floats.into_iter().map(|f| format!("{:.2}", f)).collect(),
-            PropertyVector::Color(colors) => colors.into_iter().map(|c| format!("{:?}", c)).collect(),
-            PropertyVector::Shape(shapes) => shapes.into_iter().map(|s| format!("{:?}", s)).collect(),
+            PropertyVector::Float(floats) => {
+                floats.into_iter().map(|f| format!("{:.2}", f)).collect()
+            }
+            PropertyVector::Color(colors) => {
+                colors.into_iter().map(|c| format!("{:?}", c)).collect()
+            }
+            PropertyVector::Shape(shapes) => {
+                shapes.into_iter().map(|s| format!("{:?}", s)).collect()
+            }
         };
 
         let color_prop = properties.remove(&AestheticProperty::Color).unwrap();
@@ -525,10 +527,7 @@ mod tests {
             a.x_continuous("x");
             a.y_continuous("y");
             a.label("label");
-        }) + geom_text()
-            .size(16.0)
-            .angle(45.0)
-            .color(color::RED);
+        }) + geom_text().size(16.0).angle(45.0).color(color::RED);
 
         let p = builder
             .build()

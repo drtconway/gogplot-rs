@@ -1,6 +1,6 @@
 // Cairo rendering helpers
 
-use crate::theme::{Color, Font, FontStyle, FontWeight, LineStyle, TextTheme};
+use crate::theme::{Color, Font, FontStyle, FontWeight, LineDrawStyle, TextTheme};
 use cairo::Context;
 
 /// Apply color to Cairo context
@@ -41,7 +41,7 @@ pub fn apply_font(ctx: &mut Context, font: &Font) {
 }
 
 /// Apply line style to Cairo context
-pub fn apply_line_style(ctx: &mut Context, line: &LineStyle) {
+pub fn apply_line_style(ctx: &mut Context, line: &LineDrawStyle) {
     apply_color(ctx, &line.color);
     ctx.set_line_width(line.width as f64);
     if let Some(ref dash) = line.dash {
