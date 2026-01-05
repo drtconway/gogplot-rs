@@ -1,5 +1,4 @@
 use crate::data::{DataSource, DiscreteValue, GenericVector, PrimitiveValue, VectorIter, VectorValue};
-use crate::error::PlotError;
 use crate::theme::Color;
 use crate::visuals::Shape;
 use std::collections::HashMap;
@@ -116,28 +115,6 @@ impl AestheticProperty {
         }
     }
 
-    pub fn perpendicular(&self) -> AestheticProperty {
-        match self {
-            AestheticProperty::X => AestheticProperty::Y,
-            AestheticProperty::Y => AestheticProperty::X,
-            AestheticProperty::XMin => AestheticProperty::YMin,
-            AestheticProperty::YMin => AestheticProperty::XMin,
-            AestheticProperty::XMax => AestheticProperty::YMax,
-            AestheticProperty::YMax => AestheticProperty::XMax,
-            AestheticProperty::XBegin => AestheticProperty::YBegin,
-            AestheticProperty::YBegin => AestheticProperty::XBegin,
-            AestheticProperty::XEnd => AestheticProperty::YEnd,
-            AestheticProperty::YEnd => AestheticProperty::XEnd,
-            AestheticProperty::XIntercept => AestheticProperty::YIntercept,
-            AestheticProperty::YIntercept => AestheticProperty::XIntercept,
-            AestheticProperty::XOffset => AestheticProperty::YOffset,
-            AestheticProperty::YOffset => AestheticProperty::XOffset,
-            AestheticProperty::Width => AestheticProperty::Height,
-            AestheticProperty::Height => AestheticProperty::Width,
-            other => *other,
-        }
-    }
-
     pub fn to_str(&self) -> &'static str {
         match self {
             AestheticProperty::Color => "color",
@@ -180,24 +157,6 @@ pub enum PrimaryAesthetic {
     Alpha(AestheticDomain),
     Shape,
     Linetype,
-}
-
-impl TryFrom<Aesthetic> for PrimaryAesthetic {
-    type Error = PlotError;
-
-    fn try_from(aes: Aesthetic) -> Result<Self, Self::Error> {
-        match aes {
-            Aesthetic::X(kind) => Ok(PrimaryAesthetic::X(kind)),
-            Aesthetic::Y(kind) => Ok(PrimaryAesthetic::Y(kind)),
-            Aesthetic::Color(kind) => Ok(PrimaryAesthetic::Color(kind)),
-            Aesthetic::Fill(kind) => Ok(PrimaryAesthetic::Fill(kind)),
-            Aesthetic::Shape => Ok(PrimaryAesthetic::Shape),
-            Aesthetic::Size(kind) => Ok(PrimaryAesthetic::Size(kind)),
-            Aesthetic::Alpha(kind) => Ok(PrimaryAesthetic::Alpha(kind)),
-            Aesthetic::Linetype => Ok(PrimaryAesthetic::Linetype),
-            _ => Err(PlotError::InvalidAestheticConversion { from: aes }),
-        }
-    }
 }
 
 // Supported aesthetics
@@ -343,20 +302,6 @@ impl Aesthetic {
         }
     }
 
-    pub fn is_continuous(&self) -> bool {
-        match self.domain() {
-            AestheticDomain::Continuous => true,
-            AestheticDomain::Discrete => false,
-        }
-    }
-
-    pub fn is_discrete(&self) -> bool {
-        match self.domain() {
-            AestheticDomain::Continuous => false,
-            AestheticDomain::Discrete => true,
-        }
-    }
-
     /// Extract the aesthetic property (without domain information)
     /// Returns None for positional aesthetics that don't map to properties
     pub fn to_property(&self) -> Option<AestheticProperty> {
@@ -389,39 +334,6 @@ impl Aesthetic {
             Aesthetic::Label => Some(AestheticProperty::Label),
             // Group doesn't have a corresponding property
             Aesthetic::Group => None,
-        }
-    }
-}
-
-impl From<(AestheticProperty, AestheticDomain)> for Aesthetic {
-    fn from(value: (AestheticProperty, AestheticDomain)) -> Self {
-        match value.0 {
-            AestheticProperty::X => Aesthetic::X(value.1),
-            AestheticProperty::Y => Aesthetic::Y(value.1),
-            AestheticProperty::XMin => Aesthetic::Xmin(value.1),
-            AestheticProperty::XMax => Aesthetic::Xmax(value.1),
-            AestheticProperty::YMin => Aesthetic::Ymin(value.1),
-            AestheticProperty::YMax => Aesthetic::Ymax(value.1),
-            AestheticProperty::XBegin => Aesthetic::XBegin,
-            AestheticProperty::XEnd => Aesthetic::XEnd,
-            AestheticProperty::YBegin => Aesthetic::YBegin,
-            AestheticProperty::YEnd => Aesthetic::YEnd,
-            AestheticProperty::XIntercept => Aesthetic::XIntercept,
-            AestheticProperty::YIntercept => Aesthetic::YIntercept,
-            AestheticProperty::Lower => Aesthetic::Lower,
-            AestheticProperty::Middle => Aesthetic::Middle,
-            AestheticProperty::Upper => Aesthetic::Upper,
-            AestheticProperty::XOffset => Aesthetic::XOffset,
-            AestheticProperty::YOffset => Aesthetic::YOffset,
-            AestheticProperty::Width => Aesthetic::Width,
-            AestheticProperty::Height => Aesthetic::Height,
-            AestheticProperty::Color => Aesthetic::Color(value.1),
-            AestheticProperty::Fill => Aesthetic::Fill(value.1),
-            AestheticProperty::Size => Aesthetic::Size(value.1),
-            AestheticProperty::Alpha => Aesthetic::Alpha(value.1),
-            AestheticProperty::Shape => Aesthetic::Shape,
-            AestheticProperty::Linetype => Aesthetic::Linetype,
-            AestheticProperty::Label => Aesthetic::Label,
         }
     }
 }
@@ -480,62 +392,11 @@ impl AesValue {
         }
     }
 
-    /// Create a Column variant that should be treated as continuous
-    pub fn continuous_column(name: impl Into<String>) -> Self {
-        AesValue::Column {
-            name: name.into(),
-        }
-    }
-
-    /// Create a Column variant that should be treated as categorical
-    /// Use this when you want to treat a numeric column as categorical
-    pub fn categorical_column(name: impl Into<String>) -> Self {
-        AesValue::Column {
-            name: name.into(),
-        }
-    }
-
-    /// Legacy alias for categorical_column
-    pub fn categorical(name: impl Into<String>) -> Self {
-        Self::categorical_column(name)
-    }
-
-    /// Create a Constant variant with no type hint
-    pub fn constant(value: impl Into<PrimitiveValue>) -> Self {
-        AesValue::Constant {
-            value: value.into(),
-        }
-    }
-
-    /// Create a Constant variant that should be treated as continuous
-    pub fn continuous_constant(value: impl Into<PrimitiveValue>) -> Self {
-        AesValue::Constant {
-            value: value.into(),
-        }
-    }
-
-    /// Create a Constant variant that should be treated as categorical
-    pub fn categorical_constant(value: impl Into<PrimitiveValue>) -> Self {
-        AesValue::Constant {
-            value: value.into(),
-        }
-    }
-
     /// Create a Vector variant from materialized values
     pub fn vector(values: impl Into<VectorValue>, original_name: Option<String>) -> Self {
         AesValue::Vector {
             values: Arc::new(values.into()),
             name: original_name,
-        }
-    }
-
-    /// Extract the column name from Column variants
-    /// Returns None for Constant values
-    pub fn as_column_name(&self) -> Option<&str> {
-        match self {
-            AesValue::Column { name, .. } => Some(name.as_str()),
-            AesValue::Constant { .. } => None,
-            AesValue::Vector { .. } => None,
         }
     }
 
@@ -549,22 +410,6 @@ impl AesValue {
             } => Some(name.as_str()),
             AesValue::Constant { .. } => None,
             AesValue::Vector { name: original_name, .. } => original_name.as_ref().map(|s| s.as_str()),
-        }
-    }
-
-    /// Get the constant value if this is a Constant variant
-    pub fn as_constant(&self) -> Option<&PrimitiveValue> {
-        match self {
-            AesValue::Constant { value, .. } => Some(value),
-            _ => None,
-        }
-    }
-
-    /// Get the vector if this is a Vector variant
-    pub fn as_vector(&self) -> Option<&dyn GenericVector> {
-        match self {
-            AesValue::Vector { values, .. } => Some(values.as_ref()),
-            _ => None,
         }
     }
 
@@ -748,129 +593,6 @@ impl AesMap {
     }
     pub fn y(&mut self, column: impl Into<String>, kind: AestheticDomain) {
         self.set_to_column(Aesthetic::Y(kind), column);
-    }
-    pub fn alpha(&mut self, column: impl Into<String>, kind: AestheticDomain) {
-        self.set_to_column(Aesthetic::Alpha(kind), column);
-    }
-    pub fn size(&mut self, column: impl Into<String>, kind: AestheticDomain) {
-        self.set_to_column(Aesthetic::Size(kind), column);
-    }
-    pub fn shape(&mut self, column: impl Into<String>) {
-        self.set_to_column(Aesthetic::Shape, column);
-    }
-    pub fn group(&mut self, column: impl Into<String>) {
-        self.set_to_column(Aesthetic::Group, column);
-    }
-    pub fn linetype(&mut self, column: impl Into<String>) {
-        self.set_to_column(Aesthetic::Linetype, column);
-    }
-    pub fn yintercept(&mut self, column: impl Into<String>) {
-        self.set_to_column(Aesthetic::YIntercept, column);
-    }
-    pub fn xintercept(&mut self, column: impl Into<String>) {
-        self.set_to_column(Aesthetic::XIntercept, column);
-    }
-    pub fn label(&mut self, column: impl Into<String>) {
-        self.set_to_column(Aesthetic::Label, column);
-    }
-    pub fn ymin(&mut self, column: impl Into<String>, kind: AestheticDomain) {
-        self.set_to_column(Aesthetic::Ymin(kind), column);
-    }
-    pub fn ymax(&mut self, column: impl Into<String>, kind: AestheticDomain) {
-        self.set_to_column(Aesthetic::Ymax(kind), column);
-    }
-
-    // Convenience methods for categorical column mappings
-    // Use these when you want to treat a numeric column as categorical
-    pub fn x_categorical(&mut self, column: impl Into<String>) {
-        self.set(
-            Aesthetic::X(AestheticDomain::Discrete),
-            AesValue::categorical_column(column),
-        );
-    }
-    pub fn y_categorical(&mut self, column: impl Into<String>) {
-        self.set(
-            Aesthetic::Y(AestheticDomain::Discrete),
-            AesValue::categorical_column(column),
-        );
-    }
-    pub fn shape_categorical(&mut self, column: impl Into<String>) {
-        self.set(Aesthetic::Shape, AesValue::categorical_column(column));
-    }
-    pub fn group_categorical(&mut self, column: impl Into<String>) {
-        self.set(Aesthetic::Group, AesValue::categorical_column(column));
-    }
-    pub fn linetype_categorical(&mut self, column: impl Into<String>) {
-        self.set(Aesthetic::Linetype, AesValue::categorical_column(column));
-    }
-
-    // Convenience methods for continuous column mappings
-    // Use these when you want to explicitly mark a column as continuous
-    pub fn x_continuous(&mut self, column: impl Into<String>) {
-        self.set(
-            Aesthetic::X(AestheticDomain::Continuous),
-            AesValue::continuous_column(column),
-        );
-    }
-    pub fn y_continuous(&mut self, column: impl Into<String>) {
-        self.set(
-            Aesthetic::Y(AestheticDomain::Continuous),
-            AesValue::continuous_column(column),
-        );
-    }
-    pub fn size_continuous(&mut self, column: impl Into<String>) {
-        self.set(
-            Aesthetic::Size(AestheticDomain::Continuous),
-            AesValue::continuous_column(column),
-        );
-    }
-    pub fn alpha_continuous(&mut self, column: impl Into<String>) {
-        self.set(
-            Aesthetic::Alpha(AestheticDomain::Continuous),
-            AesValue::continuous_column(column),
-        );
-    }
-
-    pub fn const_alpha(&mut self, alpha: f64) {
-        self.set(
-            Aesthetic::Alpha(AestheticDomain::Continuous),
-            AesValue::constant(PrimitiveValue::Float(alpha)),
-        );
-    }
-
-    pub fn const_size(&mut self, size: f64) {
-        self.set(
-            Aesthetic::Size(AestheticDomain::Continuous),
-            AesValue::constant(PrimitiveValue::Float(size)),
-        );
-    }
-
-    pub fn const_shape(&mut self, shape: i64) {
-        self.set(
-            Aesthetic::Shape,
-            AesValue::constant(PrimitiveValue::Int(shape)),
-        );
-    }
-
-    pub fn const_linetype(&mut self, pattern: impl Into<String>) {
-        self.set(
-            Aesthetic::Linetype,
-            AesValue::constant(PrimitiveValue::Str(pattern.into())),
-        );
-    }
-
-    pub fn yintercept_const(&mut self, value: f64) {
-        self.set(
-            Aesthetic::YIntercept,
-            AesValue::constant(PrimitiveValue::Float(value)),
-        );
-    }
-
-    pub fn xintercept_const(&mut self, value: f64) {
-        self.set(
-            Aesthetic::XIntercept,
-            AesValue::constant(PrimitiveValue::Float(value)),
-        );
     }
 
     pub fn get_vector_iter<'a>(
