@@ -430,26 +430,21 @@ impl From<(AestheticProperty, AestheticDomain)> for Aesthetic {
 // AesValue is a type that can be mapped to an aesthetic
 // It can be a column name, a constant value, or a computed value
 // Each can optionally carry a hint about whether it should be treated as continuous or categorical
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum AesValue {
     /// Column name from data with optional scale type hint
     Column {
         name: String,
-        hint: Option<ScaleType>,
-        /// Original column name before any disambiguation (e.g., "x" instead of "x_fill_1")
-        /// Used for legend titles and other user-facing labels
-        original_name: Option<String>,
     },
     /// Fixed value with optional scale type hint
     Constant {
         value: PrimitiveValue,
-        hint: Option<ScaleType>,
     },
     /// Materialized vector of values (result of scale/stat/position transformation)
     Vector {
         values: Arc<VectorValue>,
         /// Original column name before transformation (for legend titles)
-        original_name: Option<String>,
+        name: Option<String>,
     },
 }
 
@@ -458,22 +453,17 @@ impl std::fmt::Debug for AesValue {
         match self {
             AesValue::Column {
                 name,
-                hint,
-                original_name,
             } => f
                 .debug_struct("Column")
                 .field("name", name)
-                .field("hint", hint)
-                .field("original_name", original_name)
                 .finish(),
-            AesValue::Constant { value, hint } => f
+            AesValue::Constant { value } => f
                 .debug_struct("Constant")
                 .field("value", value)
-                .field("hint", hint)
                 .finish(),
             AesValue::Vector {
                 values: _,
-                original_name,
+                name: original_name,
             } => f
                 .debug_struct("Vector")
                 .field("original_name", original_name)
@@ -483,54 +473,11 @@ impl std::fmt::Debug for AesValue {
     }
 }
 
-impl PartialEq for AesValue {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (
-                AesValue::Column {
-                    name: n1,
-                    hint: h1,
-                    original_name: o1,
-                },
-                AesValue::Column {
-                    name: n2,
-                    hint: h2,
-                    original_name: o2,
-                },
-            ) => n1 == n2 && h1 == h2 && o1 == o2,
-            (
-                AesValue::Constant {
-                    value: v1,
-                    hint: h1,
-                },
-                AesValue::Constant {
-                    value: v2,
-                    hint: h2,
-                },
-            ) => v1 == v2 && h1 == h2,
-            (
-                AesValue::Vector {
-                    original_name: o1, ..
-                },
-                AesValue::Vector {
-                    original_name: o2, ..
-                },
-            ) => {
-                // Note: We can't compare GenericVector values, so just compare metadata
-                o1 == o2
-            }
-            _ => false,
-        }
-    }
-}
-
 impl AesValue {
     /// Create a Column variant from a string-like value with no type hint
     pub fn column(name: impl Into<String>) -> Self {
         AesValue::Column {
             name: name.into(),
-            hint: None,
-            original_name: None,
         }
     }
 
@@ -538,8 +485,6 @@ impl AesValue {
     pub fn continuous_column(name: impl Into<String>) -> Self {
         AesValue::Column {
             name: name.into(),
-            hint: Some(ScaleType::Continuous),
-            original_name: None,
         }
     }
 
@@ -548,8 +493,6 @@ impl AesValue {
     pub fn categorical_column(name: impl Into<String>) -> Self {
         AesValue::Column {
             name: name.into(),
-            hint: Some(ScaleType::Categorical),
-            original_name: None,
         }
     }
 
@@ -562,7 +505,6 @@ impl AesValue {
     pub fn constant(value: impl Into<PrimitiveValue>) -> Self {
         AesValue::Constant {
             value: value.into(),
-            hint: None,
         }
     }
 
@@ -570,7 +512,6 @@ impl AesValue {
     pub fn continuous_constant(value: impl Into<PrimitiveValue>) -> Self {
         AesValue::Constant {
             value: value.into(),
-            hint: Some(ScaleType::Continuous),
         }
     }
 
@@ -578,7 +519,6 @@ impl AesValue {
     pub fn categorical_constant(value: impl Into<PrimitiveValue>) -> Self {
         AesValue::Constant {
             value: value.into(),
-            hint: Some(ScaleType::Categorical),
         }
     }
 
@@ -586,7 +526,7 @@ impl AesValue {
     pub fn vector(values: impl Into<VectorValue>, original_name: Option<String>) -> Self {
         AesValue::Vector {
             values: Arc::new(values.into()),
-            original_name,
+            name: original_name,
         }
     }
 
@@ -607,11 +547,9 @@ impl AesValue {
         match self {
             AesValue::Column {
                 name,
-                original_name,
-                ..
-            } => Some(original_name.as_ref().unwrap_or(name).as_str()),
+            } => Some(name.as_str()),
             AesValue::Constant { .. } => None,
-            AesValue::Vector { original_name, .. } => original_name.as_ref().map(|s| s.as_str()),
+            AesValue::Vector { name: original_name, .. } => original_name.as_ref().map(|s| s.as_str()),
         }
     }
 

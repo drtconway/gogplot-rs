@@ -10,8 +10,6 @@ pub trait XContininuousAesBuilder: AesMapBuilderTrait {
             Aesthetic::X(AestheticDomain::Continuous),
             AesValue::Column {
                 name: column.to_string(),
-                hint: None,
-                original_name: None,
             },
         );
     }
@@ -23,8 +21,6 @@ pub trait XDiscreteAesBuilder: AesMapBuilderTrait {
             Aesthetic::X(AestheticDomain::Discrete),
             AesValue::Column {
                 name: column.to_string(),
-                hint: None,
-                original_name: None,
             },
         );
     }
@@ -36,8 +32,6 @@ pub trait XInterceptAesBuilder: AesMapBuilderTrait {
             Aesthetic::XIntercept,
             AesValue::Column {
                 name: column.to_string(),
-                hint: None,
-                original_name: None,
             },
         );
     }
@@ -49,8 +43,6 @@ pub trait YContininuousAesBuilder: AesMapBuilderTrait {
             Aesthetic::Y(AestheticDomain::Continuous),
             AesValue::Column {
                 name: column.to_string(),
-                hint: None,
-                original_name: None,
             },
         );
     }
@@ -62,8 +54,6 @@ pub trait YDiscreteAesBuilder: AesMapBuilderTrait {
             Aesthetic::Y(AestheticDomain::Discrete),
             AesValue::Column {
                 name: column.to_string(),
-                hint: None,
-                original_name: None,
             },
         );
     }
@@ -75,8 +65,6 @@ pub trait YInterceptAesBuilder: AesMapBuilderTrait {
             Aesthetic::YIntercept,
             AesValue::Column {
                 name: column.to_string(),
-                hint: None,
-                original_name: None,
             },
         );
     }
@@ -88,8 +76,6 @@ pub trait XBeginAesBuilder: AesMapBuilderTrait {
             Aesthetic::XBegin,
             AesValue::Column {
                 name: column.to_string(),
-                hint: None,
-                original_name: None,
             },
         );
     }
@@ -101,8 +87,6 @@ pub trait XEndAesBuilder: AesMapBuilderTrait {
             Aesthetic::XEnd,
             AesValue::Column {
                 name: column.to_string(),
-                hint: None,
-                original_name: None,
             },
         );
     }
@@ -114,8 +98,6 @@ pub trait YBeginAesBuilder: AesMapBuilderTrait {
             Aesthetic::YBegin,
             AesValue::Column {
                 name: column.to_string(),
-                hint: None,
-                original_name: None,
             },
         );
     }
@@ -127,8 +109,6 @@ pub trait YEndAesBuilder: AesMapBuilderTrait {
             Aesthetic::YEnd,
             AesValue::Column {
                 name: column.to_string(),
-                hint: None,
-                original_name: None,
             },
         );
     }
@@ -140,8 +120,6 @@ pub trait XMinContinuousAesBuilder: AesMapBuilderTrait {
             Aesthetic::Xmin(AestheticDomain::Continuous),
             AesValue::Column {
                 name: column.to_string(),
-                hint: None,
-                original_name: None,
             },
         );
     }
@@ -153,8 +131,6 @@ pub trait XMaxContinuousAesBuilder: AesMapBuilderTrait {
             Aesthetic::Xmax(AestheticDomain::Continuous),
             AesValue::Column {
                 name: column.to_string(),
-                hint: None,
-                original_name: None,
             },
         );
     }
@@ -166,8 +142,6 @@ pub trait YMinContinuousAesBuilder: AesMapBuilderTrait {
             Aesthetic::Ymin(AestheticDomain::Continuous),
             AesValue::Column {
                 name: column.to_string(),
-                hint: None,
-                original_name: None,
             },
         );
     }
@@ -179,8 +153,6 @@ pub trait YMaxContinuousAesBuilder: AesMapBuilderTrait {
             Aesthetic::Ymax(AestheticDomain::Continuous),
             AesValue::Column {
                 name: column.to_string(),
-                hint: None,
-                original_name: None,
             },
         );
     }
@@ -192,8 +164,6 @@ pub trait ColorContinuousAesBuilder: AesMapBuilderTrait {
             Aesthetic::Color(AestheticDomain::Continuous),
             AesValue::Column {
                 name: column.to_string(),
-                hint: None,
-                original_name: Some(column.to_string()),
             },
         );
     }
@@ -205,8 +175,6 @@ pub trait ColorDiscreteAesBuilder: AesMapBuilderTrait {
             Aesthetic::Color(AestheticDomain::Discrete),
             AesValue::Column {
                 name: column.to_string(),
-                hint: None,
-                original_name: Some(column.to_string()),
             },
         );
     }
@@ -218,8 +186,6 @@ pub trait FillContinuousAesBuilder: AesMapBuilderTrait {
             Aesthetic::Fill(AestheticDomain::Continuous),
             AesValue::Column {
                 name: column.to_string(),
-                hint: None,
-                original_name: Some(column.to_string()),
             },
         );
     }
@@ -231,8 +197,6 @@ pub trait FillDiscreteAesBuilder: AesMapBuilderTrait {
             Aesthetic::Fill(AestheticDomain::Discrete),
             AesValue::Column {
                 name: column.to_string(),
-                hint: None,
-                original_name: Some(column.to_string()),
             },
         );
     }
@@ -244,8 +208,6 @@ pub trait AlphaContinuousAesBuilder: AesMapBuilderTrait {
             Aesthetic::Alpha(AestheticDomain::Continuous),
             AesValue::Column {
                 name: column.to_string(),
-                hint: None,
-                original_name: Some(column.to_string()),
             },
         );
     }
@@ -257,8 +219,6 @@ pub trait AlphaDiscreteAesBuilder: AesMapBuilderTrait {
             Aesthetic::Alpha(AestheticDomain::Discrete),
             AesValue::Column {
                 name: column.to_string(),
-                hint: None,
-                original_name: Some(column.to_string()),
             },
         );
     }
@@ -270,8 +230,6 @@ pub trait SizeContinuousAesBuilder: AesMapBuilderTrait {
             Aesthetic::Size(AestheticDomain::Continuous),
             AesValue::Column {
                 name: column.to_string(),
-                hint: None,
-                original_name: Some(column.to_string()),
             },
         );
     }
@@ -283,8 +241,6 @@ pub trait SizeDiscreteAesBuilder: AesMapBuilderTrait {
             Aesthetic::Size(AestheticDomain::Discrete),
             AesValue::Column {
                 name: column.to_string(),
-                hint: None,
-                original_name: Some(column.to_string()),
             },
         );
     }
@@ -296,8 +252,6 @@ pub trait ShapeAesBuilder: AesMapBuilderTrait {
             Aesthetic::Shape,
             AesValue::Column {
                 name: column.to_string(),
-                hint: None,
-                original_name: Some(column.to_string()),
             },
         );
     }
@@ -309,8 +263,6 @@ pub trait LabelAesBuilder: AesMapBuilderTrait {
             Aesthetic::Label,
             AesValue::Column {
                 name: column.to_string(),
-                hint: None,
-                original_name: None,
             },
         );
     }
@@ -322,8 +274,6 @@ pub trait GroupAesBuilder: AesMapBuilderTrait {
             Aesthetic::Group,
             AesValue::Column {
                 name: column.to_string(),
-                hint: None,
-                original_name: None,
             },
         );
     }

@@ -173,18 +173,14 @@ pub trait ContinuousRangeScale: ScaleBase {
 
     fn map_aesthetic_value(&self, value: &AesValue, data: &dyn DataSource) -> Result<AesValue> {
         match value {
-            AesValue::Column {
-                name,
-                hint: _,
-                original_name,
-            } => {
+            AesValue::Column { name } => {
                 let column = DataSource::get(data, name).ok_or(PlotError::MissingColumn {
                     column: name.to_string(),
                 })?;
                 let values = self.map_vector_iter(column.iter());
-                return Ok(AesValue::vector(values, original_name.clone()));
+                return Ok(AesValue::vector(values, Some(name.clone())));
             }
-            AesValue::Constant { value, hint } => {
+            AesValue::Constant { value } => {
                 let mapped =
                     self.map_primitive_value(value)
                         .ok_or(PlotError::AestheticDomainMismatch {
@@ -193,15 +189,11 @@ pub trait ContinuousRangeScale: ScaleBase {
                         })?;
                 Ok(AesValue::Constant {
                     value: PrimitiveValue::Float(mapped),
-                    hint: hint.clone(),
                 })
             }
-            AesValue::Vector {
-                values,
-                original_name,
-            } => {
+            AesValue::Vector { values, name } => {
                 let mapped_values = self.map_vector_iter(values.iter());
-                Ok(AesValue::vector(mapped_values, original_name.clone()))
+                Ok(AesValue::vector(mapped_values, name.clone()))
             }
         }
     }
@@ -264,19 +256,15 @@ pub trait ColorRangeScale: ScaleBase {
 
     fn map_aesthetic_value(&self, value: &AesValue, data: &dyn DataSource) -> Result<AesValue> {
         match value {
-            AesValue::Column {
-                name,
-                hint: _,
-                original_name,
-            } => {
+            AesValue::Column { name } => {
                 let column = DataSource::get(data, name).ok_or(PlotError::MissingColumn {
                     column: name.clone(),
                 })?;
                 let colors: Vec<Color> = self.map_vector_iter(column.iter());
                 let color_values: Vec<i64> = colors.iter().map(|c| i64::from(*c)).collect();
-                Ok(AesValue::vector(color_values, original_name.clone()))
+                Ok(AesValue::vector(color_values, Some(name.clone())))
             }
-            AesValue::Constant { value, hint } => {
+            AesValue::Constant { value } => {
                 let color = self.map_primitive_value(value).ok_or(
                     PlotError::InvalidPrimitiveValueMapping {
                         value: value.clone(),
@@ -284,12 +272,11 @@ pub trait ColorRangeScale: ScaleBase {
                 )?;
                 Ok(AesValue::Constant {
                     value: PrimitiveValue::Int(i64::from(color)),
-                    hint: hint.clone(),
                 })
             }
             AesValue::Vector {
                 values,
-                original_name,
+                name: original_name,
             } => {
                 let colors = self.map_vector_iter(values.iter());
                 let color_values: Vec<i64> = colors.iter().map(|c| i64::from(*c)).collect();
@@ -352,19 +339,15 @@ pub trait ShapeRangeScale: ScaleBase {
 
     fn map_aesthetic_value(&self, value: &AesValue, data: &dyn DataSource) -> Result<AesValue> {
         match value {
-            AesValue::Column {
-                name,
-                hint: _,
-                original_name,
-            } => {
+            AesValue::Column { name } => {
                 let column = DataSource::get(data, name).ok_or(PlotError::MissingColumn {
                     column: name.to_string(),
                 })?;
                 let shapes: Vec<Shape> = self.map_vector_iter(column.iter());
                 let shape_values: Vec<i64> = shapes.iter().map(|s| i64::from(*s)).collect();
-                Ok(AesValue::vector(shape_values, original_name.clone()))
+                Ok(AesValue::vector(shape_values, Some(name.clone())))
             }
-            AesValue::Constant { value, hint } => {
+            AesValue::Constant { value } => {
                 let shape = self.map_primitive_value(value).ok_or(
                     PlotError::InvalidPrimitiveValueMapping {
                         value: value.clone(),
@@ -372,16 +355,15 @@ pub trait ShapeRangeScale: ScaleBase {
                 )?;
                 Ok(AesValue::Constant {
                     value: PrimitiveValue::Int(i64::from(shape)),
-                    hint: hint.clone(),
                 })
             }
             AesValue::Vector {
                 values,
-                original_name,
+                name,
             } => {
                 let shapes = self.map_vector_iter(values.iter());
                 let shape_values: Vec<i64> = shapes.iter().map(|s| i64::from(*s)).collect();
-                Ok(AesValue::vector(shape_values, original_name.clone()))
+                Ok(AesValue::vector(shape_values, name.clone()))
             }
         }
     }

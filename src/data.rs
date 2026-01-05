@@ -179,7 +179,7 @@ pub enum ColumnDataType {
     String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum VectorValue {
     Int(Vec<i64>),
     Float(Vec<f64>),

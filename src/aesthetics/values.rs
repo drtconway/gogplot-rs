@@ -11,20 +11,16 @@ impl From<AesValue> for AesValueBuilder {
         let value = match value {
             AesValue::Column {
                 name,
-                hint,
-                original_name,
             } => AesValue::Column {
                 name,
-                hint,
-                original_name,
             },
-            AesValue::Constant { value, hint } => AesValue::Constant { value, hint },
+            AesValue::Constant { value } => AesValue::Constant { value },
             AesValue::Vector {
                 values,
-                original_name,
+                name: original_name,
             } => AesValue::Vector {
                 values: Arc::new(values.empty_copy()),
-                original_name,
+                name: original_name,
             },
         };
         Self { value }
@@ -32,6 +28,13 @@ impl From<AesValue> for AesValueBuilder {
 }
 
 impl AesValueBuilder {
+    pub fn column_name(&self) -> Option<&str> {
+        match &self.value {
+            AesValue::Column { name, .. } => Some(name.as_str()),
+            _ => None,
+        }
+    }
+
     pub fn append(&mut self, data: &mut DataFrame, extra: impl Into<VectorValue>) {
         match &mut self.value {
             AesValue::Column { name, .. } => {
