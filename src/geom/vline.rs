@@ -16,6 +16,7 @@ use crate::scale::ScaleIdentifier;
 use crate::scale::traits::{ContinuousRangeScale, ScaleBase};
 use crate::stat::Stat;
 use crate::theme::{Color, color};
+use crate::visuals::LineStyle;
 
 pub trait GeomVLineAesBuilderTrait:
     XInterceptAesBuilder
@@ -36,6 +37,7 @@ pub struct GeomVLineBuilder {
     size: Option<f64>,
     color: Option<Color>,
     alpha: Option<f64>,
+    linestyle: Option<LineStyle>,
 }
 
 impl GeomVLineBuilder {
@@ -46,6 +48,7 @@ impl GeomVLineBuilder {
             size: None,
             color: None,
             alpha: None,
+            linestyle: None,
         }
     }
 
@@ -66,6 +69,11 @@ impl GeomVLineBuilder {
 
     pub fn alpha<Alpha: Into<f64>>(mut self, alpha: Alpha) -> Self {
         self.alpha = Some(alpha.into());
+        self
+    }
+
+    pub fn linestyle<L: Into<LineStyle>>(mut self, linestyle: L) -> Self {
+        self.linestyle = Some(linestyle.into());
         self
     }
 
@@ -117,6 +125,9 @@ impl LayerBuilder for GeomVLineBuilder {
             overrides.push(Aesthetic::Alpha(AestheticDomain::Continuous));
             overrides.push(Aesthetic::Alpha(AestheticDomain::Discrete));
         }
+        if self.linestyle.is_some() {
+            geom_vline.linestyle = self.linestyle;
+        }
 
         // Build initial domains from properties
         let mut initial_domains = HashMap::new();
@@ -154,6 +165,9 @@ pub struct GeomVLine {
 
     /// Default alpha/opacity
     pub alpha: Option<f64>,
+
+    /// Line style (solid or custom dash pattern)
+    pub linestyle: Option<LineStyle>,
 }
 
 impl GeomVLine {
@@ -164,6 +178,7 @@ impl GeomVLine {
             color: None,
             size: None,
             alpha: None,
+            linestyle: None,
         }
     }
 
@@ -193,6 +208,10 @@ impl GeomVLine {
             );
 
             ctx.cairo.set_line_width(size);
+
+            // Apply line style
+            let linestyle = self.linestyle.as_ref().unwrap_or(&LineStyle::Solid);
+            linestyle.apply(&mut ctx.cairo);
 
             // Draw line from top edge to bottom edge of viewport
             ctx.cairo.move_to(x_px, ctx.y_range.0);
@@ -428,6 +447,36 @@ mod tests {
             .map_err(to_io_error)
             .expect("Failed to build plot");
         p.save("tests/images/basic_vlines_2.png", 800, 600)
+            .map_err(to_io_error)
+            .expect("Failed to save plot image");
+    }
+
+    #[test]
+    fn basic_vlines_3() {
+        init_test_logging();
+
+        let data = mtcars();
+
+        let builder = plot(&data).aes(|a| {
+            a.x_continuous("wt");
+            a.y_continuous("mpg");
+        }) + geom_point()
+            + geom_vline()
+                .x_intercept(3.0)
+                .color(color::BLUE)
+                .size(2.0)
+                .linestyle(LineStyle::Custom(vec![10.0, 5.0]))
+            + geom_vline()
+                .x_intercept(4.5)
+                .color(color::RED)
+                .size(1.5)
+                .linestyle(LineStyle::Custom(vec![5.0, 3.0, 1.0, 3.0]));
+
+        let p = builder
+            .build()
+            .map_err(to_io_error)
+            .expect("Failed to build plot");
+        p.save("tests/images/basic_vlines_3.png", 800, 600)
             .map_err(to_io_error)
             .expect("Failed to save plot image");
     }

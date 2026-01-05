@@ -13,6 +13,7 @@ use crate::geom::{AestheticRequirement, DomainConstraint};
 use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
 use crate::theme::{Color, color};
+use crate::visuals::LineStyle;
 
 pub trait GeomSegmentAesBuilderTrait:
     XBeginAesBuilder
@@ -35,6 +36,7 @@ pub struct GeomSegmentBuilder {
     size: Option<f64>,
     color: Option<Color>,
     alpha: Option<f64>,
+    linestyle: Option<LineStyle>,
 }
 
 impl GeomSegmentBuilder {
@@ -44,6 +46,7 @@ impl GeomSegmentBuilder {
             size: None,
             color: None,
             alpha: None,
+            linestyle: None,
         }
     }
 
@@ -59,6 +62,11 @@ impl GeomSegmentBuilder {
 
     pub fn alpha<Alpha: Into<f64>>(mut self, alpha: Alpha) -> Self {
         self.alpha = Some(alpha.into());
+        self
+    }
+
+    pub fn linestyle<L: Into<LineStyle>>(mut self, linestyle: L) -> Self {
+        self.linestyle = Some(linestyle.into());
         self
     }
 
@@ -101,6 +109,9 @@ impl LayerBuilder for GeomSegmentBuilder {
             overrides.push(Aesthetic::Alpha(AestheticDomain::Continuous));
             overrides.push(Aesthetic::Alpha(AestheticDomain::Discrete));
         }
+        if self.linestyle.is_some() {
+            geom_segment.linestyle = self.linestyle;
+        }
 
         LayerBuilderCore::build(
             self.core,
@@ -137,6 +148,7 @@ pub struct GeomSegment {
     size: Option<f64>,
     color: Option<Color>,
     alpha: Option<f64>,
+    linestyle: Option<LineStyle>,
 }
 
 impl GeomSegment {
@@ -146,6 +158,7 @@ impl GeomSegment {
             size: None,
             color: None,
             alpha: None,
+            linestyle: None,
         }
     }
 
@@ -180,6 +193,10 @@ impl GeomSegment {
 
             // Set line width
             ctx.cairo.set_line_width(size);
+
+            // Apply line style
+            let linestyle = self.linestyle.as_ref().unwrap_or(&LineStyle::Solid);
+            linestyle.apply(&mut ctx.cairo);
 
             // Draw the segment
             let x_begin_px = ctx.map_x(xbegin);
@@ -540,6 +557,52 @@ mod tests {
             .map_err(to_io_error)
             .expect("Failed to build plot");
         p.save("tests/images/basic_segment_5.png", 800, 600)
+            .map_err(to_io_error)
+            .expect("Failed to save plot image");
+    }
+
+    #[test]
+    fn basic_segment_6() {
+        init_test_logging();
+
+        // Segments with different line styles
+        let x1 = vec![1.0, 2.0, 3.0, 1.0];
+        let y1 = vec![1.0, 2.0, 3.0, 4.0];
+        let x2 = vec![4.0, 5.0, 6.0, 4.0];
+        let y2 = vec![1.5, 2.5, 3.5, 4.5];
+
+        let data: Box<dyn DataSource> = Box::new(DataFrame::from_columns(vec![
+            ("x1", VectorValue::from(x1)),
+            ("y1", VectorValue::from(y1)),
+            ("x2", VectorValue::from(x2)),
+            ("y2", VectorValue::from(y2)),
+        ]));
+
+        let builder = plot(&data).aes(|a| {
+            a.xbegin("x1");
+            a.ybegin("y1");
+            a.xend("x2");
+            a.yend("y2");
+        }) + geom_segment()
+            .size(3.0)
+            .color(color::BLUE)
+            .linestyle(LineStyle::Custom(vec![10.0, 5.0]))
+            + geom_segment()
+                .size(2.0)
+                .color(color::RED)
+                .linestyle(LineStyle::Custom(vec![5.0, 3.0, 1.0, 3.0]))
+                .aes(|a| {
+                    a.xbegin("x1");
+                    a.ybegin("y1");
+                    a.xend("x2");
+                    a.yend("y2");
+                });
+
+        let p = builder
+            .build()
+            .map_err(to_io_error)
+            .expect("Failed to build plot");
+        p.save("tests/images/basic_segment_6.png", 800, 600)
             .map_err(to_io_error)
             .expect("Failed to save plot image");
     }

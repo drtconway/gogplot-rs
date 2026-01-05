@@ -12,6 +12,7 @@ use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
 use crate::stat::density::Density;
 use crate::theme::Color;
+use crate::visuals::LineStyle;
 
 pub trait GeomDensityAesBuilderTrait:
     XContinuousAesBuilder
@@ -34,6 +35,7 @@ pub struct GeomDensityBuilder {
     fill: Option<Color>,
     alpha: Option<f64>,
     size: Option<f64>,
+    linestyle: Option<LineStyle>,
 }
 
 impl GeomDensityBuilder {
@@ -44,6 +46,7 @@ impl GeomDensityBuilder {
             fill: None,
             alpha: None,
             size: None,
+            linestyle: None,
         }
     }
 
@@ -64,6 +67,11 @@ impl GeomDensityBuilder {
 
     pub fn size<S: Into<f64>>(mut self, size: S) -> Self {
         self.size = Some(size.into());
+        self
+    }
+
+    pub fn linestyle<L: Into<LineStyle>>(mut self, linestyle: L) -> Self {
+        self.linestyle = Some(linestyle.into());
         self
     }
 
@@ -123,6 +131,9 @@ impl LayerBuilder for GeomDensityBuilder {
         if self.size.is_some() {
             geom_density.size = self.size;
         }
+        if self.linestyle.is_some() {
+            geom_density.linestyle = self.linestyle;
+        }
 
         // Make Density the default stat if none specified
         if self.core.stat.is_none() {
@@ -159,6 +170,9 @@ pub struct GeomDensity {
 
     /// Default line width (if not mapped)
     pub size: Option<f64>,
+
+    /// Line style for density curve
+    pub linestyle: Option<LineStyle>,
 }
 
 impl GeomDensity {
@@ -169,6 +183,7 @@ impl GeomDensity {
             fill: None,
             alpha: None,
             size: None,
+            linestyle: None,
         }
     }
 }
@@ -373,6 +388,10 @@ impl GeomDensity {
         );
         ctx.cairo.set_line_width(line_width);
 
+        // Apply line style
+        let linestyle = self.linestyle.as_ref().unwrap_or(&LineStyle::Solid);
+        linestyle.apply(&mut ctx.cairo);
+
         // Start path at first point
         let x0_px = ctx.map_x(x_values[0]);
         let y0_px = ctx.map_y(y_values[0]);
@@ -457,6 +476,30 @@ mod tests {
             .map_err(to_io_error)
             .expect("Failed to build plot");
         p.save("tests/images/basic_density_2.png", 800, 600)
+            .map_err(to_io_error)
+            .expect("Failed to save plot image");
+    }
+
+    #[test]
+    fn basic_density_3() {
+        init_test_logging();
+
+        let data = crate::utils::mtcars::mtcars();
+
+        let builder = plot(&data).aes(|a| {
+            a.x_continuous("mpg");
+        }) + geom_density()
+            .color(crate::theme::color::BLUE)
+            .size(2.0)
+            .linestyle(LineStyle::Custom(vec![10.0, 5.0]))
+            .fill(crate::theme::color::LIGHTBLUE)
+            .alpha(0.3);
+
+        let p = builder
+            .build()
+            .map_err(to_io_error)
+            .expect("Failed to build plot");
+        p.save("tests/images/basic_density_3.png", 800, 600)
             .map_err(to_io_error)
             .expect("Failed to save plot image");
     }

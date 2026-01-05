@@ -14,6 +14,7 @@ use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
 use crate::stat::smooth::Smooth;
 use crate::theme::{Color, color};
+use crate::visuals::LineStyle;
 
 pub trait GeomSmoothAesBuilderTrait:
     XContinuousAesBuilder
@@ -38,6 +39,7 @@ pub struct GeomSmoothBuilder {
     size: Option<f64>,
     alpha: Option<f64>,
     confidence_interval: bool,
+    linestyle: Option<LineStyle>,
 }
 
 impl GeomSmoothBuilder {
@@ -49,6 +51,7 @@ impl GeomSmoothBuilder {
             size: None,
             alpha: None,
             confidence_interval: true,
+            linestyle: None,
         }
     }
 
@@ -74,6 +77,11 @@ impl GeomSmoothBuilder {
 
     pub fn confidence_interval(mut self, confidence_interval: bool) -> Self {
         self.confidence_interval = confidence_interval;
+        self
+    }
+
+    pub fn linestyle<L: Into<LineStyle>>(mut self, linestyle: L) -> Self {
+        self.linestyle = Some(linestyle.into());
         self
     }
 
@@ -119,6 +127,9 @@ impl LayerBuilder for GeomSmoothBuilder {
             overrides.push(Aesthetic::Alpha(AestheticDomain::Continuous));
             overrides.push(Aesthetic::Alpha(AestheticDomain::Discrete));
         }
+        if self.linestyle.is_some() {
+            geom.linestyle = self.linestyle;
+        }
 
         if self.core.stat.is_none() {
             self.core.stat = Some(Box::new(Smooth::default()))
@@ -145,6 +156,7 @@ pub struct GeomSmooth {
     size: Option<f64>,
     alpha: Option<f64>,
     confidence_interval: bool,
+    linestyle: Option<LineStyle>,
 }
 
 impl GeomSmooth {
@@ -155,6 +167,7 @@ impl GeomSmooth {
             size: None,
             alpha: None,
             confidence_interval: true,
+            linestyle: None,
         }
     }
 
@@ -239,6 +252,10 @@ impl GeomSmooth {
             (a as f64 / 255.0) * alpha,
         );
         ctx.cairo.set_line_width(line_width);
+
+        // Apply line style
+        let linestyle = self.linestyle.as_ref().unwrap_or(&LineStyle::Solid);
+        linestyle.apply(&mut ctx.cairo);
 
         for i in 0..x_values.len() {
             let x_px = ctx.map_x(x_values[i]);
@@ -442,6 +459,7 @@ impl Clone for GeomSmooth {
             size: self.size.clone(),
             alpha: self.alpha.clone(),
             confidence_interval: self.confidence_interval,
+            linestyle: self.linestyle.clone(),
         }
     }
 }
@@ -544,6 +562,31 @@ mod tests {
             .map_err(to_io_error)
             .expect("Failed to build plot");
         p.save("tests/images/basic_smooth_4.png", 800, 600)
+            .map_err(to_io_error)
+            .expect("Failed to save plot image");
+    }
+
+    #[test]
+    fn basic_smooth_5() {
+        init_test_logging();
+
+        let data = mtcars();
+
+        // Smooth with dashed line
+        let builder = plot(&data).aes(|a| {
+            a.x_continuous("wt");
+            a.y_continuous("mpg");
+        }) + geom_smooth()
+            .color(color::BLUE)
+            .size(2.0)
+            .linestyle(LineStyle::Custom(vec![10.0, 5.0]))
+            .confidence_interval(true);
+
+        let p = builder
+            .build()
+            .map_err(to_io_error)
+            .expect("Failed to build plot");
+        p.save("tests/images/basic_smooth_5.png", 800, 600)
             .map_err(to_io_error)
             .expect("Failed to save plot image");
     }

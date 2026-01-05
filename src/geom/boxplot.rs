@@ -13,6 +13,7 @@ use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
 use crate::stat::boxplot::Boxplot;
 use crate::theme::{Color, color};
+use crate::visuals::LineStyle;
 
 pub trait GeomBoxplotAesBuilderTrait:
     XDiscreteAesBuilder
@@ -33,6 +34,7 @@ pub struct GeomBoxplotBuilder {
     fill: Option<Color>,
     alpha: Option<f64>,
     width: f64,
+    linestyle: Option<LineStyle>,
 }
 
 impl GeomBoxplotBuilder {
@@ -43,6 +45,7 @@ impl GeomBoxplotBuilder {
             fill: None,
             alpha: None,
             width: 0.75,
+            linestyle: None,
         }
     }
 
@@ -63,6 +66,11 @@ impl GeomBoxplotBuilder {
 
     pub fn width(mut self, width: f64) -> Self {
         self.width = width;
+        self
+    }
+
+    pub fn linestyle<L: Into<LineStyle>>(mut self, linestyle: L) -> Self {
+        self.linestyle = Some(linestyle.into());
         self
     }
 
@@ -121,6 +129,9 @@ impl LayerBuilder for GeomBoxplotBuilder {
         }
 
         geom_boxplot.width = self.width;
+        if self.linestyle.is_some() {
+            geom_boxplot.linestyle = self.linestyle;
+        }
 
         // Make Boxplot the default stat if none specified
         if self.core.stat.is_none() {
@@ -186,6 +197,9 @@ pub struct GeomBoxplot {
 
     /// Box width (as proportion of spacing between x values)
     pub width: f64,
+
+    /// Line style for box outline and whiskers
+    pub linestyle: Option<LineStyle>,
 }
 
 impl GeomBoxplot {
@@ -196,6 +210,7 @@ impl GeomBoxplot {
             color: None,
             alpha: None,
             width: 0.75,
+            linestyle: None,
         }
     }
 }
@@ -533,6 +548,11 @@ impl GeomBoxplot {
             *a as f64 / 255.0 * alpha,
         );
         ctx.cairo.set_line_width(1.0);
+
+        // Apply line style
+        let linestyle = self.linestyle.as_ref().unwrap_or(&LineStyle::Solid);
+        linestyle.apply(&mut ctx.cairo);
+
         ctx.cairo.stroke().map_err(|e| PlotError::RenderError { 
             operation: "stroke".to_string(), 
             message: e.to_string() 
@@ -625,6 +645,7 @@ mod tests {
     use crate::error::to_io_error;
     use crate::plot::plot;
     use crate::utils::dataframe::DataFrame;
+    use crate::utils::mtcars::mtcars;
 
     fn init_test_logging() {
         let _ = env_logger::builder()
@@ -724,6 +745,28 @@ mod tests {
             .map_err(to_io_error)
             .expect("Failed to build plot");
         p.save("tests/images/basic_boxplot_2.png", 800, 600)
+            .map_err(to_io_error)
+            .expect("Failed to save plot image");
+    }
+
+    #[test]
+    fn basic_boxplot_3() {
+        init_test_logging();
+
+        let data = mtcars();
+
+        let builder = plot(&data).aes(|a| {
+            a.x_discrete("cyl");
+            a.y_continuous("mpg");
+        }) + geom_boxplot()
+            .color(color::BLUE)
+            .linestyle(LineStyle::Custom(vec![5.0, 3.0]));
+
+        let p = builder
+            .build()
+            .map_err(to_io_error)
+            .expect("Failed to build plot");
+        p.save("tests/images/basic_boxplot_3.png", 800, 600)
             .map_err(to_io_error)
             .expect("Failed to save plot image");
     }

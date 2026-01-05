@@ -12,6 +12,7 @@ use crate::geom::properties::{Property, PropertyValue, PropertyVector};
 use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
 use crate::theme::{Color, color};
+use crate::visuals::LineStyle;
 
 pub trait GeomErrorbarAesBuilderTrait:
     XContinuousAesBuilder
@@ -34,6 +35,7 @@ pub struct GeomErrorbarBuilder {
     size: Option<f64>,
     alpha: Option<f64>,
     width: f64,
+    linestyle: Option<LineStyle>,
 }
 
 impl GeomErrorbarBuilder {
@@ -44,6 +46,7 @@ impl GeomErrorbarBuilder {
             size: None,
             alpha: None,
             width: 0.9,
+            linestyle: None,
         }
     }
 
@@ -64,6 +67,11 @@ impl GeomErrorbarBuilder {
 
     pub fn width(mut self, width: f64) -> Self {
         self.width = width.max(0.0);
+        self
+    }
+
+    pub fn linestyle<L: Into<LineStyle>>(mut self, linestyle: L) -> Self {
+        self.linestyle = Some(linestyle.into());
         self
     }
 
@@ -104,6 +112,9 @@ impl LayerBuilder for GeomErrorbarBuilder {
             overrides.push(Aesthetic::Alpha(AestheticDomain::Continuous));
             overrides.push(Aesthetic::Alpha(AestheticDomain::Discrete));
         }
+        if self.linestyle.is_some() {
+            geom.linestyle = self.linestyle;
+        }
 
         LayerBuilderCore::build(
             self.core,
@@ -125,6 +136,7 @@ pub struct GeomErrorbar {
     size: Option<f64>,
     alpha: Option<f64>,
     width: f64,
+    linestyle: Option<LineStyle>,
 }
 
 impl GeomErrorbar {
@@ -135,6 +147,7 @@ impl GeomErrorbar {
             size: None,
             alpha: None,
             width: 0.9,
+            linestyle: None,
         }
     }
 
@@ -203,6 +216,10 @@ impl GeomErrorbar {
                 (a as f64 / 255.0) * alpha,
             );
             ctx.cairo.set_line_width(line_width);
+
+            // Apply line style
+            let linestyle = self.linestyle.as_ref().unwrap_or(&LineStyle::Solid);
+            linestyle.apply(&mut ctx.cairo);
 
             // Map coordinates to pixel space
             let x_px = ctx.map_x(x);
@@ -429,6 +446,32 @@ mod tests {
             .map_err(to_io_error)
             .expect("Failed to build plot");
         p.save("tests/images/basic_errorbar_2.png", 800, 600)
+            .map_err(to_io_error)
+            .expect("Failed to save plot image");
+    }
+
+    #[test]
+    fn basic_errorbar_3() {
+        init_test_logging();
+
+        let data = mtcars();
+
+        let builder = plot(&data).aes(|a| {
+            a.x_continuous("wt");
+        }) + geom_errorbar()
+            .size(2.0)
+            .color(color::BLUE)
+            .linestyle(LineStyle::Custom(vec![5.0, 3.0]))
+            .aes(|a| {
+                a.ymin("qsec");
+                a.ymax("hp");
+            });
+
+        let p = builder
+            .build()
+            .map_err(to_io_error)
+            .expect("Failed to build plot");
+        p.save("tests/images/basic_errorbar_3.png", 800, 600)
             .map_err(to_io_error)
             .expect("Failed to save plot image");
     }

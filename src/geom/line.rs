@@ -13,6 +13,7 @@ use crate::geom::{AestheticRequirement, DomainConstraint};
 use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
 use crate::theme::{Color, color};
+use crate::visuals::LineStyle;
 
 pub trait GeomLineAesBuilderTrait:
     XContinuousAesBuilder
@@ -35,6 +36,7 @@ pub struct GeomLineBuilder {
     size: Option<f64>,
     color: Option<Color>,
     alpha: Option<f64>,
+    linestyle: Option<LineStyle>,
 }
 
 impl GeomLineBuilder {
@@ -44,6 +46,7 @@ impl GeomLineBuilder {
             size: None,
             color: None,
             alpha: None,
+            linestyle: None,
         }
     }
 
@@ -59,6 +62,11 @@ impl GeomLineBuilder {
 
     pub fn alpha<Alpha: Into<f64>>(mut self, alpha: Alpha) -> Self {
         self.alpha = Some(alpha.into());
+        self
+    }
+
+    pub fn linestyle<L: Into<LineStyle>>(mut self, linestyle: L) -> Self {
+        self.linestyle = Some(linestyle.into());
         self
     }
 
@@ -101,6 +109,9 @@ impl LayerBuilder for GeomLineBuilder {
             overrides.push(Aesthetic::Alpha(AestheticDomain::Continuous));
             overrides.push(Aesthetic::Alpha(AestheticDomain::Discrete));
         }
+        if self.linestyle.is_some() {
+            geom_line.linestyle = self.linestyle;
+        }
 
         LayerBuilderCore::build(
             self.core,
@@ -121,6 +132,7 @@ pub struct GeomLine {
     size: Option<f64>,
     color: Option<Color>,
     alpha: Option<f64>,
+    linestyle: Option<LineStyle>,
 }
 
 impl GeomLine {
@@ -130,6 +142,7 @@ impl GeomLine {
             size: None,
             color: None,
             alpha: None,
+            linestyle: None,
         }
     }
 
@@ -168,6 +181,10 @@ impl GeomLine {
 
         // Set line width (size)
         ctx.cairo.set_line_width(first_size);
+
+        // Apply line style
+        let linestyle = self.linestyle.as_ref().unwrap_or(&LineStyle::Solid);
+        linestyle.apply(&mut ctx.cairo);
 
         // Start the path at the first point
         let ((((x_norm, y_norm), _), _), _) = points[0];
@@ -397,6 +414,29 @@ mod tests {
             .map_err(to_io_error)
             .expect("Failed to build plot");
         p.save("tests/images/basic_lines_3.png", 800, 600)
+            .map_err(to_io_error)
+            .expect("Failed to save plot image");
+    }
+
+    #[test]
+    fn basic_lines_4() {
+        init_test_logging();
+
+        let data = mtcars();
+
+        let builder = plot(&data).aes(|a| {
+            a.x_continuous("wt");
+            a.y_continuous("mpg");
+        }) + geom_line()
+            .size(2.0)
+            .color(color::FIREBRICK)
+            .linestyle(LineStyle::from("-."));
+
+        let p = builder
+            .build()
+            .map_err(to_io_error)
+            .expect("Failed to build plot");
+        p.save("tests/images/basic_lines_4.png", 800, 600)
             .map_err(to_io_error)
             .expect("Failed to save plot image");
     }
