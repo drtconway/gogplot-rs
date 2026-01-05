@@ -65,12 +65,16 @@ pub enum YAxisPosition {
 pub struct LegendEntry {
     /// Label text
     pub label: String,
-    /// Color (if applicable)
+    /// Outline/stroke color (if applicable)
     pub color: Option<Color>,
+    /// Fill color (if applicable)
+    pub fill: Option<Color>,
     /// Shape (if applicable)
     pub shape: Option<Shape>,
     /// Size (if applicable)
     pub size: Option<f64>,
+    /// Alpha/transparency (if applicable)
+    pub alpha: Option<f64>,
 }
 
 
@@ -92,6 +96,11 @@ impl LegendEntry {
         self
     }
 
+    pub fn fill(mut self, fill: Color) -> Self {
+        self.fill = Some(fill);
+        self
+    }
+
     pub fn shape(mut self, shape: Shape) -> Self {
         self.shape = Some(shape);
         self
@@ -99,6 +108,11 @@ impl LegendEntry {
 
     pub fn size(mut self, size: f64) -> Self {
         self.size = Some(size);
+        self
+    }
+
+    pub fn alpha(mut self, alpha: f64) -> Self {
+        self.alpha = Some(alpha);
         self
     }
 }

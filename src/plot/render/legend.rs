@@ -293,51 +293,245 @@ fn create_continuous_alpha_legend(
     }
 }
 
+/// Create an individual legend for a single aesthetic
+fn create_individual_legend(
+    guides: &mut Guides,
+    property: crate::aesthetics::AestheticProperty,
+    domain: crate::aesthetics::AestheticDomain,
+    title: &str,
+    scales: &ScaleSet,
+) {
+    use crate::aesthetics::{AestheticProperty, AestheticDomain};
+    
+    let check_and_set = |guide_field: &mut Option<LegendGuide>| {
+        if guide_field.is_none() {
+            *guide_field = Some(match domain {
+                AestheticDomain::Discrete => match property {
+                    AestheticProperty::Color => create_discrete_color_legend(title.to_string(), scales),
+                    AestheticProperty::Fill => create_discrete_fill_legend(title.to_string(), scales),
+                    AestheticProperty::Size => create_discrete_size_legend(title.to_string(), scales),
+                    AestheticProperty::Shape => create_discrete_shape_legend(title.to_string(), scales),
+                    AestheticProperty::Alpha => create_discrete_alpha_legend(title.to_string(), scales),
+                    _ => LegendGuide::default(),
+                },
+                AestheticDomain::Continuous => match property {
+                    AestheticProperty::Color => create_continuous_color_legend(title.to_string(), scales),
+                    AestheticProperty::Size => create_continuous_size_legend(title.to_string(), scales),
+                    AestheticProperty::Alpha => create_continuous_alpha_legend(title.to_string(), scales),
+                    _ => LegendGuide::default(),
+                },
+            });
+        }
+    };
+    
+    match property {
+        AestheticProperty::Color => check_and_set(&mut guides.color),
+        AestheticProperty::Fill => check_and_set(&mut guides.fill),
+        AestheticProperty::Size => check_and_set(&mut guides.size),
+        AestheticProperty::Shape => check_and_set(&mut guides.shape),
+        AestheticProperty::Alpha => check_and_set(&mut guides.alpha),
+        _ => {}
+    }
+}
+
+/// Create a merged legend for multiple aesthetics mapping to the same column
+fn create_merged_legend(
+    guides: &mut Guides,
+    aesthetics: &[MappedAesthetic],
+    title: &str,
+    scales: &ScaleSet,
+) {
+    use crate::aesthetics::{AestheticProperty, AestheticDomain};
+    use crate::scale::traits::{ColorRangeScale, ContinuousRangeScale, ShapeRangeScale};
+    
+    let domain = aesthetics[0].domain;
+    
+    // Only handle discrete merging for now
+    if domain != AestheticDomain::Discrete {
+        // Fall back to individual legends for continuous
+        for aesthetic in aesthetics {
+            create_individual_legend(guides, aesthetic.property, aesthetic.domain, title, scales);
+        }
+        return;
+    }
+    
+    // Determine which aesthetics we're merging
+    let has_color = aesthetics.iter().any(|a| a.property == AestheticProperty::Color);
+    let has_fill = aesthetics.iter().any(|a| a.property == AestheticProperty::Fill);
+    let has_size = aesthetics.iter().any(|a| a.property == AestheticProperty::Size);
+    let has_shape = aesthetics.iter().any(|a| a.property == AestheticProperty::Shape);
+    let has_alpha = aesthetics.iter().any(|a| a.property == AestheticProperty::Alpha);
+    
+    // Get categories from the first available scale
+    let categories = if has_color {
+        scales.color_discrete.categories()
+    } else if has_fill {
+        scales.fill_discrete.categories()
+    } else if has_size {
+        scales.size_discrete.categories()
+    } else if has_shape {
+        scales.shape_scale.categories()
+    } else if has_alpha {
+        scales.alpha_discrete.categories()
+    } else {
+        return;
+    };
+    
+    // Create merged entries
+    let mut entries = Vec::new();
+    
+    for i in 0..categories.len() {
+        if let Some(value) = categories.get_at(i) {
+            let label = match &value {
+                crate::data::DiscreteValue::Int(x) => x.to_string(),
+                crate::data::DiscreteValue::Str(x) => x.clone(),
+                crate::data::DiscreteValue::Bool(x) => x.to_string(),
+            };
+            
+            let mut entry = LegendEntry::new(label);
+            
+            // Get values from each scale
+            if has_color {
+                if let Some(color) = match &value {
+                    crate::data::DiscreteValue::Int(x) => scales.color_discrete.map_value(x),
+                    crate::data::DiscreteValue::Str(x) => scales.color_discrete.map_value(x),
+                    crate::data::DiscreteValue::Bool(x) => scales.color_discrete.map_value(x),
+                } {
+                    entry.color = Some(color);
+                }
+            }
+            
+            if has_fill {
+                if let Some(fill) = match &value {
+                    crate::data::DiscreteValue::Int(x) => scales.fill_discrete.map_value(x),
+                    crate::data::DiscreteValue::Str(x) => scales.fill_discrete.map_value(x),
+                    crate::data::DiscreteValue::Bool(x) => scales.fill_discrete.map_value(x),
+                } {
+                    entry.fill = Some(fill);
+                }
+            }
+            
+            if has_size {
+                if let Some(size) = match &value {
+                    crate::data::DiscreteValue::Int(x) => scales.size_discrete.map_value(x),
+                    crate::data::DiscreteValue::Str(x) => scales.size_discrete.map_value(x),
+                    crate::data::DiscreteValue::Bool(x) => scales.size_discrete.map_value(x),
+                } {
+                    entry.size = Some(size);
+                }
+            } else {
+                // Default size if not mapped
+                entry.size = Some(5.0);
+            }
+            
+            if has_shape {
+                if let Some(shape) = match &value {
+                    crate::data::DiscreteValue::Int(x) => scales.shape_scale.map_value(x),
+                    crate::data::DiscreteValue::Str(x) => scales.shape_scale.map_value(x),
+                    crate::data::DiscreteValue::Bool(x) => scales.shape_scale.map_value(x),
+                } {
+                    entry.shape = Some(shape);
+                }
+            }
+            
+            if has_alpha {
+                if let Some(alpha) = match &value {
+                    crate::data::DiscreteValue::Int(x) => scales.alpha_discrete.map_value(x),
+                    crate::data::DiscreteValue::Str(x) => scales.alpha_discrete.map_value(x),
+                    crate::data::DiscreteValue::Bool(x) => scales.alpha_discrete.map_value(x),
+                } {
+                    entry.alpha = Some(alpha);
+                }
+            }
+            
+            entries.push(entry);
+        }
+    }
+    
+    let merged_guide = LegendGuide {
+        title: Some(title.to_string()),
+        entries,
+        legend_type: LegendType::Discrete,
+        ..Default::default()
+    };
+    
+    // Decide which guide field to use - prioritize color > fill > size > shape > alpha
+    // and suppress others
+    if has_color && guides.color.is_none() {
+        guides.color = Some(merged_guide);
+        // Suppress other aesthetics in this merge
+        if has_fill { guides.fill = Some(LegendGuide { position: LegendPosition::None, ..Default::default() }); }
+        if has_size { guides.size = Some(LegendGuide { position: LegendPosition::None, ..Default::default() }); }
+        if has_shape { guides.shape = Some(LegendGuide { position: LegendPosition::None, ..Default::default() }); }
+        if has_alpha { guides.alpha = Some(LegendGuide { position: LegendPosition::None, ..Default::default() }); }
+    } else if has_fill && guides.fill.is_none() {
+        guides.fill = Some(merged_guide);
+        if has_size { guides.size = Some(LegendGuide { position: LegendPosition::None, ..Default::default() }); }
+        if has_shape { guides.shape = Some(LegendGuide { position: LegendPosition::None, ..Default::default() }); }
+        if has_alpha { guides.alpha = Some(LegendGuide { position: LegendPosition::None, ..Default::default() }); }
+    } else if has_size && guides.size.is_none() {
+        guides.size = Some(merged_guide);
+        if has_shape { guides.shape = Some(LegendGuide { position: LegendPosition::None, ..Default::default() }); }
+        if has_alpha { guides.alpha = Some(LegendGuide { position: LegendPosition::None, ..Default::default() }); }
+    } else if has_shape && guides.shape.is_none() {
+        guides.shape = Some(merged_guide);
+        if has_alpha { guides.alpha = Some(LegendGuide { position: LegendPosition::None, ..Default::default() }); }
+    } else if has_alpha && guides.alpha.is_none() {
+        guides.alpha = Some(merged_guide);
+    }
+}
+
+/// Helper structure to track mapped aesthetics
+#[derive(Clone, Debug)]
+struct MappedAesthetic {
+    property: crate::aesthetics::AestheticProperty,
+    domain: crate::aesthetics::AestheticDomain,
+    column_name: String,
+}
+
 /// Generate legends automatically from scales when aesthetics are mapped
+/// Merges legends when multiple aesthetics map to the same column
 pub fn generate_automatic_legends(
     layers: &[Layer],
     scales: &ScaleSet,
     guides: &Guides,
     plot_mapping: &crate::aesthetics::AesMap,
 ) -> Guides {
-    use crate::aesthetics::{AestheticProperty, AestheticDomain};
+    use crate::aesthetics::AestheticProperty;
+    use std::collections::HashMap;
     
     let mut guides = guides.clone();
 
-    // Collect which aesthetics are mapped across all layers
-    let mut has_color = false;
-    let mut has_fill = false;
-    let mut has_size = false;
-    let mut has_shape = false;
-    let mut has_alpha = false;
+    // Collect all mapped aesthetics with their column names
+    let mut mapped_aesthetics: Vec<MappedAesthetic> = Vec::new();
     
-    let mut color_domain: Option<AestheticDomain> = None;
-    let mut fill_domain: Option<AestheticDomain> = None;
-    let mut size_domain: Option<AestheticDomain> = None;
-    let mut alpha_domain: Option<AestheticDomain> = None;
+    // Helper to get column name for a property
+    let get_column_name = |property: AestheticProperty| -> Option<String> {
+        // First check plot-level mapping
+        if let Some(title) = plot_mapping.get_label(property) {
+            return Some(title);
+        }
+        // Then check each layer's mapping
+        for layer in layers.iter() {
+            if let Some(mapping) = &layer.mapping {
+                if let Some(title) = mapping.get_label(property) {
+                    return Some(title);
+                }
+            }
+        }
+        None
+    };
     
     // Check plot-level mappings
     for aesthetic in plot_mapping.aesthetics() {
         if let Some(property) = aesthetic.to_property() {
-            match property {
-                AestheticProperty::Color => {
-                    has_color = true;
-                    color_domain = Some(aesthetic.domain());
-                }
-                AestheticProperty::Fill => {
-                    has_fill = true;
-                    fill_domain = Some(aesthetic.domain());
-                }
-                AestheticProperty::Size => {
-                    has_size = true;
-                    size_domain = Some(aesthetic.domain());
-                }
-                AestheticProperty::Shape => has_shape = true,
-                AestheticProperty::Alpha => {
-                    has_alpha = true;
-                    alpha_domain = Some(aesthetic.domain());
-                }
-                _ => {}
+            if let Some(column_name) = get_column_name(property) {
+                let domain = aesthetic.domain();
+                mapped_aesthetics.push(MappedAesthetic {
+                    property,
+                    domain,
+                    column_name,
+                });
             }
         }
     }
@@ -345,93 +539,54 @@ pub fn generate_automatic_legends(
     // Check layer-level aesthetic_domains
     for layer in layers {
         for (property, domain) in &layer.aesthetic_domains {
-            match property {
-                AestheticProperty::Color => {
-                    has_color = true;
-                    color_domain = Some(*domain);
-                }
-                AestheticProperty::Fill => {
-                    has_fill = true;
-                    fill_domain = Some(*domain);
-                }
-                AestheticProperty::Size => {
-                    has_size = true;
-                    size_domain = Some(*domain);
-                }
-                AestheticProperty::Shape => has_shape = true,
-                AestheticProperty::Alpha => {
-                    has_alpha = true;
-                    alpha_domain = Some(*domain);
-                }
-                _ => {}
-            }
-        }
-    }
-    
-    // Get default legend titles from aesthetic mappings
-    // Check plot-level mapping first, then layer mappings
-    let get_title = |property: AestheticProperty, default: &str| -> String {
-        // First check plot-level mapping
-        if let Some(title) = plot_mapping.get_label(property) {
-            return title;
-        }
-        // Then check each layer's mapping
-        for layer in layers.iter() {
-            if let Some(mapping) = &layer.mapping {
-                if let Some(title) = mapping.get_label(property) {
-                    return title;
+            if let Some(column_name) = get_column_name(*property) {
+                // Only add if not already present from plot-level
+                if !mapped_aesthetics.iter().any(|m| m.property == *property) {
+                    mapped_aesthetics.push(MappedAesthetic {
+                        property: *property,
+                        domain: *domain,
+                        column_name,
+                    });
                 }
             }
         }
-        default.to_string()
-    };
-    
-    let color_title = get_title(AestheticProperty::Color, "Color");
-    let fill_title = get_title(AestheticProperty::Fill, "Fill");
-    let size_title = get_title(AestheticProperty::Size, "Size");
-    let shape_title = get_title(AestheticProperty::Shape, "Shape");
-    let alpha_title = get_title(AestheticProperty::Alpha, "Alpha");
-    
-    // Generate color legend if not already specified
-    if has_color && guides.color.is_none() {
-        guides.color = Some(match color_domain {
-            Some(AestheticDomain::Discrete) => create_discrete_color_legend(color_title, scales),
-            Some(AestheticDomain::Continuous) => create_continuous_color_legend(color_title, scales),
-            None => LegendGuide::default(),
-        });
     }
     
-    // Generate fill legend if not already specified
-    if has_fill && guides.fill.is_none() {
-        guides.fill = Some(match fill_domain {
-            Some(AestheticDomain::Discrete) => create_discrete_fill_legend(fill_title, scales),
-            // Continuous fill would use a color bar like color
-            Some(AestheticDomain::Continuous) => LegendGuide::default(), // TODO: implement continuous fill
-            None => LegendGuide::default(),
-        });
+    // Group aesthetics by column name
+    let mut aesthetic_groups: HashMap<String, Vec<MappedAesthetic>> = HashMap::new();
+    for mapped in mapped_aesthetics {
+        aesthetic_groups
+            .entry(mapped.column_name.clone())
+            .or_insert_with(Vec::new)
+            .push(mapped);
     }
     
-    // Generate size legend if not already specified
-    if has_size && guides.size.is_none() {
-        guides.size = Some(match size_domain {
-            Some(AestheticDomain::Discrete) => create_discrete_size_legend(size_title, scales),
-            Some(AestheticDomain::Continuous) => create_continuous_size_legend(size_title, scales),
-            None => LegendGuide::default(),
-        });
-    }
-    
-    // Generate shape legend if not already specified
-    if has_shape && guides.shape.is_none() {
-        guides.shape = Some(create_discrete_shape_legend(shape_title, scales));
-    }
-    
-    // Generate alpha legend if not already specified
-    if has_alpha && guides.alpha.is_none() {
-        guides.alpha = Some(match alpha_domain {
-            Some(AestheticDomain::Discrete) => create_discrete_alpha_legend(alpha_title, scales),
-            Some(AestheticDomain::Continuous) => create_continuous_alpha_legend(alpha_title, scales),
-            None => LegendGuide::default(),
-        });
+    // Process each group
+    for (column_name, aesthetics) in aesthetic_groups {
+        if aesthetics.is_empty() {
+            continue;
+        }
+        
+        // Check if all aesthetics in the group have the same domain
+        let first_domain = aesthetics[0].domain;
+        let same_domain = aesthetics.iter().all(|a| a.domain == first_domain);
+        
+        if !same_domain {
+            // Don't merge if domains don't match - fall back to individual legends
+            for aesthetic in aesthetics {
+                create_individual_legend(&mut guides, aesthetic.property, aesthetic.domain, &column_name, scales);
+            }
+            continue;
+        }
+        
+        // Determine if we should merge: we merge if multiple aesthetics map to same column
+        if aesthetics.len() > 1 {
+            // Create merged legend
+            create_merged_legend(&mut guides, &aesthetics, &column_name, scales);
+        } else {
+            // Single aesthetic, create individual legend
+            create_individual_legend(&mut guides, aesthetics[0].property, aesthetics[0].domain, &column_name, scales);
+        }
     }
 
     guides
@@ -603,16 +758,74 @@ pub fn draw_legends(
                 for entry in &legend.entries {
                     let symbol_x = legend_x + padding;
                     let symbol_y = item_y + item_height / 2.0;
+                    let size = entry.size.unwrap_or(5.0);
 
-                    // Draw symbol
-                    if let Some(color) = entry.color {
-                        apply_color(ctx, &color);
-                        let size = entry.size.unwrap_or(5.0);
+                    // Determine what type of symbol to draw
+                    let has_shape = entry.shape.is_some();
+                    let has_fill = entry.fill.is_some();
+                    let has_color = entry.color.is_some();
+                    let alpha = entry.alpha.unwrap_or(1.0);
 
-                        if let Some(shape) = entry.shape {
+                    if has_shape {
+                        // Draw shape with fill and/or color
+                        let shape = entry.shape.unwrap();
+                        
+                        // Draw fill if present
+                        if let Some(fill) = entry.fill {
+                            let Color(r, g, b, a) = fill;
+                            ctx.set_source_rgba(
+                                r as f64 / 255.0,
+                                g as f64 / 255.0,
+                                b as f64 / 255.0,
+                                (a as f64 / 255.0) * alpha,
+                            );
                             draw_shape(ctx, symbol_x + 10.0, symbol_y, size, shape);
-                        } else {
-                            // Default to circle
+                            ctx.fill().ok();
+                        }
+                        
+                        // Draw outline if present
+                        if let Some(color) = entry.color {
+                            apply_color(ctx, &color);
+                            ctx.set_line_width(1.5);
+                            draw_shape(ctx, symbol_x + 10.0, symbol_y, size, shape);
+                            ctx.stroke().ok();
+                        }
+                    } else {
+                        // Draw rectangle or circle with fill and/or color
+                        // Use rectangle for better fill visibility
+                        let symbol_size = size * 2.0;
+                        let rect_x = symbol_x + 10.0 - symbol_size / 2.0;
+                        let rect_y = symbol_y - symbol_size / 2.0;
+                        
+                        // Draw fill if present
+                        if let Some(fill) = entry.fill {
+                            let Color(r, g, b, a) = fill;
+                            ctx.set_source_rgba(
+                                r as f64 / 255.0,
+                                g as f64 / 255.0,
+                                b as f64 / 255.0,
+                                (a as f64 / 255.0) * alpha,
+                            );
+                            ctx.rectangle(rect_x, rect_y, symbol_size, symbol_size);
+                            ctx.fill().ok();
+                        }
+                        
+                        // Draw outline/color if present
+                        if let Some(color) = entry.color {
+                            apply_color(ctx, &color);
+                            ctx.set_line_width(1.5);
+                            ctx.rectangle(rect_x, rect_y, symbol_size, symbol_size);
+                            ctx.stroke().ok();
+                        } else if !has_fill && has_color {
+                            // Fallback: just color, draw filled circle
+                            let color = entry.color.unwrap();
+                            let Color(r, g, b, a) = color;
+                            ctx.set_source_rgba(
+                                r as f64 / 255.0,
+                                g as f64 / 255.0,
+                                b as f64 / 255.0,
+                                (a as f64 / 255.0) * alpha,
+                            );
                             ctx.arc(
                                 symbol_x + 10.0,
                                 symbol_y,
