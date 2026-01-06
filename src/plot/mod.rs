@@ -1,8 +1,6 @@
 // Plot structure for grammar of graphics
 
 mod export;
-mod geom_builder;
-mod layer_geom;
 mod render;
 
 use crate::aesthetics::{AesMap, AestheticProperty};
@@ -16,9 +14,6 @@ use crate::theme::Theme;
 use cairo::ImageSurface;
 use std::ops::Add;
 use std::path::Path;
-
-pub use geom_builder::GeomBuilder;
-pub use layer_geom::LayerGeom;
 
 pub struct PlotBuilder<'a> {
     data: &'a Box<dyn DataSource>,

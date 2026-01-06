@@ -225,7 +225,7 @@ impl Geom for GeomRect {
 
     fn property_defaults(
         &self,
-        theme: &crate::prelude::Theme,
+        theme: &crate::theme::Theme,
     ) -> HashMap<AestheticProperty, super::properties::PropertyValue> {
         let mut defaults = HashMap::new();
 

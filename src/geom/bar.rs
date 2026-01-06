@@ -293,7 +293,7 @@ impl Geom for GeomBar {
 
     fn property_defaults(
         &self,
-        theme: &crate::prelude::Theme,
+        theme: &crate::theme::Theme,
     ) -> HashMap<AestheticProperty, PropertyValue> {
         let mut defaults = HashMap::new();
         self.area.defaults("bar", "bar", theme, &mut defaults);

@@ -271,7 +271,7 @@ impl Geom for GeomErrorbar {
 
     fn property_defaults(
         &self,
-        theme: &crate::prelude::Theme,
+        theme: &crate::theme::Theme,
     ) -> HashMap<AestheticProperty, PropertyValue> {
         let mut defaults = HashMap::new();
         self.line.defaults("errorbar", "line", theme, &mut defaults);

@@ -15,7 +15,7 @@ use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
 use crate::scale::traits::{ContinuousRangeScale, ScaleBase};
 use crate::stat::Stat;
-use crate::theme::{Color, LineElement};
+use crate::theme::{Color, LineElement, Theme};
 use crate::visuals::LineStyle;
 
 pub trait GeomVLineAesBuilderTrait:
@@ -233,7 +233,7 @@ impl Geom for GeomVLine {
 
     fn property_defaults(
         &self,
-        theme: &crate::prelude::Theme,
+        theme: &Theme,
     ) -> HashMap<AestheticProperty, super::properties::PropertyValue> {
         let mut defaults = HashMap::new();
         self.line.defaults("vline", "line", theme, &mut defaults);

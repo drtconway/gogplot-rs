@@ -232,7 +232,7 @@ impl Geom for GeomHLine {
 
     fn property_defaults(
         &self,
-        theme: &crate::prelude::Theme,
+        theme: &crate::theme::Theme,
     ) -> HashMap<AestheticProperty, super::properties::PropertyValue> {
         let mut defaults = HashMap::new();
         self.line.defaults("hline", "line", theme, &mut defaults);

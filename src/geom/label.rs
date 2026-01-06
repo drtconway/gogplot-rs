@@ -363,7 +363,7 @@ impl Geom for GeomLabel {
 
     fn property_defaults(
         &self,
-        _theme: &crate::prelude::Theme,
+        _theme: &crate::theme::Theme,
     ) -> HashMap<AestheticProperty, PropertyValue> {
         let mut defaults = HashMap::new();
 
