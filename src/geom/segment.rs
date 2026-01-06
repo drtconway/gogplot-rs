@@ -304,28 +304,52 @@ impl Geom for GeomSegment {
         theme: &crate::prelude::Theme,
     ) -> HashMap<AestheticProperty, super::properties::PropertyValue> {
         let mut defaults = HashMap::new();
+
+        // Start with hardcoded defaults
+        let mut default_size = 1.0;
+        let mut default_color = color::BLACK;
+        let mut default_alpha = 1.0;
+        let mut default_linestyle = crate::visuals::LineStyle::Solid;
+
+        // Apply theme overrides if present
+        if let Some(crate::theme::Element::Line(elem)) = theme.get_element("segment", "line") {
+            if let Some(size) = elem.size {
+                default_size = size;
+            }
+            if let Some(color) = elem.color {
+                default_color = color;
+            }
+            if let Some(alpha) = elem.alpha {
+                default_alpha = alpha;
+            }
+            if let Some(ref linestyle) = elem.linestyle {
+                default_linestyle = linestyle.clone();
+            }
+        }
+
+        // Only set defaults for properties not explicitly set on the geom
         if self.size.is_none() {
             defaults.insert(
                 AestheticProperty::Size,
-                super::properties::PropertyValue::Float(1.0),
+                super::properties::PropertyValue::Float(default_size),
             );
         }
         if self.color.is_none() {
             defaults.insert(
                 AestheticProperty::Color,
-                super::properties::PropertyValue::Color(color::BLACK),
+                super::properties::PropertyValue::Color(default_color),
             );
         }
         if self.alpha.is_none() {
             defaults.insert(
                 AestheticProperty::Alpha,
-                super::properties::PropertyValue::Float(1.0),
+                super::properties::PropertyValue::Float(default_alpha),
             );
         }
         if self.linestyle.is_none() {
             defaults.insert(
                 AestheticProperty::Linetype,
-            super::properties::PropertyValue::LineStyle(theme.geom_line.linestyle.clone()),
+                super::properties::PropertyValue::LineStyle(default_linestyle),
             );
         }
         defaults

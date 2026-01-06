@@ -373,25 +373,58 @@ impl Geom for GeomSmooth {
         theme: &crate::theme::Theme,
     ) -> HashMap<AestheticProperty, PropertyValue> {
         let mut defaults = HashMap::new();
+
+        // Start with hardcoded defaults for line properties
+        let mut default_color = color::BLUE;
+        let mut default_size = 1.0;
+        let mut default_alpha = 0.4;
+        let mut default_linestyle = crate::visuals::LineStyle::Solid;
+        let mut default_fill = Color::rgb(128, 128, 128);
+
+        // Apply theme overrides for line element
+        if let Some(crate::theme::Element::Line(elem)) = theme.get_element("smooth", "line") {
+            if let Some(color) = elem.color {
+                default_color = color;
+            }
+            if let Some(size) = elem.size {
+                default_size = size;
+            }
+            if let Some(alpha) = elem.alpha {
+                default_alpha = alpha;
+            }
+            if let Some(ref linestyle) = elem.linestyle {
+                default_linestyle = linestyle.clone();
+            }
+        }
+
+        // Apply theme overrides for ribbon (confidence interval) element
+        if let Some(crate::theme::Element::Rect(elem)) = theme.get_element("smooth", "ribbon") {
+            if let Some(fill) = elem.fill {
+                default_fill = fill;
+            }
+            // Note: ribbon could also override alpha for the CI if needed
+        }
+
+        // Only set defaults for properties not explicitly set on the geom
         if self.color.is_none() {
-            defaults.insert(AestheticProperty::Color, PropertyValue::Color(color::BLUE));
+            defaults.insert(AestheticProperty::Color, PropertyValue::Color(default_color));
         }
         if self.fill.is_none() {
             defaults.insert(
                 AestheticProperty::Fill,
-                PropertyValue::Color(Color::rgb(128, 128, 128)),
+                PropertyValue::Color(default_fill),
             );
         }
         if self.size.is_none() {
-            defaults.insert(AestheticProperty::Size, PropertyValue::Float(1.0));
+            defaults.insert(AestheticProperty::Size, PropertyValue::Float(default_size));
         }
         if self.alpha.is_none() {
-            defaults.insert(AestheticProperty::Alpha, PropertyValue::Float(0.4));
+            defaults.insert(AestheticProperty::Alpha, PropertyValue::Float(default_alpha));
         }
         if self.linestyle.is_none() {
             defaults.insert(
                 AestheticProperty::Linetype,
-                PropertyValue::LineStyle(theme.geom_line.linestyle.clone()),
+                PropertyValue::LineStyle(default_linestyle),
             );
         }
         defaults

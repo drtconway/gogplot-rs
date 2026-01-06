@@ -116,7 +116,8 @@ pub struct RectElement {
     pub fill: Option<Color>,
     pub color: Option<Color>,  // border color
     pub alpha: Option<f64>,
-    pub linewidth: Option<f64>,
+    pub size: Option<f64>,  // border width
+    pub linestyle: Option<LineStyle>,
 }
 
 impl RectElement {
@@ -135,8 +136,13 @@ impl RectElement {
         self
     }
     
-    pub fn linewidth(mut self, linewidth: f64) -> Self {
-        self.linewidth = Some(linewidth);
+    pub fn size(mut self, size: f64) -> Self {
+        self.size = Some(size);
+        self
+    }
+    
+    pub fn linestyle(mut self, linestyle: LineStyle) -> Self {
+        self.linestyle = Some(linestyle);
         self
     }
 }

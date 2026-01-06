@@ -334,19 +334,43 @@ impl Geom for GeomErrorbar {
         theme: &crate::prelude::Theme,
     ) -> HashMap<AestheticProperty, PropertyValue> {
         let mut defaults = HashMap::new();
+
+        // Start with hardcoded defaults
+        let mut default_size = 1.0;
+        let mut default_color = color::BLACK;
+        let mut default_alpha = 1.0;
+        let mut default_linestyle = crate::visuals::LineStyle::Solid;
+
+        // Apply theme overrides if present
+        if let Some(crate::theme::Element::Line(elem)) = theme.get_element("errorbar", "line") {
+            if let Some(size) = elem.size {
+                default_size = size;
+            }
+            if let Some(color) = elem.color {
+                default_color = color;
+            }
+            if let Some(alpha) = elem.alpha {
+                default_alpha = alpha;
+            }
+            if let Some(ref linestyle) = elem.linestyle {
+                default_linestyle = linestyle.clone();
+            }
+        }
+
+        // Only set defaults for properties not explicitly set on the geom
         if self.color.is_none() {
-            defaults.insert(AestheticProperty::Color, PropertyValue::Color(color::BLACK));
+            defaults.insert(AestheticProperty::Color, PropertyValue::Color(default_color));
         }
         if self.size.is_none() {
-            defaults.insert(AestheticProperty::Size, PropertyValue::Float(1.0));
+            defaults.insert(AestheticProperty::Size, PropertyValue::Float(default_size));
         }
         if self.alpha.is_none() {
-            defaults.insert(AestheticProperty::Alpha, PropertyValue::Float(1.0));
+            defaults.insert(AestheticProperty::Alpha, PropertyValue::Float(default_alpha));
         }
         if self.linestyle.is_none() {
             defaults.insert(
                 AestheticProperty::Linetype,
-                PropertyValue::LineStyle(theme.geom_line.linestyle.clone()),
+                PropertyValue::LineStyle(default_linestyle),
             );
         }
         defaults

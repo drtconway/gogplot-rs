@@ -12,7 +12,7 @@ use crate::geom::properties::{Property, PropertyValue, PropertyVector};
 use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
 use crate::stat::density::Density;
-use crate::theme::Color;
+use crate::theme::{Color, color};
 use crate::visuals::LineStyle;
 
 pub trait GeomDensityAesBuilderTrait:
@@ -265,22 +265,55 @@ impl Geom for GeomDensity {
 
     fn property_defaults(&self, theme: &crate::theme::Theme) -> HashMap<AestheticProperty, PropertyValue> {
         let mut defaults = HashMap::new();
+
+        // Start with hardcoded defaults for line properties
+        let mut default_color = color::BLACK;
+        let mut default_alpha = 1.0;
+        let mut default_size = 1.0;
+        let mut default_linestyle = crate::visuals::LineStyle::Solid;
+        let mut default_fill = Color(0, 0, 0, 0); // Transparent by default
+
+        // Apply theme overrides for line element
+        if let Some(crate::theme::Element::Line(elem)) = theme.get_element("density", "line") {
+            if let Some(color) = elem.color {
+                default_color = color;
+            }
+            if let Some(alpha) = elem.alpha {
+                default_alpha = alpha;
+            }
+            if let Some(size) = elem.size {
+                default_size = size;
+            }
+            if let Some(ref linestyle) = elem.linestyle {
+                default_linestyle = linestyle.clone();
+            }
+        }
+
+        // Apply theme overrides for ribbon (area) element
+        if let Some(crate::theme::Element::Rect(elem)) = theme.get_element("density", "ribbon") {
+            if let Some(fill) = elem.fill {
+                default_fill = fill;
+            }
+            // Note: ribbon could also override alpha if needed
+        }
+
+        // Only set defaults for properties not explicitly set on the geom
         if self.color.is_none() {
-            defaults.insert(AestheticProperty::Color, PropertyValue::Color(theme.geom_line.color));
+            defaults.insert(AestheticProperty::Color, PropertyValue::Color(default_color));
         }
         if self.fill.is_none() {
-            defaults.insert(AestheticProperty::Fill, PropertyValue::Color(Color(0, 0, 0, 0))); // Transparent by default
+            defaults.insert(AestheticProperty::Fill, PropertyValue::Color(default_fill));
         }
         if self.alpha.is_none() {
-            defaults.insert(AestheticProperty::Alpha, PropertyValue::Float(theme.geom_line.alpha));
+            defaults.insert(AestheticProperty::Alpha, PropertyValue::Float(default_alpha));
         }
         if self.size.is_none() {
-            defaults.insert(AestheticProperty::Size, PropertyValue::Float(theme.geom_line.size));
+            defaults.insert(AestheticProperty::Size, PropertyValue::Float(default_size));
         }
         if self.linestyle.is_none() {
             defaults.insert(
                 AestheticProperty::Linetype,
-                PropertyValue::LineStyle(theme.geom_line.linestyle.clone()),
+                PropertyValue::LineStyle(default_linestyle),
             );
         }
         defaults

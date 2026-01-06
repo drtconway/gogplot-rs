@@ -304,17 +304,55 @@ impl Geom for GeomBoxplot {
 
     fn property_defaults(&self, theme: &crate::theme::Theme) -> HashMap<AestheticProperty, PropertyValue> {
         let mut defaults = HashMap::new();
+
+        // Start with hardcoded defaults
+        let mut default_color = color::BLACK;
+        let mut default_fill = color::GRAY;
+        let mut default_alpha = 1.0;
+        let mut default_linestyle = crate::visuals::LineStyle::Solid;
+
+        // Apply theme overrides for box element (RectElement)
+        if let Some(crate::theme::Element::Rect(elem)) = theme.get_element("boxplot", "box") {
+            if let Some(fill) = elem.fill {
+                default_fill = fill;
+            }
+            if let Some(color) = elem.color {
+                default_color = color;
+            }
+            if let Some(alpha) = elem.alpha {
+                default_alpha = alpha;
+            }
+            if let Some(ref linestyle) = elem.linestyle {
+                default_linestyle = linestyle.clone();
+            }
+        }
+
+        // Apply theme overrides for whisker element (LineElement)
+        // Whiskers use the same color/linestyle as box border, but can be overridden
+        if let Some(crate::theme::Element::Line(elem)) = theme.get_element("boxplot", "whisker") {
+            if let Some(color) = elem.color {
+                default_color = color;
+            }
+            if let Some(alpha) = elem.alpha {
+                default_alpha = alpha;
+            }
+            if let Some(ref linestyle) = elem.linestyle {
+                default_linestyle = linestyle.clone();
+            }
+        }
+
+        // Only set defaults for properties not explicitly set on the geom
         if self.color.is_none() {
-            defaults.insert(AestheticProperty::Color, PropertyValue::Color(color::BLACK));
+            defaults.insert(AestheticProperty::Color, PropertyValue::Color(default_color));
         }
         if self.fill.is_none() {
-            defaults.insert(AestheticProperty::Fill, PropertyValue::Color(color::GRAY));
+            defaults.insert(AestheticProperty::Fill, PropertyValue::Color(default_fill));
         }
         if self.alpha.is_none() {
-            defaults.insert(AestheticProperty::Alpha, PropertyValue::Float(1.0));
+            defaults.insert(AestheticProperty::Alpha, PropertyValue::Float(default_alpha));
         }
         if self.linestyle.is_none() {
-            defaults.insert(AestheticProperty::Linetype, PropertyValue::LineStyle(theme.geom_line.linestyle.clone()));
+            defaults.insert(AestheticProperty::Linetype, PropertyValue::LineStyle(default_linestyle));
         }
         defaults
     }
