@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use super::{Geom, RenderContext, AestheticRequirement, DomainConstraint};
 use crate::aesthetics::builder::{
     AesMapBuilder, AlphaContinuousAesBuilder, AlphaDiscreteAesBuilder, ColorContinuousAesBuilder,
-    ColorDiscreteAesBuilder, FillContinuousAesBuilder, FillDiscreteAesBuilder, GroupAesBuilder, XContinuousAesBuilder, YContinuousAesBuilder,
+    ColorDiscreteAesBuilder, FillContinuousAesBuilder, FillDiscreteAesBuilder, GroupAesBuilder,
+    LineStyleAesBuilder, XContinuousAesBuilder, YContinuousAesBuilder,
 };
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::error::Result;
@@ -24,6 +25,7 @@ pub trait GeomDensityAesBuilderTrait:
     + AlphaContinuousAesBuilder
     + AlphaDiscreteAesBuilder
     + GroupAesBuilder
+    + LineStyleAesBuilder
 {
 }
 
@@ -133,6 +135,7 @@ impl LayerBuilder for GeomDensityBuilder {
         }
         if self.linestyle.is_some() {
             geom_density.linestyle = self.linestyle;
+            overrides.push(Aesthetic::Linetype);
         }
 
         // Make Density the default stat if none specified
@@ -194,7 +197,7 @@ impl Default for GeomDensity {
     }
 }
 
-const AESTHETIC_REQUIREMENTS: [AestheticRequirement; 6] = [
+const AESTHETIC_REQUIREMENTS: [AestheticRequirement; 7] = [
     AestheticRequirement {
         property: AestheticProperty::X,
         required: true,
@@ -225,6 +228,11 @@ const AESTHETIC_REQUIREMENTS: [AestheticRequirement; 6] = [
         required: false,
         constraint: DomainConstraint::Any,
     },
+    AestheticRequirement {
+        property: AestheticProperty::Linetype,
+        required: false,
+        constraint: DomainConstraint::MustBe(AestheticDomain::Discrete),
+    },
 ];
 
 impl Geom for GeomDensity {
@@ -246,6 +254,12 @@ impl Geom for GeomDensity {
         if let Some(size_prop) = &self.size {
             props.insert(AestheticProperty::Size, Property::Float(size_prop.clone()));
         }
+        if let Some(linestyle_prop) = &self.linestyle {
+            props.insert(
+                AestheticProperty::Linetype,
+                Property::LineStyle(linestyle_prop.clone()),
+            );
+        }
         props
     }
 
@@ -262,6 +276,12 @@ impl Geom for GeomDensity {
         }
         if self.size.is_none() {
             defaults.insert(AestheticProperty::Size, PropertyValue::Float(theme.geom_line.size));
+        }
+        if self.linestyle.is_none() {
+            defaults.insert(
+                AestheticProperty::Linetype,
+                PropertyValue::LineStyle(LineStyle::Solid),
+            );
         }
         defaults
     }
@@ -315,6 +335,11 @@ impl Geom for GeomDensity {
             .expect("Size values required for density")
             .as_floats();
 
+        let linestyles = properties
+            .remove(&AestheticProperty::Linetype)
+            .expect("Linetype values required for density")
+            .as_linestyles();
+
         self.draw_density(
             ctx,
             &x_values,
@@ -323,6 +348,7 @@ impl Geom for GeomDensity {
             &fill_values,
             &alpha_values,
             &size_values,
+            &linestyles,
         )
     }
 }
@@ -337,6 +363,7 @@ impl GeomDensity {
         fill_values: &[Color],
         alpha_values: &[f64],
         size_values: &[f64],
+        linestyles: &[LineStyle],
     ) -> Result<()> {
         if x_values.is_empty() {
             return Ok(());
@@ -347,6 +374,7 @@ impl GeomDensity {
         let fill_color = fill_values[0];
         let alpha = alpha_values[0];
         let line_width = size_values[0];
+        let linestyle = &linestyles[0];
 
         // Draw filled area if fill has alpha > 0
         let Color(fr, fg, fb, fa) = fill_color;
@@ -389,7 +417,6 @@ impl GeomDensity {
         ctx.cairo.set_line_width(line_width);
 
         // Apply line style
-        let linestyle = self.linestyle.as_ref().unwrap_or(&LineStyle::Solid);
         linestyle.apply(&mut ctx.cairo);
 
         // Start path at first point

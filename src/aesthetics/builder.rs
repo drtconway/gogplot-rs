@@ -257,6 +257,17 @@ pub trait ShapeAesBuilder: AesMapBuilderTrait {
     }
 }
 
+pub trait LineStyleAesBuilder: AesMapBuilderTrait {
+    fn linestyle(&mut self, column: &str) {
+        self.aes().set(
+            Aesthetic::Linetype,
+            AesValue::Column {
+                name: column.to_string(),
+            },
+        );
+    }
+}
+
 pub trait LabelAesBuilder: AesMapBuilderTrait {
     fn label(&mut self, column: &str) {
         self.aes().set(
@@ -332,6 +343,7 @@ impl AlphaDiscreteAesBuilder for AesMapBuilder {}
 impl SizeContinuousAesBuilder for AesMapBuilder {}
 impl SizeDiscreteAesBuilder for AesMapBuilder {}
 impl ShapeAesBuilder for AesMapBuilder {}
+impl LineStyleAesBuilder for AesMapBuilder {}
 impl LabelAesBuilder for AesMapBuilder {}
 impl GroupAesBuilder for AesMapBuilder {}
 

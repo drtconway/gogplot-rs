@@ -131,6 +131,7 @@ impl LayerBuilder for GeomBoxplotBuilder {
         geom_boxplot.width = self.width;
         if self.linestyle.is_some() {
             geom_boxplot.linestyle = self.linestyle;
+            overrides.push(Aesthetic::Linetype);
         }
 
         // Make Boxplot the default stat if none specified
@@ -221,7 +222,7 @@ impl Default for GeomBoxplot {
     }
 }
 
-const AESTHETIC_REQUIREMENTS: [AestheticRequirement; 10] = [
+const AESTHETIC_REQUIREMENTS: [AestheticRequirement; 11] = [
     AestheticRequirement {
         property: AestheticProperty::X,
         required: true,
@@ -272,6 +273,11 @@ const AESTHETIC_REQUIREMENTS: [AestheticRequirement; 10] = [
         required: false,
         constraint: DomainConstraint::Any,
     },
+    AestheticRequirement {
+        property: AestheticProperty::Linetype,
+        required: false,
+        constraint: DomainConstraint::MustBe(AestheticDomain::Discrete),
+    },
 ];
 
 impl Geom for GeomBoxplot {
@@ -290,6 +296,9 @@ impl Geom for GeomBoxplot {
         if let Some(alpha_prop) = &self.alpha {
             props.insert(AestheticProperty::Alpha, Property::Float(alpha_prop.clone()));
         }
+        if let Some(linestyle_prop) = &self.linestyle {
+            props.insert(AestheticProperty::Linetype, Property::LineStyle(linestyle_prop.clone()));
+        }
         props
     }
 
@@ -303,6 +312,9 @@ impl Geom for GeomBoxplot {
         }
         if self.alpha.is_none() {
             defaults.insert(AestheticProperty::Alpha, PropertyValue::Float(1.0));
+        }
+        if self.linestyle.is_none() {
+            defaults.insert(AestheticProperty::Linetype, PropertyValue::LineStyle(LineStyle::Solid));
         }
         defaults
     }
@@ -375,6 +387,11 @@ impl Geom for GeomBoxplot {
             .unwrap()
             .as_floats();
 
+        let linestyle_values = properties
+            .remove(&AestheticProperty::Linetype)
+            .unwrap()
+            .as_linestyles();
+
         // Extract optional position adjustment aesthetics
         let x_offset = properties
             .remove(&AestheticProperty::XOffset)
@@ -402,6 +419,7 @@ impl Geom for GeomBoxplot {
             &color_values,
             &fill_values,
             &alpha_values,
+            &linestyle_values,
             x_offset.as_deref(),
             width_factor.as_deref(),
         )
@@ -422,6 +440,7 @@ impl GeomBoxplot {
         color_values: &[Color],
         fill_values: &[Color],
         alpha_values: &[f64],
+        linestyle_values: &[LineStyle],
         x_offset: Option<&[f64]>,
         width_factor: Option<&[f64]>,
     ) -> Result<()> {
@@ -488,6 +507,7 @@ impl GeomBoxplot {
                 &color_values[i],
                 &fill_values[i],
                 alpha_values[i],
+                &linestyle_values[i],
             )?;
         }
 
@@ -507,6 +527,7 @@ impl GeomBoxplot {
         color: &Color,
         fill: &Color,
         alpha: f64,
+        linestyle: &LineStyle,
     ) -> Result<()> {
         let x_left = x_center - box_width / 2.0;
         let x_right = x_center + box_width / 2.0;
@@ -550,7 +571,6 @@ impl GeomBoxplot {
         ctx.cairo.set_line_width(1.0);
 
         // Apply line style
-        let linestyle = self.linestyle.as_ref().unwrap_or(&LineStyle::Solid);
         linestyle.apply(&mut ctx.cairo);
 
         ctx.cairo.stroke().map_err(|e| PlotError::RenderError { 

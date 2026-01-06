@@ -222,6 +222,7 @@ impl Layer {
             Property::Color(color) => PropertyVector::Color(vec![*color; n]),
             Property::Shape(shape) => PropertyVector::Shape(vec![*shape; n]),
             Property::String(s) => PropertyVector::String(vec![s.clone(); n]),
+            Property::LineStyle(ls) => PropertyVector::LineStyle(vec![ls.clone(); n]),
         }
     }
 

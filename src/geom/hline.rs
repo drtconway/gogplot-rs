@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use super::{Geom, RenderContext};
 use crate::aesthetics::builder::{
     AesMapBuilder, AlphaContinuousAesBuilder, AlphaDiscreteAesBuilder, ColorContinuousAesBuilder,
-    ColorDiscreteAesBuilder, SizeContinuousAesBuilder, SizeDiscreteAesBuilder,
+    ColorDiscreteAesBuilder, LineStyleAesBuilder, SizeContinuousAesBuilder, SizeDiscreteAesBuilder,
     YInterceptAesBuilder,
 };
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
@@ -26,6 +26,7 @@ pub trait GeomHLineAesBuilderTrait:
     + AlphaDiscreteAesBuilder
     + SizeContinuousAesBuilder
     + SizeDiscreteAesBuilder
+    + LineStyleAesBuilder
 {
 }
 
@@ -126,6 +127,7 @@ impl LayerBuilder for GeomHLineBuilder {
         }
         if self.linestyle.is_some() {
             geom_hline.linestyle = self.linestyle;
+            overrides.push(Aesthetic::Linetype);
         }
 
         // Build initial domains from properties
@@ -194,13 +196,15 @@ impl GeomHLine {
         color_values: impl Iterator<Item = Color>,
         size_values: impl Iterator<Item = f64>,
         alpha_values: impl Iterator<Item = f64>,
+        linestyles: impl Iterator<Item = LineStyle>,
     ) -> Result<()> {
         // Y values are already normalized [0,1] by scales
         // Draw horizontal line across full viewport width for each y value
-        for (((y_norm, color), size), alpha) in y_values
+        for ((((y_norm, color), size), alpha), linestyle) in y_values
             .zip(color_values)
             .zip(size_values)
             .zip(alpha_values)
+            .zip(linestyles)
         {
             let y_px = ctx.map_y(y_norm);
 
@@ -215,7 +219,6 @@ impl GeomHLine {
             ctx.cairo.set_line_width(size);
 
             // Apply line style
-            let linestyle = self.linestyle.as_ref().unwrap_or(&LineStyle::Solid);
             linestyle.apply(&mut ctx.cairo);
 
             // Draw line from left edge to right edge of viewport
@@ -228,7 +231,7 @@ impl GeomHLine {
     }
 }
 
-const AESTHETIC_REQUIREMENTS: [AestheticRequirement; 4] = [
+const AESTHETIC_REQUIREMENTS: [AestheticRequirement; 5] = [
     AestheticRequirement {
         property: AestheticProperty::YIntercept,
         required: true, // Must have y-intercept (from property or mapping)
@@ -248,6 +251,11 @@ const AESTHETIC_REQUIREMENTS: [AestheticRequirement; 4] = [
         property: AestheticProperty::Alpha,
         required: false,
         constraint: DomainConstraint::Any,
+    },
+    AestheticRequirement {
+        property: AestheticProperty::Linetype,
+        required: false,
+        constraint: DomainConstraint::MustBe(AestheticDomain::Discrete),
     },
 ];
 
@@ -279,6 +287,12 @@ impl Geom for GeomHLine {
                 Property::Float(alpha_prop.clone()),
             );
         }
+        if let Some(linestyle_prop) = &self.linestyle {
+            props.insert(
+                AestheticProperty::Linetype,
+                Property::LineStyle(linestyle_prop.clone()),
+            );
+        }
         props
     }
 
@@ -307,6 +321,13 @@ impl Geom for GeomHLine {
             defaults.insert(
                 AestheticProperty::Alpha,
                 super::properties::PropertyValue::Float(1.0),
+            );
+        }
+
+        if self.linestyle.is_none() {
+            defaults.insert(
+                AestheticProperty::Linetype,
+                super::properties::PropertyValue::LineStyle(LineStyle::Solid),
             );
         }
 
@@ -372,12 +393,18 @@ impl Geom for GeomHLine {
             .unwrap()
             .as_floats();
 
+        let linestyles = properties
+            .remove(&AestheticProperty::Linetype)
+            .unwrap()
+            .as_linestyles();
+
         self.draw_hlines(
             ctx,
             y_values.into_iter(),
             color_values.into_iter(),
             size_values.into_iter(),
             alpha_values.into_iter(),
+            linestyles.into_iter(),
         )?;
 
         Ok(())

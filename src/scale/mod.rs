@@ -2,7 +2,7 @@ use crate::{
     aesthetics::{AesMap, AesValue, Aesthetic},
     data::{ContinuousType, DataSource, DiscreteType},
     error::PlotError,
-    scale::traits::{ColorRangeScale, ContinuousRangeScale, ScaleBase, ShapeRangeScale},
+    scale::traits::{ColorRangeScale, ContinuousRangeScale, LineStyleRangeScale, ScaleBase, ShapeRangeScale},
     utils::{
         data::{ContinuousVectorVisitor, DiscreteVectorVisitor, Vectorable},
         set::DiscreteSet,
@@ -44,6 +44,7 @@ pub mod color;
 pub mod positional;
 pub mod shape;
 pub mod size;
+pub mod linestyle;
 
 #[derive(Debug, Clone)]
 pub struct ScaleSet {
@@ -60,6 +61,7 @@ pub struct ScaleSet {
     pub alpha_discrete: positional::DiscretePositionalScale,
     pub size_continuous: size::ContinuousSizeScale,
     pub size_discrete: size::DiscreteSizeScale,
+    pub linestyle_scale: linestyle::LineStyleScale,
 }
 
 impl Default for ScaleSet {
@@ -77,8 +79,7 @@ impl Default for ScaleSet {
             alpha_continuous: positional::ContinuousPositionalScale::default(),
             alpha_discrete: positional::DiscretePositionalScale::default(),
             size_continuous: size::ContinuousSizeScale::default(),
-            size_discrete: size::DiscreteSizeScale::default(),
-        }
+            size_discrete: size::DiscreteSizeScale::default(),            linestyle_scale: linestyle::LineStyleScale::default(),        }
     }
 }
 
@@ -135,7 +136,8 @@ impl ScaleSet {
                 Discrete => self.size_discrete.train(iter),
             },
             Aesthetic::Shape => self.shape_scale.train(iter),
-            Aesthetic::Linetype | Aesthetic::Group | Aesthetic::Label | Aesthetic::Width | Aesthetic::Height => {
+            Aesthetic::Linetype => self.linestyle_scale.train(iter),
+            Aesthetic::Group | Aesthetic::Label | Aesthetic::Width | Aesthetic::Height => {
                 // No scale training needed for these aesthetics
             }
         }
@@ -187,6 +189,7 @@ impl ScaleSet {
                 Discrete => self.size_discrete.map_aesthetic_value(value, data),
             },
             Aesthetic::Shape => self.shape_scale.map_aesthetic_value(value, data),
+            Aesthetic::Linetype => self.linestyle_scale.map_aesthetic_value(value, data),
             _ => Ok(value.clone()), // No scaling needed for other aesthetics
         }
     }
@@ -206,6 +209,7 @@ pub enum ScaleIdentifier {
     Alpha,
     SizeContinuous,
     SizeDiscrete,
+    Linestyle,
 }
 
 pub(crate) struct ContinuousScaleTrainer {

@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use super::{Geom, RenderContext};
 use crate::aesthetics::builder::{
     AesMapBuilder, AlphaContinuousAesBuilder, AlphaDiscreteAesBuilder, ColorContinuousAesBuilder,
-    ColorDiscreteAesBuilder, SizeContinuousAesBuilder, SizeDiscreteAesBuilder, XBeginAesBuilder,
-    XEndAesBuilder, YBeginAesBuilder, YEndAesBuilder,
+    ColorDiscreteAesBuilder, LineStyleAesBuilder, SizeContinuousAesBuilder, SizeDiscreteAesBuilder,
+    XBeginAesBuilder, XEndAesBuilder, YBeginAesBuilder, YEndAesBuilder,
 };
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::error::Result;
@@ -26,6 +26,7 @@ pub trait GeomSegmentAesBuilderTrait:
     + AlphaDiscreteAesBuilder
     + SizeContinuousAesBuilder
     + SizeDiscreteAesBuilder
+    + LineStyleAesBuilder
 {
 }
 
@@ -111,6 +112,7 @@ impl LayerBuilder for GeomSegmentBuilder {
         }
         if self.linestyle.is_some() {
             geom_segment.linestyle = self.linestyle;
+            overrides.push(Aesthetic::Linetype);
         }
 
         LayerBuilderCore::build(
@@ -172,6 +174,7 @@ impl GeomSegment {
         color_values: &[Color],
         size_values: &[f64],
         alpha_values: &[f64],
+        linestyles: &[LineStyle],
     ) -> Result<()> {
         for i in 0..xbegin_values.len() {
             let xbegin = xbegin_values[i];
@@ -181,6 +184,7 @@ impl GeomSegment {
             let color = color_values[i];
             let size = size_values[i];
             let alpha = alpha_values[i];
+            let linestyle = &linestyles[i];
 
             // Set color and alpha
             let Color(r, g, b, a) = color;
@@ -195,7 +199,6 @@ impl GeomSegment {
             ctx.cairo.set_line_width(size);
 
             // Apply line style
-            let linestyle = self.linestyle.as_ref().unwrap_or(&LineStyle::Solid);
             linestyle.apply(&mut ctx.cairo);
 
             // Draw the segment
@@ -219,7 +222,7 @@ impl Default for GeomSegment {
     }
 }
 
-const AESTHETIC_REQUIREMENTS: [AestheticRequirement; 7] = [
+const AESTHETIC_REQUIREMENTS: [AestheticRequirement; 8] = [
     AestheticRequirement {
         property: AestheticProperty::XBegin,
         required: true,
@@ -255,6 +258,11 @@ const AESTHETIC_REQUIREMENTS: [AestheticRequirement; 7] = [
         required: false,
         constraint: DomainConstraint::Any,
     },
+    AestheticRequirement {
+        property: AestheticProperty::Linetype,
+        required: false,
+        constraint: DomainConstraint::MustBe(AestheticDomain::Discrete),
+    },
 ];
 
 impl Geom for GeomSegment {
@@ -282,6 +290,12 @@ impl Geom for GeomSegment {
                 super::properties::Property::Float(alpha_prop.clone()),
             );
         }
+        if let Some(linestyle_prop) = &self.linestyle {
+            props.insert(
+                AestheticProperty::Linetype,
+                super::properties::Property::LineStyle(linestyle_prop.clone()),
+            );
+        }
         props
     }
 
@@ -306,6 +320,12 @@ impl Geom for GeomSegment {
             defaults.insert(
                 AestheticProperty::Alpha,
                 super::properties::PropertyValue::Float(1.0),
+            );
+        }
+        if self.linestyle.is_none() {
+            defaults.insert(
+                AestheticProperty::Linetype,
+                super::properties::PropertyValue::LineStyle(LineStyle::Solid),
             );
         }
         defaults
@@ -352,6 +372,10 @@ impl Geom for GeomSegment {
             .remove(&AestheticProperty::Alpha)
             .unwrap()
             .as_floats();
+        let linestyles = properties
+            .remove(&AestheticProperty::Linetype)
+            .unwrap()
+            .as_linestyles();
 
         self.draw_segments(
             ctx,
@@ -362,6 +386,7 @@ impl Geom for GeomSegment {
             &color_values,
             &size_values,
             &alpha_values,
+            &linestyles,
         )
     }
 }

@@ -9,6 +9,7 @@ pub enum Property {
     String(String),
     Color(Color),
     Shape(Shape),
+    LineStyle(LineStyle),
 }
 
 #[derive(Debug, Clone, PartialEq)]

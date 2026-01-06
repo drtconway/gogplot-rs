@@ -2,9 +2,7 @@ use std::collections::HashMap;
 
 use super::{Geom, RenderContext};
 use crate::aesthetics::builder::{
-    AesMapBuilder, AlphaContinuousAesBuilder, AlphaDiscreteAesBuilder, ColorContinuousAesBuilder,
-    ColorDiscreteAesBuilder, SizeContinuousAesBuilder, SizeDiscreteAesBuilder,
-    XContinuousAesBuilder, XDiscreteAesBuilder, YContinuousAesBuilder, YDiscreteAesBuilder,
+    AesMapBuilder, AlphaContinuousAesBuilder, AlphaDiscreteAesBuilder, ColorContinuousAesBuilder, ColorDiscreteAesBuilder, LineStyleAesBuilder, SizeContinuousAesBuilder, SizeDiscreteAesBuilder, XContinuousAesBuilder, XDiscreteAesBuilder, YContinuousAesBuilder, YDiscreteAesBuilder
 };
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::error::Result;
@@ -26,6 +24,7 @@ pub trait GeomLineAesBuilderTrait:
     + AlphaDiscreteAesBuilder
     + SizeContinuousAesBuilder
     + SizeDiscreteAesBuilder
+    + LineStyleAesBuilder
 {
 }
 
@@ -111,6 +110,7 @@ impl LayerBuilder for GeomLineBuilder {
         }
         if self.linestyle.is_some() {
             geom_line.linestyle = self.linestyle;
+            overrides.push(Aesthetic::Linetype);
         }
 
         LayerBuilderCore::build(
@@ -154,6 +154,7 @@ impl GeomLine {
         color_values: impl Iterator<Item = Color>,
         size_values: impl Iterator<Item = f64>,
         alpha_values: impl Iterator<Item = f64>,
+        linestyle_values: impl Iterator<Item = LineStyle>,
     ) -> Result<()> {
         // Collect all points for this line segment
         let points: Vec<_> = x_values
@@ -161,6 +162,7 @@ impl GeomLine {
             .zip(color_values)
             .zip(size_values)
             .zip(alpha_values)
+            .zip(linestyle_values)
             .collect();
 
         if points.is_empty() {
@@ -169,9 +171,9 @@ impl GeomLine {
 
         // For lines, we'll use the first point's aesthetics for the entire line
         // (In ggplot2, lines typically have constant color/size per group)
-        let ((((_, _), first_color), first_size), first_alpha) = points[0];
+        let (((((_, _), first_color), first_size), first_alpha), first_linestyle) = &points[0];
 
-        let Color(r, g, b, a) = first_color;
+        let Color(r, g, b, a) = *first_color;
         ctx.cairo.set_source_rgba(
             r as f64 / 255.0,
             g as f64 / 255.0,
@@ -180,20 +182,19 @@ impl GeomLine {
         );
 
         // Set line width (size)
-        ctx.cairo.set_line_width(first_size);
+        ctx.cairo.set_line_width(*first_size);
 
         // Apply line style
-        let linestyle = self.linestyle.as_ref().unwrap_or(&LineStyle::Solid);
-        linestyle.apply(&mut ctx.cairo);
+        first_linestyle.apply(&mut ctx.cairo);
 
         // Start the path at the first point
-        let ((((x_norm, y_norm), _), _), _) = points[0];
+        let (((((x_norm, y_norm), _), _), _), _) = points[0];
         let x_px = ctx.map_x(x_norm);
         let y_px = ctx.map_y(y_norm);
         ctx.cairo.move_to(x_px, y_px);
 
         // Draw lines to subsequent points
-        for ((((x_norm, y_norm), _), _), _) in points.iter().skip(1) {
+        for (((((x_norm, y_norm), _), _), _), _) in points.iter().skip(1) {
             let x_px = ctx.map_x(*x_norm);
             let y_px = ctx.map_y(*y_norm);
             ctx.cairo.line_to(x_px, y_px);
@@ -206,7 +207,7 @@ impl GeomLine {
     }
 }
 
-const AESTHETIC_REQUIREMENTS: [AestheticRequirement; 5] = [
+const AESTHETIC_REQUIREMENTS: [AestheticRequirement; 6] = [
     AestheticRequirement {
         property: AestheticProperty::X,
         required: true,
@@ -231,6 +232,11 @@ const AESTHETIC_REQUIREMENTS: [AestheticRequirement; 5] = [
         property: AestheticProperty::Alpha,
         required: false,
         constraint: DomainConstraint::Any,
+    },
+    AestheticRequirement {
+        property: AestheticProperty::Linetype,
+        required: false,
+        constraint: DomainConstraint::MustBe(AestheticDomain::Discrete),
     },
 ];
 
@@ -259,6 +265,12 @@ impl Geom for GeomLine {
                 super::properties::Property::Float(alpha_prop.clone()),
             );
         }
+        if let Some(linestyle_prop) = &self.linestyle {
+            props.insert(
+                AestheticProperty::Linetype,
+                super::properties::Property::LineStyle(linestyle_prop.clone()),
+            );
+        }
         props
     }
 
@@ -283,6 +295,12 @@ impl Geom for GeomLine {
             defaults.insert(
                 AestheticProperty::Alpha,
                 super::properties::PropertyValue::Float(1.0),
+            );
+        }
+        if self.linestyle.is_none() {
+            defaults.insert(
+                AestheticProperty::Linetype,
+                super::properties::PropertyValue::LineStyle(LineStyle::Solid),
             );
         }
         defaults
@@ -321,6 +339,10 @@ impl Geom for GeomLine {
             .remove(&AestheticProperty::Alpha)
             .unwrap()
             .as_floats();
+        let linestyles = properties
+            .remove(&AestheticProperty::Linetype)
+            .unwrap()
+            .as_linestyles();
 
         // Create a permutation iterator to sort points by x-value
         let mut indices: Vec<usize> = (0..x_values.len()).collect();
@@ -331,6 +353,7 @@ impl Geom for GeomLine {
         let color_values = indices.iter().map(|&i| color_values[i]);
         let size_values = indices.iter().map(|&i| size_values[i]);
         let alpha_values = indices.iter().map(|&i| alpha_values[i]);
+        let linestyle_values = indices.iter().map(|&i| linestyles[i].clone());
 
         self.draw_lines(
             ctx,
@@ -339,6 +362,7 @@ impl Geom for GeomLine {
             color_values,
             size_values,
             alpha_values,
+            linestyle_values,
         )
     }
 }

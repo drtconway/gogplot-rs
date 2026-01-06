@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use super::{Geom, RenderContext};
 use crate::aesthetics::builder::{
     AesMapBuilder, AlphaContinuousAesBuilder, AlphaDiscreteAesBuilder, ColorContinuousAesBuilder,
-    ColorDiscreteAesBuilder, SizeContinuousAesBuilder, SizeDiscreteAesBuilder,
+    ColorDiscreteAesBuilder, LineStyleAesBuilder, SizeContinuousAesBuilder, SizeDiscreteAesBuilder,
     XInterceptAesBuilder,
 };
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
@@ -26,6 +26,7 @@ pub trait GeomVLineAesBuilderTrait:
     + AlphaDiscreteAesBuilder
     + SizeContinuousAesBuilder
     + SizeDiscreteAesBuilder
+    + LineStyleAesBuilder
 {
 }
 
@@ -127,6 +128,7 @@ impl LayerBuilder for GeomVLineBuilder {
         }
         if self.linestyle.is_some() {
             geom_vline.linestyle = self.linestyle;
+            overrides.push(Aesthetic::Linetype);
         }
 
         // Build initial domains from properties
@@ -189,13 +191,15 @@ impl GeomVLine {
         color_values: impl Iterator<Item = Color>,
         size_values: impl Iterator<Item = f64>,
         alpha_values: impl Iterator<Item = f64>,
+        linestyles: impl Iterator<Item = LineStyle>,
     ) -> Result<()> {
         // X values are already normalized [0,1] by scales
         // Draw vertical line across full viewport height for each x value
-        for (((x_norm, color), size), alpha) in x_values
+        for ((((x_norm, color), size), alpha), linestyle) in x_values
             .zip(color_values)
             .zip(size_values)
             .zip(alpha_values)
+            .zip(linestyles)
         {
             let x_px = ctx.map_x(x_norm);
 
@@ -210,7 +214,6 @@ impl GeomVLine {
             ctx.cairo.set_line_width(size);
 
             // Apply line style
-            let linestyle = self.linestyle.as_ref().unwrap_or(&LineStyle::Solid);
             linestyle.apply(&mut ctx.cairo);
 
             // Draw line from top edge to bottom edge of viewport
@@ -229,7 +232,7 @@ impl Default for GeomVLine {
     }
 }
 
-const AESTHETIC_REQUIREMENTS: [AestheticRequirement; 4] = [
+const AESTHETIC_REQUIREMENTS: [AestheticRequirement; 5] = [
     AestheticRequirement {
         property: AestheticProperty::XIntercept,
         required: true, // Must have y-intercept (from property or mapping)
@@ -249,6 +252,11 @@ const AESTHETIC_REQUIREMENTS: [AestheticRequirement; 4] = [
         property: AestheticProperty::Alpha,
         required: false,
         constraint: DomainConstraint::Any,
+    },
+    AestheticRequirement {
+        property: AestheticProperty::Linetype,
+        required: false,
+        constraint: DomainConstraint::MustBe(AestheticDomain::Discrete),
     },
 ];
 
@@ -280,6 +288,12 @@ impl Geom for GeomVLine {
                 Property::Float(alpha_prop.clone()),
             );
         }
+        if let Some(linestyle_prop) = &self.linestyle {
+            props.insert(
+                AestheticProperty::Linetype,
+                Property::LineStyle(linestyle_prop.clone()),
+            );
+        }
         props
     }
 
@@ -308,6 +322,13 @@ impl Geom for GeomVLine {
             defaults.insert(
                 AestheticProperty::Alpha,
                 super::properties::PropertyValue::Float(1.0),
+            );
+        }
+
+        if self.linestyle.is_none() {
+            defaults.insert(
+                AestheticProperty::Linetype,
+                super::properties::PropertyValue::LineStyle(LineStyle::Solid),
             );
         }
 
@@ -372,12 +393,18 @@ impl Geom for GeomVLine {
             .unwrap()
             .as_floats();
 
+        let linestyles = properties
+            .remove(&AestheticProperty::Linetype)
+            .unwrap()
+            .as_linestyles();
+
         self.draw_vlines(
             ctx,
             x_values.into_iter(),
             color_values.into_iter(),
             size_values.into_iter(),
             alpha_values.into_iter(),
+            linestyles.into_iter(),
         )?;
 
         Ok(())

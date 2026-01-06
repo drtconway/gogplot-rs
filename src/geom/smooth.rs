@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use super::{AestheticRequirement, DomainConstraint, Geom, RenderContext};
 use crate::aesthetics::builder::{
     AesMapBuilder, AlphaContinuousAesBuilder, AlphaDiscreteAesBuilder, ColorContinuousAesBuilder,
-    ColorDiscreteAesBuilder, SizeContinuousAesBuilder, SizeDiscreteAesBuilder,
-    XContinuousAesBuilder, YContinuousAesBuilder, YMaxContinuousAesBuilder,
-    YMinContinuousAesBuilder,
+    ColorDiscreteAesBuilder, LineStyleAesBuilder, SizeContinuousAesBuilder,
+    SizeDiscreteAesBuilder, XContinuousAesBuilder, YContinuousAesBuilder,
+    YMaxContinuousAesBuilder, YMinContinuousAesBuilder,
 };
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::error::{PlotError, Result};
@@ -27,6 +27,7 @@ pub trait GeomSmoothAesBuilderTrait:
     + AlphaDiscreteAesBuilder
     + SizeContinuousAesBuilder
     + SizeDiscreteAesBuilder
+    + LineStyleAesBuilder
 {
 }
 
@@ -129,6 +130,7 @@ impl LayerBuilder for GeomSmoothBuilder {
         }
         if self.linestyle.is_some() {
             geom.linestyle = self.linestyle;
+            overrides.push(Aesthetic::Linetype);
         }
 
         if self.core.stat.is_none() {
@@ -236,6 +238,7 @@ impl GeomSmooth {
         color_values: &[Color],
         size_values: &[f64],
         alpha_values: &[f64],
+        linestyles: &[LineStyle],
     ) -> Result<()> {
         if x_values.is_empty() {
             return Ok(());
@@ -244,6 +247,7 @@ impl GeomSmooth {
         let Color(r, g, b, a) = color_values[0];
         let line_width = size_values[0];
         let alpha = alpha_values[0];
+        let linestyle = &linestyles[0];
 
         ctx.cairo.set_source_rgba(
             r as f64 / 255.0,
@@ -254,7 +258,6 @@ impl GeomSmooth {
         ctx.cairo.set_line_width(line_width);
 
         // Apply line style
-        let linestyle = self.linestyle.as_ref().unwrap_or(&LineStyle::Solid);
         linestyle.apply(&mut ctx.cairo);
 
         for i in 0..x_values.len() {
@@ -283,7 +286,7 @@ impl Default for GeomSmooth {
     }
 }
 
-const AESTHETIC_REQUIREMENTS: [AestheticRequirement; 8] = [
+const AESTHETIC_REQUIREMENTS: [AestheticRequirement; 9] = [
     AestheticRequirement {
         property: AestheticProperty::X,
         required: true,
@@ -324,6 +327,11 @@ const AESTHETIC_REQUIREMENTS: [AestheticRequirement; 8] = [
         required: false,
         constraint: DomainConstraint::Any,
     },
+    AestheticRequirement {
+        property: AestheticProperty::Linetype,
+        required: false,
+        constraint: DomainConstraint::MustBe(AestheticDomain::Discrete),
+    },
 ];
 
 impl Geom for GeomSmooth {
@@ -351,6 +359,12 @@ impl Geom for GeomSmooth {
                 Property::Float(alpha_prop.clone()),
             );
         }
+        if let Some(linestyle_prop) = &self.linestyle {
+            props.insert(
+                AestheticProperty::Linetype,
+                Property::LineStyle(linestyle_prop.clone()),
+            );
+        }
         props
     }
 
@@ -373,6 +387,12 @@ impl Geom for GeomSmooth {
         }
         if self.alpha.is_none() {
             defaults.insert(AestheticProperty::Alpha, PropertyValue::Float(0.4));
+        }
+        if self.linestyle.is_none() {
+            defaults.insert(
+                AestheticProperty::Linetype,
+                PropertyValue::LineStyle(LineStyle::Solid),
+            );
         }
         defaults
     }
@@ -430,6 +450,11 @@ impl Geom for GeomSmooth {
             .expect("Alpha values required for smooth")
             .as_floats();
 
+        let linestyles = properties
+            .remove(&AestheticProperty::Linetype)
+            .expect("Linetype values required for smooth")
+            .as_linestyles();
+
         // Draw ribbon (confidence interval) first if se is enabled and we have ymin/ymax
         if self.confidence_interval {
             if let (Some(ymin), Some(ymax)) = (ymin_values.as_ref(), ymax_values.as_ref()) {
@@ -445,6 +470,7 @@ impl Geom for GeomSmooth {
             &color_values,
             &size_values,
             &alpha_values,
+            &linestyles,
         )?;
 
         Ok(())

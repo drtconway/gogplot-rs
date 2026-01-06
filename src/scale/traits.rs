@@ -12,7 +12,7 @@ use crate::theme::Color;
 use crate::utils::data::{visit_c, visit_d};
 use crate::utils::dataframe::{BoolVec, FloatVec, IntVec, StrVec};
 use crate::utils::set::DiscreteSet;
-use crate::visuals::Shape;
+use crate::visuals::{LineStyle, Shape};
 
 /// Base trait for all scales providing common functionality.
 pub trait ScaleBase: Default + Clone + Send + Sync {
@@ -387,3 +387,97 @@ pub trait DiscreteColorScale: DiscreteDomainScale + ColorRangeScale {}
 /// Typically used for discrete/categorical data where each category
 /// gets a distinct shape.
 pub trait ShapeScale: DiscreteDomainScale + ShapeRangeScale {}
+
+pub trait LineStyleRangeScale: ScaleBase {
+    /// Map a value from the data domain to a linestyle.
+    ///
+    /// # Arguments
+    /// * `value` - A value in the data domain
+    ///
+    /// # Returns
+    /// * `Some(linestyle)` - The corresponding linestyle
+    /// * `None` - If the value is outside the scale's domain bounds (will be filtered out)
+    fn map_value<T: DiscreteType>(&self, value: &T) -> Option<LineStyle>;
+
+    fn map_primitive_value(&self, value: &PrimitiveValue) -> Option<LineStyle> {
+        match value {
+            PrimitiveValue::Int(v) => self.map_value(v),
+            PrimitiveValue::Float(_) => None,
+            PrimitiveValue::Str(v) => self.map_value(v),
+            PrimitiveValue::Bool(v) => self.map_value(v),
+        }
+    }
+
+    fn map_vector_iter<'a>(&self, iter: VectorIter<'a>) -> Vec<LineStyle> {
+        let mut linestyles: Vec<LineStyle> = Vec::new();
+        match iter {
+            VectorIter::Int(iterator) => {
+                for v in iterator {
+                    if let Some(linestyle) = self.map_value(&v) {
+                        linestyles.push(linestyle);
+                    }
+                }
+            }
+            VectorIter::Float(_) => {
+                panic!("LineStyle scale cannot map float values");
+            }
+            VectorIter::Str(iterator) => {
+                for v in iterator {
+                    if let Some(linestyle) = self.map_value(&v.to_string()) {
+                        linestyles.push(linestyle);
+                    }
+                }
+            }
+            VectorIter::Bool(iterator) => {
+                for v in iterator {
+                    if let Some(linestyle) = self.map_value(&v) {
+                        linestyles.push(linestyle);
+                    }
+                }
+            }
+        }
+        linestyles
+    }
+
+    fn map_aesthetic_value(&self, value: &AesValue, data: &dyn DataSource) -> Result<AesValue> {
+        match value {
+            AesValue::Column { name } => {
+                let column = DataSource::get(data, name).ok_or(PlotError::MissingColumn {
+                    column: name.to_string(),
+                })?;
+                let linestyles: Vec<LineStyle> = self.map_vector_iter(column.iter());
+                // Convert to String representation for storage
+                let linestyle_strings: Vec<String> = linestyles.iter()
+                    .map(|ls| format!("{:?}", ls))
+                    .collect();
+                Ok(AesValue::vector(linestyle_strings, Some(name.clone())))
+            }
+            AesValue::Constant { value } => {
+                let linestyle = self.map_primitive_value(value).ok_or(
+                    PlotError::InvalidPrimitiveValueMapping {
+                        value: value.clone(),
+                    },
+                )?;
+                Ok(AesValue::Constant {
+                    value: PrimitiveValue::Str(format!("{:?}", linestyle)),
+                })
+            }
+            AesValue::Vector {
+                values,
+                name,
+            } => {
+                let linestyles = self.map_vector_iter(values.iter());
+                let linestyle_strings: Vec<String> = linestyles.iter()
+                    .map(|ls| format!("{:?}", ls))
+                    .collect();
+                Ok(AesValue::vector(linestyle_strings, name.clone()))
+            }
+        }
+    }
+}
+
+/// Scales that map data values to line styles.
+///
+/// Typically used for discrete/categorical data where each category
+/// gets a distinct line pattern.
+pub trait LineStyleScale: DiscreteDomainScale + LineStyleRangeScale {}

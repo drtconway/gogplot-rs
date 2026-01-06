@@ -3,8 +3,9 @@ use std::collections::HashMap;
 use super::{AestheticRequirement, DomainConstraint, Geom, RenderContext};
 use crate::aesthetics::builder::{
     AesMapBuilder, AlphaContinuousAesBuilder, AlphaDiscreteAesBuilder, ColorContinuousAesBuilder,
-    ColorDiscreteAesBuilder, SizeContinuousAesBuilder, SizeDiscreteAesBuilder,
-    XContinuousAesBuilder, YMaxContinuousAesBuilder, YMinContinuousAesBuilder,
+    ColorDiscreteAesBuilder, LineStyleAesBuilder, SizeContinuousAesBuilder,
+    SizeDiscreteAesBuilder, XContinuousAesBuilder, YMaxContinuousAesBuilder,
+    YMinContinuousAesBuilder,
 };
 use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
 use crate::error::Result;
@@ -24,6 +25,7 @@ pub trait GeomErrorbarAesBuilderTrait:
     + AlphaDiscreteAesBuilder
     + SizeContinuousAesBuilder
     + SizeDiscreteAesBuilder
+    + LineStyleAesBuilder
 {
 }
 
@@ -114,6 +116,7 @@ impl LayerBuilder for GeomErrorbarBuilder {
         }
         if self.linestyle.is_some() {
             geom.linestyle = self.linestyle;
+            overrides.push(Aesthetic::Linetype);
         }
 
         LayerBuilderCore::build(
@@ -166,6 +169,7 @@ impl GeomErrorbar {
         color_values: &[Color],
         size_values: &[f64],
         alpha_values: &[f64],
+        linestyles: &[LineStyle],
         width_values: Option<&[f64]>,
     ) -> Result<()> {
         if x_values.is_empty() {
@@ -189,6 +193,7 @@ impl GeomErrorbar {
             let Color(r, g, b, a) = color_values[i];
             let line_width = size_values[i];
             let alpha = alpha_values[i];
+            let linestyle = &linestyles[i];
 
             // Use mapped width if available, otherwise use default
             let width_factor = width_values.map(|w| w[i]).unwrap_or(1.0);
@@ -218,7 +223,6 @@ impl GeomErrorbar {
             ctx.cairo.set_line_width(line_width);
 
             // Apply line style
-            let linestyle = self.linestyle.as_ref().unwrap_or(&LineStyle::Solid);
             linestyle.apply(&mut ctx.cairo);
 
             // Map coordinates to pixel space
@@ -251,7 +255,7 @@ impl Default for GeomErrorbar {
     }
 }
 
-const AESTHETIC_REQUIREMENTS: [AestheticRequirement; 7] = [
+const AESTHETIC_REQUIREMENTS: [AestheticRequirement; 8] = [
     AestheticRequirement {
         property: AestheticProperty::X,
         required: true,
@@ -287,6 +291,11 @@ const AESTHETIC_REQUIREMENTS: [AestheticRequirement; 7] = [
         required: false,
         constraint: DomainConstraint::Any,
     },
+    AestheticRequirement {
+        property: AestheticProperty::Linetype,
+        required: false,
+        constraint: DomainConstraint::MustBe(AestheticDomain::Discrete),
+    },
 ];
 
 impl Geom for GeomErrorbar {
@@ -311,6 +320,12 @@ impl Geom for GeomErrorbar {
                 Property::Float(alpha_prop.clone()),
             );
         }
+        if let Some(linestyle_prop) = &self.linestyle {
+            props.insert(
+                AestheticProperty::Linetype,
+                Property::LineStyle(linestyle_prop.clone()),
+            );
+        }
         props
     }
 
@@ -327,6 +342,12 @@ impl Geom for GeomErrorbar {
         }
         if self.alpha.is_none() {
             defaults.insert(AestheticProperty::Alpha, PropertyValue::Float(1.0));
+        }
+        if self.linestyle.is_none() {
+            defaults.insert(
+                AestheticProperty::Linetype,
+                PropertyValue::LineStyle(LineStyle::Solid),
+            );
         }
         defaults
     }
@@ -374,6 +395,11 @@ impl Geom for GeomErrorbar {
             .expect("Alpha values required for errorbar")
             .as_floats();
 
+        let linestyles = properties
+            .remove(&AestheticProperty::Linetype)
+            .expect("Linetype values required for errorbar")
+            .as_linestyles();
+
         // Extract optional width aesthetic for cap width control
         let width_values = properties
             .remove(&AestheticProperty::Width)
@@ -387,6 +413,7 @@ impl Geom for GeomErrorbar {
             &color_values,
             &size_values,
             &alpha_values,
+            &linestyles,
             width_values.as_deref(),
         )
     }
