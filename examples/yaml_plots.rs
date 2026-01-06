@@ -6,11 +6,7 @@ use gogplot::{
             SizeDiscreteAesBuilder, XContinuousAesBuilder, XDiscreteAesBuilder,
             YContinuousAesBuilder, YDiscreteAesBuilder,
         },
-    },
-    error::to_io_error,
-    geom::{geom_rect, hline::geom_hline, line::geom_line, point::geom_point},
-    plot::{PlotBuilder, plot},
-    utils::mtcars::mtcars,
+    }, error::to_io_error, geom::{geom_rect, hline::geom_hline, line::geom_line, point::geom_point}, plot::{PlotBuilder, plot}, theme::traits::{AreaElement, LineElement, PointElement}, utils::mtcars::mtcars
 };
 
 use serde::{Deserialize, Serialize};

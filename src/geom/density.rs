@@ -6,13 +6,13 @@ use crate::aesthetics::builder::{
     ColorDiscreteAesBuilder, FillContinuousAesBuilder, FillDiscreteAesBuilder, GroupAesBuilder,
     LineStyleAesBuilder, XContinuousAesBuilder, YContinuousAesBuilder,
 };
-use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
+use crate::aesthetics::{AesMap, AestheticDomain, AestheticProperty};
 use crate::error::Result;
 use crate::geom::properties::{Property, PropertyValue, PropertyVector};
 use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
 use crate::stat::density::Density;
-use crate::theme::{Color, color};
+use crate::theme::{AreaElement, Color};
 use crate::visuals::LineStyle;
 
 pub trait GeomDensityAesBuilderTrait:
@@ -33,48 +33,15 @@ impl GeomDensityAesBuilderTrait for AesMapBuilder {}
 
 pub struct GeomDensityBuilder {
     core: LayerBuilderCore,
-    color: Option<Color>,
-    fill: Option<Color>,
-    alpha: Option<f64>,
-    size: Option<f64>,
-    linestyle: Option<LineStyle>,
+    area: AreaElement
 }
 
 impl GeomDensityBuilder {
     pub fn new() -> Self {
         Self {
             core: LayerBuilderCore::default(),
-            color: None,
-            fill: None,
-            alpha: None,
-            size: None,
-            linestyle: None,
+            area: AreaElement::default()
         }
-    }
-
-    pub fn color<C: Into<Color>>(mut self, color: C) -> Self {
-        self.color = Some(color.into());
-        self
-    }
-
-    pub fn fill<F: Into<Color>>(mut self, fill: F) -> Self {
-        self.fill = Some(fill.into());
-        self
-    }
-
-    pub fn alpha<A: Into<f64>>(mut self, alpha: A) -> Self {
-        self.alpha = Some(alpha.into());
-        self
-    }
-
-    pub fn size<S: Into<f64>>(mut self, size: S) -> Self {
-        self.size = Some(size.into());
-        self
-    }
-
-    pub fn linestyle<L: Into<LineStyle>>(mut self, linestyle: L) -> Self {
-        self.linestyle = Some(linestyle.into());
-        self
     }
 
     pub fn aes(mut self, closure: impl FnOnce(&mut dyn GeomDensityAesBuilderTrait)) -> Self {
@@ -107,36 +74,25 @@ impl GeomDensityBuilder {
     }
 }
 
+impl crate::theme::traits::AreaElement for GeomDensityBuilder {
+    fn this(&self) -> &AreaElement {
+        &self.area
+    }
+
+    fn this_mut(&mut self) -> &mut AreaElement {
+        &mut self.area
+    }
+}
+
 impl LayerBuilder for GeomDensityBuilder {
     fn build(mut self: Box<Self>, parent_mapping: &AesMap) -> Result<Layer> {
         let mut geom_density = GeomDensity::new();
+        geom_density.area = self.area;
 
         // Build the mapping (merging layer + parent)
         let mut overrides = Vec::new();
 
-        // Set fixed property values and remove from inherited mapping
-        if self.color.is_some() {
-            geom_density.color = self.color;
-            overrides.push(Aesthetic::Color(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Color(AestheticDomain::Discrete));
-        }
-        if self.fill.is_some() {
-            geom_density.fill = self.fill;
-            overrides.push(Aesthetic::Fill(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Fill(AestheticDomain::Discrete));
-        }
-        if self.alpha.is_some() {
-            geom_density.alpha = self.alpha;
-            overrides.push(Aesthetic::Alpha(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Alpha(AestheticDomain::Discrete));
-        }
-        if self.size.is_some() {
-            geom_density.size = self.size;
-        }
-        if self.linestyle.is_some() {
-            geom_density.linestyle = self.linestyle;
-            overrides.push(Aesthetic::Linetype);
-        }
+        geom_density.area.overrides(&mut overrides);
 
         // Make Density the default stat if none specified
         if self.core.stat.is_none() {
@@ -162,31 +118,14 @@ pub fn geom_density() -> GeomDensityBuilder {
 /// This geom automatically computes the density using the Density stat
 /// and renders it as a line plot.
 pub struct GeomDensity {
-    /// Default line color (if not mapped)
-    pub color: Option<Color>,
-
-    /// Default fill color for area under curve (if not mapped)
-    pub fill: Option<Color>,
-
-    /// Default alpha/opacity (if not mapped)
-    pub alpha: Option<f64>,
-
-    /// Default line width (if not mapped)
-    pub size: Option<f64>,
-
-    /// Line style for density curve
-    pub linestyle: Option<LineStyle>,
+    area: AreaElement,
 }
 
 impl GeomDensity {
     /// Create a new density geom with default settings
     pub fn new() -> Self {
         Self {
-            color: None,
-            fill: None,
-            alpha: None,
-            size: None,
-            linestyle: None,
+            area: AreaElement::default(),
         }
     }
 }
@@ -242,75 +181,13 @@ impl Geom for GeomDensity {
 
     fn properties(&self) -> HashMap<AestheticProperty, Property> {
         let mut props = HashMap::new();
-        if let Some(color_prop) = &self.color {
-            props.insert(AestheticProperty::Color, Property::Color(color_prop.clone()));
-        }
-        if let Some(fill_prop) = &self.fill {
-            props.insert(AestheticProperty::Fill, Property::Color(fill_prop.clone()));
-        }
-        if let Some(alpha_prop) = &self.alpha {
-            props.insert(AestheticProperty::Alpha, Property::Float(alpha_prop.clone()));
-        }
-        if let Some(size_prop) = &self.size {
-            props.insert(AestheticProperty::Size, Property::Float(size_prop.clone()));
-        }
-        if let Some(linestyle_prop) = &self.linestyle {
-            props.insert(
-                AestheticProperty::Linetype,
-                Property::LineStyle(linestyle_prop.clone()),
-            );
-        }
+        self.area.properties(&mut props);
         props
     }
 
     fn property_defaults(&self, theme: &crate::theme::Theme) -> HashMap<AestheticProperty, PropertyValue> {
         let mut defaults = HashMap::new();
-
-        // Start with hardcoded defaults
-        let mut default_color = color::BLACK;
-        let mut default_fill = Color(0, 0, 0, 0); // Transparent by default
-        let mut default_alpha = 1.0;
-        let mut default_size = 1.0;
-        let mut default_linestyle = crate::visuals::LineStyle::Solid;
-
-        // Apply theme overrides from area element (has both fill and outline properties)
-        if let Some(crate::theme::Element::Area(elem)) = theme.get_element("density", "area") {
-            if let Some(fill) = elem.fill {
-                default_fill = fill;
-            }
-            if let Some(color) = elem.color {
-                default_color = color;
-            }
-            if let Some(alpha) = elem.alpha {
-                default_alpha = alpha;
-            }
-            if let Some(size) = elem.size {
-                default_size = size;
-            }
-            if let Some(ref linestyle) = elem.linestyle {
-                default_linestyle = linestyle.clone();
-            }
-        }
-
-        // Only set defaults for properties not explicitly set on the geom
-        if self.color.is_none() {
-            defaults.insert(AestheticProperty::Color, PropertyValue::Color(default_color));
-        }
-        if self.fill.is_none() {
-            defaults.insert(AestheticProperty::Fill, PropertyValue::Color(default_fill));
-        }
-        if self.alpha.is_none() {
-            defaults.insert(AestheticProperty::Alpha, PropertyValue::Float(default_alpha));
-        }
-        if self.size.is_none() {
-            defaults.insert(AestheticProperty::Size, PropertyValue::Float(default_size));
-        }
-        if self.linestyle.is_none() {
-            defaults.insert(
-                AestheticProperty::Linetype,
-                PropertyValue::LineStyle(default_linestyle),
-            );
-        }
+        self.area.defaults("density", "area", theme, &mut defaults);
         defaults
     }
 
@@ -473,6 +350,7 @@ mod tests {
     use crate::error::to_io_error;
     use crate::plot::plot;
     use crate::theme::color;
+    use crate::theme::traits::AreaElement;
     use crate::utils::dataframe::DataFrame;
 
     fn init_test_logging() {

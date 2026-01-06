@@ -1,7 +1,11 @@
 // Theme component templates for grammar of graphics
 
+use crate::{
+    aesthetics::{Aesthetic, AestheticDomain, AestheticProperty},
+    geom::properties::{Property, PropertyValue},
+    visuals::{LineStyle, Shape},
+};
 use std::collections::HashMap;
-use crate::visuals::{Shape, LineStyle};
 
 /// Color representation (could be RGB, RGBA, etc.)
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -34,6 +38,7 @@ impl From<i64> for Color {
 }
 
 pub mod color;
+pub mod traits;
 
 // ============================================================================
 // Theme Element Types - used for per-geom customization
@@ -49,7 +54,7 @@ pub enum Element {
 }
 
 /// Point element properties
-#[derive(Clone, Debug, PartialEq, Default)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PointElement {
     pub color: Option<Color>,
     pub size: Option<f64>,
@@ -57,30 +62,126 @@ pub struct PointElement {
     pub shape: Option<Shape>,
 }
 
-impl PointElement {
-    pub fn color(mut self, color: Color) -> Self {
-        self.color = Some(color);
+impl Default for PointElement {
+    fn default() -> Self {
+        PointElement {
+            color: None,
+            size: None,
+            alpha: None,
+            shape: None,
+        }
+    }
+}
+
+impl traits::PointElement for PointElement {
+    fn this(&self) -> &self::PointElement {
         self
     }
-    
-    pub fn size(mut self, size: f64) -> Self {
-        self.size = Some(size);
-        self
-    }
-    
-    pub fn alpha(mut self, alpha: f64) -> Self {
-        self.alpha = Some(alpha);
-        self
-    }
-    
-    pub fn shape(mut self, shape: Shape) -> Self {
-        self.shape = Some(shape);
+
+    fn this_mut(&mut self) -> &mut self::PointElement {
         self
     }
 }
 
+impl PointElement {
+    pub fn overrides(&self, overrides: &mut Vec<Aesthetic>) {
+        if self.size.is_some() {
+            overrides.push(Aesthetic::Size(AestheticDomain::Continuous));
+            overrides.push(Aesthetic::Size(AestheticDomain::Discrete));
+        }
+        if self.color.is_some() {
+            overrides.push(Aesthetic::Color(AestheticDomain::Continuous));
+            overrides.push(Aesthetic::Color(AestheticDomain::Discrete));
+        }
+        if self.alpha.is_some() {
+            overrides.push(Aesthetic::Alpha(AestheticDomain::Continuous));
+            overrides.push(Aesthetic::Alpha(AestheticDomain::Discrete));
+        }
+        if self.shape.is_some() {
+            overrides.push(Aesthetic::Shape);
+        }
+    }
+
+    pub fn properties(&self, props: &mut HashMap<AestheticProperty, Property>) {
+        if let Some(size_prop) = &self.size {
+            props.insert(AestheticProperty::Size, Property::Float(size_prop.clone()));
+        }
+        if let Some(color_prop) = &self.color {
+            props.insert(
+                AestheticProperty::Color,
+                Property::Color(color_prop.clone()),
+            );
+        }
+        if let Some(alpha_prop) = &self.alpha {
+            props.insert(
+                AestheticProperty::Alpha,
+                Property::Float(alpha_prop.clone()),
+            );
+        }
+        if let Some(shape_prop) = &self.shape {
+            props.insert(
+                AestheticProperty::Shape,
+                Property::Shape(shape_prop.clone()),
+            );
+        }
+    }
+
+    pub fn defaults(
+        &self,
+        geom: &'static str,
+        group: &'static str,
+        theme: &Theme,
+        defaults: &mut HashMap<AestheticProperty, PropertyValue>,
+    ) {
+        // Start with hardcoded defaults
+        let mut default_size = 1.0;
+        let mut default_color = color::BLACK;
+        let mut default_alpha = 1.0;
+        let mut default_shape = crate::visuals::Shape::Circle;
+
+        // Apply theme overrides if present
+        if let Some(crate::theme::Element::Point(elem)) = theme.get_element(geom, group) {
+            if let Some(size) = elem.size {
+                default_size = size;
+            }
+            if let Some(color) = elem.color {
+                default_color = color;
+            }
+            if let Some(alpha) = elem.alpha {
+                default_alpha = alpha;
+            }
+            if let Some(ref shape) = elem.shape {
+                default_shape = shape.clone();
+            }
+        }
+
+        // Only set defaults for properties not explicitly set on the geom
+        if self.size.is_none() {
+            defaults.insert(AestheticProperty::Size, PropertyValue::Float(default_size));
+        }
+        if self.color.is_none() {
+            defaults.insert(
+                AestheticProperty::Color,
+                PropertyValue::Color(default_color),
+            );
+        }
+        if self.alpha.is_none() {
+            defaults.insert(
+                AestheticProperty::Alpha,
+                PropertyValue::Float(default_alpha),
+            );
+        }
+        if self.shape.is_none() {
+            defaults.insert(
+                AestheticProperty::Shape,
+                PropertyValue::Shape(default_shape),
+            );
+        }
+    }
+}
+
 /// Line element properties
-#[derive(Clone, Debug, PartialEq, Default)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct LineElement {
     pub color: Option<Color>,
     pub size: Option<f64>,
@@ -88,62 +189,270 @@ pub struct LineElement {
     pub linestyle: Option<LineStyle>,
 }
 
+impl Default for LineElement {
+    fn default() -> Self {
+        LineElement {
+            color: None,
+            size: None,
+            alpha: None,
+            linestyle: None,
+        }
+    }
+}
+
+impl traits::LineElement for LineElement {
+    fn this(&self) -> &self::LineElement {
+        self
+    }
+
+    fn this_mut(&mut self) -> &mut self::LineElement {
+        self
+    }
+}
+
 impl LineElement {
-    pub fn color(mut self, color: Color) -> Self {
-        self.color = Some(color);
-        self
+    pub fn overrides(&self, overrides: &mut Vec<Aesthetic>) {
+        if self.size.is_some() {
+            overrides.push(Aesthetic::Size(AestheticDomain::Continuous));
+            overrides.push(Aesthetic::Size(AestheticDomain::Discrete));
+        }
+        if self.color.is_some() {
+            overrides.push(Aesthetic::Color(AestheticDomain::Continuous));
+            overrides.push(Aesthetic::Color(AestheticDomain::Discrete));
+        }
+        if self.alpha.is_some() {
+            overrides.push(Aesthetic::Alpha(AestheticDomain::Continuous));
+            overrides.push(Aesthetic::Alpha(AestheticDomain::Discrete));
+        }
+        if self.linestyle.is_some() {
+            overrides.push(Aesthetic::Linetype);
+        }
     }
-    
-    pub fn size(mut self, size: f64) -> Self {
-        self.size = Some(size);
-        self
+
+    pub fn properties(&self, props: &mut HashMap<AestheticProperty, Property>) {
+        if let Some(size_prop) = &self.size {
+            props.insert(AestheticProperty::Size, Property::Float(size_prop.clone()));
+        }
+        if let Some(color_prop) = &self.color {
+            props.insert(
+                AestheticProperty::Color,
+                Property::Color(color_prop.clone()),
+            );
+        }
+        if let Some(alpha_prop) = &self.alpha {
+            props.insert(
+                AestheticProperty::Alpha,
+                Property::Float(alpha_prop.clone()),
+            );
+        }
+        if let Some(linestyle_prop) = &self.linestyle {
+            props.insert(
+                AestheticProperty::Linetype,
+                Property::LineStyle(linestyle_prop.clone()),
+            );
+        }
     }
-    
-    pub fn alpha(mut self, alpha: f64) -> Self {
-        self.alpha = Some(alpha);
-        self
-    }
-    
-    pub fn linestyle(mut self, linestyle: LineStyle) -> Self {
-        self.linestyle = Some(linestyle);
-        self
+
+    pub fn defaults(
+        &self,
+        geom: &'static str,
+        group: &'static str,
+        theme: &Theme,
+        defaults: &mut HashMap<AestheticProperty, PropertyValue>,
+    ) {
+        // Start with hardcoded defaults
+        let mut default_size = 1.0;
+        let mut default_color = color::BLACK;
+        let mut default_alpha = 1.0;
+        let mut default_linestyle = crate::visuals::LineStyle::Solid;
+
+        // Apply theme overrides if present
+        if let Some(crate::theme::Element::Line(elem)) = theme.get_element(geom, group) {
+            if let Some(size) = elem.size {
+                default_size = size;
+            }
+            if let Some(color) = elem.color {
+                default_color = color;
+            }
+            if let Some(alpha) = elem.alpha {
+                default_alpha = alpha;
+            }
+            if let Some(ref linestyle) = elem.linestyle {
+                default_linestyle = linestyle.clone();
+            }
+        }
+
+        // Only set defaults for properties not explicitly set on the geom
+        if self.size.is_none() {
+            defaults.insert(AestheticProperty::Size, PropertyValue::Float(default_size));
+        }
+        if self.color.is_none() {
+            defaults.insert(
+                AestheticProperty::Color,
+                PropertyValue::Color(default_color),
+            );
+        }
+        if self.alpha.is_none() {
+            defaults.insert(
+                AestheticProperty::Alpha,
+                PropertyValue::Float(default_alpha),
+            );
+        }
+        if self.linestyle.is_none() {
+            defaults.insert(
+                AestheticProperty::Linetype,
+                PropertyValue::LineStyle(default_linestyle),
+            );
+        }
     }
 }
 
 /// area element properties
-#[derive(Clone, Debug, PartialEq, Default)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct AreaElement {
     pub fill: Option<Color>,
-    pub color: Option<Color>,  // border color
+    pub color: Option<Color>, // border color
     pub alpha: Option<f64>,
-    pub size: Option<f64>,  // border width
+    pub size: Option<f64>, // border width
     pub linestyle: Option<LineStyle>,
 }
 
+impl Default for AreaElement {
+    fn default() -> Self {
+        AreaElement {
+            fill: None,
+            color: None,
+            alpha: None,
+            size: None,
+            linestyle: None,
+        }
+    }
+}
+
+impl traits::AreaElement for AreaElement {
+    fn this(&self) -> &Self {
+        self
+    }
+
+    fn this_mut(&mut self) -> &mut Self {
+        self
+    }
+}
+
 impl AreaElement {
-    pub fn fill(mut self, fill: Color) -> Self {
-        self.fill = Some(fill);
-        self
+    pub fn overrides(&self, overrides: &mut Vec<Aesthetic>) {
+        if self.size.is_some() {
+            overrides.push(Aesthetic::Size(AestheticDomain::Continuous));
+            overrides.push(Aesthetic::Size(AestheticDomain::Discrete));
+        }
+        if self.color.is_some() {
+            overrides.push(Aesthetic::Color(AestheticDomain::Continuous));
+            overrides.push(Aesthetic::Color(AestheticDomain::Discrete));
+        }
+        if self.fill.is_some() {
+            overrides.push(Aesthetic::Fill(AestheticDomain::Continuous));
+            overrides.push(Aesthetic::Fill(AestheticDomain::Discrete));
+        }
+        if self.alpha.is_some() {
+            overrides.push(Aesthetic::Alpha(AestheticDomain::Continuous));
+            overrides.push(Aesthetic::Alpha(AestheticDomain::Discrete));
+        }
+        if self.linestyle.is_some() {
+            overrides.push(Aesthetic::Linetype);
+        }
     }
-    
-    pub fn color(mut self, color: Color) -> Self {
-        self.color = Some(color);
-        self
+
+    pub fn properties(&self, props: &mut HashMap<AestheticProperty, Property>) {
+        if let Some(size_prop) = &self.size {
+            props.insert(AestheticProperty::Size, Property::Float(size_prop.clone()));
+        }
+        if let Some(color_prop) = &self.color {
+            props.insert(
+                AestheticProperty::Color,
+                Property::Color(color_prop.clone()),
+            );
+        }
+        if let Some(fill_prop) = &self.fill {
+            props.insert(
+                AestheticProperty::Fill,
+                Property::Color(fill_prop.clone()),
+            );
+        }
+        if let Some(alpha_prop) = &self.alpha {
+            props.insert(
+                AestheticProperty::Alpha,
+                Property::Float(alpha_prop.clone()),
+            );
+        }
+        if let Some(linestyle_prop) = &self.linestyle {
+            props.insert(
+                AestheticProperty::Linetype,
+                Property::LineStyle(linestyle_prop.clone()),
+            );
+        }
     }
-    
-    pub fn alpha(mut self, alpha: f64) -> Self {
-        self.alpha = Some(alpha);
-        self
-    }
-    
-    pub fn size(mut self, size: f64) -> Self {
-        self.size = Some(size);
-        self
-    }
-    
-    pub fn linestyle(mut self, linestyle: LineStyle) -> Self {
-        self.linestyle = Some(linestyle);
-        self
+
+    pub fn defaults(
+        &self,
+        geom: &'static str,
+        group: &'static str,
+        theme: &Theme,
+        defaults: &mut HashMap<AestheticProperty, PropertyValue>,
+    ) {
+        // Start with hardcoded defaults
+        let mut default_size = 1.0;
+        let mut default_color = color::BLACK;
+        let mut default_fill = color::GRAY90;
+        let mut default_alpha = 1.0;
+        let mut default_linestyle = crate::visuals::LineStyle::Solid;
+
+        // Apply theme overrides if present
+        if let Some(crate::theme::Element::Area(elem)) = theme.get_element(geom, group) {
+            if let Some(size) = elem.size {
+                default_size = size;
+            }
+            if let Some(color) = elem.color {
+                default_color = color;
+            }
+            if let Some(fill) = elem.fill {
+                default_fill = fill;
+            }
+            if let Some(alpha) = elem.alpha {
+                default_alpha = alpha;
+            }
+            if let Some(ref linestyle) = elem.linestyle {
+                default_linestyle = linestyle.clone();
+            }
+        }
+
+        // Only set defaults for properties not explicitly set on the geom
+        if self.size.is_none() {
+            defaults.insert(AestheticProperty::Size, PropertyValue::Float(default_size));
+        }
+        if self.color.is_none() {
+            defaults.insert(
+                AestheticProperty::Color,
+                PropertyValue::Color(default_color),
+            );
+        }
+        if self.fill.is_none() {
+            defaults.insert(
+                AestheticProperty::Fill,
+                PropertyValue::Color(default_fill),
+            );
+        }
+        if self.alpha.is_none() {
+            defaults.insert(
+                AestheticProperty::Alpha,
+                PropertyValue::Float(default_alpha),
+            );
+        }
+        if self.linestyle.is_none() {
+            defaults.insert(
+                AestheticProperty::Linetype,
+                PropertyValue::LineStyle(default_linestyle),
+            );
+        }
     }
 }
 
@@ -164,32 +473,32 @@ impl TextElement {
         self.color = Some(color);
         self
     }
-    
+
     pub fn size(mut self, size: f64) -> Self {
         self.size = Some(size);
         self
     }
-    
+
     pub fn alpha(mut self, alpha: f64) -> Self {
         self.alpha = Some(alpha);
         self
     }
-    
+
     pub fn family(mut self, family: String) -> Self {
         self.family = Some(family);
         self
     }
-    
+
     pub fn face(mut self, face: FontWeight) -> Self {
         self.face = Some(face);
         self
     }
-    
+
     pub fn hjust(mut self, hjust: f64) -> Self {
         self.hjust = Some(hjust);
         self
     }
-    
+
     pub fn vjust(mut self, vjust: f64) -> Self {
         self.vjust = Some(vjust);
         self
@@ -405,13 +714,11 @@ impl Default for AxisTextTheme {
 }
 
 /// Theme for axis components
-#[derive(Clone, Debug, PartialEq)]
-#[derive(Default)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub struct AxisTheme {
     pub line: AxisLineTheme,
     pub text: AxisTextTheme,
 }
-
 
 /// Theme for legend components
 #[derive(Clone, Debug, PartialEq)]
@@ -508,7 +815,7 @@ impl Default for PlotTitleTheme {
 #[derive(Clone, Debug, PartialEq)]
 pub struct GeomLineTheme {
     pub color: Color,
-    pub size: f64,      // Line width
+    pub size: f64, // Line width
     pub alpha: f64,
     pub linestyle: crate::visuals::LineStyle,
 }
@@ -530,7 +837,7 @@ pub struct GeomPointTheme {
     pub color: Color,
     pub size: f64,
     pub alpha: f64,
-    pub shape: i64,  // Shape as i64 to match visuals::Shape
+    pub shape: i64, // Shape as i64 to match visuals::Shape
 }
 
 impl Default for GeomPointTheme {
@@ -539,7 +846,7 @@ impl Default for GeomPointTheme {
             color: color::BLACK,
             size: 3.0,
             alpha: 1.0,
-            shape: 16,  // Circle (Shape::Circle as i64)
+            shape: 16, // Circle (Shape::Circle as i64)
         }
     }
 }
@@ -555,8 +862,8 @@ pub struct GeomRectTheme {
 impl Default for GeomRectTheme {
     fn default() -> Self {
         GeomRectTheme {
-            fill: Color(128, 128, 128, 255),  // Gray fill
-            color: color::BLACK,               // Black outline
+            fill: Color(128, 128, 128, 255), // Gray fill
+            color: color::BLACK,             // Black outline
             alpha: 1.0,
         }
     }
@@ -585,8 +892,8 @@ impl Default for GeomTextTheme {
             color: color::BLACK,
             size: 11.0,
             alpha: 1.0,
-            hjust: 0.0,  // Left edge at point (text extends right)
-            vjust: 1.0,  // Top at point (text extends down/below point in visual space)
+            hjust: 0.0, // Left edge at point (text extends right)
+            vjust: 1.0, // Top at point (text extends down/below point in visual space)
         }
     }
 }
@@ -605,7 +912,7 @@ pub struct Theme {
     pub geom_point: GeomPointTheme,
     pub geom_rect: GeomRectTheme,
     pub geom_text: GeomTextTheme,
-    
+
     // Per-geom element overrides: geom_name -> element_name -> Element
     geom_elements: HashMap<&'static str, HashMap<&'static str, Element>>,
 }
@@ -706,7 +1013,7 @@ impl Theme {
 
         theme
     }
-    
+
     /// Get a builder for customizing a specific geom's theme
     pub fn geom(&mut self, geom_name: &'static str) -> GeomThemeBuilder<'_> {
         GeomThemeBuilder {
@@ -714,7 +1021,7 @@ impl Theme {
             geom_name,
         }
     }
-    
+
     /// Get an element override for a specific geom
     pub fn get_element(&self, geom_name: &str, element_name: &str) -> Option<&Element> {
         self.geom_elements.get(geom_name)?.get(element_name)
@@ -748,7 +1055,8 @@ pub struct ElementBuilder<'a> {
 impl<'a> ElementBuilder<'a> {
     /// Set the element value
     pub fn set(self, element: impl Into<Element>) {
-        self.theme.geom_elements
+        self.theme
+            .geom_elements
             .entry(self.geom_name)
             .or_insert_with(HashMap::new)
             .insert(self.element_name, element.into());
@@ -758,7 +1066,19 @@ impl<'a> ElementBuilder<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{aesthetics::builder::{ColorDiscreteAesBuilder, XContinuousAesBuilder, YContinuousAesBuilder}, error::to_io_error, geom::{line::geom_line, point::geom_point}, plot::plot, theme::point, utils::mtcars::mtcars};
+    use crate::{
+        aesthetics::builder::{
+            ColorDiscreteAesBuilder, XContinuousAesBuilder, YContinuousAesBuilder,
+        },
+        error::to_io_error,
+        geom::{line::geom_line, point::geom_point},
+        plot::plot,
+        theme::{
+            point,
+            traits::{LineElement, PointElement},
+        },
+        utils::mtcars::mtcars,
+    };
 
     fn init_test_logging() {
         let _ = env_logger::builder()
@@ -766,7 +1086,7 @@ mod tests {
             .filter_level(log::LevelFilter::Debug)
             .try_init();
     }
-    
+
     #[test]
     fn theme_custom_color() {
         init_test_logging();

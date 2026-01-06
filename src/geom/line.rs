@@ -4,13 +4,13 @@ use super::{Geom, RenderContext};
 use crate::aesthetics::builder::{
     AesMapBuilder, AlphaContinuousAesBuilder, AlphaDiscreteAesBuilder, ColorContinuousAesBuilder, ColorDiscreteAesBuilder, LineStyleAesBuilder, SizeContinuousAesBuilder, SizeDiscreteAesBuilder, XContinuousAesBuilder, XDiscreteAesBuilder, YContinuousAesBuilder, YDiscreteAesBuilder
 };
-use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
+use crate::aesthetics::{AesMap, AestheticDomain, AestheticProperty};
 use crate::error::Result;
 use crate::geom::properties::PropertyVector;
 use crate::geom::{AestheticRequirement, DomainConstraint};
 use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
-use crate::theme::{Color, color};
+use crate::theme::{Color, LineElement};
 use crate::visuals::LineStyle;
 
 pub trait GeomLineAesBuilderTrait:
@@ -32,41 +32,15 @@ impl GeomLineAesBuilderTrait for AesMapBuilder {}
 
 pub struct GeomLineBuilder {
     core: LayerBuilderCore,
-    size: Option<f64>,
-    color: Option<Color>,
-    alpha: Option<f64>,
-    linestyle: Option<LineStyle>,
+    line: LineElement,
 }
 
 impl GeomLineBuilder {
     pub fn new() -> Self {
         Self {
             core: LayerBuilderCore::default(),
-            size: None,
-            color: None,
-            alpha: None,
-            linestyle: None,
+            line: LineElement::default(),
         }
-    }
-
-    pub fn size<Size: Into<f64>>(mut self, size: Size) -> Self {
-        self.size = Some(size.into());
-        self
-    }
-
-    pub fn color<C: Into<Color>>(mut self, color: C) -> Self {
-        self.color = Some(color.into());
-        self
-    }
-
-    pub fn alpha<Alpha: Into<f64>>(mut self, alpha: Alpha) -> Self {
-        self.alpha = Some(alpha.into());
-        self
-    }
-
-    pub fn linestyle<L: Into<LineStyle>>(mut self, linestyle: L) -> Self {
-        self.linestyle = Some(linestyle.into());
-        self
     }
 
     pub fn aes(mut self, closure: impl FnOnce(&mut dyn GeomLineAesBuilderTrait)) -> Self {
@@ -85,33 +59,26 @@ impl GeomLineBuilder {
     }
 }
 
+impl crate::theme::traits::LineElement for GeomLineBuilder {
+    fn this(&self) -> &LineElement {
+        &self.line
+    }
+
+    fn this_mut(&mut self) -> &mut LineElement {
+        &mut self.line
+    }
+}
+
 impl LayerBuilder for GeomLineBuilder {
     fn build(self: Box<Self>, parent_mapping: &AesMap) -> Result<Layer> {
         let mut geom_line = GeomLine::new();
 
+        geom_line.line = self.line;
+
         // Build the mapping (merging layer + parent)
         let mut overrides = Vec::new();
 
-        // Set fixed property values and remove from inherited mapping
-        if self.size.is_some() {
-            geom_line.size = self.size;
-            overrides.push(Aesthetic::Size(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Size(AestheticDomain::Discrete));
-        }
-        if self.color.is_some() {
-            geom_line.color = self.color;
-            overrides.push(Aesthetic::Color(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Color(AestheticDomain::Discrete));
-        }
-        if self.alpha.is_some() {
-            geom_line.alpha = self.alpha;
-            overrides.push(Aesthetic::Alpha(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Alpha(AestheticDomain::Discrete));
-        }
-        if self.linestyle.is_some() {
-            geom_line.linestyle = self.linestyle;
-            overrides.push(Aesthetic::Linetype);
-        }
+        geom_line.line.overrides(&mut overrides);
 
         LayerBuilderCore::build(
             self.core,
@@ -129,20 +96,14 @@ pub fn geom_line() -> GeomLineBuilder {
 
 /// GeomLine renders points/scatterplot
 pub struct GeomLine {
-    size: Option<f64>,
-    color: Option<Color>,
-    alpha: Option<f64>,
-    linestyle: Option<LineStyle>,
+    line: LineElement,
 }
 
 impl GeomLine {
     /// Create a new point geom with default settings from theme
     pub fn new() -> Self {
         Self {
-            size: None,
-            color: None,
-            alpha: None,
-            linestyle: None,
+            line: LineElement::default(),
         }
     }
 
@@ -169,39 +130,37 @@ impl GeomLine {
             return Ok(());
         }
 
-        // For lines, we'll use the first point's aesthetics for the entire line
-        // (In ggplot2, lines typically have constant color/size per group)
-        let (((((_, _), first_color), first_size), first_alpha), first_linestyle) = &points[0];
+        // Draw lines as segments to support varying aesthetics
+        // Each segment from point i to i+1 uses the aesthetics of point i
+        for i in 0..points.len() - 1 {
+            let (((((x1_norm, y1_norm), color1), size1), alpha1), linestyle1) = &points[i];
+            let (((((x2_norm, y2_norm), _), _), _), _) = &points[i + 1];
 
-        let Color(r, g, b, a) = *first_color;
-        ctx.cairo.set_source_rgba(
-            r as f64 / 255.0,
-            g as f64 / 255.0,
-            b as f64 / 255.0,
-            a as f64 / 255.0 * first_alpha,
-        );
+            // Set color and alpha for this segment
+            let Color(r, g, b, a) = *color1;
+            ctx.cairo.set_source_rgba(
+                r as f64 / 255.0,
+                g as f64 / 255.0,
+                b as f64 / 255.0,
+                a as f64 / 255.0 * alpha1,
+            );
 
-        // Set line width (size)
-        ctx.cairo.set_line_width(*first_size);
+            // Set line width (size)
+            ctx.cairo.set_line_width(*size1);
 
-        // Apply line style
-        first_linestyle.apply(&mut ctx.cairo);
+            // Apply line style
+            linestyle1.apply(&mut ctx.cairo);
 
-        // Start the path at the first point
-        let (((((x_norm, y_norm), _), _), _), _) = points[0];
-        let x_px = ctx.map_x(x_norm);
-        let y_px = ctx.map_y(y_norm);
-        ctx.cairo.move_to(x_px, y_px);
+            // Draw this segment
+            let x1_px = ctx.map_x(*x1_norm);
+            let y1_px = ctx.map_y(*y1_norm);
+            let x2_px = ctx.map_x(*x2_norm);
+            let y2_px = ctx.map_y(*y2_norm);
 
-        // Draw lines to subsequent points
-        for (((((x_norm, y_norm), _), _), _), _) in points.iter().skip(1) {
-            let x_px = ctx.map_x(*x_norm);
-            let y_px = ctx.map_y(*y_norm);
-            ctx.cairo.line_to(x_px, y_px);
+            ctx.cairo.move_to(x1_px, y1_px);
+            ctx.cairo.line_to(x2_px, y2_px);
+            ctx.cairo.stroke().ok();
         }
-
-        // Stroke the path
-        ctx.cairo.stroke().ok();
 
         Ok(())
     }
@@ -247,30 +206,7 @@ impl Geom for GeomLine {
 
     fn properties(&self) -> HashMap<AestheticProperty, super::properties::Property> {
         let mut props = HashMap::new();
-        if let Some(size_prop) = &self.size {
-            props.insert(
-                AestheticProperty::Size,
-                super::properties::Property::Float(size_prop.clone()),
-            );
-        }
-        if let Some(color_prop) = &self.color {
-            props.insert(
-                AestheticProperty::Color,
-                super::properties::Property::Color(color_prop.clone()),
-            );
-        }
-        if let Some(alpha_prop) = &self.alpha {
-            props.insert(
-                AestheticProperty::Alpha,
-                super::properties::Property::Float(alpha_prop.clone()),
-            );
-        }
-        if let Some(linestyle_prop) = &self.linestyle {
-            props.insert(
-                AestheticProperty::Linetype,
-                super::properties::Property::LineStyle(linestyle_prop.clone()),
-            );
-        }
+        self.line.properties(&mut props);
         props
     }
 
@@ -280,53 +216,8 @@ impl Geom for GeomLine {
     ) -> HashMap<AestheticProperty, super::properties::PropertyValue> {
         let mut defaults = HashMap::new();
 
-        // Start with hardcoded defaults
-        let mut default_size = 1.0;
-        let mut default_color = color::BLACK;
-        let mut default_alpha = 1.0;
-        let mut default_linestyle = crate::visuals::LineStyle::Solid;
+        self.line.defaults("line", "line", theme, &mut defaults);
 
-        // Apply theme overrides if present
-        if let Some(crate::theme::Element::Line(elem)) = theme.get_element("line", "line") {
-            if let Some(size) = elem.size {
-                default_size = size;
-            }
-            if let Some(color) = elem.color {
-                default_color = color;
-            }
-            if let Some(alpha) = elem.alpha {
-                default_alpha = alpha;
-            }
-            if let Some(ref linestyle) = elem.linestyle {
-                default_linestyle = linestyle.clone();
-            }
-        }
-
-        // Only set defaults for properties not explicitly set on the geom
-        if self.size.is_none() {
-            defaults.insert(
-                AestheticProperty::Size,
-                super::properties::PropertyValue::Float(default_size),
-            );
-        }
-        if self.color.is_none() {
-            defaults.insert(
-                AestheticProperty::Color,
-                super::properties::PropertyValue::Color(default_color),
-            );
-        }
-        if self.alpha.is_none() {
-            defaults.insert(
-                AestheticProperty::Alpha,
-                super::properties::PropertyValue::Float(default_alpha),
-            );
-        }
-        if self.linestyle.is_none() {
-            defaults.insert(
-                AestheticProperty::Linetype,
-                super::properties::PropertyValue::LineStyle(default_linestyle),
-            );
-        }
         defaults
     }
 
@@ -394,7 +285,7 @@ impl Geom for GeomLine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{error::to_io_error, plot::plot, utils::mtcars::mtcars};
+    use crate::{error::to_io_error, plot::plot, theme::{color, traits::LineElement}, utils::mtcars::mtcars};
 
     fn init_test_logging() {
         let _ = env_logger::builder()

@@ -6,7 +6,7 @@ use crate::aesthetics::builder::{
     FillDiscreteAesBuilder, GroupAesBuilder, XContinuousAesBuilder, XDiscreteAesBuilder,
     YContinuousAesBuilder, YDiscreteAesBuilder,
 };
-use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
+use crate::aesthetics::{AesMap, AestheticProperty};
 use crate::data::PrimitiveValue;
 use crate::error::Result;
 use crate::geom::properties::{Property, PropertyValue, PropertyVector};
@@ -15,7 +15,7 @@ use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
 use crate::scale::traits::{ContinuousDomainScale, ScaleBase};
 use crate::stat::Stat;
-use crate::theme::{Color, color};
+use crate::theme::{AreaElement, Color};
 
 pub trait GeomBarAesBuilderTrait:
     XContinuousAesBuilder
@@ -34,9 +34,7 @@ impl GeomBarAesBuilderTrait for AesMapBuilder {}
 
 pub struct GeomBarBuilder {
     core: LayerBuilderCore,
-    color: Option<Color>,
-    fill: Option<Color>,
-    alpha: Option<f64>,
+    area: AreaElement,
     width: f64,
 }
 
@@ -44,26 +42,9 @@ impl GeomBarBuilder {
     pub fn new() -> Self {
         Self {
             core: LayerBuilderCore::default(),
-            color: None,
-            fill: None,
-            alpha: None,
+            area: AreaElement::default(),
             width: 0.9,
         }
-    }
-
-    pub fn color<C: Into<Color>>(mut self, color: C) -> Self {
-        self.color = Some(color.into());
-        self
-    }
-
-    pub fn fill<F: Into<Color>>(mut self, fill: F) -> Self {
-        self.fill = Some(fill.into());
-        self
-    }
-
-    pub fn alpha<A: Into<f64>>(mut self, alpha: A) -> Self {
-        self.alpha = Some(alpha.into());
-        self
     }
 
     /// Set the bar width (as a proportion of spacing, typically 0.0-1.0)
@@ -98,30 +79,26 @@ impl GeomBarBuilder {
     }
 }
 
+impl crate::theme::traits::AreaElement for GeomBarBuilder {
+    fn this(&self) -> &AreaElement {
+        &self.area
+    }
+
+    fn this_mut(&mut self) -> &mut AreaElement {
+        &mut self.area
+    }
+}
+
 impl LayerBuilder for GeomBarBuilder {
     fn build(self: Box<Self>, parent_mapping: &AesMap) -> Result<Layer> {
         let mut geom_bar = GeomBar::new();
+        geom_bar.area = self.area;
         geom_bar.width = self.width;
 
         // Build the mapping (merging layer + parent)
         let mut overrides = Vec::new();
 
-        // Set fixed property values and remove from inherited mapping
-        if self.color.is_some() {
-            geom_bar.color = self.color;
-            overrides.push(Aesthetic::Color(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Color(AestheticDomain::Discrete));
-        }
-        if self.fill.is_some() {
-            geom_bar.fill = self.fill;
-            overrides.push(Aesthetic::Fill(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Fill(AestheticDomain::Discrete));
-        }
-        if self.alpha.is_some() {
-            geom_bar.alpha = self.alpha;
-            overrides.push(Aesthetic::Alpha(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Alpha(AestheticDomain::Discrete));
-        }
+        geom_bar.area.overrides(&mut overrides);
 
         LayerBuilderCore::build(
             self.core,
@@ -154,14 +131,7 @@ pub fn geom_bar() -> GeomBarBuilder {
 /// - `Color`: Bar border color (can be constant or mapped to data)
 /// - `Alpha`: Bar transparency (0.0 = transparent, 1.0 = opaque)
 pub struct GeomBar {
-    /// Default color (border)
-    pub color: Option<Color>,
-
-    /// Default fill color
-    pub fill: Option<Color>,
-
-    /// Default alpha/opacity
-    pub alpha: Option<f64>,
+    area: AreaElement,
 
     /// Bar width (as a proportion of the spacing between x values)
     pub width: f64,
@@ -171,9 +141,7 @@ impl GeomBar {
     /// Create a new bar geom with default settings
     pub fn new() -> Self {
         Self {
-            color: None,
-            fill: None,
-            alpha: None,
+            area: AreaElement::default(),
             width: 0.9,
         }
     }
@@ -319,41 +287,16 @@ impl Geom for GeomBar {
 
     fn properties(&self) -> HashMap<AestheticProperty, Property> {
         let mut props = HashMap::new();
-        if let Some(color_prop) = &self.color {
-            props.insert(
-                AestheticProperty::Color,
-                Property::Color(color_prop.clone()),
-            );
-        }
-        if let Some(fill_prop) = &self.fill {
-            props.insert(AestheticProperty::Fill, Property::Color(fill_prop.clone()));
-        }
-        if let Some(alpha_prop) = &self.alpha {
-            props.insert(
-                AestheticProperty::Alpha,
-                Property::Float(alpha_prop.clone()),
-            );
-        }
+        self.area.properties(&mut props);
         props
     }
 
     fn property_defaults(
         &self,
-        _theme: &crate::prelude::Theme,
+        theme: &crate::prelude::Theme,
     ) -> HashMap<AestheticProperty, PropertyValue> {
         let mut defaults = HashMap::new();
-
-        if self.color.is_none() {
-            defaults.insert(AestheticProperty::Color, PropertyValue::Color(color::BLACK));
-        }
-        if self.fill.is_none() {
-            defaults.insert(AestheticProperty::Fill, PropertyValue::Color(color::GREY50));
-        }
-
-        if self.alpha.is_none() {
-            defaults.insert(AestheticProperty::Alpha, PropertyValue::Float(1.0));
-        }
-
+        self.area.defaults("bar", "bar", theme, &mut defaults);
         defaults
     }
 
@@ -454,6 +397,8 @@ mod tests {
     use crate::error::to_io_error;
     use crate::plot::plot;
     use crate::stat::count::Count;
+    use crate::theme::color;
+    use crate::theme::traits::AreaElement;
     use crate::utils::dataframe::DataFrame;
     use crate::utils::mtcars::mtcars;
 

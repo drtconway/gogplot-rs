@@ -3,7 +3,7 @@ use gogplot::{
     error::to_io_error,
     geom::point::geom_point,
     plot::plot,
-    theme::color,
+    theme::{color, traits::PointElement},
     utils::mtcars::mtcars,
 };
 

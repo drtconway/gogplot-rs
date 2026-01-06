@@ -483,7 +483,7 @@ impl Transform for ReverseTransform {
 #[cfg(test)]
 mod tests {
     use crate::{
-        aesthetics::builder::{XContinuousAesBuilder, YContinuousAesBuilder}, data::DataSource, error::to_io_error, geom::point::geom_point, plot::plot, scale::{scale_x_continuous, scale_y_continuous}, utils::dataframe::DataFrame
+        aesthetics::builder::{XContinuousAesBuilder, YContinuousAesBuilder}, data::DataSource, error::to_io_error, geom::point::geom_point, plot::plot, scale::{scale_x_continuous, scale_y_continuous}, theme::traits::PointElement, utils::dataframe::DataFrame
     };
 
     use super::*;

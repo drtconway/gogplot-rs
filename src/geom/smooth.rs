@@ -7,13 +7,13 @@ use crate::aesthetics::builder::{
     SizeDiscreteAesBuilder, XContinuousAesBuilder, YContinuousAesBuilder,
     YMaxContinuousAesBuilder, YMinContinuousAesBuilder,
 };
-use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
+use crate::aesthetics::{AesMap, AestheticDomain, AestheticProperty};
 use crate::error::{PlotError, Result};
 use crate::geom::properties::{Property, PropertyValue, PropertyVector};
 use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
 use crate::stat::smooth::Smooth;
-use crate::theme::{Color, color};
+use crate::theme::{AreaElement, Color};
 use crate::visuals::LineStyle;
 
 pub trait GeomSmoothAesBuilderTrait:
@@ -35,54 +35,21 @@ impl GeomSmoothAesBuilderTrait for AesMapBuilder {}
 
 pub struct GeomSmoothBuilder {
     core: LayerBuilderCore,
-    color: Option<Color>,
-    fill: Option<Color>,
-    size: Option<f64>,
-    alpha: Option<f64>,
+    area: AreaElement,
     confidence_interval: bool,
-    linestyle: Option<LineStyle>,
 }
 
 impl GeomSmoothBuilder {
     pub fn new() -> Self {
         Self {
             core: LayerBuilderCore::default(),
-            color: None,
-            fill: None,
-            size: None,
-            alpha: None,
+            area: AreaElement::default(),
             confidence_interval: true,
-            linestyle: None,
         }
-    }
-
-    pub fn color<C: Into<Color>>(mut self, color: C) -> Self {
-        self.color = Some(color.into());
-        self
-    }
-
-    pub fn fill<F: Into<Color>>(mut self, fill: F) -> Self {
-        self.fill = Some(fill.into());
-        self
-    }
-
-    pub fn size<S: Into<f64>>(mut self, size: S) -> Self {
-        self.size = Some(size.into());
-        self
-    }
-
-    pub fn alpha<A: Into<f64>>(mut self, alpha: A) -> Self {
-        self.alpha = Some(alpha.into());
-        self
     }
 
     pub fn confidence_interval(mut self, confidence_interval: bool) -> Self {
         self.confidence_interval = confidence_interval;
-        self
-    }
-
-    pub fn linestyle<L: Into<LineStyle>>(mut self, linestyle: L) -> Self {
-        self.linestyle = Some(linestyle.into());
         self
     }
 
@@ -102,36 +69,23 @@ impl GeomSmoothBuilder {
     }
 }
 
+impl crate::theme::traits::AreaElement for GeomSmoothBuilder {
+    fn this(&self) -> &AreaElement {
+        &self.area
+    }
+
+    fn this_mut(&mut self) -> &mut AreaElement {
+        &mut self.area
+    }
+}
+
 impl LayerBuilder for GeomSmoothBuilder {
     fn build(mut self: Box<Self>, parent_mapping: &AesMap) -> Result<Layer> {
         let mut geom = GeomSmooth::new().confidence_interval(self.confidence_interval);
+        geom.area = self.area;
 
         let mut overrides = Vec::new();
-
-        if self.color.is_some() {
-            geom.color = self.color;
-            overrides.push(Aesthetic::Color(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Color(AestheticDomain::Discrete));
-        }
-        if self.fill.is_some() {
-            geom.fill = self.fill;
-            overrides.push(Aesthetic::Fill(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Fill(AestheticDomain::Discrete));
-        }
-        if self.size.is_some() {
-            geom.size = self.size;
-            overrides.push(Aesthetic::Size(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Size(AestheticDomain::Discrete));
-        }
-        if self.alpha.is_some() {
-            geom.alpha = self.alpha;
-            overrides.push(Aesthetic::Alpha(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Alpha(AestheticDomain::Discrete));
-        }
-        if self.linestyle.is_some() {
-            geom.linestyle = self.linestyle;
-            overrides.push(Aesthetic::Linetype);
-        }
+        geom.area.overrides(&mut overrides);
 
         if self.core.stat.is_none() {
             self.core.stat = Some(Box::new(Smooth::default()))
@@ -153,23 +107,15 @@ pub fn geom_smooth() -> GeomSmoothBuilder {
 
 /// GeomSmooth renders fitted curves with confidence intervals
 pub struct GeomSmooth {
-    color: Option<Color>,
-    fill: Option<Color>,
-    size: Option<f64>,
-    alpha: Option<f64>,
+    area: AreaElement,
     confidence_interval: bool,
-    linestyle: Option<LineStyle>,
 }
 
 impl GeomSmooth {
     pub fn new() -> Self {
         Self {
-            color: None,
-            fill: None,
-            size: None,
-            alpha: None,
+            area: AreaElement::default(),
             confidence_interval: true,
-            linestyle: None,
         }
     }
 
@@ -341,30 +287,7 @@ impl Geom for GeomSmooth {
 
     fn properties(&self) -> HashMap<AestheticProperty, Property> {
         let mut props = HashMap::new();
-        if let Some(color_prop) = &self.color {
-            props.insert(
-                AestheticProperty::Color,
-                Property::Color(color_prop.clone()),
-            );
-        }
-        if let Some(fill_prop) = &self.fill {
-            props.insert(AestheticProperty::Fill, Property::Color(fill_prop.clone()));
-        }
-        if let Some(size_prop) = &self.size {
-            props.insert(AestheticProperty::Size, Property::Float(size_prop.clone()));
-        }
-        if let Some(alpha_prop) = &self.alpha {
-            props.insert(
-                AestheticProperty::Alpha,
-                Property::Float(alpha_prop.clone()),
-            );
-        }
-        if let Some(linestyle_prop) = &self.linestyle {
-            props.insert(
-                AestheticProperty::Linetype,
-                Property::LineStyle(linestyle_prop.clone()),
-            );
-        }
+        self.area.properties(&mut props);
         props
     }
 
@@ -373,60 +296,7 @@ impl Geom for GeomSmooth {
         theme: &crate::theme::Theme,
     ) -> HashMap<AestheticProperty, PropertyValue> {
         let mut defaults = HashMap::new();
-
-        // Start with hardcoded defaults for line properties
-        let mut default_color = color::BLUE;
-        let mut default_size = 1.0;
-        let mut default_alpha = 0.4;
-        let mut default_linestyle = crate::visuals::LineStyle::Solid;
-        let mut default_fill = Color::rgb(128, 128, 128);
-
-        // Apply theme overrides for line element
-        if let Some(crate::theme::Element::Line(elem)) = theme.get_element("smooth", "line") {
-            if let Some(color) = elem.color {
-                default_color = color;
-            }
-            if let Some(size) = elem.size {
-                default_size = size;
-            }
-            if let Some(alpha) = elem.alpha {
-                default_alpha = alpha;
-            }
-            if let Some(ref linestyle) = elem.linestyle {
-                default_linestyle = linestyle.clone();
-            }
-        }
-
-        // Apply theme overrides for ribbon (confidence interval) element
-        if let Some(crate::theme::Element::Area(elem)) = theme.get_element("smooth", "ribbon") {
-            if let Some(fill) = elem.fill {
-                default_fill = fill;
-            }
-            // Note: ribbon could also override alpha for the CI if needed
-        }
-
-        // Only set defaults for properties not explicitly set on the geom
-        if self.color.is_none() {
-            defaults.insert(AestheticProperty::Color, PropertyValue::Color(default_color));
-        }
-        if self.fill.is_none() {
-            defaults.insert(
-                AestheticProperty::Fill,
-                PropertyValue::Color(default_fill),
-            );
-        }
-        if self.size.is_none() {
-            defaults.insert(AestheticProperty::Size, PropertyValue::Float(default_size));
-        }
-        if self.alpha.is_none() {
-            defaults.insert(AestheticProperty::Alpha, PropertyValue::Float(default_alpha));
-        }
-        if self.linestyle.is_none() {
-            defaults.insert(
-                AestheticProperty::Linetype,
-                PropertyValue::LineStyle(default_linestyle),
-            );
-        }
+        self.area.defaults("smooth", "smooth", theme, &mut defaults);
         defaults
     }
 
@@ -513,12 +383,8 @@ impl Geom for GeomSmooth {
 impl Clone for GeomSmooth {
     fn clone(&self) -> Self {
         Self {
-            color: self.color.clone(),
-            fill: self.fill.clone(),
-            size: self.size.clone(),
-            alpha: self.alpha.clone(),
+            area: self.area.clone(),
             confidence_interval: self.confidence_interval,
-            linestyle: self.linestyle.clone(),
         }
     }
 }
@@ -526,6 +392,8 @@ impl Clone for GeomSmooth {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::theme::color;
+    use crate::theme::traits::AreaElement;
     use crate::utils::mtcars::mtcars;
     use crate::{error::to_io_error, plot::plot};
 

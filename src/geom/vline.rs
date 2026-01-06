@@ -15,7 +15,7 @@ use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
 use crate::scale::traits::{ContinuousRangeScale, ScaleBase};
 use crate::stat::Stat;
-use crate::theme::{Color, color};
+use crate::theme::{Color, LineElement};
 use crate::visuals::LineStyle;
 
 pub trait GeomVLineAesBuilderTrait:
@@ -35,10 +35,7 @@ impl GeomVLineAesBuilderTrait for AesMapBuilder {}
 pub struct GeomVLineBuilder {
     core: LayerBuilderCore,
     x_intercept: Option<f64>,
-    size: Option<f64>,
-    color: Option<Color>,
-    alpha: Option<f64>,
-    linestyle: Option<LineStyle>,
+    line: LineElement,
 }
 
 impl GeomVLineBuilder {
@@ -46,35 +43,12 @@ impl GeomVLineBuilder {
         Self {
             core: LayerBuilderCore::default(),
             x_intercept: None,
-            size: None,
-            color: None,
-            alpha: None,
-            linestyle: None,
+            line: LineElement::default(),
         }
     }
 
     pub fn x_intercept<XIntercept: Into<f64>>(mut self, x_intercept: XIntercept) -> Self {
         self.x_intercept = Some(x_intercept.into());
-        self
-    }
-
-    pub fn size<Size: Into<f64>>(mut self, size: Size) -> Self {
-        self.size = Some(size.into());
-        self
-    }
-
-    pub fn color<C: Into<Color>>(mut self, color: C) -> Self {
-        self.color = Some(color.into());
-        self
-    }
-
-    pub fn alpha<Alpha: Into<f64>>(mut self, alpha: Alpha) -> Self {
-        self.alpha = Some(alpha.into());
-        self
-    }
-
-    pub fn linestyle<L: Into<LineStyle>>(mut self, linestyle: L) -> Self {
-        self.linestyle = Some(linestyle.into());
         self
     }
 
@@ -99,9 +73,20 @@ impl GeomVLineBuilder {
     }
 }
 
+impl crate::theme::traits::LineElement for GeomVLineBuilder {
+    fn this(&self) -> &LineElement {
+        &self.line
+    }
+
+    fn this_mut(&mut self) -> &mut LineElement {
+        &mut self.line
+    }
+}
+
 impl LayerBuilder for GeomVLineBuilder {
     fn build(self: Box<Self>, parent_mapping: &AesMap) -> Result<Layer> {
         let mut geom_vline = GeomVLine::new();
+        geom_vline.line = self.line;
 
         // Build the mapping (merging layer + parent)
         let mut overrides = Vec::new();
@@ -111,25 +96,8 @@ impl LayerBuilder for GeomVLineBuilder {
             geom_vline.x_intercept = self.x_intercept;
             overrides.push(Aesthetic::XIntercept);
         }
-        if self.size.is_some() {
-            geom_vline.size = self.size;
-            overrides.push(Aesthetic::Size(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Size(AestheticDomain::Discrete));
-        }
-        if self.color.is_some() {
-            geom_vline.color = self.color;
-            overrides.push(Aesthetic::Color(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Color(AestheticDomain::Discrete));
-        }
-        if self.alpha.is_some() {
-            geom_vline.alpha = self.alpha;
-            overrides.push(Aesthetic::Alpha(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Alpha(AestheticDomain::Discrete));
-        }
-        if self.linestyle.is_some() {
-            geom_vline.linestyle = self.linestyle;
-            overrides.push(Aesthetic::Linetype);
-        }
+
+        geom_vline.line.overrides(&mut overrides);
 
         // Build initial domains from properties
         let mut initial_domains = HashMap::new();
@@ -151,36 +119,22 @@ pub fn geom_vline() -> GeomVLineBuilder {
     GeomVLineBuilder::new()
 }
 
-/// GeomVLine renders horizontal reference lines at specified y-intercepts
+/// GeomVLine renders vertical reference lines at specified x-intercepts
 ///
-/// Y-intercept is provided via the Y aesthetic (mapped or constant).
-/// Draws horizontal lines across the full width of the plot at each y value.
+/// X-intercept is provided via the X aesthetic (mapped or constant).
+/// Draws vertical lines across the full height of the plot at each x value.
 pub struct GeomVLine {
-    /// Fixed y-intercept value(s) for the horizontal line(s)
+    /// Fixed x-intercept value(s) for the vertical line(s)
     pub x_intercept: Option<f64>,
-
-    /// Default line color
-    pub color: Option<Color>,
-
-    /// Default line width
-    pub size: Option<f64>,
-
-    /// Default alpha/opacity
-    pub alpha: Option<f64>,
-
-    /// Line style (solid or custom dash pattern)
-    pub linestyle: Option<LineStyle>,
+    line: LineElement,
 }
 
 impl GeomVLine {
-    /// Create a new horizontal line geom with default theme values
+    /// Create a new vertical line geom with default theme values
     pub fn new() -> Self {
         Self {
             x_intercept: None,
-            color: None,
-            size: None,
-            alpha: None,
-            linestyle: None,
+            line: LineElement::default(),
         }
     }
 
@@ -273,27 +227,7 @@ impl Geom for GeomVLine {
                 Property::Float(x_intercept_prop.clone()),
             );
         }
-        if let Some(size_prop) = &self.size {
-            props.insert(AestheticProperty::Size, Property::Float(size_prop.clone()));
-        }
-        if let Some(color_prop) = &self.color {
-            props.insert(
-                AestheticProperty::Color,
-                Property::Color(color_prop.clone()),
-            );
-        }
-        if let Some(alpha_prop) = &self.alpha {
-            props.insert(
-                AestheticProperty::Alpha,
-                Property::Float(alpha_prop.clone()),
-            );
-        }
-        if let Some(linestyle_prop) = &self.linestyle {
-            props.insert(
-                AestheticProperty::Linetype,
-                Property::LineStyle(linestyle_prop.clone()),
-            );
-        }
+        self.line.properties(&mut props);
         props
     }
 
@@ -302,58 +236,7 @@ impl Geom for GeomVLine {
         theme: &crate::prelude::Theme,
     ) -> HashMap<AestheticProperty, super::properties::PropertyValue> {
         let mut defaults = HashMap::new();
-
-        // Start with hardcoded defaults
-        let mut default_size = 1.0;
-        let mut default_color = color::BLACK;
-        let mut default_alpha = 1.0;
-        let mut default_linestyle = crate::visuals::LineStyle::Solid;
-
-        // Apply theme overrides if present
-        if let Some(crate::theme::Element::Line(elem)) = theme.get_element("vline", "line") {
-            if let Some(size) = elem.size {
-                default_size = size;
-            }
-            if let Some(color) = elem.color {
-                default_color = color;
-            }
-            if let Some(alpha) = elem.alpha {
-                default_alpha = alpha;
-            }
-            if let Some(ref linestyle) = elem.linestyle {
-                default_linestyle = linestyle.clone();
-            }
-        }
-
-        // Only provide defaults for properties not explicitly set
-        if self.size.is_none() {
-            defaults.insert(
-                AestheticProperty::Size,
-                super::properties::PropertyValue::Float(default_size),
-            );
-        }
-
-        if self.color.is_none() {
-            defaults.insert(
-                AestheticProperty::Color,
-                super::properties::PropertyValue::Color(default_color),
-            );
-        }
-
-        if self.alpha.is_none() {
-            defaults.insert(
-                AestheticProperty::Alpha,
-                super::properties::PropertyValue::Float(default_alpha),
-            );
-        }
-
-        if self.linestyle.is_none() {
-            defaults.insert(
-                AestheticProperty::Linetype,
-                super::properties::PropertyValue::LineStyle(default_linestyle),
-            );
-        }
-
+        self.line.defaults("vline", "line", theme, &mut defaults);
         defaults
     }
 
@@ -437,12 +320,7 @@ impl Geom for GeomVLine {
 mod tests {
     use super::*;
     use crate::{
-        aesthetics::builder::{XContinuousAesBuilder, YContinuousAesBuilder},
-        error::to_io_error,
-        geom::point::geom_point,
-        plot::plot,
-        stat::summary::Summary,
-        utils::mtcars::mtcars,
+        aesthetics::builder::{XContinuousAesBuilder, YContinuousAesBuilder}, error::to_io_error, geom::point::geom_point, plot::plot, stat::summary::Summary, theme::{color, traits::LineElement}, utils::mtcars::mtcars
     };
 
     fn init_test_logging() {

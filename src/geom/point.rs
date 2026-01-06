@@ -6,13 +6,13 @@ use crate::aesthetics::builder::{
     ColorDiscreteAesBuilder, ShapeAesBuilder, SizeContinuousAesBuilder, SizeDiscreteAesBuilder,
     XContinuousAesBuilder, XDiscreteAesBuilder, YContinuousAesBuilder, YDiscreteAesBuilder,
 };
-use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
+use crate::aesthetics::{AesMap, AestheticDomain, AestheticProperty};
 use crate::error::Result;
 use crate::geom::properties::{PropertyValue, PropertyVector};
 use crate::geom::{AestheticRequirement, DomainConstraint};
 use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
-use crate::theme::{Color, Theme, color};
+use crate::theme::{Color, PointElement, Theme, color};
 use crate::visuals::Shape;
 
 pub trait GeomPointAesBuilderTrait:
@@ -34,41 +34,15 @@ impl GeomPointAesBuilderTrait for AesMapBuilder {}
 
 pub struct GeomPointBuilder {
     core: LayerBuilderCore,
-    size: Option<f64>,
-    color: Option<Color>,
-    shape: Option<Shape>,
-    alpha: Option<f64>,
+    point: PointElement,
 }
 
 impl GeomPointBuilder {
     pub fn new() -> Self {
         Self {
             core: LayerBuilderCore::default(),
-            size: None,
-            color: None,
-            shape: None,
-            alpha: None,
+            point: PointElement::default()
         }
-    }
-
-    pub fn size(mut self, size: f64) -> Self {
-        self.size = Some(size);
-        self
-    }
-
-    pub fn color(mut self, color: Color) -> Self {
-        self.color = Some(color);
-        self
-    }
-
-    pub fn shape(mut self, shape: Shape) -> Self {
-        self.shape = Some(shape);
-        self
-    }
-
-    pub fn alpha(mut self, alpha: f64) -> Self {
-        self.alpha = Some(alpha);
-        self
     }
 
     pub fn aes(mut self, closure: impl FnOnce(&mut dyn GeomPointAesBuilderTrait)) -> Self {
@@ -87,32 +61,25 @@ impl GeomPointBuilder {
     }
 }
 
+impl crate::theme::traits::PointElement for GeomPointBuilder {
+    fn this(&self) -> &PointElement {
+        &self.point
+    }
+
+    fn this_mut(&mut self) -> &mut PointElement {
+        &mut self.point
+    }
+}
+
 impl LayerBuilder for GeomPointBuilder {
     fn build(self: Box<Self>, parent_mapping: &AesMap) -> Result<Layer> {
         let mut geom_point = GeomPoint::new();
 
+        geom_point.point = self.point;
+
         let mut overrides = Vec::new();
 
-        // Set fixed property values and remove from inherited mapping
-        if self.size.is_some() {
-            geom_point.size = self.size;
-            overrides.push(Aesthetic::Size(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Size(AestheticDomain::Discrete));
-        }
-        if self.color.is_some() {
-            geom_point.color = self.color;
-            overrides.push(Aesthetic::Color(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Color(AestheticDomain::Discrete));
-        }
-        if self.shape.is_some() {
-            geom_point.shape = self.shape;
-            overrides.push(Aesthetic::Shape);
-        }
-        if self.alpha.is_some() {
-            geom_point.alpha = self.alpha;
-            overrides.push(Aesthetic::Alpha(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Alpha(AestheticDomain::Discrete));
-        }
+        geom_point.point.overrides(&mut overrides);
 
         LayerBuilderCore::build(
             self.core,
@@ -130,20 +97,14 @@ pub fn geom_point() -> GeomPointBuilder {
 
 /// GeomPoint renders points/scatterplot
 pub struct GeomPoint {
-    size: Option<f64>,
-    color: Option<Color>,
-    shape: Option<Shape>,
-    alpha: Option<f64>,
+    point: PointElement,
 }
 
 impl GeomPoint {
     /// Create a new point geom with default settings from theme
     pub fn new() -> Self {
         Self {
-            size: None,
-            color: None,
-            shape: None,
-            alpha: None,
+            point: PointElement::default(),
         }
     }
 
@@ -252,80 +213,15 @@ impl Geom for GeomPoint {
 
     fn properties(&self) -> HashMap<AestheticProperty, super::properties::Property> {
         let mut props = HashMap::new();
-        if let Some(size) = self.size {
-            props.insert(
-                AestheticProperty::Size,
-                super::properties::Property::Float(size),
-            );
-        }
-        if let Some(color) = self.color {
-            props.insert(
-                AestheticProperty::Color,
-                super::properties::Property::Color(color),
-            );
-        }
-        if let Some(shape) = self.shape {
-            props.insert(
-                AestheticProperty::Shape,
-                super::properties::Property::Shape(shape),
-            );
-        }
-        if let Some(alpha) = self.alpha {
-            props.insert(
-                AestheticProperty::Alpha,
-                super::properties::Property::Float(alpha),
-            );
-        }
+        self.point.properties(&mut props);
         props
     }
 
     fn property_defaults(&self, theme: &Theme) -> HashMap<AestheticProperty, PropertyValue> {
         let mut defaults = HashMap::new();
 
-        // Start with hardcoded defaults
-        let mut default_size = 3.0;
-        let mut default_color = color::BLACK;
-        let mut default_shape = Shape::Circle;
-        let mut default_alpha = 1.0;
-
-        // Apply theme overrides if present
-        if let Some(crate::theme::Element::Point(elem)) = theme.get_element("point", "point") {
-            if let Some(size) = elem.size {
-                default_size = size;
-            }
-            if let Some(color) = elem.color {
-                default_color = color;
-            }
-            if let Some(shape) = elem.shape {
-                default_shape = shape;
-            }
-            if let Some(alpha) = elem.alpha {
-                default_alpha = alpha;
-            }
-        }
-
-        // Only set defaults for properties not explicitly set on the geom
-        if self.size.is_none() {
-            defaults.insert(AestheticProperty::Size, PropertyValue::Float(default_size));
-        }
-        if self.color.is_none() {
-            defaults.insert(
-                AestheticProperty::Color,
-                PropertyValue::Color(default_color),
-            );
-        }
-        if self.shape.is_none() {
-            defaults.insert(
-                AestheticProperty::Shape,
-                PropertyValue::Shape(default_shape),
-            );
-        }
-        if self.alpha.is_none() {
-            defaults.insert(
-                AestheticProperty::Alpha,
-                PropertyValue::Float(default_alpha),
-            );
-        }
+        self.point.defaults("point", "point", theme, &mut defaults);
+        
         defaults
     }
 
@@ -384,7 +280,7 @@ impl Geom for GeomPoint {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{error::to_io_error, plot::plot, utils::mtcars::mtcars};
+    use crate::{error::to_io_error, plot::plot, theme::traits::PointElement, utils::mtcars::mtcars};
 
     fn init_test_logging() {
         let _ = env_logger::builder()

@@ -6,14 +6,14 @@ use crate::aesthetics::builder::{
     FillDiscreteAesBuilder, GroupAesBuilder, XMaxContinuousAesBuilder, XMinContinuousAesBuilder,
     YMaxContinuousAesBuilder, YMinContinuousAesBuilder,
 };
-use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
+use crate::aesthetics::{AesMap, AestheticProperty};
 use crate::error::Result;
 use crate::geom::properties::{Property, PropertyVector};
 use crate::geom::{AestheticRequirement, DomainConstraint};
 use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
 use crate::stat::Stat;
-use crate::theme::{Color, color};
+use crate::theme::{AreaElement, Color};
 
 pub trait GeomRectAesBuilderTrait:
     XMinContinuousAesBuilder
@@ -32,34 +32,15 @@ impl GeomRectAesBuilderTrait for AesMapBuilder {}
 
 pub struct GeomRectBuilder {
     core: LayerBuilderCore,
-    color: Option<Color>,
-    fill: Option<Color>,
-    alpha: Option<f64>,
+    area: AreaElement,
 }
 
 impl GeomRectBuilder {
     pub fn new() -> Self {
         Self {
             core: LayerBuilderCore::default(),
-            color: None,
-            fill: None,
-            alpha: None,
+            area: AreaElement::default(),
         }
-    }
-
-    pub fn color<C: Into<Color>>(mut self, color: C) -> Self {
-        self.color = Some(color.into());
-        self
-    }
-
-    pub fn fill<F: Into<Color>>(mut self, fill: F) -> Self {
-        self.fill = Some(fill.into());
-        self
-    }
-
-    pub fn alpha<Alpha: Into<f64>>(mut self, alpha: Alpha) -> Self {
-        self.alpha = Some(alpha.into());
-        self
     }
 
     pub fn aes(mut self, closure: impl FnOnce(&mut dyn GeomRectAesBuilderTrait)) -> Self {
@@ -83,29 +64,25 @@ impl GeomRectBuilder {
     }
 }
 
+impl crate::theme::traits::AreaElement for GeomRectBuilder {
+    fn this(&self) -> &AreaElement {
+        &self.area
+    }
+
+    fn this_mut(&mut self) -> &mut AreaElement {
+        &mut self.area
+    }
+}
+
 impl LayerBuilder for GeomRectBuilder {
     fn build(self: Box<Self>, parent_mapping: &AesMap) -> Result<Layer> {
         let mut geom_rect = GeomRect::new();
+        geom_rect.area = self.area;
 
         // Build the mapping (merging layer + parent)
         let mut overrides = Vec::new();
 
-        // Set fixed property values and remove from inherited mapping
-        if self.color.is_some() {
-            geom_rect.color = self.color;
-            overrides.push(Aesthetic::Color(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Color(AestheticDomain::Discrete));
-        }
-        if self.fill.is_some() {
-            geom_rect.fill = self.fill;
-            overrides.push(Aesthetic::Fill(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Fill(AestheticDomain::Discrete));
-        }
-        if self.alpha.is_some() {
-            geom_rect.alpha = self.alpha;
-            overrides.push(Aesthetic::Alpha(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Alpha(AestheticDomain::Discrete));
-        }
+        geom_rect.area.overrides(&mut overrides);
 
         LayerBuilderCore::build(
             self.core,
@@ -126,23 +103,14 @@ pub fn geom_rect() -> GeomRectBuilder {
 /// Rectangles are defined by their bounding boxes, which must come from data.
 /// Useful for heatmaps, tile plots, and annotating regions.
 pub struct GeomRect {
-    /// Default color (border)
-    pub color: Option<Color>,
-
-    /// Default fill color
-    pub fill: Option<Color>,
-
-    /// Default alpha/opacity
-    pub alpha: Option<f64>,
+    area: AreaElement,
 }
 
 impl GeomRect {
     /// Create a new rect geom with default theme values
     pub fn new() -> Self {
         Self {
-            color: None,
-            fill: None,
-            alpha: None,
+            area: AreaElement::default(),
         }
     }
 
@@ -176,7 +144,7 @@ impl GeomRect {
             // Draw filled rectangle
             let width = xmax_px - xmin_px;
             let height = ymax_px - ymin_px;
-            
+
             // Fill
             let Color(r, g, b, a) = fill;
             ctx.cairo.set_source_rgba(
@@ -187,7 +155,7 @@ impl GeomRect {
             );
             ctx.cairo.rectangle(xmin_px, ymin_px, width, height);
             ctx.cairo.fill().ok();
-            
+
             // Border/stroke
             let Color(r, g, b, a) = color;
             ctx.cairo.set_source_rgba(
@@ -249,47 +217,19 @@ impl Geom for GeomRect {
 
     fn properties(&self) -> HashMap<AestheticProperty, Property> {
         let mut props = HashMap::new();
-        if let Some(color_prop) = &self.color {
-            props.insert(AestheticProperty::Color, Property::Color(color_prop.clone()));
-        }
-        if let Some(fill_prop) = &self.fill {
-            props.insert(AestheticProperty::Fill, Property::Color(fill_prop.clone()));
-        }
-        if let Some(alpha_prop) = &self.alpha {
-            props.insert(
-                AestheticProperty::Alpha,
-                Property::Float(alpha_prop.clone()),
-            );
-        }
+
+        self.area.properties(&mut props);
+
         props
     }
 
     fn property_defaults(
         &self,
-        _theme: &crate::prelude::Theme,
+        theme: &crate::prelude::Theme,
     ) -> HashMap<AestheticProperty, super::properties::PropertyValue> {
         let mut defaults = HashMap::new();
 
-        // Only provide defaults for properties not explicitly set
-        if self.color.is_none() {
-            defaults.insert(
-                AestheticProperty::Color,
-                super::properties::PropertyValue::Color(color::BLACK),
-            );
-        }
-        if self.fill.is_none() {
-            defaults.insert(
-                AestheticProperty::Fill,
-                super::properties::PropertyValue::Color(color::GREY50),
-            );
-        }
-
-        if self.alpha.is_none() {
-            defaults.insert(
-                AestheticProperty::Alpha,
-                super::properties::PropertyValue::Float(1.0),
-            );
-        }
+        self.area.defaults("rect", "rect", theme, &mut defaults);
 
         defaults
     }
@@ -367,7 +307,13 @@ impl Geom for GeomRect {
 mod tests {
     use super::*;
     use crate::{
-        data::DataSource, error::to_io_error, plot::plot, stat::summary::Summary, utils::{dataframe::DataFrame, mtcars::mtcars}
+        aesthetics::{Aesthetic, AestheticDomain},
+        data::DataSource,
+        error::to_io_error,
+        plot::plot,
+        stat::summary::Summary,
+        theme::{color, traits::AreaElement},
+        utils::{dataframe::DataFrame, mtcars::mtcars},
     };
 
     fn init_test_logging() {
@@ -398,7 +344,10 @@ mod tests {
             a.xmax("xmax");
             a.ymin("ymin");
             a.ymax("ymax");
-        }) + geom_rect().color(color::RED).fill(color::FIREBRICK).alpha(0.75);
+        }) + geom_rect()
+            .color(color::RED)
+            .fill(color::FIREBRICK)
+            .alpha(0.75);
 
         let p = builder
             .build()
@@ -416,20 +365,24 @@ mod tests {
         let data = mtcars();
 
         let builder = plot(&data)
-        + geom_rect().aes(|a| {
-            a.xmin("wt");
-            a.ymin("mpg");
-            a.group("cyl");
-        }).stat(Summary::from(vec![
-            Aesthetic::Xmin(AestheticDomain::Continuous),
-            Aesthetic::Ymin(AestheticDomain::Continuous),
-        ])).aes(|a| {
-            a.xmin("xmin_min");
-            a.xmax("xmin_max");
-            a.ymin("ymin_min");
-            a.ymax("ymin_max");
-            a.fill_discrete("cyl");
-        }).alpha(0.5);
+            + geom_rect()
+                .aes(|a| {
+                    a.xmin("wt");
+                    a.ymin("mpg");
+                    a.group("cyl");
+                })
+                .stat(Summary::from(vec![
+                    Aesthetic::Xmin(AestheticDomain::Continuous),
+                    Aesthetic::Ymin(AestheticDomain::Continuous),
+                ]))
+                .aes(|a| {
+                    a.xmin("xmin_min");
+                    a.xmax("xmin_max");
+                    a.ymin("ymin_min");
+                    a.ymax("ymin_max");
+                    a.fill_discrete("cyl");
+                })
+                .alpha(0.5);
 
         let p = builder
             .build()
