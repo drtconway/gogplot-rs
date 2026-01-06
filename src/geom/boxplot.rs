@@ -312,7 +312,7 @@ impl Geom for GeomBoxplot {
         let mut default_linestyle = crate::visuals::LineStyle::Solid;
 
         // Apply theme overrides for box element (RectElement)
-        if let Some(crate::theme::Element::Rect(elem)) = theme.get_element("boxplot", "box") {
+        if let Some(crate::theme::Element::Area(elem)) = theme.get_element("boxplot", "box") {
             if let Some(fill) = elem.fill {
                 default_fill = fill;
             }

@@ -266,15 +266,18 @@ impl Geom for GeomDensity {
     fn property_defaults(&self, theme: &crate::theme::Theme) -> HashMap<AestheticProperty, PropertyValue> {
         let mut defaults = HashMap::new();
 
-        // Start with hardcoded defaults for line properties
+        // Start with hardcoded defaults
         let mut default_color = color::BLACK;
+        let mut default_fill = Color(0, 0, 0, 0); // Transparent by default
         let mut default_alpha = 1.0;
         let mut default_size = 1.0;
         let mut default_linestyle = crate::visuals::LineStyle::Solid;
-        let mut default_fill = Color(0, 0, 0, 0); // Transparent by default
 
-        // Apply theme overrides for line element
-        if let Some(crate::theme::Element::Line(elem)) = theme.get_element("density", "line") {
+        // Apply theme overrides from area element (has both fill and outline properties)
+        if let Some(crate::theme::Element::Area(elem)) = theme.get_element("density", "area") {
+            if let Some(fill) = elem.fill {
+                default_fill = fill;
+            }
             if let Some(color) = elem.color {
                 default_color = color;
             }
@@ -287,14 +290,6 @@ impl Geom for GeomDensity {
             if let Some(ref linestyle) = elem.linestyle {
                 default_linestyle = linestyle.clone();
             }
-        }
-
-        // Apply theme overrides for ribbon (area) element
-        if let Some(crate::theme::Element::Rect(elem)) = theme.get_element("density", "ribbon") {
-            if let Some(fill) = elem.fill {
-                default_fill = fill;
-            }
-            // Note: ribbon could also override alpha if needed
         }
 
         // Only set defaults for properties not explicitly set on the geom

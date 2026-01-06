@@ -44,7 +44,7 @@ pub mod color;
 pub enum Element {
     Point(PointElement),
     Line(LineElement),
-    Rect(RectElement),
+    Area(AreaElement),
     Text(TextElement),
 }
 
@@ -110,9 +110,9 @@ impl LineElement {
     }
 }
 
-/// Rect element properties
+/// area element properties
 #[derive(Clone, Debug, PartialEq, Default)]
-pub struct RectElement {
+pub struct AreaElement {
     pub fill: Option<Color>,
     pub color: Option<Color>,  // border color
     pub alpha: Option<f64>,
@@ -120,7 +120,7 @@ pub struct RectElement {
     pub linestyle: Option<LineStyle>,
 }
 
-impl RectElement {
+impl AreaElement {
     pub fn fill(mut self, fill: Color) -> Self {
         self.fill = Some(fill);
         self
@@ -205,8 +205,8 @@ pub fn line() -> LineElement {
     LineElement::default()
 }
 
-pub fn rect() -> RectElement {
-    RectElement::default()
+pub fn rect() -> AreaElement {
+    AreaElement::default()
 }
 
 pub fn text() -> TextElement {
@@ -226,9 +226,9 @@ impl From<LineElement> for Element {
     }
 }
 
-impl From<RectElement> for Element {
-    fn from(e: RectElement) -> Element {
-        Element::Rect(e)
+impl From<AreaElement> for Element {
+    fn from(e: AreaElement) -> Element {
+        Element::Area(e)
     }
 }
 

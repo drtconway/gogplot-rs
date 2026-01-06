@@ -398,7 +398,7 @@ impl Geom for GeomSmooth {
         }
 
         // Apply theme overrides for ribbon (confidence interval) element
-        if let Some(crate::theme::Element::Rect(elem)) = theme.get_element("smooth", "ribbon") {
+        if let Some(crate::theme::Element::Area(elem)) = theme.get_element("smooth", "ribbon") {
             if let Some(fill) = elem.fill {
                 default_fill = fill;
             }
