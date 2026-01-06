@@ -7,12 +7,12 @@ use crate::aesthetics::builder::{
     SizeDiscreteAesBuilder, XContinuousAesBuilder, YMaxContinuousAesBuilder,
     YMinContinuousAesBuilder,
 };
-use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
+use crate::aesthetics::{AesMap, AestheticDomain, AestheticProperty};
 use crate::error::Result;
 use crate::geom::properties::{Property, PropertyValue, PropertyVector};
 use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
-use crate::theme::{Color, color};
+use crate::theme::{Color, LineElement};
 use crate::visuals::LineStyle;
 
 pub trait GeomErrorbarAesBuilderTrait:
@@ -33,47 +33,21 @@ impl GeomErrorbarAesBuilderTrait for AesMapBuilder {}
 
 pub struct GeomErrorbarBuilder {
     core: LayerBuilderCore,
-    color: Option<Color>,
-    size: Option<f64>,
-    alpha: Option<f64>,
+    line: LineElement,
     width: f64,
-    linestyle: Option<LineStyle>,
 }
 
 impl GeomErrorbarBuilder {
     pub fn new() -> Self {
         Self {
             core: LayerBuilderCore::default(),
-            color: None,
-            size: None,
-            alpha: None,
+            line: LineElement::default(),
             width: 0.9,
-            linestyle: None,
         }
-    }
-
-    pub fn color<C: Into<Color>>(mut self, color: C) -> Self {
-        self.color = Some(color.into());
-        self
-    }
-
-    pub fn size<S: Into<f64>>(mut self, size: S) -> Self {
-        self.size = Some(size.into());
-        self
-    }
-
-    pub fn alpha<A: Into<f64>>(mut self, alpha: A) -> Self {
-        self.alpha = Some(alpha.into());
-        self
     }
 
     pub fn width(mut self, width: f64) -> Self {
         self.width = width.max(0.0);
-        self
-    }
-
-    pub fn linestyle<L: Into<LineStyle>>(mut self, linestyle: L) -> Self {
-        self.linestyle = Some(linestyle.into());
         self
     }
 
@@ -93,31 +67,23 @@ impl GeomErrorbarBuilder {
     }
 }
 
+impl crate::theme::traits::LineElement for GeomErrorbarBuilder {
+    fn this(&self) -> &LineElement {
+        &self.line
+    }
+
+    fn this_mut(&mut self) -> &mut LineElement {
+        &mut self.line
+    }
+}
+
 impl LayerBuilder for GeomErrorbarBuilder {
     fn build(self: Box<Self>, parent_mapping: &AesMap) -> Result<Layer> {
         let mut geom = GeomErrorbar::new().width(self.width);
+        geom.line = self.line;
 
         let mut overrides = Vec::new();
-
-        if self.color.is_some() {
-            geom.color = self.color;
-            overrides.push(Aesthetic::Color(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Color(AestheticDomain::Discrete));
-        }
-        if self.size.is_some() {
-            geom.size = self.size;
-            overrides.push(Aesthetic::Size(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Size(AestheticDomain::Discrete));
-        }
-        if self.alpha.is_some() {
-            geom.alpha = self.alpha;
-            overrides.push(Aesthetic::Alpha(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Alpha(AestheticDomain::Discrete));
-        }
-        if self.linestyle.is_some() {
-            geom.linestyle = self.linestyle;
-            overrides.push(Aesthetic::Linetype);
-        }
+        geom.line.overrides(&mut overrides);
 
         LayerBuilderCore::build(
             self.core,
@@ -135,22 +101,16 @@ pub fn geom_errorbar() -> GeomErrorbarBuilder {
 
 /// GeomErrorbar renders vertical error bars with horizontal caps at ymin and ymax
 pub struct GeomErrorbar {
-    color: Option<Color>,
-    size: Option<f64>,
-    alpha: Option<f64>,
+    line: LineElement,
     width: f64,
-    linestyle: Option<LineStyle>,
 }
 
 impl GeomErrorbar {
     /// Create a new errorbar geom with default settings
     pub fn new() -> Self {
         Self {
-            color: None,
-            size: None,
-            alpha: None,
+            line: LineElement::default(),
             width: 0.9,
-            linestyle: None,
         }
     }
 
@@ -305,27 +265,7 @@ impl Geom for GeomErrorbar {
 
     fn properties(&self) -> HashMap<AestheticProperty, Property> {
         let mut props = HashMap::new();
-        if let Some(color_prop) = &self.color {
-            props.insert(
-                AestheticProperty::Color,
-                Property::Color(color_prop.clone()),
-            );
-        }
-        if let Some(size_prop) = &self.size {
-            props.insert(AestheticProperty::Size, Property::Float(size_prop.clone()));
-        }
-        if let Some(alpha_prop) = &self.alpha {
-            props.insert(
-                AestheticProperty::Alpha,
-                Property::Float(alpha_prop.clone()),
-            );
-        }
-        if let Some(linestyle_prop) = &self.linestyle {
-            props.insert(
-                AestheticProperty::Linetype,
-                Property::LineStyle(linestyle_prop.clone()),
-            );
-        }
+        self.line.properties(&mut props);
         props
     }
 
@@ -334,45 +274,7 @@ impl Geom for GeomErrorbar {
         theme: &crate::prelude::Theme,
     ) -> HashMap<AestheticProperty, PropertyValue> {
         let mut defaults = HashMap::new();
-
-        // Start with hardcoded defaults
-        let mut default_size = 1.0;
-        let mut default_color = color::BLACK;
-        let mut default_alpha = 1.0;
-        let mut default_linestyle = crate::visuals::LineStyle::Solid;
-
-        // Apply theme overrides if present
-        if let Some(crate::theme::Element::Line(elem)) = theme.get_element("errorbar", "line") {
-            if let Some(size) = elem.size {
-                default_size = size;
-            }
-            if let Some(color) = elem.color {
-                default_color = color;
-            }
-            if let Some(alpha) = elem.alpha {
-                default_alpha = alpha;
-            }
-            if let Some(ref linestyle) = elem.linestyle {
-                default_linestyle = linestyle.clone();
-            }
-        }
-
-        // Only set defaults for properties not explicitly set on the geom
-        if self.color.is_none() {
-            defaults.insert(AestheticProperty::Color, PropertyValue::Color(default_color));
-        }
-        if self.size.is_none() {
-            defaults.insert(AestheticProperty::Size, PropertyValue::Float(default_size));
-        }
-        if self.alpha.is_none() {
-            defaults.insert(AestheticProperty::Alpha, PropertyValue::Float(default_alpha));
-        }
-        if self.linestyle.is_none() {
-            defaults.insert(
-                AestheticProperty::Linetype,
-                PropertyValue::LineStyle(default_linestyle),
-            );
-        }
+        self.line.defaults("errorbar", "line", theme, &mut defaults);
         defaults
     }
 
@@ -446,6 +348,8 @@ impl Geom for GeomErrorbar {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::theme::color;
+    use crate::theme::traits::LineElement;
     use crate::utils::mtcars::mtcars;
     use crate::{error::to_io_error, plot::plot};
 

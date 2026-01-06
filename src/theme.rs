@@ -373,10 +373,7 @@ impl AreaElement {
             );
         }
         if let Some(fill_prop) = &self.fill {
-            props.insert(
-                AestheticProperty::Fill,
-                Property::Color(fill_prop.clone()),
-            );
+            props.insert(AestheticProperty::Fill, Property::Color(fill_prop.clone()));
         }
         if let Some(alpha_prop) = &self.alpha {
             props.insert(
@@ -436,10 +433,7 @@ impl AreaElement {
             );
         }
         if self.fill.is_none() {
-            defaults.insert(
-                AestheticProperty::Fill,
-                PropertyValue::Color(default_fill),
-            );
+            defaults.insert(AestheticProperty::Fill, PropertyValue::Color(default_fill));
         }
         if self.alpha.is_none() {
             defaults.insert(
@@ -463,44 +457,96 @@ pub struct TextElement {
     pub size: Option<f64>,
     pub alpha: Option<f64>,
     pub family: Option<String>,
-    pub face: Option<FontWeight>,
+    pub weight: Option<FontWeight>,
+    pub style: Option<FontStyle>,
     pub hjust: Option<f64>,
     pub vjust: Option<f64>,
 }
 
 impl TextElement {
-    pub fn color(mut self, color: Color) -> Self {
-        self.color = Some(color);
+    pub fn overrides(&self, overrides: &mut Vec<Aesthetic>) {
+        if self.color.is_some() {
+            overrides.push(Aesthetic::Color(AestheticDomain::Continuous));
+            overrides.push(Aesthetic::Color(AestheticDomain::Discrete));
+        }
+        if self.size.is_some() {
+            overrides.push(Aesthetic::Size(AestheticDomain::Continuous));
+            overrides.push(Aesthetic::Size(AestheticDomain::Discrete));
+        }
+        if self.alpha.is_some() {
+            overrides.push(Aesthetic::Alpha(AestheticDomain::Continuous));
+            overrides.push(Aesthetic::Alpha(AestheticDomain::Discrete));
+        }
+    }
+
+    pub fn properties(&self, props: &mut HashMap<AestheticProperty, Property>) {
+        if let Some(color_prop) = &self.color {
+            props.insert(
+                AestheticProperty::Color,
+                Property::Color(color_prop.clone()),
+            );
+        }
+        if let Some(size_prop) = &self.size {
+            props.insert(AestheticProperty::Size, Property::Float(size_prop.clone()));
+        }
+        if let Some(alpha_prop) = &self.alpha {
+            props.insert(
+                AestheticProperty::Alpha,
+                Property::Float(alpha_prop.clone()),
+            );
+        }
+    }
+
+    pub fn defaults(
+        &self,
+        geom: &'static str,
+        group: &'static str,
+        theme: &Theme,
+        defaults: &mut HashMap<AestheticProperty, PropertyValue>,
+    ) {
+        // Start with hardcoded defaults
+        let mut default_color = color::BLACK;
+        let mut default_size = 1.0;
+        let mut default_alpha = 1.0;
+
+        // Apply theme overrides if present
+        if let Some(crate::theme::Element::Area(elem)) = theme.get_element(geom, group) {
+            if let Some(size) = elem.size {
+                default_size = size;
+            }
+            if let Some(color) = elem.color {
+                default_color = color;
+            }
+            if let Some(alpha) = elem.alpha {
+                default_alpha = alpha;
+            }
+        }
+
+        // Only set defaults for properties not explicitly set on the geom
+        if self.color.is_none() {
+            defaults.insert(
+                AestheticProperty::Color,
+                PropertyValue::Color(default_color),
+            );
+        }
+        if self.size.is_none() {
+            defaults.insert(AestheticProperty::Size, PropertyValue::Float(default_size));
+        }
+        if self.alpha.is_none() {
+            defaults.insert(
+                AestheticProperty::Alpha,
+                PropertyValue::Float(default_alpha),
+            );
+        }
+    }
+}
+
+impl traits::TextElement for TextElement {
+    fn this(&self) -> &Self {
         self
     }
 
-    pub fn size(mut self, size: f64) -> Self {
-        self.size = Some(size);
-        self
-    }
-
-    pub fn alpha(mut self, alpha: f64) -> Self {
-        self.alpha = Some(alpha);
-        self
-    }
-
-    pub fn family(mut self, family: String) -> Self {
-        self.family = Some(family);
-        self
-    }
-
-    pub fn face(mut self, face: FontWeight) -> Self {
-        self.face = Some(face);
-        self
-    }
-
-    pub fn hjust(mut self, hjust: f64) -> Self {
-        self.hjust = Some(hjust);
-        self
-    }
-
-    pub fn vjust(mut self, vjust: f64) -> Self {
-        self.vjust = Some(vjust);
+    fn this_mut(&mut self) -> &mut Self {
         self
     }
 }
@@ -567,11 +613,31 @@ pub enum FontWeight {
     Light,
 }
 
+impl From<&str> for FontWeight {
+    fn from(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "bold" => FontWeight::Bold,
+            "light" => FontWeight::Light,
+            _ => FontWeight::Normal,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum FontStyle {
     Normal,
     Italic,
     Oblique,
+}
+
+impl From<&str> for FontStyle {
+    fn from(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "italic" => FontStyle::Italic,
+            "oblique" => FontStyle::Oblique,
+            _ => FontStyle::Normal,
+        }
+    }
 }
 
 /// Line drawing style for theme borders, axes, etc. (not to be confused with visuals::LineStyle)

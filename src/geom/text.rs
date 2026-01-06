@@ -6,14 +6,14 @@ use crate::aesthetics::builder::{
     ColorDiscreteAesBuilder, LabelAesBuilder, SizeContinuousAesBuilder, SizeDiscreteAesBuilder,
     XContinuousAesBuilder, XDiscreteAesBuilder, YContinuousAesBuilder, YDiscreteAesBuilder,
 };
-use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
+use crate::aesthetics::{AesMap, AestheticProperty};
 use crate::error::Result;
 use crate::geom::properties::{Property, PropertyValue, PropertyVector};
 use crate::geom::{AestheticRequirement, DomainConstraint};
 use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
 use crate::stat::Stat;
-use crate::theme::{Color, color};
+use crate::theme::{Color, TextElement};
 
 pub trait GeomTextAesBuilderTrait:
     XContinuousAesBuilder
@@ -34,11 +34,7 @@ impl GeomTextAesBuilderTrait for AesMapBuilder {}
 
 pub struct GeomTextBuilder {
     core: LayerBuilderCore,
-    color: Option<Color>,
-    size: Option<f64>,
-    alpha: Option<f64>,
-    hjust: Option<f64>,
-    vjust: Option<f64>,
+    text: TextElement,
     angle: Option<f64>,
 }
 
@@ -46,40 +42,9 @@ impl GeomTextBuilder {
     pub fn new() -> Self {
         Self {
             core: LayerBuilderCore::default(),
-            color: None,
-            size: None,
-            alpha: None,
-            hjust: None,
-            vjust: None,
+            text: TextElement::default(),
             angle: None,
         }
-    }
-
-    pub fn color<C: Into<Color>>(mut self, color: C) -> Self {
-        self.color = Some(color.into());
-        self
-    }
-
-    pub fn size<S: Into<f64>>(mut self, size: S) -> Self {
-        self.size = Some(size.into());
-        self
-    }
-
-    pub fn alpha<A: Into<f64>>(mut self, alpha: A) -> Self {
-        self.alpha = Some(alpha.into());
-        self
-    }
-
-    /// Set horizontal justification (0 = left, 0.5 = center, 1 = right)
-    pub fn hjust(mut self, hjust: f64) -> Self {
-        self.hjust = Some(hjust.clamp(0.0, 1.0));
-        self
-    }
-
-    /// Set vertical justification (0 = bottom, 0.5 = middle, 1 = top)
-    pub fn vjust(mut self, vjust: f64) -> Self {
-        self.vjust = Some(vjust.clamp(0.0, 1.0));
-        self
     }
 
     /// Set text rotation angle in degrees
@@ -109,31 +74,26 @@ impl GeomTextBuilder {
     }
 }
 
+impl crate::theme::traits::TextElement for GeomTextBuilder {
+    fn this(&self) -> &TextElement {
+        &self.text
+    }
+
+    fn this_mut(&mut self) -> &mut TextElement {
+        &mut self.text
+    }
+}
+
 impl LayerBuilder for GeomTextBuilder {
     fn build(self: Box<Self>, parent_mapping: &AesMap) -> Result<Layer> {
         let mut geom_text = GeomText::new();
+        geom_text.text = self.text;
 
         // Set fixed property values and remove from inherited mapping
         let mut overrides = Vec::new();
 
-        if self.color.is_some() {
-            geom_text.color = self.color;
-            overrides.push(Aesthetic::Color(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Color(AestheticDomain::Discrete));
-        }
-        if self.size.is_some() {
-            geom_text.size = self.size;
-            overrides.push(Aesthetic::Size(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Size(AestheticDomain::Discrete));
-        }
-        if self.alpha.is_some() {
-            geom_text.alpha = self.alpha;
-            overrides.push(Aesthetic::Alpha(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Alpha(AestheticDomain::Discrete));
-        }
+        geom_text.text.overrides(&mut overrides);
 
-        geom_text.hjust = self.hjust.unwrap_or(0.5);
-        geom_text.vjust = self.vjust.unwrap_or(0.5);
         geom_text.angle = self.angle.unwrap_or(0.0);
 
         LayerBuilderCore::build(
@@ -158,21 +118,7 @@ pub fn geom_text() -> GeomTextBuilder {
 
 /// GeomText renders text labels at specified positions
 pub struct GeomText {
-    /// Default color
-    pub color: Option<Color>,
-
-    /// Default text size
-    pub size: Option<f64>,
-
-    /// Default alpha/opacity
-    pub alpha: Option<f64>,
-
-    /// Horizontal justification (0 = left, 0.5 = center, 1 = right)
-    pub hjust: f64,
-
-    /// Vertical justification (0 = bottom, 0.5 = middle, 1 = top)
-    pub vjust: f64,
-
+    text: TextElement,
     /// Text rotation angle in degrees
     pub angle: f64,
 }
@@ -180,11 +126,7 @@ pub struct GeomText {
 impl GeomText {
     pub fn new() -> Self {
         Self {
-            color: None,
-            size: None,
-            alpha: None,
-            hjust: 0.5,
-            vjust: 0.5,
+            text: TextElement::default(),
             angle: 0.0,
         }
     }
@@ -241,6 +183,24 @@ impl GeomText {
                 a as f64 / 255.0 * alpha,
             );
 
+            // Set font family, weight, and style
+            let family = self.text.family.as_deref().unwrap_or("sans-serif");
+            
+            // Map FontWeight to Cairo weight
+            let weight = match self.text.weight {
+                Some(crate::theme::FontWeight::Bold) => cairo::FontWeight::Bold,
+                Some(crate::theme::FontWeight::Light) => cairo::FontWeight::Normal, // Cairo doesn't have Light
+                _ => cairo::FontWeight::Normal,
+            };
+            
+            // Map FontStyle to Cairo slant
+            let slant = match self.text.style {
+                Some(crate::theme::FontStyle::Italic) => cairo::FontSlant::Italic,
+                Some(crate::theme::FontStyle::Oblique) => cairo::FontSlant::Oblique,
+                _ => cairo::FontSlant::Normal,
+            };
+            
+            ctx.cairo.select_font_face(family, slant, weight);
             ctx.cairo.set_font_size(visual_size);
 
             // Save context for rotation
@@ -257,8 +217,8 @@ impl GeomText {
             // Get text extents for positioning
             let extents = ctx.cairo.text_extents(&label).ok();
             if let Some(extents) = extents {
-                let x_offset = -extents.width() * self.hjust;
-                let y_offset = extents.height() * (1.0 - self.vjust);
+                let x_offset = -extents.width() * self.text.hjust.unwrap_or(0.5);
+                let y_offset = extents.height() * (1.0 - self.text.vjust.unwrap_or(0.5));
 
                 ctx.cairo.move_to(x_offset, y_offset);
                 ctx.cairo.show_text(&label).ok();
@@ -312,21 +272,7 @@ impl Geom for GeomText {
 
     fn properties(&self) -> HashMap<AestheticProperty, Property> {
         let mut props = HashMap::new();
-        if let Some(color_prop) = &self.color {
-            props.insert(
-                AestheticProperty::Color,
-                Property::Color(color_prop.clone()),
-            );
-        }
-        if let Some(size_prop) = &self.size {
-            props.insert(AestheticProperty::Size, Property::Float(size_prop.clone()));
-        }
-        if let Some(alpha_prop) = &self.alpha {
-            props.insert(
-                AestheticProperty::Alpha,
-                Property::Float(alpha_prop.clone()),
-            );
-        }
+        self.text.properties(&mut props);
         props
     }
 
@@ -336,16 +282,7 @@ impl Geom for GeomText {
     ) -> HashMap<AestheticProperty, PropertyValue> {
         let mut defaults = HashMap::new();
 
-        // Only provide defaults for properties not explicitly set
-        if self.color.is_none() {
-            defaults.insert(AestheticProperty::Color, PropertyValue::Color(color::BLACK));
-        }
-        if self.size.is_none() {
-            defaults.insert(AestheticProperty::Size, PropertyValue::Float(12.0));
-        }
-        if self.alpha.is_none() {
-            defaults.insert(AestheticProperty::Alpha, PropertyValue::Float(1.0));
-        }
+        self.text.defaults("text", "text", _theme, &mut defaults);
 
         defaults
     }
@@ -388,9 +325,10 @@ impl Geom for GeomText {
             PropertyVector::Shape(shapes) => {
                 shapes.into_iter().map(|s| format!("{:?}", s)).collect()
             }
-            PropertyVector::LineStyle(linestyles) => {
-                linestyles.into_iter().map(|ls| format!("{:?}", ls)).collect()
-            }
+            PropertyVector::LineStyle(linestyles) => linestyles
+                .into_iter()
+                .map(|ls| format!("{:?}", ls))
+                .collect(),
         };
 
         let color_prop = properties.remove(&AestheticProperty::Color).unwrap();
@@ -424,10 +362,7 @@ impl Geom for GeomText {
 mod tests {
     use super::*;
     use crate::{
-        data::{DataSource, VectorValue},
-        error::to_io_error,
-        plot::plot,
-        utils::{dataframe::DataFrame, mtcars::mtcars},
+        data::{DataSource, VectorValue}, error::to_io_error, plot::plot, theme::{color, traits::TextElement}, utils::{dataframe::DataFrame, mtcars::mtcars}
     };
 
     fn init_test_logging() {

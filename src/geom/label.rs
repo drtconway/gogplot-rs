@@ -6,14 +6,14 @@ use crate::aesthetics::builder::{
     ColorDiscreteAesBuilder, LabelAesBuilder, SizeContinuousAesBuilder, SizeDiscreteAesBuilder,
     XContinuousAesBuilder, XDiscreteAesBuilder, YContinuousAesBuilder, YDiscreteAesBuilder,
 };
-use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
+use crate::aesthetics::{AesMap, AestheticProperty};
 use crate::error::Result;
 use crate::geom::properties::{Property, PropertyValue, PropertyVector};
 use crate::geom::{AestheticRequirement, DomainConstraint};
 use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
 use crate::stat::Stat;
-use crate::theme::{Color, color};
+use crate::theme::{Color, TextElement, color};
 
 pub trait GeomLabelAesBuilderTrait:
     XContinuousAesBuilder
@@ -34,62 +34,37 @@ impl GeomLabelAesBuilderTrait for AesMapBuilder {}
 
 pub struct GeomLabelBuilder {
     core: LayerBuilderCore,
-    color: Option<Color>,
-    size: Option<f64>,
-    alpha: Option<f64>,
+    text: TextElement,
     fill: Option<Color>,
-    hjust: Option<f64>,
-    vjust: Option<f64>,
     angle: Option<f64>,
     padding: Option<f64>,
     radius: Option<f64>,
+}
+
+impl crate::theme::traits::TextElement for GeomLabelBuilder {
+    fn this(&self) -> &TextElement {
+        &self.text
+    }
+
+    fn this_mut(&mut self) -> &mut TextElement {
+        &mut self.text
+    }
 }
 
 impl GeomLabelBuilder {
     pub fn new() -> Self {
         Self {
             core: LayerBuilderCore::default(),
-            color: None,
-            size: None,
-            alpha: None,
+            text: TextElement::default(),
             fill: None,
-            hjust: None,
-            vjust: None,
             angle: None,
             padding: None,
             radius: None,
         }
     }
 
-    pub fn color<C: Into<Color>>(mut self, color: C) -> Self {
-        self.color = Some(color.into());
-        self
-    }
-
-    pub fn size<S: Into<f64>>(mut self, size: S) -> Self {
-        self.size = Some(size.into());
-        self
-    }
-
-    pub fn alpha<A: Into<f64>>(mut self, alpha: A) -> Self {
-        self.alpha = Some(alpha.into());
-        self
-    }
-
     pub fn fill<F: Into<Color>>(mut self, fill: F) -> Self {
         self.fill = Some(fill.into());
-        self
-    }
-
-    /// Set horizontal justification (0 = left, 0.5 = center, 1 = right)
-    pub fn hjust(mut self, hjust: f64) -> Self {
-        self.hjust = Some(hjust.clamp(0.0, 1.0));
-        self
-    }
-
-    /// Set vertical justification (0 = bottom, 0.5 = middle, 1 = top)
-    pub fn vjust(mut self, vjust: f64) -> Self {
-        self.vjust = Some(vjust.clamp(0.0, 1.0));
         self
     }
 
@@ -135,31 +110,17 @@ impl GeomLabelBuilder {
 impl LayerBuilder for GeomLabelBuilder {
     fn build(self: Box<Self>, parent_mapping: &AesMap) -> Result<Layer> {
         let mut geom_label = GeomLabel::new();
+        geom_label.text = self.text;
 
         // Set fixed property values and remove from inherited mapping
         let mut overrides = Vec::new();
 
-        if self.color.is_some() {
-            geom_label.color = self.color;
-            overrides.push(Aesthetic::Color(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Color(AestheticDomain::Discrete));
-        }
-        if self.size.is_some() {
-            geom_label.size = self.size;
-            overrides.push(Aesthetic::Size(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Size(AestheticDomain::Discrete));
-        }
-        if self.alpha.is_some() {
-            geom_label.alpha = self.alpha;
-            overrides.push(Aesthetic::Alpha(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Alpha(AestheticDomain::Discrete));
-        }
+        geom_label.text.overrides(&mut overrides);
+
         if self.fill.is_some() {
             geom_label.fill = self.fill;
         }
 
-        geom_label.hjust = self.hjust.unwrap_or(0.5);
-        geom_label.vjust = self.vjust.unwrap_or(0.5);
         geom_label.angle = self.angle.unwrap_or(0.0);
         geom_label.padding = self.padding.unwrap_or(2.0);
         geom_label.radius = self.radius.unwrap_or(2.0);
@@ -186,23 +147,11 @@ pub fn geom_label() -> GeomLabelBuilder {
 
 /// GeomLabel renders text labels with a background box at specified positions
 pub struct GeomLabel {
-    /// Default color
-    pub color: Option<Color>,
-
-    /// Default text size
-    pub size: Option<f64>,
-
-    /// Default alpha/opacity
-    pub alpha: Option<f64>,
+    /// Text element properties (color, size, alpha, font family/weight/style, hjust, vjust)
+    pub text: TextElement,
 
     /// Fill color for label background
     pub fill: Option<Color>,
-
-    /// Horizontal justification (0 = left, 0.5 = center, 1 = right)
-    pub hjust: f64,
-
-    /// Vertical justification (0 = bottom, 0.5 = middle, 1 = top)
-    pub vjust: f64,
 
     /// Text rotation angle in degrees
     pub angle: f64,
@@ -217,12 +166,8 @@ pub struct GeomLabel {
 impl GeomLabel {
     pub fn new() -> Self {
         Self {
-            color: None,
-            size: None,
-            alpha: None,
+            text: TextElement::default(),
             fill: None,
-            hjust: 0.5,
-            vjust: 0.5,
             angle: 0.0,
             padding: 2.0,
             radius: 2.0,
@@ -271,8 +216,8 @@ impl GeomLabel {
                 }
 
                 // Calculate text position (same as text geom)
-                let text_x = -extents.width() * self.hjust;
-                let text_y = extents.height() * (1.0 - self.vjust);
+                let text_x = -extents.width() * self.text.hjust.unwrap_or(0.5);
+                let text_y = extents.height() * (1.0 - self.text.vjust.unwrap_or(0.5));
 
                 // Calculate box dimensions and position around the text
                 let box_width = extents.width() + 2.0 * self.padding;
@@ -338,6 +283,23 @@ impl GeomLabel {
                     a as f64 / 255.0 * alpha,
                 );
 
+                // Set font family, weight, and style
+                let family = self.text.family.as_deref().unwrap_or("sans-serif");
+                
+                let weight = match self.text.weight {
+                    Some(crate::theme::FontWeight::Bold) => cairo::FontWeight::Bold,
+                    Some(crate::theme::FontWeight::Light) => cairo::FontWeight::Normal,
+                    _ => cairo::FontWeight::Normal,
+                };
+                
+                let slant = match self.text.style {
+                    Some(crate::theme::FontStyle::Italic) => cairo::FontSlant::Italic,
+                    Some(crate::theme::FontStyle::Oblique) => cairo::FontSlant::Oblique,
+                    _ => cairo::FontSlant::Normal,
+                };
+                
+                ctx.cairo.select_font_face(family, slant, weight);
+
                 ctx.cairo.move_to(text_x, text_y);
                 ctx.cairo.show_text(&label).ok();
 
@@ -395,21 +357,7 @@ impl Geom for GeomLabel {
 
     fn properties(&self) -> HashMap<AestheticProperty, Property> {
         let mut props = HashMap::new();
-        if let Some(color_prop) = &self.color {
-            props.insert(
-                AestheticProperty::Color,
-                Property::Color(color_prop.clone()),
-            );
-        }
-        if let Some(size_prop) = &self.size {
-            props.insert(AestheticProperty::Size, Property::Float(size_prop.clone()));
-        }
-        if let Some(alpha_prop) = &self.alpha {
-            props.insert(
-                AestheticProperty::Alpha,
-                Property::Float(alpha_prop.clone()),
-            );
-        }
+        self.text.properties(&mut props);
         props
     }
 
@@ -419,15 +367,7 @@ impl Geom for GeomLabel {
     ) -> HashMap<AestheticProperty, PropertyValue> {
         let mut defaults = HashMap::new();
 
-        if self.color.is_none() {
-            defaults.insert(AestheticProperty::Color, PropertyValue::Color(color::BLACK));
-        }
-        if self.size.is_none() {
-            defaults.insert(AestheticProperty::Size, PropertyValue::Float(12.0));
-        }
-        if self.alpha.is_none() {
-            defaults.insert(AestheticProperty::Alpha, PropertyValue::Float(1.0));
-        }
+        self.text.defaults("label", "text", _theme, &mut defaults);
 
         defaults
     }
@@ -516,10 +456,7 @@ impl Geom for GeomLabel {
 mod tests {
     use super::*;
     use crate::{
-        data::{DataSource, VectorValue},
-        error::to_io_error,
-        plot::plot,
-        utils::{dataframe::DataFrame, mtcars::mtcars},
+        data::{DataSource, VectorValue}, error::to_io_error, plot::plot, theme::traits::TextElement, utils::{dataframe::DataFrame, mtcars::mtcars}
     };
 
     fn init_test_logging() {

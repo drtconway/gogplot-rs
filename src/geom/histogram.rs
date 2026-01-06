@@ -5,7 +5,7 @@ use crate::aesthetics::builder::{
     AesMapBuilder, AlphaContinuousAesBuilder, AlphaDiscreteAesBuilder, FillContinuousAesBuilder,
     FillDiscreteAesBuilder, GroupAesBuilder, XContinuousAesBuilder, YContinuousAesBuilder,
 };
-use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
+use crate::aesthetics::{AesMap, AestheticDomain, AestheticProperty};
 use crate::data::PrimitiveValue;
 use crate::error::Result;
 use crate::geom::properties::{Property, PropertyValue, PropertyVector};
@@ -14,7 +14,7 @@ use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
 use crate::scale::traits::ScaleBase;
 use crate::stat::bin::Bin;
-use crate::theme::Color;
+use crate::theme::{AreaElement, Color};
 
 pub trait GeomHistogramAesBuilderTrait:
     XContinuousAesBuilder
@@ -31,34 +31,15 @@ impl GeomHistogramAesBuilderTrait for AesMapBuilder {}
 
 pub struct GeomHistogramBuilder {
     core: LayerBuilderCore,
-    color: Option<Color>,
-    fill: Option<Color>,
-    alpha: Option<f64>,
+    area: AreaElement,
 }
 
 impl GeomHistogramBuilder {
     pub fn new() -> Self {
         Self {
             core: LayerBuilderCore::default(),
-            color: None,
-            fill: None,
-            alpha: None,
+            area: AreaElement::default(),
         }
-    }
-
-    pub fn color<C: Into<Color>>(mut self, color: C) -> Self {
-        self.color = Some(color.into());
-        self
-    }
-
-    pub fn fill<F: Into<Color>>(mut self, fill: F) -> Self {
-        self.fill = Some(fill.into());
-        self
-    }
-
-    pub fn alpha<A: Into<f64>>(mut self, alpha: A) -> Self {
-        self.alpha = Some(alpha.into());
-        self
     }
 
     pub fn aes(mut self, closure: impl FnOnce(&mut dyn GeomHistogramAesBuilderTrait)) -> Self {
@@ -91,29 +72,25 @@ impl GeomHistogramBuilder {
     }
 }
 
+impl crate::theme::traits::AreaElement for GeomHistogramBuilder {
+    fn this(&self) -> &AreaElement {
+        &self.area
+    }
+
+    fn this_mut(&mut self) -> &mut AreaElement {
+        &mut self.area
+    }
+}
+
 impl LayerBuilder for GeomHistogramBuilder {
     fn build(mut self: Box<Self>, parent_mapping: &AesMap) -> Result<Layer> {
         let mut geom_histogram = GeomHistogram::new();
+        geom_histogram.area = self.area;
 
         // Build the mapping (merging layer + parent)
         let mut overrides = Vec::new();
 
-        // Set fixed property values and remove from inherited mapping
-        if self.color.is_some() {
-            geom_histogram.color = self.color;
-            overrides.push(Aesthetic::Color(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Color(AestheticDomain::Discrete));
-        }
-        if self.fill.is_some() {
-            geom_histogram.fill = self.fill;
-            overrides.push(Aesthetic::Fill(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Fill(AestheticDomain::Discrete));
-        }
-        if self.alpha.is_some() {
-            geom_histogram.alpha = self.alpha;
-            overrides.push(Aesthetic::Alpha(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Alpha(AestheticDomain::Discrete));
-        }
+        geom_histogram.area.overrides(&mut overrides);
 
         // Make Bin the default stat if none specified
         if self.core.stat.is_none() {
@@ -150,23 +127,14 @@ pub fn geom_histogram() -> GeomHistogramBuilder {
 /// - `Color`: Bar border color (can be constant or mapped to data)
 /// - `Alpha`: Bar transparency (0.0 = transparent, 1.0 = opaque)
 pub struct GeomHistogram {
-    /// Default color (border)
-    pub color: Option<Color>,
-
-    /// Default fill color
-    pub fill: Option<Color>,
-
-    /// Default alpha/opacity
-    pub alpha: Option<f64>,
+    area: AreaElement,
 }
 
 impl GeomHistogram {
     /// Create a new histogram geom with default settings
     pub fn new() -> Self {
         Self {
-            color: None,
-            fill: None,
-            alpha: None,
+            area: AreaElement::default(),
         }
     }
 
@@ -317,17 +285,7 @@ impl Geom for GeomHistogram {
 
     fn properties(&self) -> HashMap<AestheticProperty, Property> {
         let mut properties = HashMap::new();
-
-        if let Some(ref color) = self.color {
-            properties.insert(AestheticProperty::Color, Property::Color(color.clone()));
-        }
-        if let Some(ref fill) = self.fill {
-            properties.insert(AestheticProperty::Fill, Property::Color(fill.clone()));
-        }
-        if let Some(ref alpha) = self.alpha {
-            properties.insert(AestheticProperty::Alpha, Property::Float(alpha.clone()));
-        }
-
+        self.area.properties(&mut properties);
         properties
     }
 
@@ -336,20 +294,7 @@ impl Geom for GeomHistogram {
         theme: &crate::theme::Theme,
     ) -> HashMap<AestheticProperty, PropertyValue> {
         let mut defaults = HashMap::new();
-
-        if self.color.is_none() {
-            defaults.insert(
-                AestheticProperty::Color,
-                PropertyValue::Color(theme.geom_rect.color),
-            );
-        }
-        if self.alpha.is_none() {
-            defaults.insert(
-                AestheticProperty::Alpha,
-                PropertyValue::Float(theme.geom_rect.alpha),
-            );
-        }
-
+        self.area.defaults("histogram", "bar", theme, &mut defaults);
         defaults
     }
 
@@ -429,6 +374,7 @@ mod tests {
     use crate::error::to_io_error;
     use crate::plot::plot;
     use crate::theme::color;
+    use crate::theme::traits::AreaElement;
     use crate::utils::mtcars::mtcars;
 
     fn init_test_logging() {
