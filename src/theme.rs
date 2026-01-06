@@ -85,7 +85,7 @@ pub struct LineElement {
     pub color: Option<Color>,
     pub size: Option<f64>,
     pub alpha: Option<f64>,
-    pub linetype: Option<LineStyle>,
+    pub linestyle: Option<LineStyle>,
 }
 
 impl LineElement {
@@ -104,8 +104,8 @@ impl LineElement {
         self
     }
     
-    pub fn linetype(mut self, linetype: LineStyle) -> Self {
-        self.linetype = Some(linetype);
+    pub fn linestyle(mut self, linestyle: LineStyle) -> Self {
+        self.linestyle = Some(linestyle);
         self
     }
 }
@@ -752,7 +752,7 @@ impl<'a> ElementBuilder<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{aesthetics::builder::{ColorDiscreteAesBuilder, XContinuousAesBuilder, YContinuousAesBuilder}, error::to_io_error, geom::point::geom_point, plot::plot, theme::point, utils::mtcars::mtcars};
+    use crate::{aesthetics::builder::{ColorDiscreteAesBuilder, XContinuousAesBuilder, YContinuousAesBuilder}, error::to_io_error, geom::{line::geom_line, point::geom_point}, plot::plot, theme::point, utils::mtcars::mtcars};
 
     fn init_test_logging() {
         let _ = env_logger::builder()
@@ -903,6 +903,36 @@ mod tests {
             .map_err(to_io_error)
             .expect("Failed to build plot");
         p.save("tests/images/theme_points_partial.png", 800, 600)
+            .map_err(to_io_error)
+            .expect("Failed to save plot image");
+    }
+
+    #[test]
+    fn theme_custom_linestyle() {
+        init_test_logging();
+
+        let data = mtcars();
+
+        let builder = plot(&data)
+            .aes(|a| {
+                a.x_continuous("wt");
+                a.y_continuous("mpg");
+            })
+            .theme(|theme| {
+                theme.geom("line").element("line").set(
+                    line()
+                        .linestyle(LineStyle::from("-- "))
+                        .color(color::DARKBLUE)
+                        .size(2.0),
+                );
+            })
+            + geom_line(); // Should use theme's dashed linestyle
+
+        let p = builder
+            .build()
+            .map_err(to_io_error)
+            .expect("Failed to build plot");
+        p.save("tests/images/theme_lines_custom_linestyle.png", 800, 600)
             .map_err(to_io_error)
             .expect("Failed to save plot image");
     }

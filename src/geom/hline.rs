@@ -298,7 +298,7 @@ impl Geom for GeomHLine {
 
     fn property_defaults(
         &self,
-        _theme: &crate::prelude::Theme,
+        theme: &crate::prelude::Theme,
     ) -> HashMap<AestheticProperty, super::properties::PropertyValue> {
         let mut defaults = HashMap::new();
 
@@ -327,7 +327,7 @@ impl Geom for GeomHLine {
         if self.linestyle.is_none() {
             defaults.insert(
                 AestheticProperty::Linetype,
-                super::properties::PropertyValue::LineStyle(LineStyle::Solid),
+                super::properties::PropertyValue::LineStyle(theme.geom_line.linestyle.clone()),
             );
         }
 

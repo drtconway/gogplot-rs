@@ -370,7 +370,7 @@ impl Geom for GeomSmooth {
 
     fn property_defaults(
         &self,
-        _theme: &crate::theme::Theme,
+        theme: &crate::theme::Theme,
     ) -> HashMap<AestheticProperty, PropertyValue> {
         let mut defaults = HashMap::new();
         if self.color.is_none() {
@@ -391,7 +391,7 @@ impl Geom for GeomSmooth {
         if self.linestyle.is_none() {
             defaults.insert(
                 AestheticProperty::Linetype,
-                PropertyValue::LineStyle(LineStyle::Solid),
+                PropertyValue::LineStyle(theme.geom_line.linestyle.clone()),
             );
         }
         defaults

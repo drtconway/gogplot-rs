@@ -301,7 +301,7 @@ impl Geom for GeomSegment {
 
     fn property_defaults(
         &self,
-        _theme: &crate::prelude::Theme,
+        theme: &crate::prelude::Theme,
     ) -> HashMap<AestheticProperty, super::properties::PropertyValue> {
         let mut defaults = HashMap::new();
         if self.size.is_none() {
@@ -325,7 +325,7 @@ impl Geom for GeomSegment {
         if self.linestyle.is_none() {
             defaults.insert(
                 AestheticProperty::Linetype,
-                super::properties::PropertyValue::LineStyle(LineStyle::Solid),
+            super::properties::PropertyValue::LineStyle(theme.geom_line.linestyle.clone()),
             );
         }
         defaults

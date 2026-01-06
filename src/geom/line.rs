@@ -276,7 +276,7 @@ impl Geom for GeomLine {
 
     fn property_defaults(
         &self,
-        _theme: &crate::prelude::Theme,
+        theme: &crate::prelude::Theme,
     ) -> HashMap<AestheticProperty, super::properties::PropertyValue> {
         let mut defaults = HashMap::new();
         if self.size.is_none() {
@@ -300,7 +300,7 @@ impl Geom for GeomLine {
         if self.linestyle.is_none() {
             defaults.insert(
                 AestheticProperty::Linetype,
-                super::properties::PropertyValue::LineStyle(LineStyle::Solid),
+            super::properties::PropertyValue::LineStyle(theme.geom_line.linestyle.clone()),
             );
         }
         defaults
@@ -461,6 +461,29 @@ mod tests {
             .map_err(to_io_error)
             .expect("Failed to build plot");
         p.save("tests/images/basic_lines_4.png", 800, 600)
+            .map_err(to_io_error)
+            .expect("Failed to save plot image");
+    }
+
+    #[test]
+    fn basic_lines_5_mapped_linestyle() {
+        init_test_logging();
+
+        let data = mtcars();
+
+        // Test linestyle mapped from discrete column
+        let builder = plot(&data).aes(|a| {
+            a.x_continuous("wt");
+            a.y_continuous("mpg");
+        }) + geom_line().aes(|a| {
+            a.linestyle("cyl");
+        });
+
+        let p = builder
+            .build()
+            .map_err(to_io_error)
+            .expect("Failed to build plot");
+        p.save("tests/images/basic_lines_5_mapped_linestyle.png", 800, 600)
             .map_err(to_io_error)
             .expect("Failed to save plot image");
     }

@@ -280,7 +280,7 @@ impl Geom for GeomDensity {
         if self.linestyle.is_none() {
             defaults.insert(
                 AestheticProperty::Linetype,
-                PropertyValue::LineStyle(LineStyle::Solid),
+                PropertyValue::LineStyle(theme.geom_line.linestyle.clone()),
             );
         }
         defaults

@@ -331,7 +331,7 @@ impl Geom for GeomErrorbar {
 
     fn property_defaults(
         &self,
-        _theme: &crate::prelude::Theme,
+        theme: &crate::prelude::Theme,
     ) -> HashMap<AestheticProperty, PropertyValue> {
         let mut defaults = HashMap::new();
         if self.color.is_none() {
@@ -346,7 +346,7 @@ impl Geom for GeomErrorbar {
         if self.linestyle.is_none() {
             defaults.insert(
                 AestheticProperty::Linetype,
-                PropertyValue::LineStyle(LineStyle::Solid),
+                PropertyValue::LineStyle(theme.geom_line.linestyle.clone()),
             );
         }
         defaults
