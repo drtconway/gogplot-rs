@@ -712,24 +712,26 @@ impl Default for TextTheme {
 /// Theme for axis line and ticks
 #[derive(Clone, Debug, PartialEq)]
 pub struct AxisLineTheme {
-    pub line: Option<LineDrawStyle>,
-    pub ticks: Option<LineDrawStyle>,
+    pub line: LineElement,
+    pub ticks: LineElement,
     pub tick_length: f32,
 }
 
 impl Default for AxisLineTheme {
     fn default() -> Self {
         AxisLineTheme {
-            line: Some(LineDrawStyle {
-                color: color::BLACK,
-                width: 1.0,
-                dash: None,
-            }),
-            ticks: Some(LineDrawStyle {
-                color: color::BLACK,
-                width: 1.0,
-                dash: None,
-            }),
+            line: LineElement {
+                color: Some(color::BLACK),
+                size: Some(1.0),
+                alpha: Some(1.0),
+                linestyle: Some(LineStyle::Solid),
+            },
+            ticks: LineElement {
+                color: Some(color::BLACK),
+                size: Some(1.0),
+                alpha: Some(1.0),
+                linestyle: Some(LineStyle::Solid),
+            },
             tick_length: 5.0,
         }
     }
@@ -738,42 +740,46 @@ impl Default for AxisLineTheme {
 /// Theme for axis text (labels and title)
 #[derive(Clone, Debug, PartialEq)]
 pub struct AxisTextTheme {
-    pub text: TextTheme,
-    pub title: TextTheme,
+    pub text: TextElement,
+    pub title: TextElement,
+    pub text_margin: Spacing,
+    pub title_margin: Spacing,
 }
 
 impl Default for AxisTextTheme {
     fn default() -> Self {
         AxisTextTheme {
-            text: TextTheme {
-                font: Font {
-                    family: "Sans".to_string(),
-                    size: 10.0,
-                    weight: FontWeight::Normal,
-                    style: FontStyle::Normal,
-                },
-                color: color::BLACK,
-                margin: Spacing {
-                    top: 5.0,
-                    right: 5.0,
-                    bottom: 5.0,
-                    left: 5.0,
-                },
+            text: TextElement {
+                color: Some(color::BLACK),
+                size: Some(10.0),
+                alpha: Some(1.0),
+                family: Some("Sans".to_string()),
+                weight: Some(FontWeight::Normal),
+                style: Some(FontStyle::Normal),
+                hjust: None,
+                vjust: None,
             },
-            title: TextTheme {
-                font: Font {
-                    family: "Sans".to_string(),
-                    size: 12.0,
-                    weight: FontWeight::Normal,
-                    style: FontStyle::Normal,
-                },
-                color: color::BLACK,
-                margin: Spacing {
-                    top: 10.0,
-                    right: 0.0,
-                    bottom: 10.0,
-                    left: 0.0,
-                },
+            title: TextElement {
+                color: Some(color::BLACK),
+                size: Some(12.0),
+                alpha: Some(1.0),
+                family: Some("Sans".to_string()),
+                weight: Some(FontWeight::Normal),
+                style: Some(FontStyle::Normal),
+                hjust: None,
+                vjust: None,
+            },
+            text_margin: Spacing {
+                top: 5.0,
+                right: 5.0,
+                bottom: 5.0,
+                left: 5.0,
+            },
+            title_margin: Spacing {
+                top: 10.0,
+                right: 0.0,
+                bottom: 10.0,
+                left: 0.0,
             },
         }
     }
@@ -790,7 +796,7 @@ pub struct AxisTheme {
 #[derive(Clone, Debug, PartialEq)]
 pub struct LegendTheme {
     pub background: FillStyle,
-    pub border: LineDrawStyle,
+    pub border: LineElement,
     pub text_font: Font,
     pub text_color: Color,
 }
@@ -802,10 +808,11 @@ impl Default for LegendTheme {
                 color: color::WHITE, // white
                 opacity: 0.8,
             },
-            border: LineDrawStyle {
-                color: color::BLACK, // black
-                width: 0.5,
-                dash: None,
+            border: LineElement {
+                color: Some(color::BLACK),
+                size: Some(0.5),
+                alpha: Some(1.0),
+                linestyle: Some(LineStyle::Solid),
             },
             text_font: Font {
                 family: "sans-serif".to_string(),
@@ -822,9 +829,9 @@ impl Default for LegendTheme {
 #[derive(Clone, Debug, PartialEq)]
 pub struct PanelTheme {
     pub background: Option<FillStyle>,
-    pub border: Option<LineDrawStyle>,
-    pub grid_major: Option<LineDrawStyle>,
-    pub grid_minor: Option<LineDrawStyle>,
+    pub border: Option<LineElement>,
+    pub grid_major: Option<LineElement>,
+    pub grid_minor: Option<LineElement>,
 }
 
 impl Default for PanelTheme {
@@ -835,15 +842,17 @@ impl Default for PanelTheme {
                 opacity: 1.0,
             }),
             border: None,
-            grid_major: Some(LineDrawStyle {
-                color: color::WHITE,
-                width: 1.5,
-                dash: None,
+            grid_major: Some(LineElement {
+                color: Some(color::WHITE),
+                size: Some(1.5),
+                alpha: Some(1.0),
+                linestyle: Some(LineStyle::Solid),
             }),
-            grid_minor: Some(LineDrawStyle {
-                color: color::WHITE,
-                width: 0.75,
-                dash: None,
+            grid_minor: Some(LineElement {
+                color: Some(color::WHITE),
+                size: Some(0.75),
+                alpha: Some(1.0),
+                linestyle: Some(LineStyle::Solid),
             }),
         }
     }
@@ -852,114 +861,29 @@ impl Default for PanelTheme {
 /// Theme for plot title
 #[derive(Clone, Debug, PartialEq)]
 pub struct PlotTitleTheme {
-    pub text: TextTheme,
+    pub text: TextElement,
+    pub margin: Spacing,
 }
 
 impl Default for PlotTitleTheme {
     fn default() -> Self {
         PlotTitleTheme {
-            text: TextTheme {
-                font: Font {
-                    family: "Sans".to_string(),
-                    size: 14.0,
-                    weight: FontWeight::Bold,
-                    style: FontStyle::Normal,
-                },
-                color: color::BLACK,
-                margin: Spacing {
-                    top: 5.0,
-                    right: 0.0,
-                    bottom: 10.0,
-                    left: 0.0,
-                },
+            text: TextElement {
+                color: Some(color::BLACK),
+                size: Some(14.0),
+                alpha: Some(1.0),
+                family: Some("Sans".to_string()),
+                weight: Some(FontWeight::Bold),
+                style: Some(FontStyle::Normal),
+                hjust: None,
+                vjust: None,
             },
-        }
-    }
-}
-
-/// Theme for geom_line
-#[derive(Clone, Debug, PartialEq)]
-pub struct GeomLineTheme {
-    pub color: Color,
-    pub size: f64, // Line width
-    pub alpha: f64,
-    pub linestyle: crate::visuals::LineStyle,
-}
-
-impl Default for GeomLineTheme {
-    fn default() -> Self {
-        GeomLineTheme {
-            color: color::BLACK,
-            size: 1.0,
-            alpha: 1.0,
-            linestyle: crate::visuals::LineStyle::Solid,
-        }
-    }
-}
-
-/// Theme for geom_point
-#[derive(Clone, Debug, PartialEq)]
-pub struct GeomPointTheme {
-    pub color: Color,
-    pub size: f64,
-    pub alpha: f64,
-    pub shape: i64, // Shape as i64 to match visuals::Shape
-}
-
-impl Default for GeomPointTheme {
-    fn default() -> Self {
-        GeomPointTheme {
-            color: color::BLACK,
-            size: 3.0,
-            alpha: 1.0,
-            shape: 16, // Circle (Shape::Circle as i64)
-        }
-    }
-}
-
-/// Theme for geom_rect (bars, histograms, boxplots)
-#[derive(Clone, Debug, PartialEq)]
-pub struct GeomRectTheme {
-    pub fill: Color,
-    pub color: Color,
-    pub alpha: f64,
-}
-
-impl Default for GeomRectTheme {
-    fn default() -> Self {
-        GeomRectTheme {
-            fill: Color(128, 128, 128, 255), // Gray fill
-            color: color::BLACK,             // Black outline
-            alpha: 1.0,
-        }
-    }
-}
-
-/// Theme for geom_text
-#[derive(Clone, Debug, PartialEq)]
-pub struct GeomTextTheme {
-    pub font: Font,
-    pub color: Color,
-    pub size: f64,
-    pub alpha: f64,
-    pub hjust: f64,
-    pub vjust: f64,
-}
-
-impl Default for GeomTextTheme {
-    fn default() -> Self {
-        GeomTextTheme {
-            font: Font {
-                family: "Sans".to_string(),
-                size: 11.0,
-                weight: FontWeight::Normal,
-                style: FontStyle::Normal,
+            margin: Spacing {
+                top: 5.0,
+                right: 0.0,
+                bottom: 10.0,
+                left: 0.0,
             },
-            color: color::BLACK,
-            size: 11.0,
-            alpha: 1.0,
-            hjust: 0.0, // Left edge at point (text extends right)
-            vjust: 1.0, // Top at point (text extends down/below point in visual space)
         }
     }
 }
@@ -974,10 +898,6 @@ pub struct Theme {
     pub legend: LegendTheme,
     pub plot_title: PlotTitleTheme,
     pub plot_margin: Spacing,
-    pub geom_line: GeomLineTheme,
-    pub geom_point: GeomPointTheme,
-    pub geom_rect: GeomRectTheme,
-    pub geom_text: GeomTextTheme,
 
     // Per-geom element overrides: geom_name -> element_name -> Element
     geom_elements: HashMap<&'static str, HashMap<&'static str, Element>>,
@@ -998,10 +918,6 @@ impl Default for Theme {
                 bottom: 60.0,
                 left: 70.0,
             },
-            geom_line: GeomLineTheme::default(),
-            geom_point: GeomPointTheme::default(),
-            geom_rect: GeomRectTheme::default(),
-            geom_text: GeomTextTheme::default(),
             geom_elements: HashMap::new(),
         }
     }
@@ -1024,11 +940,7 @@ impl Theme {
             color: color::WHITE,
             opacity: 1.0,
         });
-        theme.panel.border = Some(LineDrawStyle {
-            color: color::BLACK,
-            width: 1.0,
-            dash: None,
-        });
+        theme.panel.border = Some(LineElement::default());
         theme.panel.grid_major = None;
         theme.panel.grid_minor = None;
         theme
@@ -1045,37 +957,24 @@ impl Theme {
             color: Color(50, 50, 50, 255),
             opacity: 1.0,
         });
-        theme.panel.grid_major = Some(LineDrawStyle {
-            color: Color(70, 70, 70, 255),
-            width: 1.0,
-            dash: None,
-        });
+        theme.panel.grid_major = Some(LineElement::default());
 
         // Update all text colors
-        theme.axis_x.text.text.color = light_gray;
-        theme.axis_x.text.title.color = light_gray;
-        theme.axis_y.text.text.color = light_gray;
-        theme.axis_y.text.title.color = light_gray;
-        theme.plot_title.text.color = light_gray;
-
+        theme.axis_x.text.text.color = Some(light_gray);
+        theme.axis_x.text.title.color = Some(light_gray);
+        theme.axis_y.text.text.color = Some(light_gray);
+        theme.axis_y.text.title.color = Some(light_gray);
+        theme.plot_title.text.color = Some(light_gray);
         // Update axis lines
-        if let Some(ref mut line) = theme.axis_x.line.line {
-            line.color = light_gray;
-        }
-        if let Some(ref mut ticks) = theme.axis_x.line.ticks {
-            ticks.color = light_gray;
-        }
-        if let Some(ref mut line) = theme.axis_y.line.line {
-            line.color = light_gray;
-        }
-        if let Some(ref mut ticks) = theme.axis_y.line.ticks {
-            ticks.color = light_gray;
-        }
+        theme.axis_x.line.line.color = Some(light_gray);
+        theme.axis_x.line.ticks.color = Some(light_gray);
+        theme.axis_y.line.line.color = Some(light_gray);
+        theme.axis_y.line.ticks.color = Some(light_gray);
 
         // Update legend styling
         theme.legend.background.color = Color(50, 50, 50, 255); // Same as panel background
         theme.legend.text_color = light_gray;
-        theme.legend.border.color = Color(70, 70, 70, 255); // Same as grid lines
+        theme.legend.border.color = Some(Color(70, 70, 70, 255)); // Same as grid lines
 
         theme
     }

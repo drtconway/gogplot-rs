@@ -8,7 +8,7 @@ use crate::scale::traits::{ContinuousDomainScale, ContinuousRangeScale, Discrete
 use crate::theme::Theme;
 use cairo::Context;
 
-use super::cairo_helpers::{apply_line_style, apply_text_theme};
+use super::cairo_helpers::{apply_line_element, apply_text_element};
 
 /// Draw grid lines in the panel area
 pub fn draw_grid_lines(
@@ -23,7 +23,7 @@ pub fn draw_grid_lines(
 ) -> Result<(), PlotError> {
     // Draw minor grid lines first (if present) so major grid lines are on top
     if let Some(ref grid_minor) = theme.panel.grid_minor {
-        apply_line_style(ctx, grid_minor);
+        apply_line_element(ctx, grid_minor);
 
         // Draw vertical minor grid lines between x scale breaks
         let x_breaks = x_scale.breaks();
@@ -63,7 +63,7 @@ pub fn draw_grid_lines(
 
     // Draw major grid lines
     if let Some(ref grid_major) = theme.panel.grid_major {
-        apply_line_style(ctx, grid_major);
+        apply_line_element(ctx, grid_major);
 
         // Draw vertical grid lines at x scale breaks
         for break_val in x_scale.breaks().iter() {
@@ -138,26 +138,23 @@ pub fn draw_axes(
         })
         .unwrap_or(XAxisPosition::Bottom);
 
-    if let Some(ref line_style) = theme.axis_x.line.line {
-        apply_line_style(ctx, line_style);
-        match x_position {
-            XAxisPosition::Bottom => {
-                ctx.move_to(x0, y1);
-                ctx.line_to(x1, y1);
-            }
-            XAxisPosition::Top => {
-                ctx.move_to(x0, y0);
-                ctx.line_to(x1, y0);
-            }
+    apply_line_element(ctx, &theme.axis_x.line.line);
+    match x_position {
+        XAxisPosition::Bottom => {
+            ctx.move_to(x0, y1);
+            ctx.line_to(x1, y1);
         }
-        ctx.stroke().ok();
+        XAxisPosition::Top => {
+            ctx.move_to(x0, y0);
+            ctx.line_to(x1, y0);
+        }
     }
+    ctx.stroke().ok();
 
     // Draw X axis ticks and labels
     let tick_length = theme.axis_x.line.tick_length as f64;
-    if let Some(ref line_style) = theme.axis_x.line.ticks {
-        apply_line_style(ctx, line_style);
-        apply_text_theme(ctx, &theme.axis_x.text.text);
+    apply_line_element(ctx, &theme.axis_x.line.ticks);
+    apply_text_element(ctx, &theme.axis_x.text.text);
 
         for (break_val, label) in x_breaks.iter().zip(x_labels.iter()) {
             // Map break value to viewport coordinate
@@ -187,7 +184,7 @@ pub fn draw_axes(
                 // Draw label
                 let extents = ctx.text_extents(label).ok();
                 if let Some(ext) = extents {
-                    let label_margin = theme.axis_x.text.text.margin.top as f64;
+                    let label_margin = theme.axis_x.text.text_margin.top as f64;
                     match x_position {
                         XAxisPosition::Bottom => {
                             let y_label = y1 + tick_length + label_margin + ext.height();
@@ -202,7 +199,6 @@ pub fn draw_axes(
                 }
             }
         }
-    }
 
     // Y axis line
     let y_position = y_axis
@@ -212,26 +208,23 @@ pub fn draw_axes(
         })
         .unwrap_or(YAxisPosition::Left);
 
-    if let Some(ref line_style) = theme.axis_y.line.line {
-        apply_line_style(ctx, line_style);
-        match y_position {
-            YAxisPosition::Left => {
-                ctx.move_to(x0, y0);
-                ctx.line_to(x0, y1);
-            }
-            YAxisPosition::Right => {
-                ctx.move_to(x1, y0);
-                ctx.line_to(x1, y1);
-            }
+    apply_line_element(ctx, &theme.axis_y.line.line);
+    match y_position {
+        YAxisPosition::Left => {
+            ctx.move_to(x0, y0);
+            ctx.line_to(x0, y1);
         }
-        ctx.stroke().ok();
+        YAxisPosition::Right => {
+            ctx.move_to(x1, y0);
+            ctx.line_to(x1, y1);
+        }
     }
+    ctx.stroke().ok();
 
     // Draw Y axis ticks and labels
     let y_tick_length = theme.axis_y.line.tick_length as f64;
-    if let Some(ref line_style) = theme.axis_y.line.ticks {
-        apply_line_style(ctx, line_style);
-        apply_text_theme(ctx, &theme.axis_y.text.text);
+    apply_line_element(ctx, &theme.axis_y.line.ticks);
+    apply_text_element(ctx, &theme.axis_y.text.text);
 
         for (break_val, label) in y_breaks.iter().zip(y_labels.iter()) {
             // Map break value to viewport coordinate
@@ -262,7 +255,7 @@ pub fn draw_axes(
                 // Draw label
                 let extents = ctx.text_extents(label).ok();
                 if let Some(ext) = extents {
-                    let label_margin = theme.axis_y.text.text.margin.right as f64;
+                    let label_margin = theme.axis_y.text.text_margin.right as f64;
                     match y_position {
                         YAxisPosition::Left => {
                             let x_label = x0 - y_tick_length - label_margin - ext.width();
@@ -277,7 +270,6 @@ pub fn draw_axes(
                 }
             }
         }
-    }
 
     // Draw X axis title
     if let Some(x_axis) = x_axis {
@@ -287,14 +279,14 @@ pub fn draw_axes(
                 _ => XAxisPosition::Bottom,
             };
 
-            apply_text_theme(ctx, &theme.axis_x.text.title);
+            apply_text_element(ctx, &theme.axis_x.text.title);
             let extents = ctx.text_extents(x_label).ok();
             if let Some(ext) = extents {
                 let x_center = (x0 + x1) / 2.0;
                 let tick_length = theme.axis_x.line.tick_length as f64;
-                let label_margin = theme.axis_x.text.text.margin.top as f64;
-                let typical_label_height = theme.axis_x.text.text.font.size as f64;
-                let title_margin = theme.axis_x.text.title.margin.top as f64;
+                let label_margin = theme.axis_x.text.text_margin.top as f64;
+                let typical_label_height = theme.axis_x.text.text.size.unwrap_or(10.0) as f64;
+                let title_margin = theme.axis_x.text.title_margin.top as f64;
 
                 match x_position {
                     XAxisPosition::Bottom => {
@@ -328,15 +320,15 @@ pub fn draw_axes(
             };
 
             ctx.save().ok();
-            apply_text_theme(ctx, &theme.axis_y.text.title);
+            apply_text_element(ctx, &theme.axis_y.text.title);
             let y_center = (y0 + y1) / 2.0;
             let extents = ctx.text_extents(y_label).ok();
             if let Some(ext) = extents {
                 let tick_length = theme.axis_y.line.tick_length as f64;
-                let label_margin = theme.axis_y.text.text.margin.right as f64;
+                let label_margin = theme.axis_y.text.text_margin.right as f64;
                 // Estimate max label width (rough approximation based on font size * typical digits)
-                let typical_label_width = theme.axis_y.text.text.font.size as f64 * 2.5;
-                let title_margin = theme.axis_y.text.title.margin.right as f64;
+                let typical_label_width = theme.axis_y.text.text.size.unwrap_or(10.0) as f64 * 2.5;
+                let title_margin = theme.axis_y.text.title_margin.right as f64;
                 let title_height = ext.height();
 
                 match y_position {
@@ -371,11 +363,11 @@ pub fn draw_axes(
 
     // Draw plot title
     if let Some(title) = title {
-        apply_text_theme(ctx, &theme.plot_title.text);
+        apply_text_element(ctx, &theme.plot_title.text);
         let extents = ctx.text_extents(title).ok();
         if let Some(ext) = extents {
             let x_center = (x0 + x1) / 2.0;
-            let y_offset = theme.plot_title.text.margin.top as f64;
+            let y_offset = theme.plot_title.margin.top as f64;
             ctx.move_to(x_center - ext.width() / 2.0, y_offset + ext.height());
             ctx.show_text(title).ok();
         }

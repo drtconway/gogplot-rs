@@ -1,6 +1,7 @@
 // Cairo rendering helpers
 
-use crate::theme::{Color, Font, FontStyle, FontWeight, LineDrawStyle, TextTheme};
+use crate::theme::{Color, Font, FontStyle, FontWeight, LineElement, TextElement};
+use crate::visuals::LineStyle;
 use cairo::Context;
 
 /// Apply color to Cairo context
@@ -40,20 +41,62 @@ pub fn apply_font(ctx: &mut Context, font: &Font) {
     ctx.set_font_size(font.size as f64);
 }
 
-/// Apply line style to Cairo context
-pub fn apply_line_style(ctx: &mut Context, line: &LineDrawStyle) {
-    apply_color(ctx, &line.color);
-    ctx.set_line_width(line.width as f64);
-    if let Some(ref dash) = line.dash {
-        let dash_f64: Vec<f64> = dash.iter().map(|&d| d as f64).collect();
-        ctx.set_dash(&dash_f64, 0.0);
-    } else {
-        ctx.set_dash(&[], 0.0);
+/// Apply line element to Cairo context
+pub fn apply_line_element(ctx: &mut Context, line: &LineElement) {
+    let color = line.color.unwrap_or(crate::theme::color::BLACK);
+    let size = line.size.unwrap_or(1.0);
+    let alpha = line.alpha.unwrap_or(1.0);
+    
+    ctx.set_source_rgba(
+        color.0 as f64 / 255.0,
+        color.1 as f64 / 255.0,
+        color.2 as f64 / 255.0,
+        (color.3 as f64 / 255.0) * alpha,
+    );
+    ctx.set_line_width(size);
+    
+    // Apply line style
+    match line.linestyle.as_ref().unwrap_or(&LineStyle::Solid) {
+        LineStyle::Solid => ctx.set_dash(&[], 0.0),
+        LineStyle::Custom(pattern) => {
+            let dash_f64: Vec<f64> = pattern.iter().map(|&d| d as f64).collect();
+            ctx.set_dash(&dash_f64, 0.0);
+        }
     }
 }
 
-/// Apply text theme to Cairo context
-pub fn apply_text_theme(ctx: &mut Context, text: &TextTheme) {
-    apply_font(ctx, &text.font);
-    apply_color(ctx, &text.color);
+/// Apply line style to Cairo context (backward compatibility wrapper)
+pub fn apply_line_style(ctx: &mut Context, line: &LineElement) {
+    apply_line_element(ctx, line);
+}
+
+/// Apply text element to Cairo context
+pub fn apply_text_element(ctx: &mut Context, text: &TextElement) {
+    // Set font family, weight, and style
+    let family = text.family.as_deref().unwrap_or("sans-serif");
+    
+    let weight = match text.weight {
+        Some(FontWeight::Bold) => cairo::FontWeight::Bold,
+        Some(FontWeight::Light) => cairo::FontWeight::Normal,
+        _ => cairo::FontWeight::Normal,
+    };
+    
+    let slant = match text.style {
+        Some(FontStyle::Italic) => cairo::FontSlant::Italic,
+        Some(FontStyle::Oblique) => cairo::FontSlant::Oblique,
+        _ => cairo::FontSlant::Normal,
+    };
+    
+    ctx.select_font_face(family, slant, weight);
+    ctx.set_font_size(text.size.unwrap_or(11.0));
+    
+    // Set color
+    let color = text.color.unwrap_or(crate::theme::color::BLACK);
+    let alpha = text.alpha.unwrap_or(1.0);
+    ctx.set_source_rgba(
+        color.0 as f64 / 255.0,
+        color.1 as f64 / 255.0,
+        color.2 as f64 / 255.0,
+        (color.3 as f64 / 255.0) * alpha,
+    );
 }
