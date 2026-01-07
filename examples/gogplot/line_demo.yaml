@@ -1,0 +1,18 @@
+input:
+  data:
+    x: [0, 1, 2, 3, 4, 5]
+    y: [0, 1, 4, 9, 16, 25]
+plot:
+  mapping:
+    x: "~x"
+    y: "~y"
+  layers:
+    - geom: line
+      params:
+        color: steelblue
+        size: 2.0
+        alpha: 0.9
+output:
+  filename: line_demo.png
+  width: 640
+  height: 480

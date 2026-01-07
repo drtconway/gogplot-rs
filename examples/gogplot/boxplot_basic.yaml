@@ -1,0 +1,19 @@
+input:
+  file: ../mtcars.csv
+plot:
+  mapping:
+    x: $cyl
+    y: ~mpg
+  layers:
+    - geom: boxplot
+      mapping:
+        fill: $gear
+      params:
+        width: 0.6
+        color: black
+        alpha: 0.8
+        linetype: "-"
+output:
+  filename: boxplot_basic.png
+  width: 800
+  height: 600

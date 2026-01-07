@@ -1,0 +1,28 @@
+input:
+  file: ../mtcars.csv
+plot:
+  mapping:
+    x: wt
+    y: mpg
+  layers:
+    - geom: point
+      mapping:
+        color: $cyl
+      params:
+        size: 3.0
+        alpha: 0.8
+    - geom: vline
+      stat:
+        name: summary
+        aesthetic: "~x"
+      mapping:
+        xintercept: mean
+      params:
+        color: blue
+        size: 2.0
+        alpha: 0.7
+        linetype: "--"
+output:
+  filename: vline_summary.png
+  width: 800
+  height: 600

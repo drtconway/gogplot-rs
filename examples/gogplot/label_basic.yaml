@@ -1,0 +1,23 @@
+input:
+  data:
+    x: [1.0, 2.0, 3.0, 4.0, 5.0]
+    y: [2.0, 4.0, 6.0, 8.0, 10.0]
+    label_text: ["One", "Two", "Three", "Four", "Five"]
+plot:
+  mapping:
+    x: ~x
+    y: ~y
+    label: ~label_text
+  layers:
+    - geom: label
+      params:
+        size: 11.0
+        color: white
+        fill: darkblue
+        alpha: 0.85
+        padding: 3.0
+        radius: 4.0
+output:
+  filename: label_basic.png
+  width: 800
+  height: 600

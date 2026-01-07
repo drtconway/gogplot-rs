@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use super::{Geom, RenderContext};
 use crate::aesthetics::builder::{
     AesMapBuilder, AlphaContinuousAesBuilder, AlphaDiscreteAesBuilder, ColorContinuousAesBuilder,
-    ColorDiscreteAesBuilder, LineStyleAesBuilder, SizeContinuousAesBuilder, SizeDiscreteAesBuilder,
-    XBeginAesBuilder, XEndAesBuilder, YBeginAesBuilder, YEndAesBuilder,
+    ColorDiscreteAesBuilder, GroupAesBuilder, LineStyleAesBuilder, SizeContinuousAesBuilder,
+    SizeDiscreteAesBuilder, XBeginAesBuilder, XEndAesBuilder, YBeginAesBuilder, YEndAesBuilder,
 };
 use crate::aesthetics::{AesMap, AestheticDomain, AestheticProperty};
 use crate::error::Result;
@@ -27,6 +27,7 @@ pub trait GeomSegmentAesBuilderTrait:
     + SizeContinuousAesBuilder
     + SizeDiscreteAesBuilder
     + LineStyleAesBuilder
+    + GroupAesBuilder
 {
 }
 

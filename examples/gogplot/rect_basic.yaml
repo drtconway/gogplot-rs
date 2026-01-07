@@ -1,0 +1,18 @@
+input:
+  file: ../mtcars.csv
+plot:
+  mapping:
+    xmin: ~wt
+    xmax: ~hp
+    ymin: ~qsec
+    ymax: ~mpg
+  layers:
+    - geom: rect
+      params:
+        fill: lightblue
+        color: darkblue
+        alpha: 0.6
+output:
+  filename: rect_basic.png
+  width: 800
+  height: 600

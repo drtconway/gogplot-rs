@@ -1,0 +1,15 @@
+input:
+  file: ../mtcars.csv
+plot:
+  mapping:
+    x: ~mpg
+  layers:
+    - geom: histogram
+      stat: bin
+      params:
+        binwidth: 2.0
+        fill: coral
+        color: darkred
+        alpha: 0.75
+output:
+  filename: histogram_binwidth.png

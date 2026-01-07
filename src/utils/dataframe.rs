@@ -230,7 +230,7 @@ impl DataSource for DataFrame {
     }
 
     fn clone_box(&self) -> Box<dyn DataSource> {
-        todo!()
+        Box::new(DataFrame::from(self as &dyn DataSource))
     }
 }
 

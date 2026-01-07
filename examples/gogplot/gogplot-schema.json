@@ -1,0 +1,396 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/gogplot.plot.json",
+  "title": "Gogplot YAML Plot",
+  "type": "object",
+  "required": ["input", "plot", "output"],
+  "properties": {
+    "input": {
+      "description": "Source data: either a file path or inline columns",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["file"],
+          "properties": {
+            "file": { "type": "string", "description": "Path to CSV/Parquet/… file" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["data"],
+          "properties": {
+            "data": {
+              "type": "object",
+              "minProperties": 1,
+              "patternProperties": {
+                "^.+$": {
+                  "type": "array",
+                  "items": { "type": ["number", "string", "boolean"] }
+                }
+              },
+              "description": "Inline columns; arrays should be same length (not enforced here)"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "plot": {
+      "type": "object",
+      "required": ["layers"],
+      "properties": {
+        "mapping": { "$ref": "#/$defs/mapping" },
+        "layers": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/layer" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "filename": { "type": "string" },
+        "format": { "type": "string", "enum": ["png", "svg", "pdf"], "default": "png" },
+        "width": { "type": "integer", "minimum": 1, "default": 800 },
+        "height": { "type": "integer", "minimum": 1, "default": 600 },
+        "dpi": { "type": "integer", "minimum": 1, "default": 96 },
+        "params": {
+          "type": "object",
+          "description": "Format-specific extras (e.g., background, compression)",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "columnRef": {
+      "type": "string",
+      "pattern": "^[$~]?[A-Za-z0-9_\\.]+$",
+      "description": "$prefixed = discrete, ~prefixed = continuous, otherwise infer"
+    },
+    "mapping": {
+      "type": "object",
+      "properties": {
+        "x": { "$ref": "#/$defs/columnRef" },
+        "y": { "$ref": "#/$defs/columnRef" },
+        "xmin": { "$ref": "#/$defs/columnRef" },
+        "xmax": { "$ref": "#/$defs/columnRef" },
+        "ymin": { "$ref": "#/$defs/columnRef" },
+        "ymax": { "$ref": "#/$defs/columnRef" },
+        "color": { "$ref": "#/$defs/columnRef" },
+        "fill": { "$ref": "#/$defs/columnRef" },
+        "size": { "$ref": "#/$defs/columnRef" },
+        "alpha": { "$ref": "#/$defs/columnRef" },
+        "shape": { "$ref": "#/$defs/columnRef" },
+        "group": { "$ref": "#/$defs/columnRef" },
+        "linetype": { "$ref": "#/$defs/columnRef" },
+        "xintercept": { "$ref": "#/$defs/columnRef" },
+        "yintercept": { "$ref": "#/$defs/columnRef" }
+      },
+      "additionalProperties": true
+    },
+    "layer": {
+      "type": "object",
+      "required": ["geom"],
+      "properties": {
+        "geom": {
+          "type": "string",
+          "enum": [
+            "point",
+            "line",
+            "bar",
+            "boxplot",
+            "density",
+            "errorbar",
+            "histogram",
+            "hline",
+            "vline",
+            "rect",
+            "segment",
+            "smooth",
+            "text",
+            "label"
+          ]
+        },
+        "mapping": { "$ref": "#/$defs/mapping" },
+        "stat": {
+          "description": "Statistic to apply before aesthetics",
+          "oneOf": [
+            { "type": "string", "enum": ["summary"] },
+            {
+              "type": "object",
+              "required": ["name"],
+              "properties": {
+                "name": { "type": "string", "enum": ["summary"] },
+                "aesthetic": { "$ref": "#/$defs/columnRef" }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "position": { "type": "string", "enum": ["identity", "stack", "dodge", "fill", "jitter"] },
+        "params": { "type": "object", "additionalProperties": true }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "geom": { "const": "point" } } },
+          "then": {
+            "properties": {
+              "params": {
+                "properties": {
+                  "color": { "type": "string" },
+                  "size": { "type": "number" },
+                  "alpha": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "shape": { "type": "string" }
+                },
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "geom": { "const": "line" } } },
+          "then": {
+            "properties": {
+              "params": {
+                "properties": {
+                  "color": { "type": "string" },
+                  "size": { "type": "number" },
+                  "alpha": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "linetype": { "type": "string" }
+                },
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "geom": { "const": "bar" } } },
+          "then": {
+            "properties": {
+              "params": {
+                "properties": {
+                  "width": { "type": "number" },
+                  "fill": { "type": "string" },
+                  "color": { "type": "string" },
+                  "alpha": { "type": "number", "minimum": 0, "maximum": 1 }
+                },
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "geom": { "const": "boxplot" } } },
+          "then": {
+            "properties": {
+              "params": {
+                "properties": {
+                  "width": { "type": "number" },
+                  "fill": { "type": "string" },
+                  "color": { "type": "string" },
+                  "alpha": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "linetype": { "type": "string" }
+                },
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "geom": { "const": "density" } } },
+          "then": {
+            "properties": {
+              "params": {
+                "properties": {
+                  "fill": { "type": "string" },
+                  "color": { "type": "string" },
+                  "alpha": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "adjust": { "type": "number" },
+                  "linetype": { "type": "string" },
+                  "size": { "type": "number" }
+                },
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "geom": { "const": "errorbar" } } },
+          "then": {
+            "properties": {
+              "params": {
+                "properties": {
+                  "ymin": { "type": "number" },
+                  "ymax": { "type": "number" },
+                  "xmin": { "type": "number" },
+                  "xmax": { "type": "number" },
+                  "width": { "type": "number" },
+                  "color": { "type": "string" },
+                  "size": { "type": "number" },
+                  "alpha": { "type": "number", "minimum": 0, "maximum": 1 }
+                },
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "geom": { "const": "histogram" } } },
+          "then": {
+            "properties": {
+              "params": {
+                "properties": {
+                  "bins": { "type": "integer", "minimum": 1 },
+                  "binwidth": { "type": "number" },
+                  "boundary": { "type": "number" },
+                  "fill": { "type": "string" },
+                  "color": { "type": "string" },
+                  "alpha": { "type": "number", "minimum": 0, "maximum": 1 }
+                },
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "geom": { "const": "hline" } } },
+          "then": {
+            "properties": {
+              "params": {
+                "properties": {
+                  "yintercept": { "type": "number" },
+                  "color": { "type": "string" },
+                  "size": { "type": "number" },
+                  "alpha": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "linetype": { "type": "string" }
+                },
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "geom": { "const": "vline" } } },
+          "then": {
+            "properties": {
+              "params": {
+                "properties": {
+                  "xintercept": { "type": "number" },
+                  "color": { "type": "string" },
+                  "size": { "type": "number" },
+                  "alpha": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "linetype": { "type": "string" }
+                },
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "geom": { "const": "rect" } } },
+          "then": {
+            "properties": {
+              "params": {
+                "properties": {
+                  "xmin": { "type": "number" },
+                  "xmax": { "type": "number" },
+                  "ymin": { "type": "number" },
+                  "ymax": { "type": "number" },
+                  "fill": { "type": "string" },
+                  "alpha": { "type": "number", "minimum": 0, "maximum": 1 }
+                },
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "geom": { "const": "segment" } } },
+          "then": {
+            "properties": {
+              "params": {
+                "properties": {
+                  "x": { "type": "number" },
+                  "y": { "type": "number" },
+                  "xend": { "type": "number" },
+                  "yend": { "type": "number" },
+                  "color": { "type": "string" },
+                  "size": { "type": "number" },
+                  "linetype": { "type": "string" },
+                  "alpha": { "type": "number", "minimum": 0, "maximum": 1 }
+                },
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "geom": { "const": "smooth" } } },
+          "then": {
+            "properties": {
+              "params": {
+                "properties": {
+                  "color": { "type": "string" },
+                  "fill": { "type": "string" },
+                  "size": { "type": "number" },
+                  "alpha": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "linetype": { "type": "string" },
+                  "confidence_interval": { "type": "boolean" },
+                  "span": { "type": "number" }
+                },
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "geom": { "const": "text" } } },
+          "then": {
+            "properties": {
+              "params": {
+                "properties": {
+                  "label": { "type": "string" },
+                  "size": { "type": "number" },
+                  "color": { "type": "string" },
+                  "alpha": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "angle": { "type": "number" },
+                  "vjust": { "type": "number" },
+                  "hjust": { "type": "number" }
+                },
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "geom": { "const": "label" } } },
+          "then": {
+            "properties": {
+              "params": {
+                "properties": {
+                  "label": { "type": "string" },
+                  "size": { "type": "number" },
+                  "color": { "type": "string" },
+                  "fill": { "type": "string" },
+                  "alpha": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "angle": { "type": "number" },
+                  "vjust": { "type": "number" },
+                  "hjust": { "type": "number" },
+                  "label_padding": { "type": "number" }
+                },
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    }
+  }
+}

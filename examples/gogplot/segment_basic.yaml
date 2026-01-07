@@ -1,0 +1,24 @@
+input:
+  data:
+    segment_id: [1, 2, 3, 4, 5]
+    x_begin: [1.0, 2.0, 3.0, 4.0, 5.0]
+    y_begin: [1.0, 2.0, 3.0, 4.0, 5.0]
+    x_end: [2.0, 3.0, 4.0, 5.0, 6.0]
+    y_end: [2.0, 4.0, 6.0, 8.0, 10.0]
+    color_group: ["A", "A", "B", "B", "C"]
+plot:
+  mapping:
+    xbegin: ~x_begin
+    xend: ~x_end
+    ybegin: ~y_begin
+    yend: ~y_end
+    color: $color_group
+  layers:
+    - geom: segment
+      params:
+        linewidth: 2.0
+        alpha: 0.8
+output:
+  filename: segment_basic.png
+  width: 800
+  height: 600

@@ -1,0 +1,24 @@
+input:
+  file: ../mtcars.csv
+plot:
+  mapping:
+    x: ~wt
+    y: ~mpg
+  layers:
+    - geom: point
+      params:
+        fill: steelblue
+        color: darkblue
+        alpha: 0.6
+        size: 3.0
+    - geom: smooth
+      params:
+        color: red
+        fill: pink
+        alpha: 0.2
+        size: 1.5
+        confidence_interval: true
+output:
+  filename: smooth_basic.png
+  width: 800
+  height: 600
