@@ -8,10 +8,13 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use gogplot::aesthetics::{Aesthetic, AestheticDomain};
+use gogplot::layer::LayerBuilder;
+use gogplot::position::{dodge::Dodge, stack::Stack, Position};
 use gogplot::prelude::*;
 use gogplot::stat::bin::Bin;
 use gogplot::stat::count::Count;
 use gogplot::stat::summary::Summary;
+use gogplot::stat::Stat;
 use gogplot::theme::Color;
 use gogplot::geom::rect::geom_rect;
 use gogplot::geom::segment::geom_segment;
@@ -201,6 +204,8 @@ struct LayerSpec {
     stat: Option<StatSpec>,
     #[serde(default)]
     params: LayerParams,
+    #[serde(default)]
+    position: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -313,6 +318,7 @@ fn build_plot<'a>(
                     geom = geom.color(parse_color(color)?);
                 }
 
+                let geom = finalize_layer(geom, &layer.stat, &layer.position, None, None)?;
                 builder = builder + geom;
             }
             GeomKind::Line => {
@@ -333,14 +339,11 @@ fn build_plot<'a>(
                     geom = geom.linestyle(LineStyle::from(linetype.as_str()));
                 }
 
+                let geom = finalize_layer(geom, &layer.stat, &layer.position, None, None)?;
                 builder = builder + geom;
             }
             GeomKind::Hline => {
                 let mut geom = geom_hline();
-
-                if let Some(summary) = build_summary_stat(&layer.stat, "y")? {
-                    geom = geom.stat(summary);
-                }
 
                 geom = apply_hline_layer_mapping(geom, &layer.mapping);
 
@@ -360,14 +363,11 @@ fn build_plot<'a>(
                     geom = geom.linestyle(LineStyle::from(linetype.as_str()));
                 }
 
+                let geom = finalize_layer(geom, &layer.stat, &layer.position, Some("y"), None)?;
                 builder = builder + geom;
             }
             GeomKind::Vline => {
                 let mut geom = geom_vline();
-
-                if let Some(summary) = build_summary_stat(&layer.stat, "x")? {
-                    geom = geom.stat(summary);
-                }
 
                 geom = apply_vline_layer_mapping(geom, &layer.mapping);
 
@@ -387,6 +387,7 @@ fn build_plot<'a>(
                     geom = geom.linestyle(LineStyle::from(linetype.as_str()));
                 }
 
+                let geom = finalize_layer(geom, &layer.stat, &layer.position, Some("x"), None)?;
                 builder = builder + geom;
             }
             GeomKind::Boxplot => {
@@ -410,6 +411,7 @@ fn build_plot<'a>(
                     geom = geom.linestyle(LineStyle::from(linetype.as_str()));
                 }
 
+                let geom = finalize_layer(geom, &layer.stat, &layer.position, None, None)?;
                 builder = builder + geom;
             }
             GeomKind::Density => {
@@ -433,18 +435,11 @@ fn build_plot<'a>(
                     geom = geom.linestyle(LineStyle::from(linetype.as_str()));
                 }
 
+                let geom = finalize_layer(geom, &layer.stat, &layer.position, None, None)?;
                 builder = builder + geom;
             }
             GeomKind::Bar => {
                 let mut geom = geom_bar();
-
-                // Apply count stat by default for bar
-                if layer.stat.is_none()
-                    || matches!(&layer.stat, Some(StatSpec::Named { name, .. }) if *name == StatName::Count)
-                    || matches!(&layer.stat, Some(StatSpec::Simple(StatName::Count)))
-                {
-                    geom = geom.stat(Count::default());
-                }
 
                 geom = apply_bar_layer_mapping(geom, &layer.mapping);
 
@@ -461,26 +456,20 @@ fn build_plot<'a>(
                     geom = geom.width(width);
                 }
 
+                let default_stat: Option<Box<dyn Stat>> = if layer.stat.is_none()
+                    || matches!(&layer.stat, Some(StatSpec::Named { name, .. }) if *name == StatName::Count)
+                    || matches!(&layer.stat, Some(StatSpec::Simple(StatName::Count)))
+                {
+                    Some(Box::new(Count::default()))
+                } else {
+                    None
+                };
+
+                let geom = finalize_layer(geom, &layer.stat, &layer.position, None, default_stat)?;
                 builder = builder + geom;
             }
             GeomKind::Histogram => {
                 let mut geom = geom_histogram();
-
-                // Apply bin stat by default for histogram
-                if layer.stat.is_none()
-                    || matches!(&layer.stat, Some(StatSpec::Named { name, .. }) if *name == StatName::Bin)
-                    || matches!(&layer.stat, Some(StatSpec::Simple(StatName::Bin)))
-                {
-                    // Use bins or binwidth from params if provided, otherwise default
-                    let bin_stat = if let Some(bw) = layer.params.binwidth {
-                        Bin::with_width(bw)
-                    } else if let Some(b) = layer.params.bins {
-                        Bin::with_count(b as usize)
-                    } else {
-                        Bin::default()
-                    };
-                    geom = geom.stat(bin_stat);
-                }
 
                 geom = apply_histogram_layer_mapping(geom, &layer.mapping);
 
@@ -494,6 +483,23 @@ fn build_plot<'a>(
                     geom = geom.alpha(alpha);
                 }
 
+                let default_stat: Option<Box<dyn Stat>> = if layer.stat.is_none()
+                    || matches!(&layer.stat, Some(StatSpec::Named { name, .. }) if *name == StatName::Bin)
+                    || matches!(&layer.stat, Some(StatSpec::Simple(StatName::Bin)))
+                {
+                    let bin_stat = if let Some(bw) = layer.params.binwidth {
+                        Bin::with_width(bw)
+                    } else if let Some(b) = layer.params.bins {
+                        Bin::with_count(b as usize)
+                    } else {
+                        Bin::default()
+                    };
+                    Some(Box::new(bin_stat))
+                } else {
+                    None
+                };
+
+                let geom = finalize_layer(geom, &layer.stat, &layer.position, None, default_stat)?;
                 builder = builder + geom;
             }
             GeomKind::Rect => {
@@ -511,6 +517,7 @@ fn build_plot<'a>(
                     geom = geom.alpha(alpha);
                 }
 
+                let geom = finalize_layer(geom, &layer.stat, &layer.position, None, None)?;
                 builder = builder + geom;
             }
             GeomKind::Segment => {
@@ -531,6 +538,7 @@ fn build_plot<'a>(
                     geom = geom.linestyle(LineStyle::from(linetype.as_str()));
                 }
 
+                let geom = finalize_layer(geom, &layer.stat, &layer.position, None, None)?;
                 builder = builder + geom;
             }
             GeomKind::Text => {
@@ -551,6 +559,7 @@ fn build_plot<'a>(
                     geom = geom.angle(angle);
                 }
 
+                let geom = finalize_layer(geom, &layer.stat, &layer.position, None, None)?;
                 builder = builder + geom;
             }
             GeomKind::Label => {
@@ -580,6 +589,7 @@ fn build_plot<'a>(
                     geom = geom.radius(radius);
                 }
 
+                let geom = finalize_layer(geom, &layer.stat, &layer.position, None, None)?;
                 builder = builder + geom;
             }
             GeomKind::Errorbar => {
@@ -603,6 +613,7 @@ fn build_plot<'a>(
                     geom = geom.width(width);
                 }
 
+                let geom = finalize_layer(geom, &layer.stat, &layer.position, None, None)?;
                 builder = builder + geom;
             }
             GeomKind::Smooth => {
@@ -631,6 +642,7 @@ fn build_plot<'a>(
                     geom = geom.linestyle(LineStyle::from(linetype.as_str()));
                 }
 
+                let geom = finalize_layer(geom, &layer.stat, &layer.position, None, None)?;
                 builder = builder + geom;
             }
         }
@@ -671,6 +683,118 @@ fn parse_column_ref(s: &str) -> (String, DomainHint) {
     } else {
         (s.to_string(), DomainHint::Unknown)
     }
+}
+
+fn build_stat_from_spec(
+    stat: &Option<StatSpec>,
+    default_axis: Option<&str>,
+) -> Result<Option<Box<dyn Stat>>, Box<dyn Error>> {
+    match stat {
+        Some(StatSpec::Named { name: StatName::Summary, aesthetic }) => {
+            let target = aesthetic
+                .as_deref()
+                .or(default_axis)
+                .ok_or_else(|| "summary stat requires an aesthetic (x/y)".to_string())?
+                .trim();
+            let (axis, dom) = parse_column_ref(target);
+            let domain = match dom {
+                DomainHint::Discrete => AestheticDomain::Discrete,
+                _ => AestheticDomain::Continuous,
+            };
+
+            let aesthetic = match axis.to_ascii_lowercase().as_str() {
+                "x" => Aesthetic::X(domain),
+                "y" => Aesthetic::Y(domain),
+                other => {
+                    return Err(format!(
+                        "summary stat aesthetic must be 'x' or 'y', got '{}'",
+                        other
+                    )
+                    .into())
+                }
+            };
+
+            Ok(Some(Box::new(Summary::from(aesthetic))))
+        }
+        Some(StatSpec::Simple(StatName::Summary)) => {
+            let target = default_axis.ok_or_else(|| "summary stat requires an aesthetic (x/y)".to_string())?;
+            let (axis, dom) = parse_column_ref(target);
+            let domain = match dom {
+                DomainHint::Discrete => AestheticDomain::Discrete,
+                _ => AestheticDomain::Continuous,
+            };
+
+            let aesthetic = match axis.to_ascii_lowercase().as_str() {
+                "x" => Aesthetic::X(domain),
+                "y" => Aesthetic::Y(domain),
+                other => {
+                    return Err(format!(
+                        "summary stat aesthetic must be 'x' or 'y', got '{}'",
+                        other
+                    )
+                    .into())
+                }
+            };
+
+            Ok(Some(Box::new(Summary::from(aesthetic))))
+        }
+        Some(StatSpec::Named { name: StatName::Count, .. })
+        | Some(StatSpec::Simple(StatName::Count)) => Ok(Some(Box::new(Count::default()))),
+        Some(StatSpec::Named { name: StatName::Bin, .. })
+        | Some(StatSpec::Simple(StatName::Bin)) => Ok(Some(Box::new(Bin::default()))),
+        None => Ok(None),
+    }
+}
+
+fn build_position_from_spec(position: &Option<String>) -> Result<Option<Box<dyn Position>>, Box<dyn Error>> {
+    match position.as_deref() {
+        Some(name) => {
+            let normalized = name.to_ascii_lowercase();
+            let pos: Box<dyn Position> = match normalized.as_str() {
+                "dodge" => Box::new(Dodge::default()),
+                "stack" => Box::new(Stack::default()),
+                other => return Err(format!("unknown position '{}'; expected 'dodge' or 'stack'", other).into()),
+            };
+            Ok(Some(pos))
+        }
+        None => Ok(None),
+    }
+}
+
+fn apply_stat<B: LayerBuilder>(
+    mut builder: B,
+    stat: &Option<StatSpec>,
+    default_axis: Option<&str>,
+    default_stat: Option<Box<dyn Stat>>,
+) -> Result<B, Box<dyn Error>> {
+    if let Some(stat) = build_stat_from_spec(stat, default_axis)? {
+        builder.set_stat(stat);
+    } else if let Some(default_stat) = default_stat {
+        builder.set_stat(default_stat);
+    }
+    Ok(builder)
+}
+
+fn apply_position<B: LayerBuilder>(
+    mut builder: B,
+    position: &Option<String>,
+) -> Result<B, Box<dyn Error>> {
+    if let Some(position) = build_position_from_spec(position)? {
+        builder.set_position(position);
+    }
+    Ok(builder)
+}
+
+fn finalize_layer<B: LayerBuilder>(
+    builder: B,
+    stat: &Option<StatSpec>,
+    position: &Option<String>,
+    default_axis: Option<&str>,
+    default_stat: Option<Box<dyn Stat>>,
+) -> Result<B, Box<dyn Error>> {
+    let builder = apply_stat(builder, stat, default_axis, default_stat)?;
+    let builder = apply_position(builder, position)?;
+    Ok(builder)
 }
 
 fn apply_global_mapping<'a>(builder: gogplot::plot::PlotBuilder<'a>, mapping: &MappingSpec) -> gogplot::plot::PlotBuilder<'a> {
@@ -793,59 +917,6 @@ fn apply_global_mapping<'a>(builder: gogplot::plot::PlotBuilder<'a>, mapping: &M
             a.label(&col);
         }
     })
-}
-
-fn build_summary_stat(stat: &Option<StatSpec>, default_axis: &str) -> Result<Option<Summary>, Box<dyn Error>> {
-    match stat {
-        Some(StatSpec::Named { name, aesthetic }) if *name == StatName::Summary => {
-            let target = aesthetic
-                .as_deref()
-                .unwrap_or(default_axis)
-                .trim();
-            let (axis, dom) = parse_column_ref(target);
-            let domain = match dom {
-                DomainHint::Discrete => AestheticDomain::Discrete,
-                _ => AestheticDomain::Continuous,
-            };
-
-            let aesthetic = match axis.to_ascii_lowercase().as_str() {
-                "x" => Aesthetic::X(domain),
-                "y" => Aesthetic::Y(domain),
-                other => {
-                    return Err(format!(
-                        "summary stat aesthetic must be 'x' or 'y', got '{}'",
-                        other
-                    )
-                    .into())
-                }
-            };
-
-            Ok(Some(Summary::from(aesthetic)))
-        }
-        Some(StatSpec::Simple(StatName::Summary)) => {
-            let (axis, dom) = parse_column_ref(default_axis);
-            let domain = match dom {
-                DomainHint::Discrete => AestheticDomain::Discrete,
-                _ => AestheticDomain::Continuous,
-            };
-
-            let aesthetic = match axis.to_ascii_lowercase().as_str() {
-                "x" => Aesthetic::X(domain),
-                "y" => Aesthetic::Y(domain),
-                other => {
-                    return Err(format!(
-                        "summary stat aesthetic must be 'x' or 'y', got '{}'",
-                        other
-                    )
-                    .into())
-                }
-            };
-
-            Ok(Some(Summary::from(aesthetic)))
-        }
-        None => Ok(None),
-        _ => Ok(None),
-    }
 }
 
 fn apply_point_layer_mapping(mut geom: gogplot::geom::point::GeomPointBuilder, mapping: &MappingSpec) -> gogplot::geom::point::GeomPointBuilder {

@@ -2,7 +2,9 @@ use std::collections::HashMap;
 
 use super::{Geom, RenderContext};
 use crate::aesthetics::builder::{
-    AesMapBuilder, AlphaContinuousAesBuilder, AlphaDiscreteAesBuilder, ColorContinuousAesBuilder, ColorDiscreteAesBuilder, LineStyleAesBuilder, SizeContinuousAesBuilder, SizeDiscreteAesBuilder, XContinuousAesBuilder, XDiscreteAesBuilder, YContinuousAesBuilder, YDiscreteAesBuilder
+    AesMapBuilder, AlphaContinuousAesBuilder, AlphaDiscreteAesBuilder, ColorContinuousAesBuilder,
+    ColorDiscreteAesBuilder, LineStyleAesBuilder, SizeContinuousAesBuilder, SizeDiscreteAesBuilder,
+    XContinuousAesBuilder, XDiscreteAesBuilder, YContinuousAesBuilder, YDiscreteAesBuilder,
 };
 use crate::aesthetics::{AesMap, AestheticDomain, AestheticProperty};
 use crate::error::Result;
@@ -70,6 +72,14 @@ impl crate::theme::traits::LineElement for GeomLineBuilder {
 }
 
 impl LayerBuilder for GeomLineBuilder {
+    fn this(&self) -> &LayerBuilderCore {
+        &self.core
+    }
+
+    fn this_mut(&mut self) -> &mut LayerBuilderCore {
+        &mut self.core
+    }
+
     fn build(self: Box<Self>, parent_mapping: &AesMap) -> Result<Layer> {
         let mut geom_line = GeomLine::new();
 
@@ -285,7 +295,12 @@ impl Geom for GeomLine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{error::to_io_error, plot::plot, theme::{color, traits::LineElement}, utils::mtcars::mtcars};
+    use crate::{
+        error::to_io_error,
+        plot::plot,
+        theme::{color, traits::LineElement},
+        utils::mtcars::mtcars,
+    };
 
     fn init_test_logging() {
         let _ = env_logger::builder()

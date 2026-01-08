@@ -41,7 +41,7 @@ impl GeomPointBuilder {
     pub fn new() -> Self {
         Self {
             core: LayerBuilderCore::default(),
-            point: PointElement::default()
+            point: PointElement::default(),
         }
     }
 
@@ -72,6 +72,14 @@ impl crate::theme::traits::PointElement for GeomPointBuilder {
 }
 
 impl LayerBuilder for GeomPointBuilder {
+    fn this(&self) -> &LayerBuilderCore {
+        &self.core
+    }
+
+    fn this_mut(&mut self) -> &mut LayerBuilderCore {
+        &mut self.core
+    }
+
     fn build(self: Box<Self>, parent_mapping: &AesMap) -> Result<Layer> {
         let mut geom_point = GeomPoint::new();
 
@@ -221,7 +229,7 @@ impl Geom for GeomPoint {
         let mut defaults = HashMap::new();
 
         self.point.defaults("point", "point", theme, &mut defaults);
-        
+
         defaults
     }
 
@@ -280,7 +288,9 @@ impl Geom for GeomPoint {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{error::to_io_error, plot::plot, theme::traits::PointElement, utils::mtcars::mtcars};
+    use crate::{
+        error::to_io_error, plot::plot, theme::traits::PointElement, utils::mtcars::mtcars,
+    };
 
     fn init_test_logging() {
         let _ = env_logger::builder()

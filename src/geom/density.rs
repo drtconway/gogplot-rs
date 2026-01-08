@@ -62,16 +62,6 @@ impl GeomDensityBuilder {
         }
         self
     }
-
-    pub fn stat<S: 'static + crate::stat::Stat>(mut self, stat: S) -> Self {
-        self.core.stat = Some(Box::new(stat));
-        self
-    }
-
-    pub fn position(mut self, position: &str) -> Self {
-        self.core.position = Some(position.into());
-        self
-    }
 }
 
 impl crate::theme::traits::AreaElement for GeomDensityBuilder {
@@ -85,6 +75,14 @@ impl crate::theme::traits::AreaElement for GeomDensityBuilder {
 }
 
 impl LayerBuilder for GeomDensityBuilder {
+    fn this(&self) -> &LayerBuilderCore {
+        &self.core
+    }
+
+    fn this_mut(&mut self) -> &mut LayerBuilderCore {
+        &mut self.core
+    }
+
     fn build(mut self: Box<Self>, parent_mapping: &AesMap) -> Result<Layer> {
         let mut geom_density = GeomDensity::new();
         geom_density.area = self.area;

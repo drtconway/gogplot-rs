@@ -53,12 +53,8 @@ impl LayerBuilderCore {
 
         let requirements = geom.aesthetic_requirements();
         let has_stat = self.stat.is_some();
-        let aesthetic_domains = determine_aesthetic_domains(
-            &mapping,
-            &requirements,
-            initial_domains,
-            has_stat,
-        )?;
+        let aesthetic_domains =
+            determine_aesthetic_domains(&mapping, &requirements, initial_domains, has_stat)?;
 
         Ok(Layer {
             stat: self.stat,
@@ -74,8 +70,37 @@ impl LayerBuilderCore {
 }
 
 pub trait LayerBuilder {
+    fn this(&self) -> &LayerBuilderCore;
+
+    fn this_mut(&mut self) -> &mut LayerBuilderCore;
+
+    /// Object-safe setter for stat when using `dyn LayerBuilder`.
+    fn set_stat(&mut self, stat: Box<dyn Stat>) {
+        self.this_mut().stat = Some(stat);
+    }
+
+    /// Object-safe setter for position when using `dyn LayerBuilder`.
+    fn set_position(&mut self, position: Box<dyn Position>) {
+        self.this_mut().position = Some(position);
+    }
+
     fn build(self: Box<Self>, parent_mapping: &AesMap) -> Result<Layer>;
 }
+
+/// Fluent, generic helpers for concrete builders (not object-safe).
+pub trait LayerBuilderExt: LayerBuilder + Sized {
+    fn stat<S: Stat + 'static>(mut self, stat: S) -> Self {
+        self.set_stat(Box::new(stat));
+        self
+    }
+
+    fn position<P: Position + 'static>(mut self, position: P) -> Self {
+        self.set_position(Box::new(position));
+        self
+    }
+}
+
+impl<T: LayerBuilder + Sized> LayerBuilderExt for T {}
 
 /// Layer struct - represents one layer in a plot
 /// Each layer has its own geom, optional data, aesthetic mappings, stat, and position
@@ -384,11 +409,7 @@ impl Layer {
         Ok(())
     }
 
-    pub fn train_scales(
-        &mut self,
-        scales: &mut ScaleSet,
-        data: &dyn DataSource,
-    ) -> Result<()> {
+    pub fn train_scales(&mut self, scales: &mut ScaleSet, data: &dyn DataSource) -> Result<()> {
         let data = self.data(data);
 
         for aes in self.mapping.aesthetics() {
@@ -398,11 +419,7 @@ impl Layer {
         Ok(())
     }
 
-    pub fn apply_scales(
-        &mut self,
-        scales: &ScaleSet,
-        parent_data: &dyn DataSource,
-    ) -> Result<()> {
+    pub fn apply_scales(&mut self, scales: &ScaleSet, parent_data: &dyn DataSource) -> Result<()> {
         let data = self.data(parent_data);
 
         log::debug!(
@@ -504,11 +521,12 @@ impl Layer {
 
     fn establish_grouping(&mut self, parent_data: &dyn DataSource) {
         let data = self.data(parent_data);
-        
+
         if self.mapping.contains(Aesthetic::Group) {
             return;
         }
-        let mut grouping_aesthetics: Vec<Aesthetic> = self.mapping
+        let mut grouping_aesthetics: Vec<Aesthetic> = self
+            .mapping
             .aesthetics()
             .filter(|aes| aes.is_grouping())
             .cloned()
@@ -521,50 +539,11 @@ impl Layer {
 
         if grouping_aesthetics.len() == 1 {
             let aes = &grouping_aesthetics[0];
-            let group_values = self.mapping
+            let group_values = self
+                .mapping
                 .get_iter_discrete(aes, data)
                 .unwrap()
                 .collect::<Vec<_>>();
-                let mut permutation: Vec<usize> = (0..group_values.len()).collect();
-                permutation.sort_by_key(|&i| &group_values[i]);
-
-                let mut group_index = 0;
-                let mut group_sentinals: Vec<(Aesthetic, Vec<DiscreteValue>)> = grouping_aesthetics
-                    .iter()
-                    .map(|aes| (aes.clone(), Vec::new()))
-                    .collect();
-                let mut grouping_vector: Vec<i64> = vec![0; data.len()];
-                for (i, &j) in permutation.iter().enumerate() {
-                    if i > 0 {
-                        let prev_j = *permutation.get(i - 1).unwrap();
-                        if group_values[j] != group_values[prev_j] {
-                            group_index += 1;
-                            // Update sentinals
-                            group_sentinals[0].1.push(group_values[j].clone());
-                        }
-                    }
-                    grouping_vector[j] = group_index;
-                }
-
-            assert_eq!(grouping_vector.len(), data.len());
-
-            self.mapping.set(Aesthetic::Group, AesValue::vector(grouping_vector, None));
-            self.aesthetic_group_sentinals = Some(group_sentinals);
-
-            return;
-        }
-
-        let mut group_values: Vec<Vec<DiscreteValue>> = self.mapping
-            .get_iter_discrete(&grouping_aesthetics[0], data)
-            .unwrap()
-            .map(|v| vec![v])
-            .collect();
-        for aes in &grouping_aesthetics[1..] {
-            for (i, v) in self.mapping.get_iter_discrete(aes, data).unwrap().enumerate() {
-                    group_values[i].push(v);
-                }
-            }
-
             let mut permutation: Vec<usize> = (0..group_values.len()).collect();
             permutation.sort_by_key(|&i| &group_values[i]);
 
@@ -580,17 +559,65 @@ impl Layer {
                     if group_values[j] != group_values[prev_j] {
                         group_index += 1;
                         // Update sentinals
-                        for k in 0..grouping_aesthetics.len() {
-                            group_sentinals[k].1.push(group_values[j][k].clone());
-                        }
+                        group_sentinals[0].1.push(group_values[j].clone());
                     }
                 }
                 grouping_vector[j] = group_index;
             }
 
+            assert_eq!(grouping_vector.len(), data.len());
+
+            self.mapping
+                .set(Aesthetic::Group, AesValue::vector(grouping_vector, None));
+            self.aesthetic_group_sentinals = Some(group_sentinals);
+
+            return;
+        }
+
+        let mut group_values: Vec<Vec<DiscreteValue>> = self
+            .mapping
+            .get_iter_discrete(&grouping_aesthetics[0], data)
+            .unwrap()
+            .map(|v| vec![v])
+            .collect();
+        for aes in &grouping_aesthetics[1..] {
+            for (i, v) in self
+                .mapping
+                .get_iter_discrete(aes, data)
+                .unwrap()
+                .enumerate()
+            {
+                group_values[i].push(v);
+            }
+        }
+
+        let mut permutation: Vec<usize> = (0..group_values.len()).collect();
+        permutation.sort_by_key(|&i| &group_values[i]);
+
+        let mut group_index = 0;
+        let mut group_sentinals: Vec<(Aesthetic, Vec<DiscreteValue>)> = grouping_aesthetics
+            .iter()
+            .map(|aes| (aes.clone(), Vec::new()))
+            .collect();
+        let mut grouping_vector: Vec<i64> = vec![0; data.len()];
+        for (i, &j) in permutation.iter().enumerate() {
+            if i > 0 {
+                let prev_j = *permutation.get(i - 1).unwrap();
+                if group_values[j] != group_values[prev_j] {
+                    group_index += 1;
+                    // Update sentinals
+                    for k in 0..grouping_aesthetics.len() {
+                        group_sentinals[k].1.push(group_values[j][k].clone());
+                    }
+                }
+            }
+            grouping_vector[j] = group_index;
+        }
+
         assert_eq!(grouping_vector.len(), data.len());
 
-        self.mapping.set(Aesthetic::Group, AesValue::vector(grouping_vector, None));
+        self.mapping
+            .set(Aesthetic::Group, AesValue::vector(grouping_vector, None));
         self.aesthetic_group_sentinals = Some(group_sentinals);
     }
 }

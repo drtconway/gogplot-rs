@@ -14,7 +14,6 @@ use crate::geom::{AestheticRequirement, DomainConstraint};
 use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
 use crate::scale::traits::{ContinuousRangeScale, ScaleBase};
-use crate::stat::Stat;
 use crate::theme::{Color, LineElement, Theme};
 use crate::visuals::LineStyle;
 
@@ -66,11 +65,6 @@ impl GeomVLineBuilder {
         }
         self
     }
-
-    pub fn stat<S: Stat + 'static>(mut self, stat: S) -> Self {
-        self.core.stat = Some(Box::new(stat));
-        self
-    }
 }
 
 impl crate::theme::traits::LineElement for GeomVLineBuilder {
@@ -84,6 +78,14 @@ impl crate::theme::traits::LineElement for GeomVLineBuilder {
 }
 
 impl LayerBuilder for GeomVLineBuilder {
+    fn this(&self) -> &LayerBuilderCore {
+        &self.core
+    }
+
+    fn this_mut(&mut self) -> &mut LayerBuilderCore {
+        &mut self.core
+    }
+
     fn build(self: Box<Self>, parent_mapping: &AesMap) -> Result<Layer> {
         let mut geom_vline = GeomVLine::new();
         geom_vline.line = self.line;
@@ -320,7 +322,7 @@ impl Geom for GeomVLine {
 mod tests {
     use super::*;
     use crate::{
-        aesthetics::builder::{XContinuousAesBuilder, YContinuousAesBuilder}, error::to_io_error, geom::point::geom_point, plot::plot, stat::summary::Summary, theme::{color, traits::LineElement}, utils::mtcars::mtcars
+        aesthetics::builder::{XContinuousAesBuilder, YContinuousAesBuilder}, error::to_io_error, geom::point::geom_point, layer::LayerBuilderExt, plot::plot, stat::summary::Summary, theme::{color, traits::LineElement}, utils::mtcars::mtcars
     };
 
     fn init_test_logging() {

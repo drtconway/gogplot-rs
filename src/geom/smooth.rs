@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use super::{AestheticRequirement, DomainConstraint, Geom, RenderContext};
 use crate::aesthetics::builder::{
     AesMapBuilder, AlphaContinuousAesBuilder, AlphaDiscreteAesBuilder, ColorContinuousAesBuilder,
-    ColorDiscreteAesBuilder, LineStyleAesBuilder, SizeContinuousAesBuilder,
-    SizeDiscreteAesBuilder, XContinuousAesBuilder, YContinuousAesBuilder,
-    YMaxContinuousAesBuilder, YMinContinuousAesBuilder,
+    ColorDiscreteAesBuilder, LineStyleAesBuilder, SizeContinuousAesBuilder, SizeDiscreteAesBuilder,
+    XContinuousAesBuilder, YContinuousAesBuilder, YMaxContinuousAesBuilder,
+    YMinContinuousAesBuilder,
 };
 use crate::aesthetics::{AesMap, AestheticDomain, AestheticProperty};
 use crate::error::{PlotError, Result};
@@ -80,6 +80,14 @@ impl crate::theme::traits::AreaElement for GeomSmoothBuilder {
 }
 
 impl LayerBuilder for GeomSmoothBuilder {
+    fn this(&self) -> &LayerBuilderCore {
+        &self.core
+    }
+
+    fn this_mut(&mut self) -> &mut LayerBuilderCore {
+        &mut self.core
+    }
+
     fn build(mut self: Box<Self>, parent_mapping: &AesMap) -> Result<Layer> {
         let mut geom = GeomSmooth::new().confidence_interval(self.confidence_interval);
         geom.area = self.area;

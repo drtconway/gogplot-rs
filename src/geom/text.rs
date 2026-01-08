@@ -12,7 +12,6 @@ use crate::geom::properties::{Property, PropertyValue, PropertyVector};
 use crate::geom::{AestheticRequirement, DomainConstraint};
 use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
-use crate::stat::Stat;
 use crate::theme::{Color, TextElement};
 
 pub trait GeomTextAesBuilderTrait:
@@ -67,11 +66,6 @@ impl GeomTextBuilder {
         }
         self
     }
-
-    pub fn stat<S: Stat + 'static>(mut self, stat: S) -> Self {
-        self.core.stat = Some(Box::new(stat));
-        self
-    }
 }
 
 impl crate::theme::traits::TextElement for GeomTextBuilder {
@@ -85,6 +79,14 @@ impl crate::theme::traits::TextElement for GeomTextBuilder {
 }
 
 impl LayerBuilder for GeomTextBuilder {
+    fn this(&self) -> &LayerBuilderCore {
+        &self.core
+    }
+
+    fn this_mut(&mut self) -> &mut LayerBuilderCore {
+        &mut self.core
+    }
+    
     fn build(self: Box<Self>, parent_mapping: &AesMap) -> Result<Layer> {
         let mut geom_text = GeomText::new();
         geom_text.text = self.text;

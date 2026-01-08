@@ -78,6 +78,14 @@ impl crate::theme::traits::LineElement for GeomErrorbarBuilder {
 }
 
 impl LayerBuilder for GeomErrorbarBuilder {
+    fn this(&self) -> &LayerBuilderCore {
+        &self.core
+    }
+
+    fn this_mut(&mut self) -> &mut LayerBuilderCore {
+        &mut self.core
+    }
+    
     fn build(self: Box<Self>, parent_mapping: &AesMap) -> Result<Layer> {
         let mut geom = GeomErrorbar::new().width(self.width);
         geom.line = self.line;

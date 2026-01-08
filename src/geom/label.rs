@@ -12,7 +12,6 @@ use crate::geom::properties::{Property, PropertyValue, PropertyVector};
 use crate::geom::{AestheticRequirement, DomainConstraint};
 use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
-use crate::stat::Stat;
 use crate::theme::{Color, TextElement, color};
 
 pub trait GeomLabelAesBuilderTrait:
@@ -100,14 +99,17 @@ impl GeomLabelBuilder {
         }
         self
     }
-
-    pub fn stat<S: Stat + 'static>(mut self, stat: S) -> Self {
-        self.core.stat = Some(Box::new(stat));
-        self
-    }
 }
 
 impl LayerBuilder for GeomLabelBuilder {
+    fn this(&self) -> &LayerBuilderCore {
+        &self.core
+    }
+
+    fn this_mut(&mut self) -> &mut LayerBuilderCore {
+        &mut self.core
+    }
+
     fn build(self: Box<Self>, parent_mapping: &AesMap) -> Result<Layer> {
         let mut geom_label = GeomLabel::new();
         geom_label.text = self.text;
@@ -285,19 +287,19 @@ impl GeomLabel {
 
                 // Set font family, weight, and style
                 let family = self.text.family.as_deref().unwrap_or("sans-serif");
-                
+
                 let weight = match self.text.weight {
                     Some(crate::theme::FontWeight::Bold) => cairo::FontWeight::Bold,
                     Some(crate::theme::FontWeight::Light) => cairo::FontWeight::Normal,
                     _ => cairo::FontWeight::Normal,
                 };
-                
+
                 let slant = match self.text.style {
                     Some(crate::theme::FontStyle::Italic) => cairo::FontSlant::Italic,
                     Some(crate::theme::FontStyle::Oblique) => cairo::FontSlant::Oblique,
                     _ => cairo::FontSlant::Normal,
                 };
-                
+
                 ctx.cairo.select_font_face(family, slant, weight);
 
                 ctx.cairo.move_to(text_x, text_y);
@@ -409,9 +411,10 @@ impl Geom for GeomLabel {
             PropertyVector::Shape(shapes) => {
                 shapes.into_iter().map(|s| format!("{:?}", s)).collect()
             }
-            PropertyVector::LineStyle(linestyles) => {
-                linestyles.into_iter().map(|ls| format!("{:?}", ls)).collect()
-            }
+            PropertyVector::LineStyle(linestyles) => linestyles
+                .into_iter()
+                .map(|ls| format!("{:?}", ls))
+                .collect(),
         };
 
         let color_prop = properties.remove(&AestheticProperty::Color).unwrap();
@@ -456,7 +459,11 @@ impl Geom for GeomLabel {
 mod tests {
     use super::*;
     use crate::{
-        data::{DataSource, VectorValue}, error::to_io_error, plot::plot, theme::traits::TextElement, utils::{dataframe::DataFrame, mtcars::mtcars}
+        data::{DataSource, VectorValue},
+        error::to_io_error,
+        plot::plot,
+        theme::traits::TextElement,
+        utils::{dataframe::DataFrame, mtcars::mtcars},
     };
 
     fn init_test_logging() {

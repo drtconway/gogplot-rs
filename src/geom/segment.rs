@@ -35,14 +35,14 @@ impl GeomSegmentAesBuilderTrait for AesMapBuilder {}
 
 pub struct GeomSegmentBuilder {
     core: LayerBuilderCore,
-    line: LineElement
+    line: LineElement,
 }
 
 impl GeomSegmentBuilder {
     pub fn new() -> Self {
         Self {
             core: LayerBuilderCore::default(),
-            line: LineElement::default()
+            line: LineElement::default(),
         }
     }
 
@@ -73,6 +73,14 @@ impl crate::theme::traits::LineElement for GeomSegmentBuilder {
 }
 
 impl LayerBuilder for GeomSegmentBuilder {
+    fn this(&self) -> &LayerBuilderCore {
+        &self.core
+    }
+
+    fn this_mut(&mut self) -> &mut LayerBuilderCore {
+        &mut self.core
+    }
+
     fn build(self: Box<Self>, parent_mapping: &AesMap) -> Result<Layer> {
         let mut geom_segment = GeomSegment::new();
         geom_segment.line = self.line;

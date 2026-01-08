@@ -75,6 +75,14 @@ impl crate::theme::traits::AreaElement for GeomRectBuilder {
 }
 
 impl LayerBuilder for GeomRectBuilder {
+    fn this(&self) -> &LayerBuilderCore {
+        &self.core
+    }
+
+    fn this_mut(&mut self) -> &mut LayerBuilderCore {
+        &mut self.core
+    }
+    
     fn build(self: Box<Self>, parent_mapping: &AesMap) -> Result<Layer> {
         let mut geom_rect = GeomRect::new();
         geom_rect.area = self.area;

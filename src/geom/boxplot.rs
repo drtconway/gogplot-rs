@@ -6,13 +6,13 @@ use crate::aesthetics::builder::{
     AesMapBuilder, AlphaContinuousAesBuilder, AlphaDiscreteAesBuilder, FillContinuousAesBuilder,
     FillDiscreteAesBuilder, GroupAesBuilder, XDiscreteAesBuilder, YContinuousAesBuilder,
 };
-use crate::aesthetics::{AesMap, Aesthetic, AestheticDomain, AestheticProperty};
+use crate::aesthetics::{AesMap, AestheticDomain, AestheticProperty};
 use crate::error::{PlotError, Result};
 use crate::geom::properties::{Property, PropertyValue, PropertyVector};
 use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
 use crate::stat::boxplot::Boxplot;
-use crate::theme::{Color, color};
+use crate::theme::{AreaElement, Color};
 use crate::visuals::LineStyle;
 
 pub trait GeomBoxplotAesBuilderTrait:
@@ -30,47 +30,21 @@ impl GeomBoxplotAesBuilderTrait for AesMapBuilder {}
 
 pub struct GeomBoxplotBuilder {
     core: LayerBuilderCore,
-    color: Option<Color>,
-    fill: Option<Color>,
-    alpha: Option<f64>,
+    area: AreaElement,
     width: f64,
-    linestyle: Option<LineStyle>,
 }
 
 impl GeomBoxplotBuilder {
     pub fn new() -> Self {
         Self {
             core: LayerBuilderCore::default(),
-            color: None,
-            fill: None,
-            alpha: None,
+            area: AreaElement::default(),
             width: 0.75,
-            linestyle: None,
         }
-    }
-
-    pub fn color<C: Into<Color>>(mut self, color: C) -> Self {
-        self.color = Some(color.into());
-        self
-    }
-
-    pub fn fill<F: Into<Color>>(mut self, fill: F) -> Self {
-        self.fill = Some(fill.into());
-        self
-    }
-
-    pub fn alpha<A: Into<f64>>(mut self, alpha: A) -> Self {
-        self.alpha = Some(alpha.into());
-        self
     }
 
     pub fn width(mut self, width: f64) -> Self {
         self.width = width;
-        self
-    }
-
-    pub fn linestyle<L: Into<LineStyle>>(mut self, linestyle: L) -> Self {
-        self.linestyle = Some(linestyle.into());
         self
     }
 
@@ -92,47 +66,37 @@ impl GeomBoxplotBuilder {
         }
         self
     }
+}
 
-    pub fn stat<S: 'static + crate::stat::Stat>(mut self, stat: S) -> Self {
-        self.core.stat = Some(Box::new(stat));
-        self
+impl crate::theme::traits::AreaElement for GeomBoxplotBuilder {
+    fn this(&self) -> &crate::theme::AreaElement {
+        &self.area
     }
 
-    pub fn position(mut self, position: &str) -> Self {
-        self.core.position = Some(position.into());
-        self
+    fn this_mut(&mut self) -> &mut crate::theme::AreaElement {
+        &mut self.area
     }
 }
 
 impl LayerBuilder for GeomBoxplotBuilder {
+    fn this(&self) -> &LayerBuilderCore {
+        &self.core
+    }
+
+    fn this_mut(&mut self) -> &mut LayerBuilderCore {
+        &mut self.core
+    }
+
     fn build(mut self: Box<Self>, parent_mapping: &AesMap) -> Result<Layer> {
         let mut geom_boxplot = GeomBoxplot::new();
+        geom_boxplot.area = self.area;
 
         // Build the mapping (merging layer + parent)
         let mut overrides = Vec::new();
 
-        // Set fixed property values and remove from inherited mapping
-        if self.color.is_some() {
-            geom_boxplot.color = self.color;
-            overrides.push(Aesthetic::Color(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Color(AestheticDomain::Discrete));
-        }
-        if self.fill.is_some() {
-            geom_boxplot.fill = self.fill;
-            overrides.push(Aesthetic::Fill(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Fill(AestheticDomain::Discrete));
-        }
-        if self.alpha.is_some() {
-            geom_boxplot.alpha = self.alpha;
-            overrides.push(Aesthetic::Alpha(AestheticDomain::Continuous));
-            overrides.push(Aesthetic::Alpha(AestheticDomain::Discrete));
-        }
+        geom_boxplot.area.overrides(&mut overrides);
 
         geom_boxplot.width = self.width;
-        if self.linestyle.is_some() {
-            geom_boxplot.linestyle = self.linestyle;
-            overrides.push(Aesthetic::Linetype);
-        }
 
         // Make Boxplot the default stat if none specified
         if self.core.stat.is_none() {
@@ -187,31 +151,18 @@ pub fn geom_boxplot() -> GeomBoxplotBuilder {
 /// - Alpha: Transparency (0.0 = transparent, 1.0 = opaque)
 /// - Size: Line width for box outline and whiskers
 pub struct GeomBoxplot {
-    /// Default fill color (if not mapped)
-    pub fill: Option<Color>,
-
-    /// Default stroke color (if not mapped)
-    pub color: Option<Color>,
-
-    /// Default alpha/opacity (if not mapped)
-    pub alpha: Option<f64>,
+    area: AreaElement,
 
     /// Box width (as proportion of spacing between x values)
     pub width: f64,
-
-    /// Line style for box outline and whiskers
-    pub linestyle: Option<LineStyle>,
 }
 
 impl GeomBoxplot {
     /// Create a new boxplot geom with default settings
     pub fn new() -> Self {
         Self {
-            fill: None,
-            color: None,
-            alpha: None,
+            area: AreaElement::default(),
             width: 0.75,
-            linestyle: None,
         }
     }
 }
@@ -287,73 +238,15 @@ impl Geom for GeomBoxplot {
 
     fn properties(&self) -> HashMap<AestheticProperty, Property> {
         let mut props = HashMap::new();
-        if let Some(color_prop) = &self.color {
-            props.insert(AestheticProperty::Color, Property::Color(color_prop.clone()));
-        }
-        if let Some(fill_prop) = &self.fill {
-            props.insert(AestheticProperty::Fill, Property::Color(fill_prop.clone()));
-        }
-        if let Some(alpha_prop) = &self.alpha {
-            props.insert(AestheticProperty::Alpha, Property::Float(alpha_prop.clone()));
-        }
-        if let Some(linestyle_prop) = &self.linestyle {
-            props.insert(AestheticProperty::Linetype, Property::LineStyle(linestyle_prop.clone()));
-        }
+        self.area.properties(&mut props);
         props
     }
 
     fn property_defaults(&self, theme: &crate::theme::Theme) -> HashMap<AestheticProperty, PropertyValue> {
         let mut defaults = HashMap::new();
 
-        // Start with hardcoded defaults
-        let mut default_color = color::BLACK;
-        let mut default_fill = color::GRAY;
-        let mut default_alpha = 1.0;
-        let mut default_linestyle = crate::visuals::LineStyle::Solid;
+        self.area.defaults("boxplot", "box", theme, &mut defaults);
 
-        // Apply theme overrides for box element (RectElement)
-        if let Some(crate::theme::Element::Area(elem)) = theme.get_element("boxplot", "box") {
-            if let Some(fill) = elem.fill {
-                default_fill = fill;
-            }
-            if let Some(color) = elem.color {
-                default_color = color;
-            }
-            if let Some(alpha) = elem.alpha {
-                default_alpha = alpha;
-            }
-            if let Some(ref linestyle) = elem.linestyle {
-                default_linestyle = linestyle.clone();
-            }
-        }
-
-        // Apply theme overrides for whisker element (LineElement)
-        // Whiskers use the same color/linestyle as box border, but can be overridden
-        if let Some(crate::theme::Element::Line(elem)) = theme.get_element("boxplot", "whisker") {
-            if let Some(color) = elem.color {
-                default_color = color;
-            }
-            if let Some(alpha) = elem.alpha {
-                default_alpha = alpha;
-            }
-            if let Some(ref linestyle) = elem.linestyle {
-                default_linestyle = linestyle.clone();
-            }
-        }
-
-        // Only set defaults for properties not explicitly set on the geom
-        if self.color.is_none() {
-            defaults.insert(AestheticProperty::Color, PropertyValue::Color(default_color));
-        }
-        if self.fill.is_none() {
-            defaults.insert(AestheticProperty::Fill, PropertyValue::Color(default_fill));
-        }
-        if self.alpha.is_none() {
-            defaults.insert(AestheticProperty::Alpha, PropertyValue::Float(default_alpha));
-        }
-        if self.linestyle.is_none() {
-            defaults.insert(AestheticProperty::Linetype, PropertyValue::LineStyle(default_linestyle));
-        }
         defaults
     }
 
@@ -701,7 +594,11 @@ mod tests {
     use crate::aesthetics::builder::{XDiscreteAesBuilder, YContinuousAesBuilder};
     use crate::data::{DataSource, VectorValue};
     use crate::error::to_io_error;
+    use crate::layer::LayerBuilderExt;
     use crate::plot::plot;
+    use crate::position::dodge::Dodge;
+    use crate::prelude::AreaElement;
+    use crate::theme::color;
     use crate::utils::dataframe::DataFrame;
     use crate::utils::mtcars::mtcars;
 
@@ -796,7 +693,7 @@ mod tests {
             .aes(|a| {
                 a.fill_discrete("group");
             })
-            .position("dodge");
+            .position(Dodge::default());
 
         let p = builder
             .build()

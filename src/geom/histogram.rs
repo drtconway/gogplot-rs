@@ -60,16 +60,6 @@ impl GeomHistogramBuilder {
         }
         self
     }
-
-    pub fn stat<S: 'static + crate::stat::Stat>(mut self, stat: S) -> Self {
-        self.core.stat = Some(Box::new(stat));
-        self
-    }
-
-    pub fn position(mut self, position: &str) -> Self {
-        self.core.position = Some(position.into());
-        self
-    }
 }
 
 impl crate::theme::traits::AreaElement for GeomHistogramBuilder {
@@ -83,6 +73,14 @@ impl crate::theme::traits::AreaElement for GeomHistogramBuilder {
 }
 
 impl LayerBuilder for GeomHistogramBuilder {
+    fn this(&self) -> &LayerBuilderCore {
+        &self.core
+    }
+
+    fn this_mut(&mut self) -> &mut LayerBuilderCore {
+        &mut self.core
+    }
+
     fn build(mut self: Box<Self>, parent_mapping: &AesMap) -> Result<Layer> {
         let mut geom_histogram = GeomHistogram::new();
         geom_histogram.area = self.area;
@@ -372,7 +370,10 @@ impl Geom for GeomHistogram {
 mod tests {
     use super::*;
     use crate::error::to_io_error;
+    use crate::layer::LayerBuilderExt;
     use crate::plot::plot;
+    use crate::position::dodge::Dodge;
+    use crate::position::stack::Stack;
     use crate::theme::color;
     use crate::theme::traits::AreaElement;
     use crate::utils::mtcars::mtcars;
@@ -436,7 +437,7 @@ mod tests {
             a.fill_discrete("cyl");
         }) + geom_histogram()
             .stat(Bin::with_width(2.0))
-            .position("stack")
+            .position(Stack::default())
             .alpha(0.7);
 
         let p = builder
@@ -459,7 +460,7 @@ mod tests {
             a.fill_discrete("cyl");
         }) + geom_histogram()
             .stat(Bin::with_width(4.0))
-            .position("dodge")
+            .position(Dodge::default())
             .alpha(0.7);
 
         let p = builder

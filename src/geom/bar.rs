@@ -14,7 +14,6 @@ use crate::geom::{AestheticRequirement, DomainConstraint};
 use crate::layer::{Layer, LayerBuilder, LayerBuilderCore};
 use crate::scale::ScaleIdentifier;
 use crate::scale::traits::{ContinuousDomainScale, ScaleBase};
-use crate::stat::Stat;
 use crate::theme::{AreaElement, Color};
 
 pub trait GeomBarAesBuilderTrait:
@@ -67,16 +66,6 @@ impl GeomBarBuilder {
         }
         self
     }
-
-    pub fn stat<S: Stat + 'static>(mut self, stat: S) -> Self {
-        self.core.stat = Some(Box::new(stat));
-        self
-    }
-
-    pub fn position(mut self, position: &str) -> Self {
-        self.core.position = Some(position.into());
-        self
-    }
 }
 
 impl crate::theme::traits::AreaElement for GeomBarBuilder {
@@ -90,6 +79,14 @@ impl crate::theme::traits::AreaElement for GeomBarBuilder {
 }
 
 impl LayerBuilder for GeomBarBuilder {
+    fn this(&self) -> &LayerBuilderCore {
+        &self.core
+    }
+
+    fn this_mut(&mut self) -> &mut LayerBuilderCore {
+        &mut self.core
+    }
+    
     fn build(self: Box<Self>, parent_mapping: &AesMap) -> Result<Layer> {
         let mut geom_bar = GeomBar::new();
         geom_bar.area = self.area;
@@ -395,7 +392,10 @@ mod tests {
     use super::*;
     use crate::data::{DataSource, VectorValue};
     use crate::error::to_io_error;
+    use crate::layer::LayerBuilderExt;
     use crate::plot::plot;
+    use crate::position::dodge::Dodge;
+    use crate::position::stack::Stack;
     use crate::stat::count::Count;
     use crate::theme::color;
     use crate::theme::traits::AreaElement;
@@ -560,7 +560,7 @@ mod tests {
         let builder = plot(&data).aes(|a| {
             a.x_discrete("cyl");
             a.fill_discrete("gear");
-        }) + geom_bar().stat(Count::default()).position("dodge");
+        }) + geom_bar().stat(Count::default()).position(Dodge::default());
 
         let p = builder
             .build()
@@ -580,7 +580,7 @@ mod tests {
         let builder = plot(&data).aes(|a| {
             a.x_discrete("cyl");
             a.fill_discrete("gear");
-        }) + geom_bar().stat(Count::default()).position("stack");
+        }) + geom_bar().stat(Count::default()).position(Stack::default());
 
         let p = builder
             .build()
@@ -615,7 +615,7 @@ mod tests {
             a.x_discrete("category");
             a.y_continuous("value");
             a.fill_discrete("group");
-        }) + geom_bar().position("stack");
+        }) + geom_bar().position(Stack::default());
 
         let p = builder
             .build()
