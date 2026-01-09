@@ -109,23 +109,12 @@ impl GroupDodger {
         x_iter: crate::data::VectorIter<'_>,
         group_iter: crate::data::VectorIter<'_>,
     ) -> Result<(), PlotError> {
-        use crate::data::VectorIter;
         use crate::data::DiscreteValue;
 
         // Collect x and group values into discrete form
-        let x_values: Vec<DiscreteValue> = match x_iter {
-            VectorIter::Int(it) => it.map(DiscreteValue::Int).collect(),
-            VectorIter::Str(it) => it.map(|s| DiscreteValue::Str(s.to_string())).collect(),
-            VectorIter::Bool(it) => it.map(DiscreteValue::Bool).collect(),
-            VectorIter::Float(it) => it.map(|f| DiscreteValue::Int(f as i64)).collect(),
-        };
+        let x_values: Vec<DiscreteValue> = x_iter.to_discrete_iter().collect();
 
-        let group_values: Vec<DiscreteValue> = match group_iter {
-            VectorIter::Int(it) => it.map(DiscreteValue::Int).collect(),
-            VectorIter::Str(it) => it.map(|s| DiscreteValue::Str(s.to_string())).collect(),
-            VectorIter::Bool(it) => it.map(DiscreteValue::Bool).collect(),
-            VectorIter::Float(it) => it.map(|f| DiscreteValue::Int(f as i64)).collect(),
-        };
+        let group_values: Vec<DiscreteValue> = group_iter.to_discrete_iter().collect();
 
         // For each unique x value, find unique groups and assign indices
         let mut groups_per_x: HashMap<DiscreteValue, Vec<DiscreteValue>> = HashMap::new();

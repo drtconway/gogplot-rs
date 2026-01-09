@@ -1,9 +1,9 @@
-use crate::data::{DiscreteType, DiscreteValue};
+use crate::data::{DiscreteType, DiscreteValue, IStr};
 
 #[derive(Debug, Clone)]
 pub struct DiscreteSet {
     ints: Vec<i64>,
-    strings: Vec<String>,
+    strings: Vec<IStr>,
     bools: Vec<bool>,
 }
 

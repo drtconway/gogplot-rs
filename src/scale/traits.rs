@@ -44,7 +44,7 @@ pub trait ScaleBase: Default + Clone + Send + Sync {
                 self.train(xs.iter());
             }
             PrimitiveValue::Str(x) => {
-                let xs = StrVec::from(vec![x.clone()]);
+                let xs = StrVec::from(vec![x.to_string()]);
                 self.train(xs.iter());
             }
             PrimitiveValue::Bool(x) => {
@@ -459,7 +459,7 @@ pub trait LineStyleRangeScale: ScaleBase {
                     },
                 )?;
                 Ok(AesValue::Constant {
-                    value: PrimitiveValue::Str(format!("{:?}", linestyle)),
+                    value: PrimitiveValue::from(format!("{:?}", linestyle)),
                 })
             }
             AesValue::Vector {

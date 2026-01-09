@@ -24,11 +24,7 @@ fn create_discrete_entries<T>(
 
     for i in 0..categories.len() {
         if let Some(value) = categories.get_at(i) {
-            let label = match &value {
-                crate::data::DiscreteValue::Int(x) => x.to_string(),
-                crate::data::DiscreteValue::Str(x) => x.clone(),
-                crate::data::DiscreteValue::Bool(x) => x.to_string(),
-            };
+            let label = value.to_string();
 
             if let Some(mapped) = map_value(&value) {
                 let mut entry = LegendEntry::new(label);
@@ -391,11 +387,7 @@ fn create_merged_legend(
 
     for i in 0..categories.len() {
         if let Some(value) = categories.get_at(i) {
-            let label = match &value {
-                crate::data::DiscreteValue::Int(x) => x.to_string(),
-                crate::data::DiscreteValue::Str(x) => x.clone(),
-                crate::data::DiscreteValue::Bool(x) => x.to_string(),
-            };
+            let label = value.to_string();
 
             let mut entry = LegendEntry::new(label);
 

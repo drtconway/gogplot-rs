@@ -28,6 +28,6 @@ pub use crate::theme::{color, traits::*};
 pub use crate::visuals::{LineStyle, Shape};
 
 // Data utilities
-pub use crate::data::{DataSource, VectorValue};
+pub use crate::data::{DataSource, IStr, VectorValue};
 pub use crate::utils::dataframe::{BoolVec, DataFrame, FloatVec, IntVec, StrVec};
 

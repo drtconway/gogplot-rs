@@ -478,7 +478,7 @@ impl AesValue {
         match self.as_vector_iter(data)? {
             VectorIter::Int(iter) => Some(Box::new(iter.map(DiscreteValue::Int))),
             VectorIter::Str(iter) => {
-                Some(Box::new(iter.map(|s| DiscreteValue::Str(s.to_string()))))
+                Some(Box::new(iter.map(|s| DiscreteValue::from(s))))
             }
             VectorIter::Bool(iter) => Some(Box::new(iter.map(DiscreteValue::Bool))),
             _ => None,

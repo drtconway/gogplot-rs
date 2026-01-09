@@ -1,5 +1,10 @@
+use internment::Intern;
 use ordered_float::OrderedFloat;
 use std::hash::Hash;
+
+/// Interned string type for efficient cloning and comparison of categorical values.
+/// Uses pointer comparison for equality and hashing.
+pub type IStr = Intern<String>;
 
 pub trait PrimitiveType: PartialEq + PartialOrd + Clone + Sized + Send + Sync + 'static {
     type Sortable: Eq + Ord + Hash + Clone;
@@ -47,7 +52,7 @@ impl PrimitiveType for String {
     type Sortable = String;
 
     fn to_primitive(&self) -> PrimitiveValue {
-        PrimitiveValue::Str(self.clone())
+        PrimitiveValue::Str(IStr::new(self.clone()))
     }
 
     fn to_sortable(&self) -> Self::Sortable {
@@ -80,6 +85,24 @@ pub trait DiscreteType: PrimitiveType + Eq + Ord + Hash {}
 impl DiscreteType for i64 {}
 impl DiscreteType for String {}
 impl DiscreteType for bool {}
+impl DiscreteType for IStr {}
+
+// Implement PrimitiveType for IStr
+impl PrimitiveType for IStr {
+    type Sortable = IStr;
+
+    fn to_primitive(&self) -> PrimitiveValue {
+        PrimitiveValue::Str(self.clone())
+    }
+
+    fn to_sortable(&self) -> Self::Sortable {
+        self.clone()
+    }
+
+    fn from_sortable(sortable: Self::Sortable) -> Self {
+        sortable
+    }
+}
 
 pub trait ContinuousType: PrimitiveType {
     fn to_f64(&self) -> f64;
@@ -102,7 +125,7 @@ impl ContinuousType for i64 {
 pub enum PrimitiveValue {
     Int(i64),
     Float(f64),
-    Str(String),
+    Str(IStr),
     Bool(bool),
 }
 
@@ -130,29 +153,50 @@ impl From<f64> for PrimitiveValue {
 
 impl From<String> for PrimitiveValue {
     fn from(s: String) -> Self {
-        PrimitiveValue::Str(s)
+        PrimitiveValue::Str(IStr::new(s))
     }
 }
 
 impl From<&str> for PrimitiveValue {
     fn from(s: &str) -> Self {
-        PrimitiveValue::Str(s.to_string())
+        PrimitiveValue::Str(IStr::new(s.to_string()))
+    }
+}
+
+impl From<IStr> for PrimitiveValue {
+    fn from(s: IStr) -> Self {
+        PrimitiveValue::Str(s)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum DiscreteValue {
-    Str(String),
+    Str(IStr),
     Int(i64),
     Bool(bool),
 }
 
 impl DiscreteValue {
+    pub fn as_str(&self) -> &str {
+        match self {
+            DiscreteValue::Str(s) => s.as_ref(),
+            _ => panic!("DiscreteValue is not a string"),
+        }
+    }
+
     pub fn to_string(&self) -> String {
         match self {
             DiscreteValue::Int(i) => i.to_string(),
-            DiscreteValue::Str(s) => s.clone(),
+            DiscreteValue::Str(s) => s.to_string(),
             DiscreteValue::Bool(b) => b.to_string(),
+        }
+    }
+
+    pub fn to_istr(&self) -> IStr {
+        match self {
+            DiscreteValue::Int(i) => IStr::new(i.to_string()),
+            DiscreteValue::Str(s) => s.clone(),
+            DiscreteValue::Bool(b) => IStr::new(b.to_string()),
         }
     }
 }
@@ -165,6 +209,24 @@ impl From<PrimitiveValue> for DiscreteValue {
             PrimitiveValue::Bool(b) => DiscreteValue::Bool(b),
             _ => panic!("Unsupported primitive type for DiscreteValue"),
         }
+    }
+}
+
+impl From<&str> for DiscreteValue {
+    fn from(s: &str) -> Self {
+        DiscreteValue::Str(IStr::new(s.to_string()))
+    }
+}
+
+impl From<String> for DiscreteValue {
+    fn from(s: String) -> Self {
+        DiscreteValue::Str(IStr::new(s))
+    }
+}
+
+impl From<IStr> for DiscreteValue {
+    fn from(s: IStr) -> Self {
+        DiscreteValue::Str(s)
     }
 }
 
@@ -336,6 +398,24 @@ impl<'a> VectorIter<'a> {
         }
     }
 
+    /// Convert string iterator to interned strings (cheap clone)
+    pub fn to_istr_iter(self) -> Option<Box<dyn Iterator<Item = IStr> + 'a>> {
+        match self {
+            VectorIter::Str(iter) => Some(Box::new(iter.map(|s| IStr::new(s.to_string())))),
+            _ => None,
+        }
+    }
+
+    /// Convert to DiscreteValue iterator (uses IStr for strings)
+    pub fn to_discrete_iter(self) -> Box<dyn Iterator<Item = DiscreteValue> + 'a> {
+        match self {
+            VectorIter::Int(iter) => Box::new(iter.map(DiscreteValue::Int)),
+            VectorIter::Str(iter) => Box::new(iter.map(|s| DiscreteValue::Str(IStr::new(s.to_string())))),
+            VectorIter::Bool(iter) => Box::new(iter.map(DiscreteValue::Bool)),
+            VectorIter::Float(iter) => Box::new(iter.map(|f| DiscreteValue::Int(f as i64))),
+        }
+    }
+
     pub fn vtype(&self) -> VectorType {
         match self {
             VectorIter::Int(_) => VectorType::Int,
@@ -353,7 +433,7 @@ impl<'a> Iterator for VectorIter<'a> {
         match self {
             VectorIter::Int(iter) => iter.next().map(PrimitiveValue::Int),
             VectorIter::Float(iter) => iter.next().map(PrimitiveValue::Float),
-            VectorIter::Str(iter) => iter.next().map(|s| PrimitiveValue::Str(s.to_string())),
+            VectorIter::Str(iter) => iter.next().map(|s| PrimitiveValue::Str(IStr::new(s.to_string()))),
             VectorIter::Bool(iter) => iter.next().map(PrimitiveValue::Bool),
         }
     }
