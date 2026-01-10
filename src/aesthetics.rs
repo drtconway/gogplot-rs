@@ -1,6 +1,4 @@
 use crate::data::{DataSource, DiscreteValue, GenericVector, PrimitiveValue, VectorIter, VectorValue};
-use crate::theme::Color;
-use crate::visuals::Shape;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -413,6 +411,65 @@ impl AesValue {
         }
     }
 
+    /// Check if this value is resolved (Vector) or still a Column reference
+    pub fn is_resolved(&self) -> bool {
+        matches!(self, AesValue::Vector { .. } | AesValue::Constant { .. })
+    }
+
+    /// Get the vector iterator for a resolved value.
+    /// For Constant values, you must provide the length to expand to.
+    /// Returns None if this is still a Column reference.
+    pub fn iter_resolved(&self, len: usize) -> Option<VectorIter<'_>> {
+        match self {
+            AesValue::Column { .. } => None, // Not resolved yet
+            AesValue::Constant { value, .. } => {
+                match value {
+                    PrimitiveValue::Int(i) => {
+                        Some(VectorIter::Int(Box::new(std::iter::repeat(*i).take(len))))
+                    }
+                    PrimitiveValue::Float(f) => {
+                        Some(VectorIter::Float(Box::new(std::iter::repeat(*f).take(len))))
+                    }
+                    PrimitiveValue::Str(s) => Some(VectorIter::Str(Box::new(
+                        std::iter::repeat(s.as_str()).take(len),
+                    ))),
+                    PrimitiveValue::Bool(b) => {
+                        Some(VectorIter::Bool(Box::new(std::iter::repeat(*b).take(len))))
+                    }
+                }
+            }
+            AesValue::Vector { values, .. } => Some(values.iter()),
+        }
+    }
+
+    /// Get the float iterator for a resolved value.
+    pub fn iter_float_resolved(&self, len: usize) -> Option<Box<dyn Iterator<Item = f64> + '_>> {
+        match self.iter_resolved(len)? {
+            VectorIter::Float(iter) => Some(iter),
+            VectorIter::Int(iter) => Some(Box::new(iter.map(|v| v as f64))),
+            _ => None,
+        }
+    }
+
+    /// Get the int iterator for a resolved value.
+    pub fn iter_int_resolved(&self, len: usize) -> Option<Box<dyn Iterator<Item = i64> + '_>> {
+        match self.iter_resolved(len)? {
+            VectorIter::Int(iter) => Some(iter),
+            _ => None,
+        }
+    }
+
+    /// Get the discrete iterator for a resolved value.
+    pub fn iter_discrete_resolved(&self, len: usize) -> Option<Box<dyn Iterator<Item = DiscreteValue> + '_>> {
+        match self.iter_resolved(len)? {
+            VectorIter::Int(iter) => Some(Box::new(iter.map(DiscreteValue::Int))),
+            VectorIter::Str(iter) => Some(Box::new(iter.map(|s| DiscreteValue::from(s)))),
+            VectorIter::Bool(iter) => Some(Box::new(iter.map(DiscreteValue::Bool))),
+            _ => None,
+        }
+    }
+
+    // Legacy methods that require DataSource - kept for backward compatibility during migration
     fn as_vector_iter<'a>(&'a self, data: &'a dyn DataSource) -> Option<VectorIter<'a>> {
         match self {
             AesValue::Column { name, .. } => {
@@ -440,37 +497,6 @@ impl AesValue {
         }
     }
 
-    fn as_int_vector_iter<'a>(
-        &'a self,
-        data: &'a dyn DataSource,
-    ) -> Option<Box<dyn Iterator<Item = i64> + 'a>> {
-        match self.as_vector_iter(data)? {
-            VectorIter::Int(iter) => Some(iter),
-            _ => None,
-        }
-    }
-
-    fn as_float_vector_iter<'a>(
-        &'a self,
-        data: &'a dyn DataSource,
-    ) -> Option<Box<dyn Iterator<Item = f64> + 'a>> {
-        match self.as_vector_iter(data)? {
-            VectorIter::Float(iter) => Some(iter),
-            VectorIter::Int(iter) => Some(Box::new(iter.map(|v| v as f64))),
-            _ => None,
-        }
-    }
-
-    fn as_str_vector_iter<'a>(
-        &'a self,
-        data: &'a dyn DataSource,
-    ) -> Option<Box<dyn Iterator<Item = String> + 'a>> {
-        match self.as_vector_iter(data)? {
-            VectorIter::Str(iter) => Some(Box::new(iter.map(|s| s.to_string()))),
-            _ => None,
-        }
-    }
-
     fn as_discrete_vector_iter<'a>(
         &'a self,
         data: &'a dyn DataSource,
@@ -482,24 +508,6 @@ impl AesValue {
             }
             VectorIter::Bool(iter) => Some(Box::new(iter.map(DiscreteValue::Bool))),
             _ => None,
-        }
-    }
-
-    fn as_color_vector_iter<'a>(
-        &'a self,
-        data: &'a dyn DataSource,
-    ) -> Option<Box<dyn Iterator<Item = Color> + 'a>> {
-        match self.as_int_vector_iter(data)? {
-            iter => Some(Box::new(iter.map(|i| Color::from(i)))),
-        }
-    }
-
-    fn as_shape_vector_iter<'a>(
-        &'a self,
-        data: &'a dyn DataSource,
-    ) -> Option<Box<dyn Iterator<Item = Shape> + 'a>> {
-        match self.as_int_vector_iter(data)? {
-            iter => Some(Box::new(iter.map(|i| Shape::from(i)))),
         }
     }
 }
@@ -603,30 +611,6 @@ impl AesMap {
         self.get(aes)?.as_vector_iter(data)
     }
 
-    pub fn get_iter_float<'a>(
-        &'a self,
-        aes: &Aesthetic,
-        data: &'a dyn DataSource,
-    ) -> Option<Box<dyn Iterator<Item = f64> + 'a>> {
-        self.get(aes)?.as_float_vector_iter(data)
-    }
-
-    pub fn get_iter_int<'a>(
-        &'a self,
-        aes: &Aesthetic,
-        data: &'a dyn DataSource,
-    ) -> Option<Box<dyn Iterator<Item = i64> + 'a>> {
-        self.get(aes)?.as_int_vector_iter(data)
-    }
-
-    pub fn get_iter_string<'a>(
-        &'a self,
-        aes: &Aesthetic,
-        data: &'a dyn DataSource,
-    ) -> Option<Box<dyn Iterator<Item = String> + 'a>> {
-        self.get(aes)?.as_str_vector_iter(data)
-    }
-
     pub fn get_iter_discrete<'a>(
         &'a self,
         aes: &Aesthetic,
@@ -635,20 +619,69 @@ impl AesMap {
         self.get(aes)?.as_discrete_vector_iter(data)
     }
 
-    pub fn get_iter_color<'a>(
-        &'a self,
-        aes: &Aesthetic,
-        data: &'a dyn DataSource,
-    ) -> Option<Box<dyn Iterator<Item = Color> + 'a>> {
-        self.get(aes)?.as_color_vector_iter(data)
+    // ============ Resolved accessors (no DataSource needed) ============
+    
+    /// Get the vector iterator for a resolved aesthetic.
+    /// Uses the mapping's length to expand Constant values.
+    pub fn get_resolved_iter(&self, aes: &Aesthetic) -> Option<VectorIter<'_>> {
+        let len = self.len()?;
+        self.get(aes)?.iter_resolved(len)
     }
 
-    pub fn get_iter_shape<'a>(
-        &'a self,
-        aes: &Aesthetic,
-        data: &'a dyn DataSource,
-    ) -> Option<Box<dyn Iterator<Item = Shape> + 'a>> {
-        self.get(aes)?.as_shape_vector_iter(data)
+    /// Get the float iterator for a resolved aesthetic.
+    pub fn get_resolved_float(&self, aes: &Aesthetic) -> Option<Box<dyn Iterator<Item = f64> + '_>> {
+        let len = self.len()?;
+        self.get(aes)?.iter_float_resolved(len)
+    }
+
+    /// Get the int iterator for a resolved aesthetic.
+    pub fn get_resolved_int(&self, aes: &Aesthetic) -> Option<Box<dyn Iterator<Item = i64> + '_>> {
+        let len = self.len()?;
+        self.get(aes)?.iter_int_resolved(len)
+    }
+
+    /// Get the discrete iterator for a resolved aesthetic.
+    pub fn get_resolved_discrete(&self, aes: &Aesthetic) -> Option<Box<dyn Iterator<Item = DiscreteValue> + '_>> {
+        let len = self.len()?;
+        self.get(aes)?.iter_discrete_resolved(len)
+    }
+
+    /// Resolve all Column references to Vector values using the provided data source.
+    /// This materializes all column references so that downstream code no longer needs
+    /// access to the DataSource.
+    /// 
+    /// # Arguments
+    /// * `data` - The data source to resolve column references against
+    /// 
+    /// # Returns
+    /// * `Ok(())` if all columns were resolved successfully
+    /// * `Err(PlotError::MissingColumn)` if a referenced column doesn't exist
+    pub fn resolve(&mut self, data: &dyn DataSource) -> crate::error::Result<()> {
+        use crate::error::PlotError;
+        
+        let keys: Vec<Aesthetic> = self.map.keys().cloned().collect();
+        for aes in keys {
+            let value = self.map.get(&aes).unwrap();
+            if let AesValue::Column { name } = value {
+                let column = data.get(name).ok_or_else(|| PlotError::MissingColumn {
+                    column: name.clone(),
+                })?;
+                let vector_value = column.iter().to_vector();
+                self.map.insert(aes, AesValue::vector(vector_value, Some(name.clone())));
+            }
+        }
+        Ok(())
+    }
+
+    /// Get the number of rows based on the first Vector value in the mapping.
+    /// Returns None if no Vector values exist.
+    pub fn len(&self) -> Option<usize> {
+        for value in self.map.values() {
+            if let AesValue::Vector { values, .. } = value {
+                return Some(values.len());
+            }
+        }
+        None
     }
 }
 

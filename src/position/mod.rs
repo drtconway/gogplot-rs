@@ -4,7 +4,6 @@ pub mod dodge;
 pub mod stack;
 
 use crate::aesthetics::AesMap;
-use crate::data::DataSource;
 use crate::error::PlotError;
 
 /// Trait for position adjustments
@@ -12,20 +11,20 @@ use crate::error::PlotError;
 /// Position adjustments can transform data, aesthetic mappings, and scales.
 /// This allows adjustments like dodge to modify how data is positioned without
 /// requiring intermediate data-space coordinates.
+///
+/// Note: Position adjustments run after resolution, so all Column references
+/// in the mapping have been converted to Vector values. No DataSource is needed.
 pub trait Position {
     /// Apply position adjustment to data
     ///
     /// # Arguments
-    /// * `data` - The data to adjust
-    /// * `mapping` - The aesthetic mappings
-    /// * `scales` - The current scales (for reference/transformation)
+    /// * `mapping` - The aesthetic mappings (already resolved)
     ///
     /// # Returns
     /// * `None` - No adjustment needed
     /// * `Some(mapping)` - Adjusted mapping
     fn apply(
         &self,
-        data: &Box<dyn DataSource>,
         mapping: &AesMap,
     ) -> Result<Option<AesMap>, PlotError>;
 }

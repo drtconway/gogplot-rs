@@ -202,8 +202,8 @@ impl Layer {
                 let vector = self.materialize_constant_aesthetic(prop_value, n);
                 all_vectors.insert(property, vector);
             } else if let Some(aesthetic) = index.get(&property) {
-                // Priority 2: Use mapping
-                if let Some(vec_iter) = mapping.get_vector_iter(aesthetic, data) {
+                // Priority 2: Use mapping (resolved - no need for DataSource)
+                if let Some(vec_iter) = mapping.get_resolved_iter(aesthetic) {
                     let vector: PropertyVector = PropertyVector::from(vec_iter);
                     all_vectors.insert(property, vector);
                 }
@@ -218,7 +218,7 @@ impl Layer {
         // (e.g., XOffset, Width from position adjustments)
         for (property, aesthetic) in index.iter() {
             if !all_vectors.contains_key(property) {
-                if let Some(vec_iter) = mapping.get_vector_iter(aesthetic, data) {
+                if let Some(vec_iter) = mapping.get_resolved_iter(aesthetic) {
                     let vector: PropertyVector = PropertyVector::from(vec_iter);
                     all_vectors.insert(*property, vector);
                 }
@@ -397,15 +397,25 @@ impl Layer {
         );
 
         if let Some(position) = &self.position {
-            // Use layer's data if it has been set by stat, otherwise use plot data
-            let effective_data = self.data.as_ref().unwrap_or(data);
-
-            if let Some(new_mapping) = position.apply(effective_data, &mapping_with_group)? {
+            if let Some(new_mapping) = position.apply(&mapping_with_group)? {
                 // Position returns new mapping with adjusted aesthetics
                 // Data remains the same (position uses AesValue::Vector for new aesthetics)
                 self.mapping = new_mapping;
             }
         }
+        Ok(())
+    }
+
+    /// Resolve all column references in the mapping to materialized vectors.
+    /// This should be called after stats (which may produce new data) but before
+    /// positions and scales (which work with resolved data).
+    pub fn resolve_mapping(&mut self, parent_data: &dyn DataSource) -> Result<()> {
+        // Use layer data if available (stat may have set it), otherwise use parent data
+        let data: &dyn DataSource = match &self.data {
+            Some(d) => d.as_ref(),
+            None => parent_data,
+        };
+        self.mapping.resolve(data)?;
         Ok(())
     }
 
@@ -487,21 +497,19 @@ impl Layer {
     }
 
     pub fn aesthetic_value_iter<'a>(&'a self, aes: &'a Aesthetic) -> Option<VectorIter<'a>> {
-        if let Some(data) = &self.data {
-            return self.mapping.get_vector_iter(aes, data.as_ref());
-        }
-        None
+        // Use resolved accessor - assumes mapping has been resolved
+        self.mapping.get_resolved_iter(aes)
     }
 
     /// Get the permutation vector for the grouping aesthetic, if any.
     /// Returns the permutation grouped by group value.
     fn get_grouping_vector(
         &self,
-        data: &dyn DataSource,
+        _data: &dyn DataSource,
         mapping: &AesMap,
     ) -> Option<Vec<Vec<usize>>> {
         if mapping.contains(Aesthetic::Group) {
-            let group_iter = mapping.get_iter_int(&Aesthetic::Group, data).unwrap();
+            let group_iter = mapping.get_resolved_int(&Aesthetic::Group).unwrap();
             let group_values: Vec<i64> = group_iter.collect();
 
             let mut grouping_vector = Vec::new();

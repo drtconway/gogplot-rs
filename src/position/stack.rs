@@ -2,7 +2,6 @@
 
 use super::Position;
 use crate::aesthetics::{AesMap, AesValue, Aesthetic};
-use crate::data::DataSource;
 use crate::error::PlotError;
 use std::collections::HashMap;
 
@@ -15,7 +14,6 @@ pub struct Stack;
 impl Position for Stack {
     fn apply(
         &self,
-        data: &Box<dyn DataSource>,
         mapping: &AesMap,
     ) -> Result<Option<AesMap>, PlotError>
     {
@@ -37,8 +35,8 @@ impl Position for Stack {
             });
         };
 
-        let x_iter = mapping.get_vector_iter(&x_aes, data.as_ref()).unwrap();
-        let group_iter = mapping.get_vector_iter(&Aesthetic::Group, data.as_ref()).unwrap();
+        let x_iter = mapping.get_resolved_iter(&x_aes).unwrap();
+        let group_iter = mapping.get_resolved_iter(&Aesthetic::Group).unwrap();
         
         // Collect X and Group values
         let x_values: Vec<String> = match x_iter {
@@ -56,7 +54,7 @@ impl Position for Stack {
         };
 
         // Get Y values
-        let y_values: Vec<f64> = if let Some(y_iter) = mapping.get_iter_float(&Aesthetic::Y(crate::aesthetics::AestheticDomain::Continuous), data.as_ref()) {
+        let y_values: Vec<f64> = if let Some(y_iter) = mapping.get_resolved_float(&Aesthetic::Y(crate::aesthetics::AestheticDomain::Continuous)) {
             y_iter.collect()
         } else {
             return Err(PlotError::MissingAesthetic {

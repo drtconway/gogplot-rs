@@ -88,12 +88,12 @@ impl ScaleSet {
         &mut self,
         aesthetic: &Aesthetic,
         mapping: &AesMap,
-        data: &dyn DataSource,
+        _data: &dyn DataSource,
     ) -> Result<(), PlotError> {
         use crate::aesthetics::AestheticDomain::*;
 
         let iter = mapping
-            .get_vector_iter(aesthetic, data)
+            .get_resolved_iter(aesthetic)
             .ok_or(PlotError::MissingAesthetic {
                 aesthetic: *aesthetic,
             })?;

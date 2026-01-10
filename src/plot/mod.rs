@@ -84,6 +84,13 @@ impl<'a> PlotBuilder<'a> {
             layer.apply_stat(&self.data)?;
         }
 
+        // Step 1b: Resolve column references to materialized vectors
+        // After stats complete, each layer's mapping may still contain Column references.
+        // We resolve them now so downstream code (positions, scales) works with concrete Vectors.
+        for layer in &mut layers {
+            layer.resolve_mapping(self.data.as_ref())?;
+        }
+
         // Step 2: Apply position adjustments across layers
         for layer in &mut layers {
             layer.apply_position(&self.data)?;

@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use super::Position;
 use crate::aesthetics::{AesMap, AesValue, Aesthetic, AestheticDomain};
-use crate::data::DataSource;
 use crate::error::PlotError;
 
 /// Dodge position adjustment
@@ -28,7 +27,6 @@ impl Default for Dodge {
 impl Position for Dodge {
     fn apply(
         &self,
-        data: &Box<dyn DataSource>,
         mapping: &AesMap,
     ) -> Result<Option<AesMap>, PlotError> {
         if !mapping.contains(Aesthetic::Group) {
@@ -49,11 +47,11 @@ impl Position for Dodge {
 
         // Get the discrete X values - we'll create continuous offsets from these
         let x_discrete_iter = mapping
-            .get_vector_iter(&x_discrete_aes, data.as_ref())
+            .get_resolved_iter(&x_discrete_aes)
             .unwrap();
 
         let group_values = mapping
-            .get_vector_iter(&Aesthetic::Group, data.as_ref())
+            .get_resolved_iter(&Aesthetic::Group)
             .unwrap();
 
         let mut dodger = GroupDodger::new(self.width, self.padding);
